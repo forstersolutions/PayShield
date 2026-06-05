@@ -107,6 +107,7 @@ before counsel sign-off:
 
 ```bash
 npm run market:evidence:init -- --dir launch-evidence --site-url https://payshield-lime.vercel.app --receiver-url https://your-webhook-url --data-dir /path/to/waitlist --backup-dir /secure/path
+npm run campaign:lint:all
 npm run campaign:lint -- docs/legal-review-packet.md docs/campaign-copy.md
 npm run smoke:deploy -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app
 npm run readiness:paid-traffic -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --allow-prototype

@@ -404,6 +404,9 @@ Submit one pilot request from the site and confirm:
 - Confirm social previews use `payshield-social-card.jpg`.
 - Run `npm run campaign:lint -- path/to/campaign-copy.md` against paid ads,
   emails, social posts, partner one-pagers, and alternate landing-page copy.
+- Add every paid campaign draft to `docs/campaigns/manifest.json`, then run
+  `npm run campaign:lint:all` and attach the manifest output before counsel
+  review.
 - Confirm no public copy says PayShield is a bank, claims FDIC insurance, or
   implies live money movement.
 - Have counsel review the prototype Privacy Notice, Terms, fintech claims, and

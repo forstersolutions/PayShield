@@ -54,6 +54,7 @@ body:
         - label: Public copy does not claim FDIC insurance or sponsor-bank coverage.
         - label: No live money movement, account opening, ACH, card issuing, or bill-pay promises are used in campaign copy.
         - label: "`npm run campaign:lint -- path/to/campaign-copy.md` passes for every campaign draft."
+        - label: "`npm run campaign:lint:all` passes against `docs/campaigns/manifest.json` and the redacted output is attached."
         - label: "`npm run legal:lint` passes and `docs/legal-review-packet.md` is attached for counsel review."
         - label: Counsel has reviewed the launch surface before regulated financial-service claims or live funds.
   - type: checkboxes

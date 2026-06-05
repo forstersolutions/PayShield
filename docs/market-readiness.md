@@ -53,6 +53,9 @@ deployments, partner demos, and pilot demand capture.
 - Campaign copy linter and guardrails for checking paid ads, email campaigns,
   social posts, partner one-pagers, and alternate landing-page copy before
   counsel review.
+- Manifest-backed campaign lint command that checks every listed paid social,
+  paid search, email, partner, and alternate landing-page draft for prototype
+  framing and prohibited regulated-finance claims.
 - Post-deploy smoke checker for Vercel preview and production URLs, including
   homepage metadata, legal pages, SEO routes, assets, browser security headers,
   public security disclosure, absence of default scaffold assets, production
@@ -205,6 +208,9 @@ deployments, partner demos, and pilot demand capture.
 - Run `npm run campaign:lint -- path/to/campaign-copy.md` for every paid ad,
   email, social, partner, or alternate landing-page copy draft and attach the
   output to the readiness issue before counsel review.
+- Run `npm run campaign:lint:all` against `docs/campaigns/manifest.json` and
+  attach the redacted manifest output so every listed campaign draft is covered
+  before counsel review.
 - Run `npm run legal:lint` and attach the output with
   `docs/legal-review-packet.md` before counsel review.
 - Open a Paid Traffic Readiness issue and attach evidence for the webhook test,

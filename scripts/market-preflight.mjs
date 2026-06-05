@@ -91,7 +91,13 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "Dockerfile.receiver",
   ".env.receiver.example",
   "scripts/analytics-audit.mjs",
+  "scripts/check-campaign-manifest.mjs",
   "scripts/check-campaign-copy.mjs",
+  "docs/campaigns/manifest.json",
+  "docs/campaigns/paid-social-household-pilot.md",
+  "docs/campaigns/paid-search-safe-spending.md",
+  "docs/campaigns/employer-pilot-email.md",
+  "docs/campaigns/partner-one-pager.md",
   "scripts/launch-evidence.mjs",
   "scripts/lead-capture-dry-run.mjs",
   "scripts/market-evidence-init.mjs",
@@ -201,7 +207,11 @@ requireText("scripts/analytics-audit.mjs", "sends unapproved analytics property"
 requireText("scripts/check-campaign-copy.mjs", "lintCampaignCopy");
 requireText("scripts/check-campaign-copy.mjs", "fdic-insurance");
 requireText("scripts/check-campaign-copy.mjs", "direct-deposit");
+requireText("scripts/check-campaign-manifest.mjs", "lintCampaignManifest");
+requireText("scripts/check-campaign-manifest.mjs", "docs/campaigns/manifest.json");
+requireText("scripts/check-campaign-manifest.mjs", "draft-prototype-framing");
 requireText("package.json", "\"campaign:lint\"");
+requireText("package.json", "\"campaign:lint:all\"");
 requireText("package.json", "\"legal:lint\"");
 requireText("package.json", "\"analytics:audit\"");
 requireText("package.json", "\"launch:evidence\"");
@@ -210,13 +220,26 @@ requireText("package.json", "\"market:evidence:init\"");
 requireText("package.json", "\"market:go-no-go\"");
 requireText("package.json", "\"receiver:docker:smoke\"");
 requireText("package.json", "\"receiver:compose:config\"");
+requireText("package.json", "npm run campaign:lint:all");
 requireText("package.json", "npm run legal:lint");
 requireText("docs/campaign-copy.md", "npm run campaign:lint");
+requireText("docs/campaign-copy.md", "npm run campaign:lint:all");
+requireText("docs/campaign-copy.md", "docs/campaigns/manifest.json");
 requireText("docs/campaign-copy.md", "npm run legal:lint");
 requireText("docs/campaign-copy.md", "PayShield is not a bank.");
+requireText("docs/campaigns/manifest.json", "paid-social-household-pilot.md");
+requireText("docs/campaigns/manifest.json", "paid-search-safe-spending.md");
+requireText("docs/campaigns/manifest.json", "employer-pilot-email.md");
+requireText("docs/campaigns/manifest.json", "partner-one-pager.md");
+requireText("docs/campaigns/paid-social-household-pilot.md", "PayShield is not a bank.");
+requireText("docs/campaigns/paid-social-household-pilot.md", "prototype");
+requireText("docs/campaigns/paid-search-safe-spending.md", "PayShield is not a bank.");
+requireText("docs/campaigns/employer-pilot-email.md", "PayShield is not a bank.");
+requireText("docs/campaigns/partner-one-pager.md", "PayShield is not a bank.");
 requireText("docs/legal-review-packet.md", "Counsel Questions");
 requireText("docs/legal-review-packet.md", "Sign-Off Record");
 requireText("docs/legal-review-packet.md", "npm run market:evidence:init");
+requireText("docs/legal-review-packet.md", "npm run campaign:lint:all");
 requireText("docs/legal-review-packet.md", "npm run market:go-no-go");
 requireText("docs/legal-review-packet.md", "launch-evidence/counsel-signoff.json");
 requireText(
@@ -446,6 +469,8 @@ requireText("docs/vercel-launch.md", "npm run receiver:evidence");
 requireText("docs/vercel-launch.md", "npm run market:evidence:init");
 requireText("docs/vercel-launch.md", "npm run vercel:webhook:cutover");
 requireText("docs/vercel-launch.md", "npm run market:go-no-go");
+requireText("docs/vercel-launch.md", "npm run campaign:lint:all");
+requireText("docs/vercel-launch.md", "docs/campaigns/manifest.json");
 requireText("docs/vercel-launch.md", "npm run waitlist:data -- audit --data-dir /path/to/waitlist");
 requireText("docs/vercel-launch.md", "npm run waitlist:data -- backup --data-dir /path/to/waitlist --backup-dir /secure/path");
 requireText("docs/vercel-launch.md", "npm run waitlist:data -- verify-backup --backup-path /secure/path/waitlist-backup-...");
@@ -456,6 +481,8 @@ requireText("docs/market-readiness.md", "webhook:test -- https://your-webhook-ur
 requireText("docs/market-readiness.md", "npm run legal:lint");
 requireText("docs/market-readiness.md", "npm run vercel:env:audit");
 requireText("docs/market-readiness.md", "npm run analytics:audit");
+requireText("docs/market-readiness.md", "npm run campaign:lint:all");
+requireText("docs/market-readiness.md", "docs/campaigns/manifest.json");
 requireText("docs/market-readiness.md", "docker compose --env-file .env.receiver -f compose.receiver.yml up -d --build");
 requireText("docs/market-readiness.md", "npm run receiver:compose:config");
 requireText("docs/market-readiness.md", "npm run receiver:evidence");
@@ -467,6 +494,7 @@ requireText("docs/market-readiness.md", "npm run waitlist:data -- backup --data-
 requireText("docs/market-readiness.md", "npm run waitlist:data -- verify-backup --backup-path /secure/path/waitlist-backup-...");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "sanitized `attribution` fields");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run analytics:audit");
+requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run campaign:lint:all");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run market:evidence:init");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run vercel:webhook:cutover");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run market:go-no-go");
