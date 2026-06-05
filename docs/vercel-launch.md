@@ -224,6 +224,7 @@ notes:
 npm run waitlist:data -- summary --data-dir /path/to/waitlist
 npm run waitlist:data -- audit --data-dir /path/to/waitlist
 npm run waitlist:data -- backup --data-dir /path/to/waitlist --backup-dir /secure/path
+npm run waitlist:data -- verify-backup --backup-path /secure/path/waitlist-backup-...
 ```
 
 The audit command verifies required consent metadata, `submissionId`
@@ -232,6 +233,9 @@ file hashes without printing lead emails, names, notes, or filesystem paths.
 The backup command copies the receiver files and a redacted manifest into a
 timestamped directory. The copied NDJSON/CSV files contain lead data, so store
 the backup outside git with restricted access and the named operator owner.
+The verify-backup command confirms the copied file bytes and SHA-256 hashes
+still match the redacted manifest without printing lead emails, names, notes, or
+filesystem paths.
 
 To honor a deletion request, dry-run the removal first and then rerun without
 `--dry-run`:

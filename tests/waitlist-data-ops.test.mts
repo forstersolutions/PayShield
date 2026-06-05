@@ -8,6 +8,7 @@ import {
   backupWaitlistData,
   eraseWaitlistEmail,
   summarizeWaitlistData,
+  verifyWaitlistBackup,
 } from "../scripts/waitlist-data-ops.mjs";
 
 const records = [
@@ -221,6 +222,9 @@ test("backs up receiver files with a redacted manifest", async () => {
       dataDir,
       generatedAt: "2026-06-05T00:00:00.000Z",
     });
+    const verification = await verifyWaitlistBackup({
+      backupPath: result.backupPath,
+    });
     const manifest = await readFile(result.manifestPath, "utf8");
     const backupNdjson = await readFile(
       join(result.backupPath, "waitlist.ndjson"),
@@ -244,6 +248,17 @@ test("backs up receiver files with a redacted manifest", async () => {
     assert.equal(serialized.includes("Partner pilot."), false);
     assert.equal(manifest.includes("lead@example.com"), false);
     assert.equal(manifest.includes("Partner pilot."), false);
+    assert.equal(verification.ok, true);
+    assert.equal(verification.backupId, result.backupId);
+    const checkedFiles = verification.checkedFiles as Record<
+      string,
+      { bytesMatch?: boolean; sha256Match?: boolean }
+    >;
+
+    assert.equal(checkedFiles["waitlist.ndjson"].sha256Match, true);
+    assert.equal(checkedFiles["waitlist.csv"].bytesMatch, true);
+    assert.equal(JSON.stringify(verification).includes("lead@example.com"), false);
+    assert.equal(JSON.stringify(verification).includes("Partner pilot."), false);
     assert.equal(backupNdjson.includes("lead@example.com"), true);
     assert.equal(backupCsv.includes("partner@example.com"), true);
   } finally {
@@ -273,6 +288,102 @@ test("refuses backup when receiver audit fails", async () => {
         }),
       /Refusing to back up receiver files until audit passes/,
     );
+  } finally {
+    await rm(dataDir, { recursive: true });
+    await rm(backupDir, { recursive: true });
+  }
+});
+
+test("flags tampered backup files without exposing PII", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "payshield-data-ops-"));
+  const backupDir = await mkdtemp(join(tmpdir(), "payshield-data-backups-"));
+
+  try {
+    await writeNdjson(
+      dataDir,
+      records.map((record) => JSON.stringify(record)),
+    );
+    await eraseWaitlistEmail({
+      dataDir,
+      email: "missing@example.com",
+    });
+    const result = await backupWaitlistData({
+      backupDir,
+      dataDir,
+      generatedAt: "2026-06-05T00:00:00.000Z",
+    });
+
+    await writeFile(
+      join(result.backupPath, "waitlist.csv"),
+      "tampered lead@example.com Partner pilot.\n",
+      "utf8",
+    );
+
+    const verification = await verifyWaitlistBackup({
+      backupPath: result.backupPath,
+    });
+    const serialized = JSON.stringify(verification);
+
+    assert.equal(verification.ok, false);
+    assert.equal(
+      verification.findings.includes(
+        "waitlist.csv does not match the backup manifest evidence.",
+      ),
+      true,
+    );
+    const checkedFiles = verification.checkedFiles as Record<
+      string,
+      { sha256Match?: boolean }
+    >;
+
+    assert.equal(checkedFiles["waitlist.csv"].sha256Match, false);
+    assert.equal(serialized.includes("lead@example.com"), false);
+    assert.equal(serialized.includes("Partner pilot."), false);
+  } finally {
+    await rm(dataDir, { recursive: true });
+    await rm(backupDir, { recursive: true });
+  }
+});
+
+test("flags incomplete backup directories", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "payshield-data-ops-"));
+  const backupDir = await mkdtemp(join(tmpdir(), "payshield-data-backups-"));
+
+  try {
+    await writeNdjson(
+      dataDir,
+      records.map((record) => JSON.stringify(record)),
+    );
+    await eraseWaitlistEmail({
+      dataDir,
+      email: "missing@example.com",
+    });
+    const result = await backupWaitlistData({
+      backupDir,
+      dataDir,
+      generatedAt: "2026-06-05T00:00:00.000Z",
+    });
+
+    await rm(join(result.backupPath, "waitlist.ndjson"));
+
+    const missingFile = await verifyWaitlistBackup({
+      backupPath: result.backupPath,
+    });
+    const missingManifest = await verifyWaitlistBackup({
+      backupPath: join(backupDir, "missing-backup"),
+    });
+
+    assert.equal(missingFile.ok, false);
+    assert.equal(
+      missingFile.findings.includes("waitlist.ndjson is missing from the backup."),
+      true,
+    );
+    assert.equal(missingManifest.ok, false);
+    assert.equal(
+      missingManifest.findings.includes("Backup manifest is missing or unreadable."),
+      true,
+    );
+    assert.deepEqual(missingManifest.checkedFiles, {});
   } finally {
     await rm(dataDir, { recursive: true });
     await rm(backupDir, { recursive: true });

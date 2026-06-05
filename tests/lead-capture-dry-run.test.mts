@@ -17,6 +17,15 @@ test("proves signed lead capture end to end without exposing PII", async () => {
   assert.equal(result.backup.copiedFiles.includes("waitlist.ndjson"), true);
   assert.equal(result.backup.copiedFiles.includes("waitlist.csv"), true);
   assert.equal(result.backup.audit.ok, true);
+  assert.equal(result.backupVerification.ok, true);
+  assert.equal(
+    result.backupVerification.checkedFiles["waitlist.ndjson"].sha256Match,
+    true,
+  );
+  assert.equal(
+    result.backupVerification.checkedFiles["waitlist.csv"].sha256Match,
+    true,
+  );
   assert.equal(result.dataAudit.ok, true);
   assert.equal(result.dataAudit.summary.total, 1);
   assert.equal(result.dataAudit.csv.rowCountMatches, true);
@@ -45,6 +54,10 @@ test("proves signed lead capture end to end without exposing PII", async () => {
   assert.match(
     result.checks.join("\n"),
     /waitlist data backup creates a redacted manifest for receiver files/,
+  );
+  assert.match(
+    result.checks.join("\n"),
+    /waitlist data backup verification confirms manifest hashes/,
   );
 });
 

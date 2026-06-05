@@ -41,6 +41,7 @@ npm run smoke:deploy -- https://your-domain.com --expect-site-url https://your-d
 npm run waitlist:data -- summary
 npm run waitlist:data -- audit
 npm run waitlist:data -- backup
+npm run waitlist:data -- verify-backup --backup-path /secure/path/waitlist-backup-...
 npm run waitlist:data -- erase --email lead@example.com --dry-run
 npm run vercel:env:audit
 npm run webhook:receive
@@ -59,7 +60,7 @@ and a production dependency audit. GitHub Actions runs the same preflight on
 pushes to `main` and pull requests, then runs `npm run receiver:docker:smoke` to
 build `Dockerfile.receiver`, start it with a mounted data volume, verify health,
 signed replay capture, non-PII summary/audit output, and deletion dry-run
-handling.
+handling, including backup manifest hash verification.
 Vercel's Git integration will still create preview and production deployments;
 the workflow is a source-level quality gate before deployment.
 
@@ -137,9 +138,9 @@ paid-traffic-ready capture.
 forces `/api/waitlist` into signed required-webhook mode, submits one pilot
 request through the real route handler, verifies persisted consent and
 sanitized attribution fields, verifies idempotent replay, prints a non-PII
-summary plus receiver-file audit, and dry-runs an email erasure. Run it before
-selecting the hosted receiver or CRM endpoint so the repo-owned capture path is
-known-good.
+summary plus receiver-file audit, creates and verifies a redacted backup
+manifest, and dry-runs an email erasure. Run it before selecting the hosted
+receiver or CRM endpoint so the repo-owned capture path is known-good.
 
 `npm run webhook:receive` starts a small signed webhook receiver for teams that
 want a lightweight persistence target before wiring a CRM. It verifies the
@@ -167,8 +168,9 @@ PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook npm run webhook
 `npm run receiver:docker:smoke` builds `Dockerfile.receiver`, runs the image with
 a temporary host-mounted `/data/waitlist` volume, checks `/health`, sends a
 signed replay smoke payload, verifies non-PII data summary/audit output, and
-dry-runs email deletion handling. GitHub Actions runs this smoke check on each
-launch commit so the lightweight receiver fallback is more than build-only.
+dry-runs email deletion handling, including backup manifest hash verification.
+GitHub Actions runs this smoke check on each launch commit so the lightweight
+receiver fallback is more than build-only.
 
 `npm run webhook:test -- https://your-webhook-url --replay` sends one signed
 sample payload to any receiver using `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`, then
@@ -183,7 +185,10 @@ integrity hashes without printing emails, names, notes, or paths.
 `npm run waitlist:data -- backup --backup-dir /secure/path` copies
 `waitlist.ndjson`, `waitlist.csv`, and a redacted manifest into a timestamped
 backup directory. The copied files contain lead data, so keep the backup path
-outside git and restrict access. To honor a pilot deletion request, first run:
+outside git and restrict access. After each protected export, run
+`npm run waitlist:data -- verify-backup --backup-path /secure/path/waitlist-backup-...`
+to confirm the copied file hashes still match the redacted manifest. To honor a
+pilot deletion request, first run:
 
 ```bash
 npm run waitlist:data -- erase --email lead@example.com --dry-run

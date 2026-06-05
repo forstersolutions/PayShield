@@ -41,11 +41,13 @@ function usage() {
     "  npm run waitlist:data -- summary [--data-dir data/waitlist]",
     "  npm run waitlist:data -- audit [--data-dir data/waitlist] [--allow-empty]",
     "  npm run waitlist:data -- backup [--data-dir data/waitlist] [--backup-dir data/waitlist-backups] [--allow-empty]",
+    "  npm run waitlist:data -- verify-backup --backup-path data/waitlist-backups/waitlist-backup-...",
     "  npm run waitlist:data -- erase --email lead@example.com [--data-dir data/waitlist] [--dry-run]",
     "",
     "summary prints non-PII counts from the lightweight receiver files.",
     "audit checks receiver file integrity, required metadata, idempotency keys, and CSV consistency without printing PII.",
     "backup copies receiver files into a timestamped directory and prints a redacted manifest.",
+    "verify-backup checks a backup manifest and copied file hashes without printing PII or filesystem paths.",
     "erase removes matching email records from waitlist.ndjson and regenerates waitlist.csv.",
   ].join("\n");
 }
@@ -74,11 +76,14 @@ function parseCliArgs(args) {
 
   const command = args.find((arg) => !arg.startsWith("--"));
 
-  if (!["summary", "audit", "backup", "erase"].includes(command ?? "")) {
-    throw new Error("Command must be summary, audit, backup, or erase.");
+  if (
+    !["summary", "audit", "backup", "verify-backup", "erase"].includes(command ?? "")
+  ) {
+    throw new Error("Command must be summary, audit, backup, verify-backup, or erase.");
   }
 
   const backupDir = flagValue(args, "--backup-dir") || defaultBackupDir;
+  const backupPath = flagValue(args, "--backup-path");
   const dataDir = flagValue(args, "--data-dir") || defaultDataDir;
   const email = flagValue(args, "--email");
 
@@ -86,10 +91,15 @@ function parseCliArgs(args) {
     throw new Error("--email must be a valid email address.");
   }
 
+  if (command === "verify-backup" && !backupPath) {
+    throw new Error("--backup-path is required for verify-backup.");
+  }
+
   return {
     command,
     allowEmpty: args.includes("--allow-empty"),
     backupDir,
+    backupPath,
     dataDir,
     dryRun: args.includes("--dry-run"),
     email,
@@ -561,6 +571,158 @@ export async function backupWaitlistData({
   };
 }
 
+function backupFileKey(filename) {
+  if (filename === "waitlist.ndjson") {
+    return "ndjson";
+  }
+
+  if (filename === "waitlist.csv") {
+    return "csv";
+  }
+
+  return "";
+}
+
+function isAllowedBackupFile(filename) {
+  return ["waitlist.ndjson", "waitlist.csv"].includes(filename);
+}
+
+function safeBackupId(value) {
+  if (
+    typeof value === "string" &&
+    /^waitlist-backup-[0-9T-]+Z$/.test(value)
+  ) {
+    return value;
+  }
+
+  return "unknown-backup";
+}
+
+function safeGeneratedAt(value) {
+  if (
+    typeof value === "string" &&
+    value.length <= 40 &&
+    Number.isFinite(Date.parse(value)) &&
+    !emailLikeValue.test(value) &&
+    !urlLikeValue.test(value)
+  ) {
+    return value;
+  }
+
+  return "";
+}
+
+async function readBackupManifest(backupPath) {
+  try {
+    const manifestText = await readFile(join(backupPath, "manifest.json"), "utf8");
+
+    return {
+      manifest: JSON.parse(manifestText),
+      ok: true,
+    };
+  } catch (error) {
+    return {
+      error:
+        error instanceof SyntaxError
+          ? "Backup manifest is not valid JSON."
+          : "Backup manifest is missing or unreadable.",
+      manifest: null,
+      ok: false,
+    };
+  }
+}
+
+/**
+ * @param {{ backupPath?: string }} [options]
+ */
+export async function verifyWaitlistBackup({ backupPath } = {}) {
+  if (!backupPath) {
+    throw new Error("A backup path is required.");
+  }
+
+  const manifestResult = await readBackupManifest(backupPath);
+  const findings = [];
+
+  if (!manifestResult.ok) {
+    return {
+      backupId: "unknown-backup",
+      checkedFiles: {},
+      findings: [manifestResult.error],
+      manifest: {
+        auditOk: false,
+        copiedFiles: [],
+        generatedAt: "",
+        ok: false,
+        total: 0,
+      },
+      ok: false,
+    };
+  }
+
+  const manifest = manifestResult.manifest;
+  const copiedFiles = Array.isArray(manifest?.copiedFiles)
+    ? manifest.copiedFiles.filter((filename) => typeof filename === "string")
+    : [];
+  const invalidFiles = copiedFiles.filter((filename) => !isAllowedBackupFile(filename));
+  const checkedFiles = {};
+
+  if (manifest?.ok !== true) {
+    findings.push("Backup manifest is not marked ok.");
+  }
+
+  if (manifest?.audit?.ok !== true) {
+    findings.push("Backup manifest audit is not marked ok.");
+  }
+
+  if (!Array.isArray(manifest?.copiedFiles)) {
+    findings.push("Backup manifest copiedFiles is missing or invalid.");
+  }
+
+  if (invalidFiles.length) {
+    findings.push("Backup manifest lists unexpected copied file names.");
+  }
+
+  for (const filename of copiedFiles.filter(isAllowedBackupFile)) {
+    const key = backupFileKey(filename);
+    const evidence = await fileEvidence(backupPath, filename);
+    const expected = manifest?.audit?.files?.[key] ?? {};
+    const bytesMatch = evidence.exists && evidence.bytes === expected.bytes;
+    const sha256Match =
+      evidence.exists && Boolean(expected.sha256) && evidence.sha256 === expected.sha256;
+
+    checkedFiles[filename] = {
+      bytes: evidence.bytes,
+      bytesMatch,
+      exists: evidence.exists,
+      sha256: evidence.sha256,
+      sha256Match,
+    };
+
+    if (!evidence.exists) {
+      findings.push(`${filename} is missing from the backup.`);
+    } else if (!bytesMatch || !sha256Match) {
+      findings.push(`${filename} does not match the backup manifest evidence.`);
+    }
+  }
+
+  return {
+    backupId: safeBackupId(manifest?.backupId),
+    checkedFiles,
+    findings,
+    manifest: {
+      auditOk: manifest?.audit?.ok === true,
+      copiedFiles,
+      generatedAt: safeGeneratedAt(manifest?.generatedAt),
+      ok: manifest?.ok === true,
+      total:
+        typeof manifest?.audit?.summary?.total === "number"
+          ? manifest.audit.summary.total
+          : 0,
+    },
+    ok: findings.length === 0,
+  };
+}
+
 /**
  * @param {{ dataDir?: string; dryRun?: boolean; email?: string }} [options]
  */
@@ -621,6 +783,10 @@ async function main() {
       backupDir: parsed.backupDir,
       dataDir: parsed.dataDir,
     });
+  } else if (parsed.command === "verify-backup") {
+    result = await verifyWaitlistBackup({
+      backupPath: parsed.backupPath,
+    });
   } else {
     result = await eraseWaitlistEmail({
       dataDir: parsed.dataDir,
@@ -631,7 +797,7 @@ async function main() {
 
   console.log(JSON.stringify(result, null, 2));
 
-  if (parsed.command === "audit" && !result.ok) {
+  if (["audit", "verify-backup"].includes(parsed.command) && !result.ok) {
     process.exit(1);
   }
 }

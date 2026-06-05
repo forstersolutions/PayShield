@@ -14,6 +14,7 @@ import {
   backupWaitlistData,
   eraseWaitlistEmail,
   summarizeWaitlistData,
+  verifyWaitlistBackup,
 } from "./waitlist-data-ops.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -27,7 +28,7 @@ function usage() {
     "Usage: npm run receiver:docker:smoke [--image payshield-waitlist-receiver:ci-smoke] [--skip-build] [--keep-data] [--keep-image] [--timeout-ms 30000]",
     "",
     "Builds and runs Dockerfile.receiver, mounts a temporary persistent /data/waitlist volume,",
-    "checks receiver health, sends a signed replay smoke payload, verifies non-PII data summary, audit, backup manifest,",
+    "checks receiver health, sends a signed replay smoke payload, verifies non-PII data summary, audit, backup manifest, backup verification,",
     "and deletion dry-run handling without printing the signing secret.",
   ].join("\n");
 }
@@ -160,6 +161,7 @@ function requireCheck(checks, condition, message) {
 
 export function summarizeDockerReceiverSmoke({
   backup,
+  backupVerification,
   checks,
   dataAudit,
   eraseDryRun,
@@ -170,6 +172,7 @@ export function summarizeDockerReceiverSmoke({
 }) {
   return {
     backup,
+    backupVerification,
     checks,
     dataAudit,
     eraseDryRun: {
@@ -291,6 +294,9 @@ export async function runDockerReceiverSmoke({
     );
 
     const backup = await backupWaitlistData({ backupDir, dataDir });
+    const backupVerification = await verifyWaitlistBackup({
+      backupPath: backup.backupPath,
+    });
 
     requireCheck(
       checks,
@@ -299,6 +305,13 @@ export async function runDockerReceiverSmoke({
         backup.copiedFiles.includes("waitlist.csv") &&
         backup.audit?.ok === true,
       "mounted receiver data backup creates a redacted manifest",
+    );
+    requireCheck(
+      checks,
+      backupVerification.ok === true &&
+        backupVerification.checkedFiles?.["waitlist.ndjson"]?.sha256Match === true &&
+        backupVerification.checkedFiles?.["waitlist.csv"]?.sha256Match === true,
+      "mounted receiver data backup verification confirms manifest hashes",
     );
 
     const eraseDryRun = await eraseWaitlistEmail({
@@ -323,6 +336,7 @@ export async function runDockerReceiverSmoke({
         generatedAt: backup.generatedAt,
         ok: backup.ok,
       },
+      backupVerification,
       checks,
       dataAudit,
       eraseDryRun,

@@ -92,6 +92,7 @@ still be reviewed before paid traffic.
 7. Confirm lightweight receiver data handling, including
    `npm run waitlist:data -- audit --data-dir /path/to/waitlist`,
    `npm run waitlist:data -- backup --data-dir /path/to/waitlist --backup-dir /secure/path`,
+   `npm run waitlist:data -- verify-backup --backup-path /secure/path/waitlist-backup-...`,
    and
    `npm run waitlist:data -- erase --email lead@example.com --dry-run`.
 8. Confirm prohibited copy boundaries before any claim involving account

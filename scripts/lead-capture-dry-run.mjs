@@ -14,6 +14,7 @@ import {
   backupWaitlistData,
   eraseWaitlistEmail,
   summarizeWaitlistData,
+  verifyWaitlistBackup,
 } from "./waitlist-data-ops.mjs";
 
 const endpoint = "https://payshield.test/api/waitlist";
@@ -25,7 +26,7 @@ function usage() {
     "",
     "Starts the lightweight receiver on localhost, forces /api/waitlist into signed fail-closed webhook mode,",
     "submits one pilot request, verifies stored consent and sanitized attribution, verifies idempotent replay,",
-    "runs the non-PII data summary, audit, backup manifest, and dry-runs an email erasure.",
+    "runs the non-PII data summary, audit, backup manifest, backup verification, and dry-runs an email erasure.",
     "",
     "The default run uses a temporary receiver data directory and deletes it before exit.",
     "--keep-data preserves the temporary directory for local inspection. It contains test lead data.",
@@ -188,6 +189,16 @@ function publicSafeBackup(backup) {
     copiedFiles: backup.copiedFiles,
     generatedAt: backup.generatedAt,
     ok: backup.ok,
+  };
+}
+
+function publicSafeBackupVerification(verification) {
+  return {
+    backupId: verification.backupId,
+    checkedFiles: verification.checkedFiles,
+    findings: verification.findings,
+    manifest: verification.manifest,
+    ok: verification.ok,
   };
 }
 
@@ -356,6 +367,12 @@ export async function runLeadCaptureDryRun({ keepData = false } = {}) {
 
     const backup = await backupWaitlistData({ backupDir, dataDir });
     const backupJson = JSON.stringify(publicSafeBackup(backup));
+    const backupVerification = await verifyWaitlistBackup({
+      backupPath: backup.backupPath,
+    });
+    const backupVerificationJson = JSON.stringify(
+      publicSafeBackupVerification(backupVerification),
+    );
 
     requireCheck(
       checks,
@@ -370,6 +387,19 @@ export async function runLeadCaptureDryRun({ keepData = false } = {}) {
       !backupJson.includes(testEmail) &&
         !backupJson.includes("Rent and insurance first."),
       "waitlist data backup manifest does not print pilot email or notes",
+    );
+    requireCheck(
+      checks,
+      backupVerification.ok === true &&
+        backupVerification.checkedFiles?.["waitlist.ndjson"]?.sha256Match === true &&
+        backupVerification.checkedFiles?.["waitlist.csv"]?.sha256Match === true,
+      "waitlist data backup verification confirms manifest hashes",
+    );
+    requireCheck(
+      checks,
+      !backupVerificationJson.includes(testEmail) &&
+        !backupVerificationJson.includes("Rent and insurance first."),
+      "waitlist data backup verification does not print pilot email or notes",
     );
 
     const eraseDryRun = await eraseWaitlistEmail({
@@ -389,6 +419,7 @@ export async function runLeadCaptureDryRun({ keepData = false } = {}) {
     return {
       checks,
       backup: publicSafeBackup(backup),
+      backupVerification: publicSafeBackupVerification(backupVerification),
       dataAudit,
       dataDir: keepData ? dataDir : undefined,
       backupDir: keepData ? backupDir : undefined,

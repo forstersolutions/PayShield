@@ -234,12 +234,16 @@ requireText("scripts/lead-capture-dry-run.mjs", "PAYSHIELD_REQUIRE_WAITLIST_WEBH
 requireText("scripts/lead-capture-dry-run.mjs", "auditWaitlistData");
 requireText("scripts/lead-capture-dry-run.mjs", "summarizeWaitlistData");
 requireText("scripts/lead-capture-dry-run.mjs", "eraseWaitlistEmail");
+requireText("scripts/lead-capture-dry-run.mjs", "verifyWaitlistBackup");
 requireText("scripts/smoke-docker-receiver.mjs", "auditWaitlistData");
+requireText("scripts/smoke-docker-receiver.mjs", "verifyWaitlistBackup");
 requireText("scripts/waitlist-data-ops.mjs", "summarizeWaitlistData");
 requireText("scripts/waitlist-data-ops.mjs", "auditWaitlistData");
 requireText("scripts/waitlist-data-ops.mjs", "backupWaitlistData");
+requireText("scripts/waitlist-data-ops.mjs", "verifyWaitlistBackup");
 requireText("scripts/waitlist-data-ops.mjs", "eraseWaitlistEmail");
 requireText("scripts/waitlist-data-ops.mjs", "Refusing to back up receiver files until audit passes");
+requireText("scripts/waitlist-data-ops.mjs", "verify-backup");
 requireText("scripts/waitlist-data-ops.mjs", "waitlist.csv row count does not match");
 requireText("scripts/waitlist-data-ops.mjs", "malformedLines");
 requireText("scripts/waitlist-data-ops.mjs", "privacyVersion");
@@ -370,6 +374,7 @@ requireText("docs/vercel-launch.md", "webhook:test -- https://your-webhook-url -
 requireText("docs/vercel-launch.md", "npm run vercel:env:audit");
 requireText("docs/vercel-launch.md", "npm run waitlist:data -- audit --data-dir /path/to/waitlist");
 requireText("docs/vercel-launch.md", "npm run waitlist:data -- backup --data-dir /path/to/waitlist --backup-dir /secure/path");
+requireText("docs/vercel-launch.md", "npm run waitlist:data -- verify-backup --backup-path /secure/path/waitlist-backup-...");
 requireText("docs/market-readiness.md", "sanitized campaign metadata");
 requireText("docs/market-readiness.md", "consent audit fields");
 requireText("docs/market-readiness.md", "idempotent capture");
@@ -379,10 +384,12 @@ requireText("docs/market-readiness.md", "npm run vercel:env:audit");
 requireText("docs/market-readiness.md", "npm run analytics:audit");
 requireText("docs/market-readiness.md", "npm run waitlist:data -- audit --data-dir /path/to/waitlist");
 requireText("docs/market-readiness.md", "npm run waitlist:data -- backup --data-dir /path/to/waitlist --backup-dir /secure/path");
+requireText("docs/market-readiness.md", "npm run waitlist:data -- verify-backup --backup-path /secure/path/waitlist-backup-...");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "sanitized `attribution` fields");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run analytics:audit");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run waitlist:data -- audit");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run waitlist:data -- backup");
+requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run waitlist:data -- verify-backup");
 
 requireMaxSize("src/app/icon.svg", 5_000);
 requireMaxSize("public/images/payshield-product-mockup.avif", 125_000);

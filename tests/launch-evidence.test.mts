@@ -70,11 +70,42 @@ const leadCaptureDryRun = {
     generatedAt: "2026-06-05T00:00:00.000Z",
     ok: true,
   },
+  backupVerification: {
+    backupId: "waitlist-backup-2026-06-05T00-00-00-000Z",
+    checkedFiles: {
+      "waitlist.csv": {
+        bytes: 500,
+        bytesMatch: true,
+        exists: true,
+        sha256:
+          "1111111111111111111111111111111111111111111111111111111111111111",
+        sha256Match: true,
+      },
+      "waitlist.ndjson": {
+        bytes: 350,
+        bytesMatch: true,
+        exists: true,
+        sha256:
+          "2222222222222222222222222222222222222222222222222222222222222222",
+        sha256Match: true,
+      },
+    },
+    findings: [],
+    manifest: {
+      auditOk: true,
+      copiedFiles: ["waitlist.ndjson", "waitlist.csv"],
+      generatedAt: "2026-06-05T00:00:00.000Z",
+      ok: true,
+      total: 1,
+    },
+    ok: true,
+  },
   checks: [
     "/api/waitlist accepts a signed required-webhook submission",
     "receiver treats signed replay with the same submissionId as idempotent",
     "waitlist data audit verifies receiver files and required metadata",
     "waitlist data backup creates a redacted manifest for receiver files",
+    "waitlist data backup verification confirms manifest hashes",
   ],
   dataAudit: {
     allowEmpty: false,
@@ -252,6 +283,12 @@ test("summarizes current prototype evidence without treating paid traffic as rea
   assert.equal(evidence.readiness.prototype.ok, true);
   assert.equal(evidence.readiness.strict.ok, false);
   assert.equal(evidence.leadCaptureDryRun.backup.ok, true);
+  assert.equal(evidence.leadCaptureDryRun.backupVerification.ok, true);
+  assert.equal(
+    evidence.leadCaptureDryRun.backupVerification.checkedFiles["waitlist.csv"]
+      .sha256Match,
+    true,
+  );
   assert.equal(
     evidence.leadCaptureDryRun.backup.copiedFiles.includes("waitlist.csv"),
     true,

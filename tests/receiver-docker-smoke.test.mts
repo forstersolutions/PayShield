@@ -39,11 +39,42 @@ test("summarizes Docker receiver smoke output without PII or secrets", () => {
       generatedAt: "2026-06-05T00:00:00.000Z",
       ok: true,
     },
+    backupVerification: {
+      backupId: "waitlist-backup-2026-06-05T00-00-00-000Z",
+      checkedFiles: {
+        "waitlist.csv": {
+          bytes: 500,
+          bytesMatch: true,
+          exists: true,
+          sha256:
+            "1111111111111111111111111111111111111111111111111111111111111111",
+          sha256Match: true,
+        },
+        "waitlist.ndjson": {
+          bytes: 350,
+          bytesMatch: true,
+          exists: true,
+          sha256:
+            "2222222222222222222222222222222222222222222222222222222222222222",
+          sha256Match: true,
+        },
+      },
+      findings: [],
+      manifest: {
+        auditOk: true,
+        copiedFiles: ["waitlist.ndjson", "waitlist.csv"],
+        generatedAt: "2026-06-05T00:00:00.000Z",
+        ok: true,
+        total: 1,
+      },
+      ok: true,
+    },
     checks: [
       "Dockerfile.receiver builds successfully",
       "container accepts signed payload and idempotent replay",
       "mounted receiver data audit verifies file integrity and metadata",
       "mounted receiver data backup creates a redacted manifest",
+      "mounted receiver data backup verification confirms manifest hashes",
     ],
     dataAudit: {
       allowEmpty: false,
@@ -172,7 +203,12 @@ test("summarizes Docker receiver smoke output without PII or secrets", () => {
   assert.equal(result.webhook.replayStatus, 200);
   assert.equal(result.webhook.replayDuplicate, true);
   assert.equal(result.backup.ok, true);
+  assert.equal(result.backupVerification.ok, true);
   assert.equal(result.backup.copiedFiles.includes("waitlist.ndjson"), true);
+  assert.equal(
+    result.backupVerification.checkedFiles["waitlist.ndjson"].sha256Match,
+    true,
+  );
   assert.equal(result.dataAudit.ok, true);
   assert.equal(result.dataAudit.files.ndjson.sha256.length, 64);
   assert.equal(serialized.includes("docker-smoke@example.com"), false);
