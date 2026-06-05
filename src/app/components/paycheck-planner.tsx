@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { PayShieldMark } from "@/app/components/pay-shield-mark";
 import {
   AlertTriangle,
   ArrowRight,
@@ -14,6 +15,8 @@ import {
   Landmark,
   ListChecks,
   Lock,
+  Minus,
+  Plus,
   Plane,
   RefreshCcw,
   ShieldCheck,
@@ -617,29 +620,37 @@ export function PaycheckPlanner() {
     setUnlockMode(nextMode);
   }
 
+  const protectedShare = paycheck > 0 ? (plan.protectedFunded / paycheck) * 100 : 0;
+  const safeSpendProgress = clamp(safeSpendShare, 0, 100);
+  const protectedProgress = clamp(protectedShare, 0, 100);
+  const planStatus = firstShortBucket
+    ? `${firstShortBucket.name} needs ${formatMoney(firstShortBucket.short)}`
+    : "Every priority bucket is covered";
+  const safeSpendTone = plan.safeSpend > 0 ? "Ready to use" : "Hold spending";
+  const purchaseTone = cardApproved ? "Cleared" : "Needs a pause";
+
   return (
     <section
       id="product"
-      className="pay-app-shell relative min-h-screen overflow-x-hidden border-b border-white/10 text-[#fff7ea]"
+      className="pay-app-shell relative min-h-screen overflow-x-hidden border-b border-white/10 text-[#f8f1e4]"
     >
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#08110f]/76 py-3 backdrop-blur">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#7cf8d4] to-transparent opacity-70" />
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1480px] flex-col px-4 py-5 sm:px-6 lg:px-8">
+        <header className="flex flex-wrap items-center justify-between gap-3 rounded-[8px] border border-white/10 bg-[#06090d]/82 px-3 py-3 shadow-[0_22px_90px_rgba(0,0,0,0.42)] backdrop-blur-xl">
           <a className="flex items-center gap-3" href="#product">
-            <span className="grid size-10 place-items-center rounded-[8px] border border-[#9ee6d6]/40 bg-[#9ee6d6] text-[#07110f] shadow-[0_0_34px_rgba(158,230,214,0.18)]">
-              <ShieldCheck className="size-5" aria-hidden="true" />
-            </span>
+            <PayShieldMark className="size-11 drop-shadow-[0_0_26px_rgba(124,248,212,0.28)]" />
             <span>
-              <span className="block text-base font-semibold leading-5 text-[#fff7ea]">
+              <span className="block text-base font-semibold leading-5 text-[#fff8eb]">
                 PayShield
               </span>
-              <span className="block text-xs font-medium uppercase leading-4 tracking-[0.18em] text-[#9c9588]">
+              <span className="block text-xs font-medium uppercase leading-4 tracking-[0.18em] text-[#9ca3af]">
                 Paycheck planning app
               </span>
             </span>
           </a>
           <nav
             aria-label="Primary"
-            className="flex flex-wrap items-center gap-1 rounded-[8px] border border-white/10 bg-white/[0.045] p-1 text-sm font-medium text-[#e1d6c5]"
+            className="flex flex-wrap items-center gap-1 rounded-[8px] border border-white/10 bg-white/[0.055] p-1 text-sm font-medium text-[#e9edf4]"
           >
             <a className="rounded-[8px] px-3 py-2 hover:bg-white/10" href="#product">
               Today
@@ -663,7 +674,7 @@ export function PaycheckPlanner() {
               Recovery
             </a>
             <a
-              className="inline-flex items-center gap-2 rounded-[8px] bg-[#9ee6d6] px-4 py-2 font-semibold text-[#07110f] hover:bg-[#baf3e7]"
+              className="inline-flex items-center gap-2 rounded-[8px] bg-[#7cf8d4] px-4 py-2 font-semibold text-[#04100d] shadow-[0_0_28px_rgba(124,248,212,0.24)] hover:bg-[#a5ffe7]"
               href="#early-access"
             >
               Early access
@@ -672,170 +683,105 @@ export function PaycheckPlanner() {
           </nav>
         </header>
 
-        <div className="grid flex-1 items-center gap-6 py-8 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
+        <div className="grid flex-1 items-start gap-5 py-6 lg:grid-cols-[minmax(0,1fr)_410px] 2xl:grid-cols-[minmax(0,1fr)_460px]">
           <div className="min-w-0">
-            <div className="mb-5 max-w-3xl">
-              <p className="mb-3 inline-flex items-center gap-2 rounded-[8px] border border-[#9ee6d6]/25 bg-[#9ee6d6]/10 px-3 py-2 text-sm font-semibold text-[#d9fff6] shadow-[0_0_36px_rgba(158,230,214,0.1)]">
+            <div className="mb-4 grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <div>
+                <p className="mb-3 inline-flex items-center gap-2 rounded-[8px] border border-[#7cf8d4]/25 bg-[#7cf8d4]/10 px-3 py-2 text-sm font-semibold text-[#d9fff6] shadow-[0_0_36px_rgba(124,248,212,0.12)]">
                 <Lock className="size-4" aria-hidden="true" />
                 Manual MVP - no bank login required
-              </p>
-              <h1 className="text-4xl font-semibold leading-[1.03] text-[#fff7ea] sm:text-5xl lg:text-6xl">
-                Know what is safe to spend before the week gets loud.
-              </h1>
-              <p className="mt-3 max-w-2xl text-lg leading-8 text-[#cfc6b7]">
-                PayShield turns a paycheck into bill reserves, goal buckets,
-                purchase checks, and one clear number the household can use.
-              </p>
-            </div>
+                </p>
+                <h1 className="max-w-4xl text-4xl font-semibold leading-[1.02] text-[#fff8eb] sm:text-5xl xl:text-6xl">
+                  Know what is safe to spend before the week gets loud.
+                </h1>
+                <p className="mt-4 max-w-2xl text-lg leading-8 text-[#d4d9e2]">
+                  PayShield turns a paycheck into bill reserves, goal buckets,
+                  purchase checks, and one clear number the household can use.
+                </p>
+              </div>
 
-            <div className="mb-4 grid max-w-4xl gap-3 sm:grid-cols-3">
-              {heroSignals.map((signal) => {
-                const Icon = signal.icon;
-
-                return (
-                  <div
-                    className="rounded-[8px] border border-white/10 bg-[#101b18]/86 p-3 shadow-[0_18px_55px_rgba(0,0,0,0.2)]"
-                    key={signal.label}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#a89f90]">
-                        {signal.label}
-                      </p>
-                      <Icon className="size-4 text-[#9ee6d6]" aria-hidden="true" />
-                    </div>
-                    <p className="mt-3 text-xl font-semibold text-[#fff7ea]">
-                      {signal.value}
-                    </p>
-                    <p className="mt-1 text-xs leading-5 text-[#cfc6b7]">
-                      {signal.body}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="mb-4 grid max-w-4xl gap-3 md:grid-cols-4">
-              {operatingVitals.map((vital) => {
-                const Icon = vital.icon;
-
-                return (
-                  <div
-                    className="rounded-[8px] border border-white/10 bg-[#0d1714]/82 p-3 ring-1 ring-white/[0.03]"
-                    key={vital.label}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#95a79d]">
-                        {vital.label}
-                      </p>
-                      <Icon className="size-4 text-[#a6d8ff]" aria-hidden="true" />
-                    </div>
-                    <p className="mt-2 text-sm font-semibold text-[#fff7ea]">
-                      {vital.value}
-                    </p>
-                    <p className="mt-1 text-xs leading-5 text-[#b7c2b9]">
-                      {vital.body}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="mb-4 grid max-w-4xl gap-3 lg:grid-cols-[minmax(0,1fr)_170px]">
-              <div className="rounded-[8px] border border-white/10 bg-[#111d19]/88 p-3 ring-1 ring-white/[0.03]">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="h-fit rounded-[8px] border border-white/10 bg-[#0a0f16]/82 p-4 shadow-[0_22px_90px_rgba(0,0,0,0.34)] ring-1 ring-[#7cf8d4]/10 backdrop-blur">
+                <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-[#fff7ea]">
-                      Try a paycheck week
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#7cf8d4]">
+                      Live plan
                     </p>
-                    <p className="text-xs leading-5 text-[#b7c2b9]">
+                    <p className="mt-1 text-sm text-[#aeb7c5]">
                       {activeScenarioLabel} - {storageStatusCopy[storageStatus]}
                     </p>
                   </div>
-                  <span className="inline-flex items-center gap-2 rounded-[8px] border border-[#9ee6d6]/25 bg-[#9ee6d6]/10 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#d9fff6]">
-                    <CheckCircle2 className="size-3.5" aria-hidden="true" />
-                    Local plan
+                  <span className="grid size-11 place-items-center rounded-[8px] border border-white/10 bg-white/[0.06] text-[#ffd166]">
+                    <Zap className="size-5" aria-hidden="true" />
                   </span>
                 </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                  {plannerScenarios.map((scenario) => (
-                    <button
-                      aria-pressed={activeScenario === scenario.id}
-                      className={`rounded-[8px] border px-3 py-2 text-left transition ${
-                        activeScenario === scenario.id
-                          ? "border-[#9ee6d6]/60 bg-[#9ee6d6]/15 text-[#f1fffb]"
-                          : "border-white/10 bg-white/[0.035] text-[#e1d6c5] hover:border-white/25 hover:bg-white/[0.065]"
-                      }`}
-                      key={scenario.id}
-                      type="button"
-                      onClick={() => applyScenario(scenario)}
-                    >
-                      <span className="block text-sm font-semibold">
-                        {scenario.name}
-                      </span>
-                      <span className="mt-1 block text-xs leading-5 text-[#b7c2b9]">
-                        {scenario.body}
-                      </span>
-                    </button>
-                  ))}
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  {heroSignals.map((signal) => {
+                    const Icon = signal.icon;
+
+                    return (
+                      <div
+                        className="rounded-[8px] border border-white/10 bg-white/[0.045] p-3"
+                        key={signal.label}
+                      >
+                        <Icon className="mb-3 size-4 text-[#7cf8d4]" aria-hidden="true" />
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-[#9ca3af]">
+                          {signal.label}
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-[#fff8eb]">
+                          {signal.value}
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-              <button
-                className="inline-flex min-h-24 items-center justify-center gap-2 rounded-[8px] border border-white/10 bg-[#111d19] px-4 py-3 text-sm font-semibold text-[#fff7ea] hover:border-[#9ee6d6]/50 hover:bg-[#9ee6d6]/10"
-                type="button"
-                onClick={() => applyScenario(plannerScenarios[0])}
-              >
-                <RefreshCcw className="size-4" aria-hidden="true" />
-                Reset plan
-              </button>
             </div>
 
-            <div className="overflow-hidden rounded-[8px] border border-white/10 bg-[#101b18]/96 shadow-[0_28px_110px_rgba(0,0,0,0.36)] ring-1 ring-[#9ee6d6]/10">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-white/[0.045] px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <span className="size-2 rounded-full bg-[#9ee6d6] shadow-[0_0_16px_rgba(158,230,214,0.64)]" />
-                  <div>
-                    <p className="text-sm font-semibold text-[#fff7ea]">
-                      Your paycheck plan
-                    </p>
-                    <p className="text-xs leading-5 text-[#a89f90]">
-                      Bills, spending, and recovery in one place
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#d7ccbb]">
-                  <span className="rounded-[8px] border border-white/10 bg-[#08110f] px-2.5 py-1.5">
-                    Manual plan
-                  </span>
-                  <span className="rounded-[8px] border border-[#ffbf91]/25 bg-[#ffbf91]/10 px-2.5 py-1.5 text-[#ffe0c8]">
-                    Bill-first
-                  </span>
-                </div>
-              </div>
-              <div className="grid lg:grid-cols-[320px_minmax(0,1fr)]">
-                <aside className="border-b border-white/10 bg-[#0b1412] p-4 lg:border-b-0 lg:border-r">
-                  <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="grid gap-5 xl:grid-cols-[390px_minmax(0,1fr)]">
+              <section className="overflow-hidden rounded-[8px] border border-white/10 bg-[#080c12]/92 shadow-[0_28px_120px_rgba(0,0,0,0.46)] ring-1 ring-white/[0.04] backdrop-blur-xl">
+                <div className="border-b border-white/10 p-4">
+                  <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-[#fff7ea]">
-                        Paycheck plan
+                      <p className="text-sm font-semibold text-[#fff8eb]">
+                        Paycheck engine
                       </p>
-                      <p className="text-sm text-[#a89f90]">
-                        What this check needs to cover
+                      <p className="text-sm text-[#aeb7c5]">
+                        What this check can safely handle
                       </p>
                     </div>
-                    <Landmark
-                      className="size-5 text-[#9ee6d6]"
-                      aria-hidden="true"
-                    />
+                    <Landmark className="size-5 text-[#7cf8d4]" aria-hidden="true" />
                   </div>
 
-                  <label className="block text-sm font-medium text-[#e1d6c5]">
+                  <div className="mt-5 grid place-items-center">
+                    <div
+                      className="relative grid size-56 place-items-center rounded-full"
+                      style={{
+                        background: `conic-gradient(#7cf8d4 0 ${safeSpendProgress}%, #ffd166 ${safeSpendProgress}% ${clamp(safeSpendProgress + protectedProgress, 0, 100)}%, rgba(255,255,255,0.09) 0)`,
+                      }}
+                    >
+                      <div className="absolute inset-3 rounded-full bg-[#05070a]" />
+                      <div className="relative text-center">
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9ca3af]">
+                          Safe to spend
+                        </p>
+                        <p className="mt-2 text-4xl font-semibold text-[#fff8eb]">
+                          {formatMoney(plan.safeSpend)}
+                        </p>
+                        <p className="mt-2 text-sm text-[#7cf8d4]">
+                          {Math.round(safeSpendProgress)}% of this check
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <label className="mt-5 block text-sm font-medium text-[#dfe7f2]">
                     Paycheck amount
                   </label>
-                  <div className="mt-2 flex items-center rounded-[8px] border border-white/10 bg-[#08110f] px-3">
-                    <span className="text-[#a89f90]">$</span>
+                  <div className="mt-2 flex items-center rounded-[8px] border border-white/10 bg-white/[0.055] px-3 focus-within:border-[#7cf8d4]/70">
+                    <span className="text-[#9ca3af]">$</span>
                     <input
                       aria-label="Paycheck deposit amount"
-                      className="h-12 min-w-0 flex-1 bg-transparent px-2 text-xl font-semibold text-[#fff7ea] outline-none"
+                      className="h-12 min-w-0 flex-1 bg-transparent px-2 text-xl font-semibold text-[#fff8eb] outline-none"
                       inputMode="numeric"
                       max={8000}
                       min={500}
@@ -854,7 +800,7 @@ export function PaycheckPlanner() {
                   </div>
                   <input
                     aria-label="Adjust paycheck deposit amount"
-                    className="mt-4 w-full accent-[#9ee6d6]"
+                    className="mt-4 w-full accent-[#7cf8d4]"
                     max={8000}
                     min={500}
                     step={50}
@@ -864,52 +810,95 @@ export function PaycheckPlanner() {
                   />
 
                   <div className="mt-5 grid grid-cols-3 gap-2 text-center">
-                    <Metric
-                      label="Protected"
-                      value={formatMoney(plan.protectedFunded)}
-                    />
-                    <Metric
-                      label="Spendable"
-                      value={formatMoney(plan.safeSpend)}
-                    />
-                    <Metric
-                      label="Short"
-                      value={formatMoney(plan.shortfall)}
-                      warning
-                    />
+                    <Metric label="Reserved" value={formatMoney(plan.protectedFunded)} />
+                    <Metric label="Spendable" value={safeSpendTone} />
+                    <Metric label="Short" value={formatMoney(plan.shortfall)} warning />
                   </div>
+                </div>
 
-                  <div className="mt-5 rounded-[8px] border border-white/10 bg-white/[0.04] p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-[#fff7ea]">
-                        Spendable share
-                      </p>
-                      <p className="text-sm font-semibold text-[#9ee6d6]">
-                        {Math.round(safeSpendShare)}%
-                      </p>
-                    </div>
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className="h-full rounded-full bg-[#9ee6d6]"
-                        style={{ width: `${clamp(safeSpendShare, 0, 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                </aside>
-
-                <div id="buckets" className="min-w-0 p-4">
-                  <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+                <div className="p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-[#fff7ea]">
-                        Protected buckets
+                      <p className="text-sm font-semibold text-[#fff8eb]">
+                        Scenarios
                       </p>
-                      <p className="text-sm text-[#a89f90]">
-                        These get funded before everyday spending.
+                      <p className="text-xs leading-5 text-[#aeb7c5]">
+                        Tap one, then tune the numbers.
                       </p>
                     </div>
-                    <span className="rounded-[8px] border border-[#9ee6d6]/30 bg-[#9ee6d6]/10 px-3 py-2 text-sm font-semibold text-[#d9fff6]">
-                      {formatMoney(plan.safeSpend)} safe to spend
-                    </span>
+                    <button
+                      className="inline-flex items-center gap-2 rounded-[8px] border border-white/10 bg-white/[0.055] px-3 py-2 text-sm font-semibold text-[#f8f1e4] hover:border-[#7cf8d4]/50 hover:bg-[#7cf8d4]/10"
+                      type="button"
+                      onClick={() => applyScenario(plannerScenarios[0])}
+                    >
+                      <RefreshCcw className="size-4" aria-hidden="true" />
+                      Reset
+                    </button>
+                  </div>
+                  <div className="mt-3 grid gap-2">
+                    {plannerScenarios.map((scenario) => (
+                      <button
+                        aria-pressed={activeScenario === scenario.id}
+                        className={`rounded-[8px] border px-3 py-3 text-left transition ${
+                          activeScenario === scenario.id
+                            ? "border-[#7cf8d4]/70 bg-[#7cf8d4]/14 text-[#f4fffb] shadow-[0_0_32px_rgba(124,248,212,0.12)]"
+                            : "border-white/10 bg-white/[0.04] text-[#e8edf4] hover:border-white/25 hover:bg-white/[0.075]"
+                        }`}
+                        key={scenario.id}
+                        type="button"
+                        onClick={() => applyScenario(scenario)}
+                      >
+                        <span className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-semibold">
+                            {scenario.name}
+                          </span>
+                          <span className="text-xs text-[#7cf8d4]">
+                            {formatMoney(scenario.paycheck)}
+                          </span>
+                        </span>
+                        <span className="mt-1 block text-xs leading-5 text-[#aeb7c5]">
+                          {scenario.body}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </section>
+
+              <section className="overflow-hidden rounded-[8px] border border-white/10 bg-[#080c12]/92 shadow-[0_28px_120px_rgba(0,0,0,0.46)] ring-1 ring-[#7cf8d4]/10 backdrop-blur-xl">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-white/[0.045] px-4 py-3">
+                  <div>
+                    <p className="text-sm font-semibold text-[#fff8eb]">
+                      Money flow
+                    </p>
+                    <p className="text-xs leading-5 text-[#aeb7c5]">
+                      Bills, goals, spending room, then recovery.
+                    </p>
+                  </div>
+                  <span className="rounded-[8px] border border-[#ffd166]/30 bg-[#ffd166]/10 px-3 py-2 text-sm font-semibold text-[#ffedb1]">
+                    {planStatus}
+                  </span>
+                </div>
+                <div id="buckets" className="grid gap-4 p-4">
+                  <div className="grid gap-3 md:grid-cols-4">
+                    {operatingVitals.map((vital) => {
+                      const Icon = vital.icon;
+
+                      return (
+                        <div
+                          className="rounded-[8px] border border-white/10 bg-white/[0.045] p-3"
+                          key={vital.label}
+                        >
+                          <Icon className="mb-3 size-4 text-[#a7c7ff]" aria-hidden="true" />
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-[#9ca3af]">
+                            {vital.label}
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-[#fff8eb]">
+                            {vital.value}
+                          </p>
+                        </div>
+                      );
+                    })}
                   </div>
 
                   <div className="grid gap-3">
@@ -924,34 +913,33 @@ export function PaycheckPlanner() {
                     ))}
                   </div>
 
-                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                    <div className="rounded-[8px] border border-white/10 bg-[#0b1412] p-4">
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    <div className="rounded-[8px] border border-white/10 bg-white/[0.045] p-4">
                       <div className="mb-3 flex items-center justify-between gap-3">
-                        <p className="text-sm font-semibold text-[#fff7ea]">
-                          Priority queue
+                        <p className="text-sm font-semibold text-[#fff8eb]">
+                          Priority rail
                         </p>
-                        <TrendingUp
-                          className="size-4 text-[#a6d8ff]"
-                          aria-hidden="true"
-                        />
+                        <TrendingUp className="size-4 text-[#a7c7ff]" aria-hidden="true" />
                       </div>
                       <div className="grid gap-2">
                         {priorityQueue.map((bucket, index) => (
                           <div
-                            className="flex items-center justify-between gap-3 rounded-[8px] border border-white/10 bg-white/[0.04] px-3 py-2"
+                            className="flex items-center justify-between gap-3 rounded-[8px] border border-white/10 bg-[#05070a]/56 px-3 py-2"
                             key={bucket.id}
                           >
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-[#fff7ea]">
+                              <p className="truncate text-sm font-semibold text-[#fff8eb]">
                                 {index + 1}. {bucket.name}
                               </p>
-                              <p className="text-xs text-[#a89f90]">
+                              <p className="text-xs text-[#9ca3af]">
                                 {bucket.protection} - {bucket.due}
                               </p>
                             </div>
                             <p
                               className={`text-sm font-semibold ${
-                                bucket.short > 0 ? "text-[#f4cf7a]" : "text-[#9ee6d6]"
+                                bucket.short > 0
+                                  ? "text-[#ff8a7a]"
+                                  : "text-[#7cf8d4]"
                               }`}
                             >
                               {bucket.short > 0
@@ -963,71 +951,129 @@ export function PaycheckPlanner() {
                       </div>
                     </div>
 
-                    <div className="rounded-[8px] border border-white/10 bg-[#0b1412] p-4">
+                    <div className="rounded-[8px] border border-white/10 bg-white/[0.045] p-4">
                       <div className="mb-3 flex items-center justify-between gap-3">
-                        <p className="text-sm font-semibold text-[#fff7ea]">
-                          Household access
+                        <p className="text-sm font-semibold text-[#fff8eb]">
+                          Household mode
                         </p>
-                        <Users className="size-4 text-[#9ee6d6]" aria-hidden="true" />
+                        <Users className="size-4 text-[#7cf8d4]" aria-hidden="true" />
                       </div>
-                      <div className="grid gap-2 text-sm leading-6 text-[#d7ccbb]">
-                        <p className="rounded-[8px] border border-white/10 bg-white/[0.03] px-3 py-2">
-                          Primary user can adjust bucket targets before payday.
+                      <div className="grid gap-2 text-sm leading-6 text-[#d4d9e2]">
+                        <p className="rounded-[8px] border border-white/10 bg-[#05070a]/48 px-3 py-2">
+                          Shared view focuses on coverage, shortfalls, and the refill plan.
                         </p>
-                        <p className="rounded-[8px] border border-white/10 bg-white/[0.03] px-3 py-2">
-                          Partner view can see coverage, shortfalls, and recovery
-                          plans without seeing notes.
+                        <p className="rounded-[8px] border border-white/10 bg-[#05070a]/48 px-3 py-2">
+                          No bank credentials, account numbers, or sensitive notes required.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <aside className="grid gap-5 lg:sticky lg:top-5">
+            <div
+              id="card-guard"
+              className="overflow-hidden rounded-[8px] border border-white/10 bg-[#080c12]/92 shadow-[0_24px_100px_rgba(0,0,0,0.44)] ring-1 ring-white/[0.04] backdrop-blur-xl"
+            >
+              <div className="relative min-h-[320px] overflow-hidden">
+                <Image
+                  alt="PayShield mobile dashboard and safe-to-spend view"
+                  className="absolute inset-0 h-full w-full object-cover opacity-45"
+                  height={1024}
+                  priority
+                  src="/images/payshield-product-mockup.avif"
+                  width={1536}
+                />
+                <div className="absolute inset-0 bg-gradient-to-b from-[#06090d]/20 via-[#06090d]/48 to-[#06090d]" />
+                <div className="relative p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-[#fff8eb]">
+                        Phone view
+                      </p>
+                      <p className="text-sm text-[#d4d9e2]">
+                        Daily safe-to-spend snapshot
+                      </p>
+                    </div>
+                    <span className="rounded-[8px] border border-[#ffd166]/35 bg-[#ffd166]/12 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#ffedb1]">
+                      Live MVP
+                    </span>
+                  </div>
+                  <div className="mx-auto mt-7 max-w-[270px] rounded-[30px] border border-white/20 bg-[#05070a] p-3 shadow-[0_30px_90px_rgba(0,0,0,0.58)]">
+                    <div className="rounded-[22px] border border-white/10 bg-[#0b1320] p-4">
+                      <div className="mb-4 flex items-center justify-between">
+                        <span className="text-xs font-semibold text-[#aeb7c5]">
+                          Today
+                        </span>
+                        <span
+                          className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${
+                            cardApproved
+                              ? "bg-[#7cf8d4]/15 text-[#7cf8d4]"
+                              : "bg-[#ff8a7a]/15 text-[#ffb0a6]"
+                          }`}
+                        >
+                          {purchaseTone}
+                        </span>
+                      </div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#7cf8d4]">
+                        Spendable
+                      </p>
+                      <p className="mt-1 text-4xl font-semibold text-[#fff8eb]">
+                        {formatMoney(plan.safeSpend)}
+                      </p>
+                      <div className="mt-5 grid gap-2">
+                        {plan.allocations.slice(0, 4).map((bucket) => (
+                          <div
+                            className="flex items-center gap-2 rounded-[8px] bg-white/[0.055] p-2"
+                            key={bucket.id}
+                          >
+                            <span
+                              className="size-2.5 rounded-full"
+                              style={{ backgroundColor: bucket.color }}
+                            />
+                            <span className="min-w-0 flex-1 truncate text-xs text-[#d4d9e2]">
+                              {bucket.name}
+                            </span>
+                            <span className="text-xs font-semibold text-[#fff8eb]">
+                              {bucket.short > 0 ? "Short" : "Set"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-5 rounded-[8px] bg-[#7cf8d4] p-3 text-[#04100d]">
+                        <p className="text-xs font-semibold uppercase tracking-[0.12em]">
+                          Next decision
+                        </p>
+                        <p className="mt-1 text-sm font-semibold">
+                          {merchant} {cardApproved ? "fits" : "should wait"}
                         </p>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <aside className="grid gap-4">
-            <div
-              id="card-guard"
-              className="overflow-hidden rounded-[8px] border border-white/10 bg-[#101b18]/96 shadow-[0_24px_90px_rgba(0,0,0,0.32)] ring-1 ring-white/5"
-            >
-              <div className="flex items-center justify-between gap-3 border-b border-white/10 p-4">
-                <div>
-                  <p className="text-sm font-semibold text-[#fff7ea]">
-                    Phone view
-                  </p>
-                  <p className="text-sm text-[#a89f90]">
-                    Daily safe-to-spend snapshot
-                  </p>
-                </div>
-                <span className="rounded-[8px] border border-[#ffbf91]/25 bg-[#ffbf91]/10 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#ffe0c8]">
-                  MVP
-                </span>
-              </div>
-              <Image
-                alt="PayShield mobile dashboard and safe-to-spend view"
-                className="aspect-[16/11] w-full object-cover"
-                height={1024}
-                priority
-                src="/images/payshield-product-mockup.avif"
-                width={1536}
-              />
               <div className="border-t border-white/10 p-4">
                 <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-[#fff7ea]">
-                    Purchase check
-                  </p>
-                  <WalletCards
-                    className="size-5 text-[#a89f90]"
-                    aria-hidden="true"
-                  />
+                  <div>
+                    <p className="text-sm font-semibold text-[#fff8eb]">
+                      Purchase check
+                    </p>
+                    <p className="text-sm text-[#aeb7c5]">
+                      Test a real-world swipe before it happens.
+                    </p>
+                  </div>
+                  <WalletCards className="size-5 text-[#ffd166]" aria-hidden="true" />
                 </div>
 
-                <div className="mt-4 grid gap-3">
-                  <label className="text-sm font-medium text-[#e1d6c5]">
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                  <label className="text-sm font-medium text-[#dfe7f2]">
                     Merchant
                     <select
-                      className="mt-2 h-11 w-full rounded-[8px] border border-white/10 bg-[#08110f] px-3 text-[#fff7ea] outline-none focus:border-[#9ee6d6]"
+                      className="mt-2 h-11 w-full rounded-[8px] border border-white/10 bg-[#05070a] px-3 text-[#fff8eb] outline-none focus:border-[#7cf8d4]"
                       value={merchant}
                       onChange={(event) => updateMerchant(event.target.value)}
                     >
@@ -1037,13 +1083,13 @@ export function PaycheckPlanner() {
                     </select>
                   </label>
 
-                  <label className="text-sm font-medium text-[#e1d6c5]">
+                  <label className="text-sm font-medium text-[#dfe7f2]">
                     Purchase amount
-                    <div className="mt-2 flex h-11 items-center rounded-[8px] border border-white/10 bg-[#08110f] px-3">
-                      <span className="text-[#a89f90]">$</span>
+                    <div className="mt-2 flex h-11 items-center rounded-[8px] border border-white/10 bg-[#05070a] px-3 focus-within:border-[#7cf8d4]">
+                      <span className="text-[#9ca3af]">$</span>
                       <input
                         aria-label="Card transaction amount"
-                        className="min-w-0 flex-1 bg-transparent px-2 text-[#fff7ea] outline-none"
+                        className="min-w-0 flex-1 bg-transparent px-2 text-[#fff8eb] outline-none"
                         inputMode="numeric"
                         max={5000}
                         min={1}
@@ -1069,22 +1115,22 @@ export function PaycheckPlanner() {
 
                     return (
                       <div
-                        className="flex items-start gap-3 rounded-[8px] border border-white/10 bg-[#0b1412] p-3"
+                        className="flex items-start gap-3 rounded-[8px] border border-white/10 bg-white/[0.045] p-3"
                         key={step.title}
                       >
                         <Icon
                           className={`mt-0.5 size-4 shrink-0 ${
-                            step.title.includes("declined")
-                              ? "text-[#ff9f9f]"
-                              : "text-[#9ee6d6]"
+                            step.title.includes("paused")
+                              ? "text-[#ff8a7a]"
+                              : "text-[#7cf8d4]"
                           }`}
                           aria-hidden="true"
                         />
                         <div>
-                          <p className="text-sm font-semibold text-[#fff7ea]">
+                          <p className="text-sm font-semibold text-[#fff8eb]">
                             {step.title}
                           </p>
-                          <p className="mt-1 text-xs leading-5 text-[#cfc6b7]">
+                          <p className="mt-1 text-xs leading-5 text-[#d4d9e2]">
                             {step.body}
                           </p>
                         </div>
@@ -1096,27 +1142,27 @@ export function PaycheckPlanner() {
                 <div
                   className={`mt-4 rounded-[8px] border p-3 ${
                     cardApproved
-                      ? "border-[#9ee6d6]/30 bg-[#9ee6d6]/10"
-                      : "border-[#ff9f9f]/30 bg-[#ff9f9f]/10"
+                      ? "border-[#7cf8d4]/30 bg-[#7cf8d4]/10"
+                      : "border-[#ff8a7a]/35 bg-[#ff8a7a]/10"
                   }`}
                 >
                   <div className="flex items-start gap-3">
                     {cardApproved ? (
                       <CheckCircle2
-                        className="mt-0.5 size-5 text-[#9ee6d6]"
+                        className="mt-0.5 size-5 text-[#7cf8d4]"
                         aria-hidden="true"
                       />
                     ) : (
                       <XCircle
-                        className="mt-0.5 size-5 text-[#ff9f9f]"
+                        className="mt-0.5 size-5 text-[#ff8a7a]"
                         aria-hidden="true"
                       />
                     )}
                     <div>
-                      <p className="font-semibold text-[#fff7ea]">
+                      <p className="font-semibold text-[#fff8eb]">
                         {cardApproved ? "Fits" : "Pause"} at {merchant}
                       </p>
-                      <p className="mt-1 text-sm leading-6 text-[#cfc6b7]">
+                      <p className="mt-1 text-sm leading-6 text-[#d4d9e2]">
                         The household has {formatMoney(plan.safeSpend)} safe to
                         spend after protected buckets.
                       </p>
@@ -1126,17 +1172,17 @@ export function PaycheckPlanner() {
               </div>
             </div>
 
-            <div className="rounded-[8px] border border-white/10 bg-[#101b18]/96 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.3)] ring-1 ring-[#a6d8ff]/10">
+            <div className="rounded-[8px] border border-white/10 bg-[#080c12]/92 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.34)] ring-1 ring-[#a7c7ff]/10 backdrop-blur-xl">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-[#fff7ea]">
+                  <p className="text-sm font-semibold text-[#fff8eb]">
                     What changed
                   </p>
-                  <p className="text-sm text-[#a89f90]">
+                  <p className="text-sm text-[#aeb7c5]">
                     The plan explains each money decision.
                   </p>
                 </div>
-                <ListChecks className="size-5 text-[#a6d8ff]" aria-hidden="true" />
+                <ListChecks className="size-5 text-[#a7c7ff]" aria-hidden="true" />
               </div>
               <div className="grid gap-2">
                 {activity.map((event) => {
@@ -1144,15 +1190,15 @@ export function PaycheckPlanner() {
 
                   return (
                     <div
-                      className="flex items-start gap-3 rounded-[8px] border border-white/10 bg-[#0b1412] p-3"
+                      className="flex items-start gap-3 rounded-[8px] border border-white/10 bg-white/[0.045] p-3"
                       key={event.title}
                     >
-                      <Icon className="mt-0.5 size-4 shrink-0 text-[#a6d8ff]" aria-hidden="true" />
+                      <Icon className="mt-0.5 size-4 shrink-0 text-[#a7c7ff]" aria-hidden="true" />
                       <div>
-                        <p className="text-sm font-semibold text-[#fff7ea]">
+                        <p className="text-sm font-semibold text-[#fff8eb]">
                           {event.title}
                         </p>
-                        <p className="mt-1 text-xs leading-5 text-[#cfc6b7]">
+                        <p className="mt-1 text-xs leading-5 text-[#d4d9e2]">
                           {event.body}
                         </p>
                       </div>
@@ -1164,25 +1210,25 @@ export function PaycheckPlanner() {
 
             <div
               id="recovery"
-              className="rounded-[8px] border border-white/10 bg-[#101b18]/96 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.3)] ring-1 ring-[#ffbf91]/10"
+              className="rounded-[8px] border border-white/10 bg-[#080c12]/92 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.34)] ring-1 ring-[#ffd166]/10 backdrop-blur-xl"
             >
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-[#fff7ea]">
+                  <p className="text-sm font-semibold text-[#fff8eb]">
                     Emergency unlock
                   </p>
-                  <p className="text-sm text-[#a89f90]">
+                  <p className="text-sm text-[#aeb7c5]">
                     Pause first, then show the refill plan.
                   </p>
                 </div>
-                <KeyRound className="size-5 text-[#ffbf91]" aria-hidden="true" />
+                <KeyRound className="size-5 text-[#ffd166]" aria-hidden="true" />
               </div>
 
               <div className="grid gap-3">
-                <label className="text-sm font-medium text-[#e1d6c5]">
+                <label className="text-sm font-medium text-[#dfe7f2]">
                   Protected bucket
                   <select
-                    className="mt-2 h-11 w-full rounded-[8px] border border-white/10 bg-[#08110f] px-3 text-[#fff7ea] outline-none focus:border-[#9ee6d6]"
+                    className="mt-2 h-11 w-full rounded-[8px] border border-white/10 bg-[#05070a] px-3 text-[#fff8eb] outline-none focus:border-[#7cf8d4]"
                     value={unlockBucket}
                     onChange={(event) =>
                       updateUnlockBucket(event.target.value as BucketId)
@@ -1196,11 +1242,11 @@ export function PaycheckPlanner() {
                   </select>
                 </label>
 
-                <label className="text-sm font-medium text-[#e1d6c5]">
+                <label className="text-sm font-medium text-[#dfe7f2]">
                   Unlock amount
                   <input
                     aria-label="Emergency unlock amount"
-                    className="mt-2 h-11 w-full rounded-[8px] border border-white/10 bg-[#08110f] px-3 text-[#fff7ea] outline-none focus:border-[#9ee6d6]"
+                    className="mt-2 h-11 w-full rounded-[8px] border border-white/10 bg-[#05070a] px-3 text-[#fff8eb] outline-none focus:border-[#7cf8d4]"
                     inputMode="numeric"
                     max={2000}
                     min={25}
@@ -1222,14 +1268,14 @@ export function PaycheckPlanner() {
 
                 <div
                   aria-label="Unlock speed"
-                  className="grid grid-cols-2 gap-2 rounded-[8px] bg-[#08110f] p-1"
+                  className="grid grid-cols-2 gap-2 rounded-[8px] bg-[#05070a] p-1"
                   role="group"
                 >
                   <button
                     className={`rounded-[8px] px-3 py-2 text-sm font-semibold ${
                       unlockMode === "slow"
-                        ? "bg-[#eaf8ee] text-[#07110f] shadow-sm"
-                        : "text-[#cfc6b7]"
+                        ? "bg-[#7cf8d4] text-[#04100d] shadow-sm"
+                        : "text-[#d4d9e2]"
                     }`}
                     type="button"
                     onClick={() => updateUnlockMode("slow")}
@@ -1239,8 +1285,8 @@ export function PaycheckPlanner() {
                   <button
                     className={`inline-flex items-center justify-center gap-2 rounded-[8px] px-3 py-2 text-sm font-semibold ${
                       unlockMode === "instant"
-                        ? "bg-[#eaf8ee] text-[#07110f] shadow-sm"
-                        : "text-[#cfc6b7]"
+                        ? "bg-[#7cf8d4] text-[#04100d] shadow-sm"
+                        : "text-[#d4d9e2]"
                     }`}
                     type="button"
                     onClick={() => updateUnlockMode("instant")}
@@ -1251,13 +1297,13 @@ export function PaycheckPlanner() {
                 </div>
               </div>
 
-              <div className="mt-4 rounded-[8px] border border-[#ffbf91]/30 bg-[#ffbf91]/10 p-3">
+              <div className="mt-4 rounded-[8px] border border-[#ffd166]/30 bg-[#ffd166]/10 p-3">
                 <div className="flex items-start gap-3">
                   <AlertTriangle
-                    className="mt-0.5 size-5 text-[#ffbf91]"
+                    className="mt-0.5 size-5 text-[#ffd166]"
                     aria-hidden="true"
                   />
-                  <p className="text-sm leading-6 text-[#efe6d7]">
+                  <p className="text-sm leading-6 text-[#f8f1e4]">
                     Unlocking {formatMoney(actualUnlock)} from{" "}
                     {selectedUnlockBucket?.name} creates a refill rule of{" "}
                     {formatMoney(recoveryAmount)} from the next{" "}
@@ -1284,13 +1330,13 @@ function Metric({
   warning?: boolean;
 }) {
   return (
-    <div className="rounded-[8px] border border-white/10 bg-white/[0.04] p-2">
-      <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[#9f9484]">
+    <div className="rounded-[8px] border border-white/10 bg-white/[0.055] p-2">
+      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[#9ca3af]">
         {label}
       </p>
       <p
         className={`mt-1 text-sm font-semibold ${
-          warning ? "text-[#f4cf7a]" : "text-[#fff7ea]"
+          warning ? "text-[#ff8a7a]" : "text-[#fff8eb]"
         }`}
       >
         {value}
@@ -1311,23 +1357,23 @@ function BucketRow({
     bucket.target > 0 ? (bucket.funded / bucket.target) * 100 : 100;
 
   return (
-    <div className="rounded-[8px] border border-white/10 bg-white/[0.04] p-3">
+    <div className="group rounded-[8px] border border-white/10 bg-white/[0.045] p-3 transition hover:border-white/20 hover:bg-white/[0.07]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <span
-            className="grid size-10 shrink-0 place-items-center rounded-[8px] text-white"
+            className="grid size-10 shrink-0 place-items-center rounded-[8px] text-white shadow-[0_14px_36px_rgba(0,0,0,0.32)]"
             style={{ backgroundColor: bucket.color }}
           >
             <Icon className="size-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="font-semibold text-[#fff7ea]">{bucket.name}</p>
-              <span className="rounded-[8px] border border-white/10 bg-[#08110f] px-2 py-1 text-xs font-semibold text-[#cfc6b7]">
+              <p className="font-semibold text-[#fff8eb]">{bucket.name}</p>
+              <span className="rounded-[8px] border border-white/10 bg-[#05070a] px-2 py-1 text-xs font-semibold text-[#d4d9e2]">
                 {bucket.protection}
               </span>
             </div>
-            <p className="mt-1 text-sm leading-6 text-[#a89f90]">
+            <p className="mt-1 text-sm leading-6 text-[#aeb7c5]">
               {bucket.rail} - Due {bucket.due}
             </p>
           </div>
@@ -1336,17 +1382,17 @@ function BucketRow({
         <div className="flex items-center gap-2">
           <button
             aria-label={`Decrease ${bucket.name} target`}
-            className="grid size-9 place-items-center rounded-[8px] border border-white/10 bg-[#08110f] text-lg font-semibold text-[#fff7ea] hover:border-[#9ee6d6]/60"
+            className="grid size-9 place-items-center rounded-[8px] border border-white/10 bg-[#05070a] text-[#fff8eb] hover:border-[#7cf8d4]/60"
             type="button"
             onClick={() => onChange(bucket.target - 25)}
           >
-            -
+            <Minus className="size-4" aria-hidden="true" />
           </button>
           <label className="sr-only" htmlFor={`${bucket.id}-amount`}>
             {bucket.name} target amount
           </label>
           <input
-            className="h-9 w-24 rounded-[8px] border border-white/10 bg-[#08110f] px-2 text-right text-sm font-semibold text-[#fff7ea] outline-none focus:border-[#9ee6d6]"
+            className="h-9 w-24 rounded-[8px] border border-white/10 bg-[#05070a] px-2 text-right text-sm font-semibold text-[#fff8eb] outline-none focus:border-[#7cf8d4]"
             id={`${bucket.id}-amount`}
             inputMode="numeric"
             max={2000}
@@ -1359,29 +1405,29 @@ function BucketRow({
           />
           <button
             aria-label={`Increase ${bucket.name} target`}
-            className="grid size-9 place-items-center rounded-[8px] border border-white/10 bg-[#08110f] text-lg font-semibold text-[#fff7ea] hover:border-[#9ee6d6]/60"
+            className="grid size-9 place-items-center rounded-[8px] border border-white/10 bg-[#05070a] text-[#fff8eb] hover:border-[#7cf8d4]/60"
             type="button"
             onClick={() => onChange(bucket.target + 25)}
           >
-            +
+            <Plus className="size-4" aria-hidden="true" />
           </button>
         </div>
       </div>
 
       <div className="mt-3">
         <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-          <span className="font-medium text-[#cfc6b7]">
+          <span className="font-medium text-[#d4d9e2]">
             Funded {formatMoney(bucket.funded)} of {formatMoney(bucket.target)}
           </span>
           {bucket.short > 0 ? (
-            <span className="font-semibold text-[#ff9f9f]">
+            <span className="font-semibold text-[#ff8a7a]">
               Short {formatMoney(bucket.short)}
             </span>
           ) : (
-            <span className="font-semibold text-[#9ee6d6]">Covered</span>
+            <span className="font-semibold text-[#7cf8d4]">Covered</span>
           )}
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-[#08110f]">
+        <div className="h-2 overflow-hidden rounded-full bg-[#05070a]">
           <div
             className="h-full rounded-full"
             style={{

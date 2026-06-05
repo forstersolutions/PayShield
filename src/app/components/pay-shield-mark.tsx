@@ -1,0 +1,41 @@
+type PayShieldMarkProps = {
+  className?: string;
+};
+
+export function PayShieldMark({ className = "size-11" }: PayShieldMarkProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 64 64"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect width="64" height="64" rx="16" fill="#05070A" />
+      <path
+        d="M32 7 49.5 14.5v14.2c0 12.6-6.8 21.4-17.5 28.3-10.7-6.9-17.5-15.7-17.5-28.3V14.5L32 7Z"
+        fill="#7CF8D4"
+      />
+      <path
+        d="M24 22.5h12.2c5.1 0 8.3 2.9 8.3 7.1 0 4.1-3.2 7-8.3 7H28.8v9.9"
+        stroke="#05070A"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="5.4"
+      />
+      <path
+        d="M22.5 47.5h18"
+        stroke="#FFD166"
+        strokeLinecap="round"
+        strokeWidth="4.6"
+      />
+      <path
+        d="M21.5 18.2h21"
+        stroke="#05070A"
+        strokeLinecap="round"
+        strokeOpacity=".24"
+        strokeWidth="3.4"
+      />
+    </svg>
+  );
+}

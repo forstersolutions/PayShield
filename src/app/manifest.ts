@@ -8,8 +8,8 @@ export default function manifest(): MetadataRoute.Manifest {
       "Paycheck planning app for bills, reserves, and safe-to-spend decisions.",
     start_url: "/",
     display: "standalone",
-    background_color: "#08110f",
-    theme_color: "#10201c",
+    background_color: "#05070a",
+    theme_color: "#0b1017",
     icons: [
       {
         src: "/icon.svg",

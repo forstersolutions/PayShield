@@ -181,7 +181,7 @@ requireText(
 requireText("src/app/layout.tsx", 'manifest: "/manifest.webmanifest"');
 requireText("src/app/layout.tsx", 'url: "/icon.svg"');
 requireText("src/app/manifest.ts", 'name: "PayShield"');
-requireText("src/app/manifest.ts", 'theme_color: "#10201c"');
+requireText("src/app/manifest.ts", 'theme_color: "#0b1017"');
 requireText(
   "src/app/components/paycheck-planner.tsx",
   'src="/images/payshield-product-mockup.avif"',

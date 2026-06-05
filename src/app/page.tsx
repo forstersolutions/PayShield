@@ -11,19 +11,19 @@ import { WaitlistForm } from "@/app/components/waitlist-form";
 
 export default function HomePage() {
   return (
-    <main className="bg-[#08110f] text-[#fff7ea]">
+    <main className="bg-[#05070a] text-[#f8f1e4]">
       <PaycheckPlanner />
 
-      <section className="border-b border-white/10 bg-[#101817]">
+      <section className="border-b border-white/10 bg-[#070b10]">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#9ee6d6]">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#7cf8d4]">
               MVP workflow
             </p>
             <h2 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
               A calmer paycheck routine in four steps.
             </h2>
-            <p className="mt-4 text-lg leading-8 text-[#cfc6b7]">
+            <p className="mt-4 text-lg leading-8 text-[#d4d9e2]">
               PayShield starts as a manual planning app: add the paycheck, fund
               the bills first, see what is truly safe to spend, and create a
               recovery plan when money has to move.
@@ -36,14 +36,14 @@ export default function HomePage() {
 
               return (
                 <article
-                  className="rounded-[8px] border border-white/10 bg-[#16231f] p-5 shadow-[0_18px_60px_rgba(0,0,0,0.18)]"
+                  className="rounded-[8px] border border-white/10 bg-[#0b1017] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.26)] ring-1 ring-white/[0.03]"
                   key={item.title}
                 >
-                  <Icon className="size-6 text-[#9ee6d6]" aria-hidden="true" />
-                  <h3 className="mt-5 text-lg font-semibold text-[#fff7ea]">
+                  <Icon className="size-6 text-[#7cf8d4]" aria-hidden="true" />
+                  <h3 className="mt-5 text-lg font-semibold text-[#fff8eb]">
                     {item.title}
                   </h3>
-                  <p className="mt-3 text-sm leading-6 text-[#cfc6b7]">
+                  <p className="mt-3 text-sm leading-6 text-[#b9c3d0]">
                     {item.body}
                   </p>
                 </article>
@@ -53,16 +53,16 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="border-b border-white/10 bg-[#0b1412]">
+      <section className="border-b border-white/10 bg-[#05070a]">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#ffbf91]">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#ffd166]">
               Built for real households
             </p>
             <h2 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
               Friendly enough for Sunday night. Clear enough for payday.
             </h2>
-            <p className="mt-4 text-lg leading-8 text-[#cfc6b7]">
+            <p className="mt-4 text-lg leading-8 text-[#d4d9e2]">
               The app avoids bank-speak and spreadsheet chores. It shows the
               practical answers people need before spending starts.
             </p>
@@ -71,42 +71,42 @@ export default function HomePage() {
           <div className="grid gap-3">
             {outcomes.map((line) => (
               <div
-                className="flex items-start gap-3 rounded-[8px] border border-white/10 bg-[#17201b] p-4"
+                className="flex items-start gap-3 rounded-[8px] border border-white/10 bg-[#0b1017] p-4 shadow-[0_16px_60px_rgba(0,0,0,0.22)]"
                 key={line}
               >
                 <CheckCircle2
-                  className="mt-0.5 size-5 shrink-0 text-[#9ee6d6]"
+                  className="mt-0.5 size-5 shrink-0 text-[#7cf8d4]"
                   aria-hidden="true"
                 />
-                <p className="text-base leading-7 text-[#efe6d7]">{line}</p>
+                <p className="text-base leading-7 text-[#e8edf4]">{line}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section id="early-access" className="bg-[#08110f] text-[#fff7ea]">
+      <section id="early-access" className="bg-[#070b10] text-[#f8f1e4]">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-14 sm:px-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-8">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#9ee6d6]">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#7cf8d4]">
               Early access
             </p>
             <h2 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
               Help shape the first shipped version.
             </h2>
-            <p className="mt-4 max-w-3xl text-lg leading-8 text-[#cfc6b7]">
+            <p className="mt-4 max-w-3xl text-lg leading-8 text-[#d4d9e2]">
               We are collecting real household, worker, employer, and partner
               feedback around the MVP workflow: bills first, safe-to-spend
               clarity, shared planning, and recovery after an unlock.
             </p>
-            <div className="mt-8 grid gap-3 text-sm leading-6 text-[#d7ccbb] sm:grid-cols-3">
-              <p className="rounded-[8px] border border-white/10 bg-white/[0.04] p-3">
+            <div className="mt-8 grid gap-3 text-sm leading-6 text-[#d4d9e2] sm:grid-cols-3">
+              <p className="rounded-[8px] border border-white/10 bg-white/[0.055] p-3">
                 Bring one real paycheck week and see where the plan helps.
               </p>
-              <p className="rounded-[8px] border border-white/10 bg-white/[0.04] p-3">
+              <p className="rounded-[8px] border border-white/10 bg-white/[0.055] p-3">
                 Tell us which bills need the clearest protection.
               </p>
-              <p className="rounded-[8px] border border-white/10 bg-white/[0.04] p-3">
+              <p className="rounded-[8px] border border-white/10 bg-white/[0.055] p-3">
                 Join the first feedback group before broader release.
               </p>
             </div>

@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #08110f;
-  --foreground: #fff7ea;
+  --background: #05070a;
+  --foreground: #f8f1e4;
 }
 
 @theme inline {
@@ -14,14 +14,14 @@
 
 body {
   background:
-    linear-gradient(180deg, #08110f 0%, #101817 46%, #0a0d0c 100%);
+    linear-gradient(180deg, #05070a 0%, #0a0f16 48%, #05070a 100%);
   color: var(--foreground);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 ::selection {
-  background: #9cebd7;
-  color: #07110f;
+  background: #7cf8d4;
+  color: #04100d;
 }
 
 button,
@@ -38,8 +38,9 @@ html {
 
 .pay-app-shell {
   background:
-    linear-gradient(135deg, rgba(158, 230, 214, 0.12), transparent 38%),
-    linear-gradient(180deg, #091512 0%, #101b18 54%, #090d0c 100%);
+    linear-gradient(116deg, rgba(124, 248, 212, 0.14), transparent 30%),
+    linear-gradient(244deg, rgba(255, 209, 102, 0.1), transparent 26%),
+    linear-gradient(180deg, #05070a 0%, #0b1017 48%, #05070a 100%);
 }
 
 .pay-app-shell::before {
@@ -48,10 +49,15 @@ html {
   pointer-events: none;
   content: "";
   background-image:
-    linear-gradient(rgba(255, 247, 234, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 247, 234, 0.028) 1px, transparent 1px);
-  background-size: 96px 96px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.42), transparent 66%);
+    linear-gradient(110deg, transparent 0 18%, rgba(124, 248, 212, 0.08) 18% 18.2%, transparent 18.2% 100%),
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  background-size:
+    520px 520px,
+    80px 80px,
+    80px 80px;
+  animation: payshield-scan 16s linear infinite;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.62), transparent 72%);
 }
 
 .pay-app-shell::after {
@@ -60,5 +66,27 @@ html {
   height: 32%;
   pointer-events: none;
   content: "";
-  background: linear-gradient(180deg, transparent, rgba(8, 17, 15, 0.92));
+  background: linear-gradient(180deg, transparent, rgba(5, 7, 10, 0.94));
+}
+
+@keyframes payshield-scan {
+  from {
+    background-position:
+      0 0,
+      0 0,
+      0 0;
+  }
+
+  to {
+    background-position:
+      520px 0,
+      80px 80px,
+      80px 80px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pay-app-shell::before {
+    animation: none;
+  }
 }
