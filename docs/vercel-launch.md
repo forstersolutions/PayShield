@@ -139,6 +139,25 @@ Do not use a container instance without a persistent volume for paid traffic.
 The receiver writes lead data to files under `/data/waitlist`; ephemeral storage
 will lose accepted leads on restart or redeploy.
 
+The lightweight receiver data files can be checked without printing emails or
+notes:
+
+```bash
+npm run waitlist:data -- summary --data-dir /path/to/waitlist
+```
+
+To honor a deletion request, dry-run the removal first and then rerun without
+`--dry-run`:
+
+```bash
+npm run waitlist:data -- erase --email lead@example.com --data-dir /path/to/waitlist --dry-run
+npm run waitlist:data -- erase --email lead@example.com --data-dir /path/to/waitlist
+```
+
+The erase command rewrites `waitlist.ndjson` and regenerates `waitlist.csv` from
+the remaining records. It refuses to rewrite if the NDJSON file contains
+malformed lines.
+
 Before changing Vercel to required-webhook mode, prove the receiver accepts a
 signed PayShield payload:
 

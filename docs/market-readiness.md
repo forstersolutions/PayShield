@@ -50,6 +50,8 @@ deployments, partner demos, and pilot demand capture.
   to ignored local NDJSON/CSV files when a lightweight receiver is needed.
 - Dedicated `Dockerfile.receiver` for running the signed receiver on a container
   host with a persistent `/data/waitlist` volume and `GET /health` checks.
+- Receiver data-ops command for non-PII lead summaries and email-based deletion
+  requests against the lightweight receiver files.
 - Signed webhook smoke tester for proving a CRM or lightweight receiver accepts
   PayShield HMAC payloads before paid traffic is enabled.
 - Conservative fintech language that does not claim PayShield is a bank or that
@@ -78,6 +80,11 @@ deployments, partner demos, and pilot demand capture.
   `/data/waitlist`, confirm `GET /health` returns
   `service: "payshield-waitlist-receiver"`, and include the volume backup/export
   owner in the launch evidence.
+- If the lightweight receiver is used, run
+  `npm run waitlist:data -- summary --data-dir /path/to/waitlist` after test
+  submissions to confirm non-PII counts, and use
+  `npm run waitlist:data -- erase --email lead@example.com --dry-run` before
+  honoring deletion requests.
 - Run `PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run webhook:test -- https://your-webhook-url`
   against the receiver and confirm it returns a 2xx response before configuring
   Vercel to require webhook persistence.

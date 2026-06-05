@@ -78,6 +78,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "scripts/paid-traffic-readiness.mjs",
   "scripts/smoke-deploy.mjs",
   "scripts/test-waitlist-webhook.mjs",
+  "scripts/waitlist-data-ops.mjs",
   "scripts/waitlist-webhook-receiver.mjs",
   "vercel.json",
 ].forEach((path) => requireFile(path));
@@ -138,6 +139,10 @@ requireText("scripts/paid-traffic-readiness.mjs", "publicCopyBannedPhrases");
 requireText("scripts/test-waitlist-webhook.mjs", "sendSignedWebhookTest");
 requireText("scripts/test-waitlist-webhook.mjs", "x-payshield-webhook-signature");
 requireText("scripts/test-waitlist-webhook.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");
+requireText("scripts/waitlist-data-ops.mjs", "summarizeWaitlistData");
+requireText("scripts/waitlist-data-ops.mjs", "eraseWaitlistEmail");
+requireText("scripts/waitlist-data-ops.mjs", "malformedLines");
+requireText("package.json", "\"waitlist:data\"");
 requireText("SECURITY.md", "GitHub Dependabot security updates are enabled");
 requireText("SECURITY.md", "GitHub private vulnerability reporting is enabled");
 requireText("SECURITY.md", "Do not open a public issue for security vulnerabilities");

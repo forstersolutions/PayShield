@@ -31,6 +31,8 @@ npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url http
 npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com --allow-prototype
 npm run smoke:deploy -- https://your-domain.com
 npm run smoke:deploy -- https://your-domain.com --expect-site-url https://your-domain.com
+npm run waitlist:data -- summary
+npm run waitlist:data -- erase --email lead@example.com --dry-run
 npm run webhook:receive
 PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run webhook:test -- https://your-webhook-url
 npm run build
@@ -117,6 +119,17 @@ PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook npm run webhook
 `npm run webhook:test -- https://your-webhook-url` sends one signed sample
 payload to any receiver using `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`, so the
 endpoint can be verified before Vercel is switched into required-webhook mode.
+
+If the lightweight receiver is used, `npm run waitlist:data -- summary` prints
+non-PII totals and segment counts from the local receiver files. To honor a
+pilot deletion request, first run:
+
+```bash
+npm run waitlist:data -- erase --email lead@example.com --dry-run
+```
+
+Then rerun without `--dry-run` to remove matching records from
+`waitlist.ndjson` and regenerate `waitlist.csv`.
 
 `/api/health` exposes public-safe deployment and waitlist readiness state. It
 does not expose the webhook URL or signing secret, and it reports whether the
