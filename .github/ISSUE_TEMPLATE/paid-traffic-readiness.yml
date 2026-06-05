@@ -33,6 +33,7 @@ body:
         - label: "Receiver stores `consentVersion`, `privacyVersion`, `termsVersion`, `consentedAt`, and `consentText` for accepted test leads."
         - label: "Receiver stores `submissionId` and treats signed replays with the same `submissionId` as idempotent."
         - label: "A signed test submission with `utm_source`, `utm_medium`, and `utm_campaign` persists sanitized `attribution` fields."
+        - label: "`npm run waitlist:data -- audit --data-dir /path/to/waitlist` passes without printing PII if the lightweight receiver is used."
   - type: checkboxes
     id: market-compliance
     attributes:

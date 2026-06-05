@@ -61,7 +61,75 @@ const leadCaptureDryRun = {
   checks: [
     "/api/waitlist accepts a signed required-webhook submission",
     "receiver treats signed replay with the same submissionId as idempotent",
+    "waitlist data audit verifies receiver files and required metadata",
   ],
+  dataAudit: {
+    allowEmpty: false,
+    attribution: {
+      recordsWithAttribution: 1,
+      recordsWithCampaign: 1,
+      recordsWithCampaignSource: 1,
+      recordsWithLandingPath: 1,
+    },
+    csv: {
+      exists: true,
+      expectedRows: 1,
+      headerOk: true,
+      rowCount: 1,
+      rowCountMatches: true,
+    },
+    duplicateSubmissionIds: 0,
+    files: {
+      csv: {
+        bytes: 500,
+        exists: true,
+        sha256:
+          "1111111111111111111111111111111111111111111111111111111111111111",
+      },
+      ndjson: {
+        bytes: 350,
+        exists: true,
+        sha256:
+          "2222222222222222222222222222222222222222222222222222222222222222",
+      },
+    },
+    findings: [],
+    malformedLines: [],
+    missingRequired: {
+      consentText: 0,
+      consentedAt: 0,
+      consentVersion: 0,
+      createdAt: 0,
+      email: 0,
+      privacyVersion: 0,
+      receivedAt: 0,
+      segment: 0,
+      source: 0,
+      submissionId: 0,
+      termsVersion: 0,
+    },
+    ok: true,
+    summary: {
+      byCampaign: {
+        "Household Launch": 1,
+      },
+      byCampaignSource: {
+        "Paid Social": 1,
+      },
+      bySegment: {
+        Household: 1,
+      },
+      files: {
+        csv: true,
+        ndjson: true,
+      },
+      firstReceivedAt: "2026-06-05T00:00:00.000Z",
+      lastReceivedAt: "2026-06-05T00:00:00.000Z",
+      malformedLines: [],
+      ok: true,
+      total: 1,
+    },
+  },
   eraseDryRun: {
     dryRun: true,
     emailHash: "025af00cf03d",
@@ -171,6 +239,8 @@ test("summarizes current prototype evidence without treating paid traffic as rea
   assert.equal(evidence.readiness.prototype.ok, true);
   assert.equal(evidence.readiness.strict.ok, false);
   assert.equal(evidence.leadCaptureDryRun.summary.total, 1);
+  assert.equal(evidence.leadCaptureDryRun.dataAudit.ok, true);
+  assert.equal(evidence.leadCaptureDryRun.dataAudit.csv.rowCountMatches, true);
   assert.equal(serialized.includes("lead-capture-dry-run@example.com"), false);
   assert.equal(serialized.includes("Rent and insurance first."), false);
 });

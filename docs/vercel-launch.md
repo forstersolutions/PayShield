@@ -222,7 +222,12 @@ notes:
 
 ```bash
 npm run waitlist:data -- summary --data-dir /path/to/waitlist
+npm run waitlist:data -- audit --data-dir /path/to/waitlist
 ```
+
+The audit command verifies required consent metadata, `submissionId`
+idempotency keys, duplicate counts, CSV/NDJSON row consistency, and receiver
+file hashes without printing lead emails, names, notes, or filesystem paths.
 
 To honor a deletion request, dry-run the removal first and then rerun without
 `--dry-run`:

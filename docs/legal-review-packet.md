@@ -89,8 +89,9 @@ still be reviewed before paid traffic.
 6. Confirm the consent language and retained audit fields:
    `consentText`, `consentedAt`, `consentVersion`, `privacyVersion`, and
    `termsVersion`.
-7. Confirm deletion/correction request handling for lightweight receiver data,
-   including `npm run waitlist:data -- erase --email lead@example.com --dry-run`.
+7. Confirm lightweight receiver data handling, including
+   `npm run waitlist:data -- audit --data-dir /path/to/waitlist` and
+   `npm run waitlist:data -- erase --email lead@example.com --dry-run`.
 8. Confirm prohibited copy boundaries before any claim involving account
    opening, ACH, debit cards, virtual cards, bill-pay, money movement, FDIC, or
    sponsor-bank services.

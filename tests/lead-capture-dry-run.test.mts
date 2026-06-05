@@ -12,6 +12,12 @@ test("proves signed lead capture end to end without exposing PII", async () => {
   assert.equal(result.summary.bySegment.Household, 1);
   assert.equal(result.summary.byCampaign["Household Launch"], 1);
   assert.equal(result.summary.byCampaignSource["Paid Social"], 1);
+  assert.equal(result.dataAudit.ok, true);
+  assert.equal(result.dataAudit.summary.total, 1);
+  assert.equal(result.dataAudit.csv.rowCountMatches, true);
+  assert.equal(result.dataAudit.duplicateSubmissionIds, 0);
+  assert.equal(typeof result.dataAudit.files.ndjson.sha256, "string");
+  assert.equal(result.dataAudit.files.ndjson.sha256?.length, 64);
   assert.equal(result.eraseDryRun.dryRun, true);
   assert.equal(result.eraseDryRun.removed, 1);
   assert.equal(result.eraseDryRun.remaining, 0);
@@ -26,6 +32,10 @@ test("proves signed lead capture end to end without exposing PII", async () => {
   assert.match(
     result.checks.join("\n"),
     /receiver treats signed replay with the same submissionId as idempotent/,
+  );
+  assert.match(
+    result.checks.join("\n"),
+    /waitlist data audit verifies receiver files and required metadata/,
   );
 });
 

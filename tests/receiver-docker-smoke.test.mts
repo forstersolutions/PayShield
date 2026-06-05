@@ -30,7 +30,75 @@ test("summarizes Docker receiver smoke output without PII or secrets", () => {
     checks: [
       "Dockerfile.receiver builds successfully",
       "container accepts signed payload and idempotent replay",
+      "mounted receiver data audit verifies file integrity and metadata",
     ],
+    dataAudit: {
+      allowEmpty: false,
+      attribution: {
+        recordsWithAttribution: 1,
+        recordsWithCampaign: 1,
+        recordsWithCampaignSource: 1,
+        recordsWithLandingPath: 1,
+      },
+      csv: {
+        exists: true,
+        expectedRows: 1,
+        headerOk: true,
+        rowCount: 1,
+        rowCountMatches: true,
+      },
+      duplicateSubmissionIds: 0,
+      files: {
+        csv: {
+          bytes: 500,
+          exists: true,
+          sha256:
+            "1111111111111111111111111111111111111111111111111111111111111111",
+        },
+        ndjson: {
+          bytes: 350,
+          exists: true,
+          sha256:
+            "2222222222222222222222222222222222222222222222222222222222222222",
+        },
+      },
+      findings: [],
+      malformedLines: [],
+      missingRequired: {
+        consentText: 0,
+        consentedAt: 0,
+        consentVersion: 0,
+        createdAt: 0,
+        email: 0,
+        privacyVersion: 0,
+        receivedAt: 0,
+        segment: 0,
+        source: 0,
+        submissionId: 0,
+        termsVersion: 0,
+      },
+      ok: true,
+      summary: {
+        byCampaign: {
+          "receiver-smoke": 1,
+        },
+        byCampaignSource: {
+          "webhook-test": 1,
+        },
+        bySegment: {
+          Operations: 1,
+        },
+        files: {
+          csv: true,
+          ndjson: true,
+        },
+        firstReceivedAt: "2026-06-05T00:00:00.000Z",
+        lastReceivedAt: "2026-06-05T00:00:00.000Z",
+        malformedLines: [],
+        ok: true,
+        total: 1,
+      },
+    },
     eraseDryRun: {
       dryRun: true,
       emailHash: "025af00cf03d",
@@ -90,6 +158,8 @@ test("summarizes Docker receiver smoke output without PII or secrets", () => {
   assert.equal(result.webhook.firstStatus, 202);
   assert.equal(result.webhook.replayStatus, 200);
   assert.equal(result.webhook.replayDuplicate, true);
+  assert.equal(result.dataAudit.ok, true);
+  assert.equal(result.dataAudit.files.ndjson.sha256.length, 64);
   assert.equal(serialized.includes("docker-smoke@example.com"), false);
   assert.equal(serialized.includes("PAYSHIELD_WAITLIST_WEBHOOK_SECRET"), false);
 });

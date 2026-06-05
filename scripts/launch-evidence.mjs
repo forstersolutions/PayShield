@@ -103,6 +103,7 @@ async function getVercelEnvAudit() {
 function summarizeLeadCaptureDryRun(result) {
   return {
     checks: result.checks,
+    dataAudit: result.dataAudit,
     eraseDryRun: result.eraseDryRun,
     internalLogCounts: result.internalLogCounts,
     ok: result.ok,

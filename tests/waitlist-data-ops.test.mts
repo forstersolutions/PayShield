@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import {
+  auditWaitlistData,
   eraseWaitlistEmail,
   summarizeWaitlistData,
 } from "../scripts/waitlist-data-ops.mjs";
@@ -88,6 +89,114 @@ test("summarizes waitlist data without PII", async () => {
     assert.equal(summary.lastReceivedAt, "2026-06-05T01:00:01.000Z");
     assert.equal(serialized.includes("lead@example.com"), false);
     assert.equal(serialized.includes("Rent first."), false);
+  } finally {
+    await rm(dataDir, { recursive: true });
+  }
+});
+
+test("audits receiver files without exposing PII", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "payshield-data-ops-"));
+
+  try {
+    await writeNdjson(
+      dataDir,
+      records.map((record) => JSON.stringify(record)),
+    );
+    await eraseWaitlistEmail({
+      dataDir,
+      email: "missing@example.com",
+    });
+    const audit = await auditWaitlistData({ dataDir });
+    const serialized = JSON.stringify(audit);
+
+    assert.equal(audit.ok, true);
+    assert.deepEqual(audit.findings, []);
+    assert.equal(audit.summary.total, 2);
+    assert.equal(audit.csv.exists, true);
+    assert.equal(audit.csv.headerOk, true);
+    assert.equal(audit.csv.rowCountMatches, true);
+    assert.equal(audit.files.ndjson.exists, true);
+    assert.equal(audit.files.csv.exists, true);
+    assert.equal(audit.files.ndjson.sha256?.length, 64);
+    assert.equal(audit.files.csv.sha256?.length, 64);
+    assert.equal(audit.duplicateSubmissionIds, 0);
+    assert.equal(audit.missingRequired.submissionId, 0);
+    assert.equal(audit.missingRequired.consentText, 0);
+    assert.equal(audit.missingRequired.privacyVersion, 0);
+    assert.equal(audit.missingRequired.termsVersion, 0);
+    assert.equal(audit.attribution.recordsWithAttribution, 2);
+    assert.equal(audit.attribution.recordsWithCampaign, 2);
+    assert.equal(audit.attribution.recordsWithCampaignSource, 2);
+    assert.equal(serialized.includes("lead@example.com"), false);
+    assert.equal(serialized.includes("partner@example.com"), false);
+    assert.equal(serialized.includes("Rent first."), false);
+    assert.equal(serialized.includes("Partner pilot."), false);
+  } finally {
+    await rm(dataDir, { recursive: true });
+  }
+});
+
+test("flags missing metadata, duplicate submissions, and CSV mismatches", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "payshield-data-ops-"));
+
+  try {
+    await writeNdjson(dataDir, [
+      JSON.stringify({
+        ...records[0],
+        termsVersion: "",
+      }),
+      JSON.stringify({
+        ...records[1],
+        consentText: "",
+        submissionId: records[0].submissionId,
+      }),
+    ]);
+    await writeFile(join(dataDir, "waitlist.csv"), "bad-header\n", "utf8");
+    const audit = await auditWaitlistData({ dataDir });
+    const serialized = JSON.stringify(audit);
+
+    assert.equal(audit.ok, false);
+    assert.equal(audit.duplicateSubmissionIds, 1);
+    assert.equal(audit.missingRequired.termsVersion, 1);
+    assert.equal(audit.missingRequired.consentText, 1);
+    assert.equal(audit.csv.headerOk, false);
+    assert.equal(audit.csv.rowCountMatches, false);
+    assert.equal(
+      audit.findings.includes("waitlist.csv header does not match the receiver schema."),
+      true,
+    );
+    assert.equal(
+      audit.findings.includes("waitlist.csv row count does not match waitlist.ndjson records."),
+      true,
+    );
+    assert.equal(
+      audit.findings.includes("waitlist.ndjson contains duplicate submissionId values."),
+      true,
+    );
+    assert.equal(serialized.includes("lead@example.com"), false);
+    assert.equal(serialized.includes("Partner pilot."), false);
+  } finally {
+    await rm(dataDir, { recursive: true });
+  }
+});
+
+test("allows an empty receiver audit only when explicitly requested", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "payshield-data-ops-"));
+
+  try {
+    const blocked = await auditWaitlistData({ dataDir });
+    const allowed = await auditWaitlistData({ allowEmpty: true, dataDir });
+
+    assert.equal(blocked.ok, false);
+    assert.equal(
+      blocked.findings.includes(
+        "No receiver records found; submit a signed test lead before launch.",
+      ),
+      true,
+    );
+    assert.equal(allowed.ok, true);
+    assert.deepEqual(allowed.findings, []);
+    assert.equal(allowed.summary.total, 0);
   } finally {
     await rm(dataDir, { recursive: true });
   }

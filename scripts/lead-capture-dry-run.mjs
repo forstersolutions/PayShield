@@ -10,6 +10,7 @@ import {
   signPayShieldWebhook,
 } from "./waitlist-webhook-receiver.mjs";
 import {
+  auditWaitlistData,
   eraseWaitlistEmail,
   summarizeWaitlistData,
 } from "./waitlist-data-ops.mjs";
@@ -23,7 +24,7 @@ function usage() {
     "",
     "Starts the lightweight receiver on localhost, forces /api/waitlist into signed fail-closed webhook mode,",
     "submits one pilot request, verifies stored consent and sanitized attribution, verifies idempotent replay,",
-    "runs the non-PII data summary, and dry-runs an email erasure.",
+    "runs the non-PII data summary and audit, and dry-runs an email erasure.",
     "",
     "The default run uses a temporary receiver data directory and deletes it before exit.",
     "--keep-data preserves the temporary directory for local inspection. It contains test lead data.",
@@ -320,6 +321,27 @@ export async function runLeadCaptureDryRun({ keepData = false } = {}) {
       "waitlist data summary does not print pilot email or notes",
     );
 
+    const dataAudit = await auditWaitlistData({ dataDir });
+    const dataAuditJson = JSON.stringify(dataAudit);
+
+    requireCheck(
+      checks,
+      dataAudit.ok === true &&
+        dataAudit.csv?.rowCountMatches === true &&
+        dataAudit.duplicateSubmissionIds === 0 &&
+        dataAudit.missingRequired?.submissionId === 0 &&
+        dataAudit.missingRequired?.consentText === 0 &&
+        dataAudit.missingRequired?.privacyVersion === 0 &&
+        dataAudit.missingRequired?.termsVersion === 0,
+      "waitlist data audit verifies receiver files and required metadata",
+    );
+    requireCheck(
+      checks,
+      !dataAuditJson.includes(testEmail) &&
+        !dataAuditJson.includes("Rent and insurance first."),
+      "waitlist data audit does not print pilot email or notes",
+    );
+
     const eraseDryRun = await eraseWaitlistEmail({
       dataDir,
       dryRun: true,
@@ -336,6 +358,7 @@ export async function runLeadCaptureDryRun({ keepData = false } = {}) {
 
     return {
       checks,
+      dataAudit,
       dataDir: keepData ? dataDir : undefined,
       eraseDryRun: {
         dryRun: eraseDryRun.dryRun,

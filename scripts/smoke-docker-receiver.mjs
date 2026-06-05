@@ -10,6 +10,7 @@ import {
   sendSignedWebhookTest,
 } from "./test-waitlist-webhook.mjs";
 import {
+  auditWaitlistData,
   eraseWaitlistEmail,
   summarizeWaitlistData,
 } from "./waitlist-data-ops.mjs";
@@ -25,7 +26,7 @@ function usage() {
     "Usage: npm run receiver:docker:smoke [--image payshield-waitlist-receiver:ci-smoke] [--skip-build] [--keep-data] [--keep-image] [--timeout-ms 30000]",
     "",
     "Builds and runs Dockerfile.receiver, mounts a temporary persistent /data/waitlist volume,",
-    "checks receiver health, sends a signed replay smoke payload, verifies non-PII data summary,",
+    "checks receiver health, sends a signed replay smoke payload, verifies non-PII data summary and audit,",
     "and dry-runs deletion handling without printing the signing secret.",
   ].join("\n");
 }
@@ -158,6 +159,7 @@ function requireCheck(checks, condition, message) {
 
 export function summarizeDockerReceiverSmoke({
   checks,
+  dataAudit,
   eraseDryRun,
   health,
   image,
@@ -166,6 +168,7 @@ export function summarizeDockerReceiverSmoke({
 }) {
   return {
     checks,
+    dataAudit,
     eraseDryRun: {
       dryRun: eraseDryRun.dryRun,
       emailHash: eraseDryRun.emailHash,
@@ -269,6 +272,20 @@ export async function runDockerReceiverSmoke({
       "mounted receiver data summarizes one non-PII smoke lead",
     );
 
+    const dataAudit = await auditWaitlistData({ dataDir });
+
+    requireCheck(
+      checks,
+      dataAudit.ok === true &&
+        dataAudit.csv?.rowCountMatches === true &&
+        dataAudit.duplicateSubmissionIds === 0 &&
+        dataAudit.missingRequired?.submissionId === 0 &&
+        dataAudit.missingRequired?.consentText === 0 &&
+        dataAudit.missingRequired?.privacyVersion === 0 &&
+        dataAudit.missingRequired?.termsVersion === 0,
+      "mounted receiver data audit verifies file integrity and metadata",
+    );
+
     const eraseDryRun = await eraseWaitlistEmail({
       dataDir,
       dryRun: true,
@@ -285,6 +302,7 @@ export async function runDockerReceiverSmoke({
 
     return summarizeDockerReceiverSmoke({
       checks,
+      dataAudit,
       eraseDryRun,
       health,
       image,
