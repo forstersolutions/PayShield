@@ -50,7 +50,8 @@ grouped by runtime, Vercel observability, lint/type tooling, and workflow
 maintenance. During launch, npm semver-major updates are ignored so patch/minor
 maintenance can keep moving without pulling unplanned framework or tooling
 migrations into the release path. GitHub Dependabot security updates, secret
-scanning, and push protection are enabled for the repository.
+scanning, push protection, and private vulnerability reporting are enabled for
+the repository.
 
 ## Vercel
 

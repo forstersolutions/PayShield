@@ -9,9 +9,9 @@ Do not open a public issue for security vulnerabilities, exposed secrets,
 lead-data leaks, authentication weaknesses, or regulated-finance data handling
 concerns.
 
-Use GitHub private vulnerability reporting for this repository when available.
-If private reporting is not available, contact a repository maintainer through
-a private channel first and wait for a secure place to share details.
+Use GitHub private vulnerability reporting for this repository. If that flow is
+temporarily unavailable, contact a repository maintainer through a private
+channel first and wait for a secure place to share details.
 
 Include:
 
@@ -31,6 +31,7 @@ Do not include:
 
 - GitHub secret scanning and push protection are enabled.
 - GitHub Dependabot security updates are enabled.
+- GitHub private vulnerability reporting is enabled.
 - `npm run verify` includes a production dependency audit.
 - Vercel deployment smoke checks verify browser security headers.
 - Waitlist webhook payloads support HMAC-SHA256 signatures and timestamp replay

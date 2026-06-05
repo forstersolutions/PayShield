@@ -126,6 +126,7 @@ requireText("scripts/test-waitlist-webhook.mjs", "sendSignedWebhookTest");
 requireText("scripts/test-waitlist-webhook.mjs", "x-payshield-webhook-signature");
 requireText("scripts/test-waitlist-webhook.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");
 requireText("SECURITY.md", "GitHub Dependabot security updates are enabled");
+requireText("SECURITY.md", "GitHub private vulnerability reporting is enabled");
 requireText("SECURITY.md", "Do not open a public issue for security vulnerabilities");
 requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",

@@ -25,8 +25,8 @@ deployments, partner demos, and pilot demand capture.
 - Dependabot is configured for weekly npm and GitHub Actions update PRs, with
   grouped runtime, observability, lint/type, and workflow maintenance. npm
   semver-major updates are deferred during launch so major framework and tooling
-  migrations stay intentional. Dependabot security updates, secret scanning, and
-  push protection are enabled on GitHub.
+  migrations stay intentional. Dependabot security updates, secret scanning,
+  push protection, and private vulnerability reporting are enabled on GitHub.
 - Security policy for private vulnerability reporting, sensitive data handling,
   and the current prototype/live-money boundary.
 - Paid-traffic readiness issue form for tracking launch evidence and the
