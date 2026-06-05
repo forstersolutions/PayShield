@@ -169,6 +169,44 @@ test("requires a valid email, allowed segment, and consent", async () => {
   );
 });
 
+test("rejects sensitive financial details in free-text fields", async () => {
+  const ssn = await POST(
+    makeRequest(
+      {
+        email: "sensitive@example.com",
+        name: "Sensitive Lead",
+        segment: "Household",
+        message: "My SSN is 123-45-6789.",
+        consent: true,
+      },
+      "198.51.100.20",
+    ),
+  );
+  const accountNumber = await POST(
+    makeRequest(
+      {
+        email: "account@example.com",
+        name: "Account Lead",
+        segment: "Household",
+        message: "Account number 123456789 should be protected.",
+        consent: true,
+      },
+      "198.51.100.21",
+    ),
+  );
+
+  assert.equal(ssn.status, 400);
+  assert.equal(accountNumber.status, 400);
+  assert.equal(
+    (await parseJson(ssn)).error,
+    "Do not include bank, card, SSN, or other sensitive financial details.",
+  );
+  assert.equal(
+    (await parseJson(accountNumber)).error,
+    "Do not include bank, card, SSN, or other sensitive financial details.",
+  );
+});
+
 test("filters honeypot submissions without forwarding", async () => {
   const webhook = await startWebhook();
   process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL = webhook.url;

@@ -104,6 +104,10 @@ requireText("src/app/components/waitlist-form.tsx", "Privacy Notice");
 requireText("src/app/components/waitlist-form.tsx", "Terms");
 requireText("src/app/components/waitlist-form.tsx", "consent");
 requireText(
+  "src/app/components/waitlist-form.tsx",
+  "Do not include bank, card, SSN, account, or routing numbers.",
+);
+requireText(
   "src/app/layout.tsx",
   'const socialImageUrl = "/images/payshield-social-card.jpg";',
 );
@@ -146,6 +150,11 @@ requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-timestamp");
 requireText(
   "src/app/api/waitlist/route.ts",
   "Prototype request accepted for this walkthrough",
+);
+requireText("src/app/api/waitlist/route.ts", "request_sensitive_financial_info");
+requireText(
+  "src/app/api/waitlist/route.ts",
+  "Do not include bank, card, SSN, or other sensitive financial details.",
 );
 requireText("src/app/api/health/route.ts", "paidTrafficReady");
 requireText("src/app/api/health/route.ts", "webhookConfigured");

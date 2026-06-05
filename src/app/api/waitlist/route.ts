@@ -36,6 +36,9 @@ const rateLimitMaxRequests = 6;
 const rateLimitWindowMs = 60_000;
 const webhookTimeoutMs = 8_000;
 const requestLog = new Map<string, number[]>();
+const sensitiveFinancialTerms =
+  /\b(ssn|social security|routing number|account number|card number|credit card number|debit card number)\b/i;
+const longSensitiveNumber = /\b\d(?:[\s-]?\d){8,}\b/;
 
 class WaitlistConfigurationError extends Error {}
 
@@ -49,6 +52,10 @@ function cleanText(value: unknown, maxLength: number) {
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function hasSensitiveFinancialInfo(value: string) {
+  return sensitiveFinancialTerms.test(value) || longSensitiveNumber.test(value);
 }
 
 function getClientKey(request: NextRequest) {
@@ -240,6 +247,21 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json(
       { error: "Choose a pilot segment." },
+      { status: 400 },
+    );
+  }
+
+  if (hasSensitiveFinancialInfo(`${name} ${message}`)) {
+    logWaitlistEvent("info", "request_sensitive_financial_info", {
+      requestId,
+      segment,
+      ms: Date.now() - start,
+    });
+    return NextResponse.json(
+      {
+        error:
+          "Do not include bank, card, SSN, or other sensitive financial details.",
+      },
       { status: 400 },
     );
   }

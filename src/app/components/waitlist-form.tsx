@@ -154,6 +154,9 @@ export function WaitlistForm() {
             name="message"
             placeholder="Rent, car note, insurance, kids, tax set-aside..."
           />
+          <span className="mt-2 block text-xs leading-5 text-stone-500">
+            Do not include bank, card, SSN, account, or routing numbers.
+          </span>
         </label>
 
         <label className="hidden">

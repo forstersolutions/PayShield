@@ -11,8 +11,9 @@ deployments, partner demos, and pilot demand capture.
 - Pricing and positioning copy for Free, Plus, Pro, and Premium plans.
 - Pilot request form with server-side validation, bounded in-memory rate
   limiting, request-size guardrails, honeypot filtering, required privacy/terms
-  consent, optional webhook forwarding, and an opt-in fail-closed mode for paid
-  traffic when webhook persistence is required.
+  consent, sensitive financial-detail rejection, optional webhook forwarding,
+  and an opt-in fail-closed mode for paid traffic when webhook persistence is
+  required.
 - Vercel-compatible Next.js app with production build, metadata, sitemap,
   robots, and baseline browser security headers.
 - JPEG social preview card for broad Open Graph and Twitter crawler support,
