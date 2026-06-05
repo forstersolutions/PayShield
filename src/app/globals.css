@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #070807;
-  --foreground: #f4f1e8;
+  --background: #050706;
+  --foreground: #f7f2e7;
 }
 
 @theme inline {
@@ -13,7 +13,8 @@
 }
 
 body {
-  background: var(--background);
+  background:
+    linear-gradient(180deg, #050706 0%, #090c0a 48%, #050607 100%);
   color: var(--foreground);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
@@ -32,4 +33,31 @@ select {
 html {
   scroll-behavior: smooth;
   color-scheme: dark;
+}
+
+.pay-hero-shell {
+  background:
+    linear-gradient(135deg, rgba(125, 230, 201, 0.08), transparent 34%),
+    linear-gradient(180deg, #050706 0%, #08100d 52%, #050607 100%);
+}
+
+.pay-hero-shell::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.65), transparent 72%);
+}
+
+.pay-hero-shell::after {
+  position: absolute;
+  inset: auto 0 0;
+  height: 32%;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(180deg, transparent, rgba(5, 7, 6, 0.88));
 }

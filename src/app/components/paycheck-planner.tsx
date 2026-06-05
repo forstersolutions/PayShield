@@ -204,6 +204,43 @@ export function PaycheckPlanner() {
   const recoveryChecks = unlockMode === "slow" ? 2 : 1;
   const recoveryAmount = Math.ceil(actualUnlock / recoveryChecks);
   const safeSpendShare = paycheck > 0 ? (plan.safeSpend / paycheck) * 100 : 0;
+  const heroSignals = [
+    {
+      body: "Bills and goals funded first",
+      icon: ShieldCheck,
+      label: "Protected this check",
+      value: formatMoney(plan.protectedFunded),
+    },
+    {
+      body: "The only card-visible balance",
+      icon: WalletCards,
+      label: "Card can access",
+      value: formatMoney(plan.safeSpend),
+    },
+    {
+      body: `${recoveryChecks} paycheck${recoveryChecks === 1 ? "" : "s"} to refill`,
+      icon: KeyRound,
+      label: "Recovery rule",
+      value: `${formatMoney(recoveryAmount)}/check`,
+    },
+  ];
+  const decisionSteps = [
+    {
+      body: `${formatMoney(plan.protectedFunded)} is reserved before spending opens.`,
+      icon: Lock,
+      title: "1. Bucket rules run",
+    },
+    {
+      body: `${formatMoney(plan.safeSpend)} is visible to card authorization.`,
+      icon: WalletCards,
+      title: "2. Safe-spend check",
+    },
+    {
+      body: `${merchant} ${cardApproved ? "stays inside" : "exceeds"} the spendable balance.`,
+      icon: cardApproved ? CheckCircle2 : XCircle,
+      title: cardApproved ? "3. Transaction approved" : "3. Transaction declined",
+    },
+  ];
 
   function updateBucketAmount(id: BucketId, nextAmount: number) {
     setBucketAmounts((current) => ({
@@ -215,16 +252,16 @@ export function PaycheckPlanner() {
   return (
     <section
       id="product"
-      className="min-h-screen border-b border-white/10 bg-[#070807] text-[#f4f1e8]"
+      className="pay-hero-shell relative min-h-screen overflow-x-hidden border-b border-white/10 text-[#f7f2e7]"
     >
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 py-3">
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#050706]/70 py-3 backdrop-blur">
           <a className="flex items-center gap-3" href="#product">
-            <span className="grid size-10 place-items-center rounded-[8px] bg-emerald-300 text-[#07110f]">
+            <span className="grid size-10 place-items-center rounded-[8px] border border-emerald-200/40 bg-emerald-300 text-[#07110f] shadow-[0_0_34px_rgba(110,231,183,0.2)]">
               <ShieldCheck className="size-5" aria-hidden="true" />
             </span>
             <span>
-              <span className="block text-base font-semibold leading-5">
+              <span className="block text-base font-semibold leading-5 text-[#f7f2e7]">
                 PayShield
               </span>
               <span className="block text-xs font-medium uppercase leading-4 tracking-[0.18em] text-[#9c9588]">
@@ -234,7 +271,7 @@ export function PaycheckPlanner() {
           </a>
           <nav
             aria-label="Primary"
-            className="flex flex-wrap items-center gap-2 text-sm font-medium text-[#c8c0af]"
+            className="flex flex-wrap items-center gap-1 rounded-[8px] border border-white/10 bg-white/[0.035] p-1 text-sm font-medium text-[#d6cfbf]"
           >
             <a className="rounded-[8px] px-3 py-2 hover:bg-white/10" href="#rails">
               Rails
@@ -252,7 +289,7 @@ export function PaycheckPlanner() {
               Launch
             </a>
             <a
-              className="inline-flex items-center gap-2 rounded-[8px] bg-emerald-300 px-4 py-2 text-[#07110f] hover:bg-emerald-200"
+              className="inline-flex items-center gap-2 rounded-[8px] bg-emerald-300 px-4 py-2 font-semibold text-[#07110f] hover:bg-emerald-200"
               href="#pilot"
             >
               Pilot
@@ -261,29 +298,76 @@ export function PaycheckPlanner() {
           </nav>
         </header>
 
-        <div className="grid flex-1 items-center gap-6 py-6 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="grid flex-1 items-center gap-6 py-8 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="min-w-0">
             <div className="mb-5 max-w-3xl">
-              <p className="mb-3 inline-flex items-center gap-2 rounded-[8px] border border-emerald-300/25 bg-emerald-300/10 px-3 py-2 text-sm font-semibold text-emerald-200">
+              <p className="mb-3 inline-flex items-center gap-2 rounded-[8px] border border-emerald-300/25 bg-emerald-300/10 px-3 py-2 text-sm font-semibold text-emerald-100 shadow-[0_0_36px_rgba(16,185,129,0.12)]">
                 <Lock className="size-4" aria-hidden="true" />
-                Your paycheck, protected before you can spend it
+                Prototype-only controls - no live funds movement
               </p>
-              <h1 className="text-4xl font-semibold leading-[1.03] text-[#f4f1e8] sm:text-5xl lg:text-6xl">
+              <h1 className="text-4xl font-semibold leading-[1.03] text-[#f7f2e7] sm:text-5xl lg:text-6xl">
                 PayShield
               </h1>
               <p className="mt-3 max-w-2xl text-lg leading-8 text-[#b9b2a3]">
-                A neobank-style protected ledger concept designed to turn
-                paychecks into bill buckets, goal reserves, and one honest
-                safe-to-spend balance.
+                A protected-paycheck app concept designed to turn paychecks
+                into bill buckets, goal reserves, and one honest safe-to-spend
+                balance.
               </p>
             </div>
 
-            <div className="overflow-hidden rounded-[8px] border border-white/10 bg-[#101410] shadow-[0_28px_100px_rgba(0,0,0,0.45)]">
+            <div className="mb-4 grid max-w-4xl gap-3 sm:grid-cols-3">
+              {heroSignals.map((signal) => {
+                const Icon = signal.icon;
+
+                return (
+                  <div
+                    className="rounded-[8px] border border-white/10 bg-[#0b100d]/80 p-3 shadow-[0_18px_55px_rgba(0,0,0,0.24)]"
+                    key={signal.label}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9c9588]">
+                        {signal.label}
+                      </p>
+                      <Icon className="size-4 text-emerald-300" aria-hidden="true" />
+                    </div>
+                    <p className="mt-3 text-xl font-semibold text-[#f7f2e7]">
+                      {signal.value}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-[#b9b2a3]">
+                      {signal.body}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="overflow-hidden rounded-[8px] border border-white/10 bg-[#0c120f]/95 shadow-[0_28px_110px_rgba(0,0,0,0.5)] ring-1 ring-emerald-300/10">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-white/[0.035] px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <span className="size-2 rounded-full bg-emerald-300 shadow-[0_0_16px_rgba(110,231,183,0.7)]" />
+                  <div>
+                    <p className="text-sm font-semibold text-[#f7f2e7]">
+                      Live paycheck model
+                    </p>
+                    <p className="text-xs leading-5 text-[#9c9588]">
+                      Demo rules, real launch positioning
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#c8c0af]">
+                  <span className="rounded-[8px] border border-white/10 bg-[#050706] px-2.5 py-1.5">
+                    Demo funds
+                  </span>
+                  <span className="rounded-[8px] border border-emerald-300/25 bg-emerald-300/10 px-2.5 py-1.5 text-emerald-100">
+                    Bill-first
+                  </span>
+                </div>
+              </div>
               <div className="grid lg:grid-cols-[320px_minmax(0,1fr)]">
-                <aside className="border-b border-white/10 bg-[#0b0d0b] p-4 lg:border-b-0 lg:border-r">
+                <aside className="border-b border-white/10 bg-[#080b09] p-4 lg:border-b-0 lg:border-r">
                   <div className="mb-4 flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-[#f4f1e8]">
+                      <p className="text-sm font-semibold text-[#f7f2e7]">
                         Paycheck plan
                       </p>
                       <p className="text-sm text-[#9c9588]">
@@ -378,7 +462,7 @@ export function PaycheckPlanner() {
                 <div className="min-w-0 p-4">
                   <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-[#f4f1e8]">
+                      <p className="text-sm font-semibold text-[#f7f2e7]">
                         Protected buckets
                       </p>
                       <p className="text-sm text-[#9c9588]">
@@ -407,10 +491,23 @@ export function PaycheckPlanner() {
           </div>
 
           <aside className="grid gap-4">
-            <div className="overflow-hidden rounded-[8px] border border-white/10 bg-[#101410] shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+            <div className="overflow-hidden rounded-[8px] border border-white/10 bg-[#0c120f]/95 shadow-[0_24px_90px_rgba(0,0,0,0.42)] ring-1 ring-white/5">
+              <div className="flex items-center justify-between gap-3 border-b border-white/10 p-4">
+                <div>
+                  <p className="text-sm font-semibold text-[#f7f2e7]">
+                    Mobile product preview
+                  </p>
+                  <p className="text-sm text-[#9c9588]">
+                    Safe-spend dashboard and card concept
+                  </p>
+                </div>
+                <span className="rounded-[8px] border border-amber-300/25 bg-amber-300/10 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-100">
+                  Prototype
+                </span>
+              </div>
               <Image
                 alt="PayShield mobile dashboard and debit card concept"
-                className="aspect-[3/2] w-full object-cover"
+                className="aspect-[16/11] w-full object-cover"
                 height={1024}
                 priority
                 src="/images/payshield-product-mockup.avif"
@@ -477,6 +574,36 @@ export function PaycheckPlanner() {
                   </label>
                 </div>
 
+                <div className="mt-4 grid gap-2">
+                  {decisionSteps.map((step) => {
+                    const Icon = step.icon;
+
+                    return (
+                      <div
+                        className="flex items-start gap-3 rounded-[8px] border border-white/10 bg-[#070807] p-3"
+                        key={step.title}
+                      >
+                        <Icon
+                          className={`mt-0.5 size-4 shrink-0 ${
+                            step.title.includes("declined")
+                              ? "text-red-300"
+                              : "text-emerald-300"
+                          }`}
+                          aria-hidden="true"
+                        />
+                        <div>
+                          <p className="text-sm font-semibold text-[#f7f2e7]">
+                            {step.title}
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-[#b9b2a3]">
+                            {step.body}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
                 <div
                   className={`mt-4 rounded-[8px] border p-3 ${
                     cardApproved
@@ -497,7 +624,7 @@ export function PaycheckPlanner() {
                       />
                     )}
                     <div>
-                      <p className="font-semibold text-[#f4f1e8]">
+                      <p className="font-semibold text-[#f7f2e7]">
                         {cardApproved ? "Approved" : "Declined"} at {merchant}
                       </p>
                       <p className="mt-1 text-sm leading-6 text-[#b9b2a3]">
@@ -510,10 +637,10 @@ export function PaycheckPlanner() {
               </div>
             </div>
 
-            <div className="rounded-[8px] border border-white/10 bg-[#101410] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+            <div className="rounded-[8px] border border-white/10 bg-[#0c120f]/95 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.35)] ring-1 ring-amber-300/10">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-[#f4f1e8]">
+                  <p className="text-sm font-semibold text-[#f7f2e7]">
                     Emergency unlock
                   </p>
                   <p className="text-sm text-[#9c9588]">
