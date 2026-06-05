@@ -69,6 +69,21 @@ npx vercel env ls | npm run vercel:env:audit -- --stdin --allow-prototype
 
 The audit must pass without `--allow-prototype` before paid traffic.
 
+Before selecting a hosted receiver or CRM endpoint, prove the repo-owned lead
+capture path locally:
+
+```bash
+npm run lead-capture:dry-run
+```
+
+The dry run starts the lightweight receiver on localhost, sets the waitlist API
+to required signed webhook mode for the duration of the command, submits one
+pilot request through the real route handler, verifies stored consent metadata,
+sanitized campaign attribution, idempotent replay behavior, non-PII data summary
+output, and deletion dry-run handling, then deletes the temporary receiver data
+directory. Use `--keep-data` only for local inspection; the preserved directory
+contains test lead data.
+
 ## Webhook Contract
 
 `/api/waitlist` sends a `POST` request with JSON:

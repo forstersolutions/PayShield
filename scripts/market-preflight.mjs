@@ -88,6 +88,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   ".dockerignore",
   "Dockerfile.receiver",
   "scripts/check-campaign-copy.mjs",
+  "scripts/lead-capture-dry-run.mjs",
   "scripts/paid-traffic-readiness.mjs",
   "scripts/smoke-deploy.mjs",
   "scripts/test-waitlist-webhook.mjs",
@@ -174,6 +175,7 @@ requireText("scripts/check-campaign-copy.mjs", "fdic-insurance");
 requireText("scripts/check-campaign-copy.mjs", "direct-deposit");
 requireText("package.json", "\"campaign:lint\"");
 requireText("package.json", "\"legal:lint\"");
+requireText("package.json", "\"lead-capture:dry-run\"");
 requireText("package.json", "npm run legal:lint");
 requireText("docs/campaign-copy.md", "npm run campaign:lint");
 requireText("docs/campaign-copy.md", "npm run legal:lint");
@@ -204,6 +206,10 @@ requireText("scripts/test-waitlist-webhook.mjs", "x-payshield-submission-id");
 requireText("scripts/test-waitlist-webhook.mjs", "submissionId");
 requireText("scripts/test-waitlist-webhook.mjs", "--replay");
 requireText("scripts/test-waitlist-webhook.mjs", "replayResult");
+requireText("scripts/lead-capture-dry-run.mjs", "runLeadCaptureDryRun");
+requireText("scripts/lead-capture-dry-run.mjs", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
+requireText("scripts/lead-capture-dry-run.mjs", "summarizeWaitlistData");
+requireText("scripts/lead-capture-dry-run.mjs", "eraseWaitlistEmail");
 requireText("scripts/waitlist-data-ops.mjs", "summarizeWaitlistData");
 requireText("scripts/waitlist-data-ops.mjs", "eraseWaitlistEmail");
 requireText("scripts/waitlist-data-ops.mjs", "malformedLines");
@@ -258,6 +264,10 @@ requireText(
 requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   "npm run vercel:env:audit",
+);
+requireText(
+  ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
+  "npm run lead-capture:dry-run",
 );
 requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",

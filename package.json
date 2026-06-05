@@ -12,6 +12,7 @@
     "build": "next build",
     "campaign:lint": "node scripts/check-campaign-copy.mjs",
     "legal:lint": "npm run campaign:lint -- docs/legal-review-packet.md docs/campaign-copy.md",
+    "lead-capture:dry-run": "node scripts/lead-capture-dry-run.mjs",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",

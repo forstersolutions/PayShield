@@ -27,6 +27,7 @@ npm run dev
 npm run verify
 npm run campaign:lint -- path/to/campaign-copy.md
 npm run legal:lint
+npm run lead-capture:dry-run
 npm test
 npm run market-preflight
 npm run receiver:docker:build
@@ -116,6 +117,13 @@ current prototype state while keeping demo capture as a warning.
 URL, webhook signing secret, and fail-closed flag without printing encrypted
 values. Use `npx vercel env ls | npm run vercel:env:audit -- --stdin --allow-prototype`
 to document the current prototype state before the webhook variables exist.
+
+`npm run lead-capture:dry-run` starts the lightweight receiver on localhost,
+forces `/api/waitlist` into signed required-webhook mode, submits one pilot
+request through the real route handler, verifies persisted consent and
+sanitized attribution fields, verifies idempotent replay, prints a non-PII
+summary, and dry-runs an email erasure. Run it before selecting the hosted
+receiver or CRM endpoint so the repo-owned capture path is known-good.
 
 `npm run webhook:receive` starts a small signed webhook receiver for teams that
 want a lightweight persistence target before wiring a CRM. It verifies the

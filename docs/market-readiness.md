@@ -69,6 +69,10 @@ deployments, partner demos, and pilot demand capture.
   counts for paid tests.
 - Signed webhook smoke tester for proving a CRM or lightweight receiver accepts
   PayShield HMAC payloads before paid traffic is enabled.
+- End-to-end lead capture dry run that starts the lightweight receiver locally,
+  forces `/api/waitlist` into signed required-webhook mode, verifies persisted
+  consent fields, sanitized attribution, idempotent replay, non-PII summary
+  output, and deletion dry-run handling before a hosted receiver is selected.
 - Conservative fintech language that does not claim PayShield is a bank or that
   funds are FDIC insured.
 - Prototype Privacy Notice and Terms pages linked from the pilot form and
@@ -90,6 +94,8 @@ deployments, partner demos, and pilot demand capture.
 - If no CRM receiver exists yet, deploy or tunnel `npm run webhook:receive` with
   `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` set, then use that endpoint as the
   temporary webhook target.
+- Run `npm run lead-capture:dry-run` locally before choosing the hosted receiver
+  or CRM endpoint, and attach the non-PII command output to the readiness issue.
 - If the lightweight receiver is used for production capture, run it from
   `Dockerfile.receiver` on a host with a persistent volume mounted at
   `/data/waitlist`, confirm `GET /health` returns
