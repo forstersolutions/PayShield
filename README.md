@@ -17,6 +17,9 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser.
 
+Production is deployed on Vercel at
+[https://payshield-lime.vercel.app](https://payshield-lime.vercel.app).
+
 ## Scripts
 
 ```bash

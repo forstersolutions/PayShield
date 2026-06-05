@@ -3,6 +3,18 @@
 Use this checklist after the repository is pushed to
 `forstersolutions/PayShield`.
 
+## Current Production
+
+- Vercel project: `james-projects-397b955f/payshield`.
+- Production URL: `https://payshield-lime.vercel.app`.
+- GitHub repository connected: `forstersolutions/PayShield`.
+- `NEXT_PUBLIC_SITE_URL` is configured for Production as
+  `https://payshield-lime.vercel.app`.
+- Vercel Web Analytics and Speed Insights are enabled for the project.
+- `PAYSHIELD_WAITLIST_WEBHOOK_URL` is not configured yet. The pilot form returns
+  demo-mode success and emits logs/analytics, but real lead persistence still
+  requires a CRM, Airtable, Slack, Make, Zapier, or internal webhook.
+
 ## Import
 
 1. In Vercel, import the GitHub repository `forstersolutions/PayShield`.

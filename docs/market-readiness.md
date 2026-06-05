@@ -41,10 +41,12 @@ deployments, partner demos, and pilot demand capture.
   funds are FDIC insured.
 - Prototype Privacy Notice and Terms pages linked from the pilot form and
   footer.
+- Production Vercel deployment at `https://payshield-lime.vercel.app`, with the
+  Vercel project connected to `forstersolutions/PayShield`, Web Analytics and
+  Speed Insights enabled, and production smoke checks passing.
 
 ## Configure Before Traffic
 
-- Set `NEXT_PUBLIC_SITE_URL` to the production domain.
 - Set `PAYSHIELD_WAITLIST_WEBHOOK_URL` to a CRM, Airtable, Slack, Make, Zapier,
   or internal webhook.
 - Set `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` if the receiving webhook validates a
