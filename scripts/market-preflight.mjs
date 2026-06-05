@@ -91,6 +91,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "Dockerfile.receiver",
   ".env.receiver.example",
   "scripts/analytics-audit.mjs",
+  "scripts/check-counsel-signoff.mjs",
   "scripts/check-analytics-evidence.mjs",
   "scripts/check-campaign-manifest.mjs",
   "scripts/check-campaign-copy.mjs",
@@ -213,6 +214,9 @@ requireText("scripts/check-analytics-evidence.mjs", "campaignSource");
 requireText("scripts/check-analytics-evidence.mjs", "campaignMedium");
 requireText("scripts/check-analytics-evidence.mjs", "hasCampaignAttribution");
 requireText("scripts/check-analytics-evidence.mjs", "analyticsEvidenceRedacted");
+requireText("scripts/check-counsel-signoff.mjs", "evaluateCounselSignoffEvidence");
+requireText("scripts/check-counsel-signoff.mjs", "counsel-signoff.json");
+requireText("scripts/check-counsel-signoff.mjs", "Validates the redacted counsel sign-off record");
 requireText("scripts/check-campaign-copy.mjs", "lintCampaignCopy");
 requireText("scripts/check-campaign-copy.mjs", "fdic-insurance");
 requireText("scripts/check-campaign-copy.mjs", "direct-deposit");
@@ -221,6 +225,7 @@ requireText("scripts/check-campaign-manifest.mjs", "docs/campaigns/manifest.json
 requireText("scripts/check-campaign-manifest.mjs", "draft-prototype-framing");
 requireText("package.json", "\"campaign:lint\"");
 requireText("package.json", "\"campaign:lint:all\"");
+requireText("package.json", "\"counsel:signoff:check\"");
 requireText("package.json", "\"legal:lint\"");
 requireText("package.json", "\"analytics:audit\"");
 requireText("package.json", "\"analytics:evidence:check\"");
@@ -276,6 +281,7 @@ requireText("scripts/launch-evidence.mjs", "--strict");
 requireText("scripts/market-evidence-init.mjs", "createMarketEvidencePacket");
 requireText("scripts/market-evidence-init.mjs", "counsel-signoff.json");
 requireText("scripts/market-evidence-init.mjs", "analytics-evidence.json");
+requireText("scripts/market-evidence-init.mjs", "counsel:signoff:check");
 requireText("scripts/market-evidence-init.mjs", "analytics:evidence:check");
 requireText("scripts/market-evidence-init.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET=...");
 requireText("scripts/market-go-no-go.mjs", "summarizeMarketGoNoGo");
@@ -415,6 +421,10 @@ requireText(
 );
 requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
+  "npm run counsel:signoff:check",
+);
+requireText(
+  ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   "npm run analytics:evidence:check",
 );
 requireText(
@@ -495,6 +505,7 @@ requireText("docs/vercel-launch.md", "docker compose --env-file .env.receiver -f
 requireText("docs/vercel-launch.md", "npm run receiver:compose:config");
 requireText("docs/vercel-launch.md", "npm run receiver:evidence");
 requireText("docs/vercel-launch.md", "npm run market:evidence:init");
+requireText("docs/vercel-launch.md", "npm run counsel:signoff:check");
 requireText("docs/vercel-launch.md", "npm run analytics:evidence:check");
 requireText("docs/vercel-launch.md", "npm run vercel:webhook:cutover");
 requireText("docs/vercel-launch.md", "npm run market:go-no-go");
@@ -509,6 +520,7 @@ requireText("docs/market-readiness.md", "consent audit fields");
 requireText("docs/market-readiness.md", "idempotent capture");
 requireText("docs/market-readiness.md", "webhook:test -- https://your-webhook-url --replay");
 requireText("docs/market-readiness.md", "npm run legal:lint");
+requireText("docs/market-readiness.md", "npm run counsel:signoff:check");
 requireText("docs/market-readiness.md", "npm run vercel:env:audit");
 requireText("docs/market-readiness.md", "npm run analytics:audit");
 requireText("docs/market-readiness.md", "npm run campaign:lint:all");
@@ -536,6 +548,7 @@ requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run waitli
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "compose.receiver.yml");
 requireText("docs/legal-review-packet.md", "npm run receiver:evidence");
 requireText("docs/legal-review-packet.md", "npm run vercel:webhook:cutover");
+requireText("docs/legal-review-packet.md", "npm run counsel:signoff:check");
 requireText("docs/legal-review-packet.md", "npm run analytics:evidence:check");
 requireText("docs/legal-review-packet.md", "npm run market:status");
 

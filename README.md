@@ -27,6 +27,7 @@ npm run dev
 npm run verify
 npm run analytics:audit
 npm run campaign:lint -- path/to/campaign-copy.md
+npm run counsel:signoff:check -- --file launch-evidence/counsel-signoff.json
 npm run legal:lint
 npm run launch:evidence -- https://your-domain.com --expect-site-url https://your-domain.com
 npm run lead-capture:dry-run
@@ -144,6 +145,12 @@ prints a redacted production status snapshot for the readiness issue. It
 combines production health, local git commit, latest GitHub CI run, Vercel
 deployment readiness, launch evidence, and go/no-go remaining gates so every
 launch commit can be audited without manually stitching outputs together.
+
+`npm run counsel:signoff:check -- --file launch-evidence/counsel-signoff.json`
+validates the redacted counsel sign-off record before final go/no-go. It
+requires approval status, reviewed date, reviewer label, privacy/terms/public
+claims/campaign-copy scope, campaign copy lint confirmation, and no sensitive
+values in the evidence file.
 
 `npm run lead-capture:dry-run` starts the lightweight receiver on localhost,
 forces `/api/waitlist` into signed required-webhook mode, submits one pilot

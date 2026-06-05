@@ -56,6 +56,8 @@ deployments, partner demos, and pilot demand capture.
 - Campaign copy linter and guardrails for checking paid ads, email campaigns,
   social posts, partner one-pagers, and alternate landing-page copy before
   counsel review.
+- Counsel sign-off validator for checking the redacted legal/compliance
+  approval record before final go/no-go.
 - Manifest-backed campaign lint command that checks every listed paid social,
   paid search, email, partner, and alternate landing-page draft for prototype
   framing and prohibited regulated-finance claims.
@@ -226,6 +228,10 @@ deployments, partner demos, and pilot demand capture.
   before counsel review.
 - Run `npm run legal:lint` and attach the output with
   `docs/legal-review-packet.md` before counsel review.
+- Fill `launch-evidence/counsel-signoff.json` only after counsel approves the
+  current Privacy Notice, Terms, public claims, and campaign copy, then run
+  `npm run counsel:signoff:check -- --file launch-evidence/counsel-signoff.json`
+  and attach the redacted output before final go/no-go.
 - Open a Paid Traffic Readiness issue and attach evidence for the webhook test,
   production health response, CI run, Vercel deployment, analytics, and legal
   review before spending on acquisition.

@@ -56,6 +56,7 @@ body:
         - label: "`npm run campaign:lint -- path/to/campaign-copy.md` passes for every campaign draft."
         - label: "`npm run campaign:lint:all` passes against `docs/campaigns/manifest.json` and the redacted output is attached."
         - label: "`npm run legal:lint` passes and `docs/legal-review-packet.md` is attached for counsel review."
+        - label: "`npm run counsel:signoff:check -- --file launch-evidence/counsel-signoff.json` passes and the redacted output is attached after counsel review."
         - label: Counsel has reviewed the launch surface before regulated financial-service claims or live funds.
   - type: checkboxes
     id: production-ops
@@ -82,6 +83,7 @@ body:
         /api/health:
         smoke:deploy:
         vercel:webhook:cutover:
+        counsel:signoff:check:
         analytics:evidence:check:
         market:go-no-go:
         market:status:

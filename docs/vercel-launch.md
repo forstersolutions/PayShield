@@ -115,6 +115,14 @@ files only after counsel review and live analytics observation, then run the
 generated final `npm run market:go-no-go` command without
 `--allow-not-ready`.
 
+After counsel approves the current Privacy Notice, Terms, public claims, and
+campaign copy, validate the redacted sign-off record:
+
+```bash
+npm run counsel:signoff:check -- \
+  --file launch-evidence/counsel-signoff.json
+```
+
 After a campaign-attributed production test appears in Vercel Web Analytics and
 Speed Insights, validate the redacted analytics evidence file:
 

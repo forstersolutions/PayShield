@@ -187,6 +187,11 @@ function commandsMarkdown({
     "--receiver-evidence-file",
     shellQuote(receiverEvidenceFile),
   ].join(" ");
+  const counselSignoffCommand = [
+    "npm run counsel:signoff:check --",
+    "--file",
+    shellQuote(counselFile),
+  ].join(" ");
   const analyticsEvidenceCommand = [
     "npm run analytics:evidence:check --",
     "--file",
@@ -243,7 +248,11 @@ function commandsMarkdown({
     launchEvidenceCommand,
     "```",
     "",
-    "4. Fill `counsel-signoff.json` only after counsel approves the current Privacy Notice, Terms, public claims, and campaign copy.",
+    "4. Fill `counsel-signoff.json` only after counsel approves the current Privacy Notice, Terms, public claims, and campaign copy, then validate it:",
+    "",
+    "```bash",
+    counselSignoffCommand,
+    "```",
     "",
     "5. Fill `analytics-evidence.json` only after Vercel Web Analytics and Speed Insights show production data from a campaign-attributed pilot test, then validate it:",
     "",
@@ -339,6 +348,11 @@ export async function createMarketEvidencePacket({
       shellQuote(normalizedSiteUrl),
       "--receiver-evidence-file",
       shellQuote(receiverEvidenceFile),
+    ].join(" "),
+    counselSignoffCommand: [
+      "npm run counsel:signoff:check --",
+      "--file",
+      shellQuote(counselFile),
     ].join(" "),
     files: files.map((file) => file.path),
     generatedAt,
