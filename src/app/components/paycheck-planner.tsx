@@ -27,7 +27,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type BucketId =
   | "rent"
@@ -49,6 +49,32 @@ type Bucket = {
 };
 
 type UnlockMode = "slow" | "instant";
+type StorageStatus = "loading" | "saved" | "unavailable";
+type ScenarioId = "household" | "tight-check" | "gig-worker" | "custom";
+
+type PlannerSnapshot = {
+  activeScenario: ScenarioId;
+  bucketAmounts: Record<BucketId, number>;
+  cardAmount: number;
+  merchant: string;
+  paycheck: number;
+  unlockAmount: number;
+  unlockBucket: BucketId;
+  unlockMode: UnlockMode;
+};
+
+type PlannerScenario = {
+  body: string;
+  bucketAmounts: Record<BucketId, number>;
+  cardAmount: number;
+  id: Exclude<ScenarioId, "custom">;
+  merchant: string;
+  name: string;
+  paycheck: number;
+  unlockAmount: number;
+  unlockBucket: BucketId;
+  unlockMode: UnlockMode;
+};
 
 const buckets: Bucket[] = [
   {
@@ -121,6 +147,75 @@ const merchants = [
   "Fuel stop",
   "Grocery market",
 ];
+const plannerStorageKey = "payshield:paycheck-planner:v1";
+const defaultScenarioId: ScenarioId = "household";
+const defaultUnlockBucket: BucketId = "rent";
+const defaultUnlockMode: UnlockMode = "slow";
+const bucketIds = buckets.map((bucket) => bucket.id);
+const storageStatusCopy: Record<StorageStatus, string> = {
+  loading: "Loading local plan",
+  saved: "Autosaved locally",
+  unavailable: "Local save unavailable",
+};
+const plannerScenarios: PlannerScenario[] = [
+  {
+    body: "Default family check with rent, car, insurance, and everyday spending.",
+    bucketAmounts: {
+      rent: 500,
+      vehicle: 300,
+      insurance: 500,
+      kids: 50,
+      vacation: 100,
+      misc: 100,
+    },
+    cardAmount: 80,
+    id: "household",
+    merchant: "Walmart",
+    name: "Household",
+    paycheck: 3000,
+    unlockAmount: 200,
+    unlockBucket: "rent",
+    unlockMode: "slow",
+  },
+  {
+    body: "Lower check shows shortfall priority and what the card should block.",
+    bucketAmounts: {
+      rent: 700,
+      vehicle: 360,
+      insurance: 420,
+      kids: 75,
+      vacation: 100,
+      misc: 80,
+    },
+    cardAmount: 180,
+    id: "tight-check",
+    merchant: "DoorDash",
+    name: "Tight check",
+    paycheck: 1350,
+    unlockAmount: 250,
+    unlockBucket: "vehicle",
+    unlockMode: "instant",
+  },
+  {
+    body: "Variable income protects core bills while goals flex around timing.",
+    bucketAmounts: {
+      rent: 450,
+      vehicle: 220,
+      insurance: 280,
+      kids: 25,
+      vacation: 50,
+      misc: 200,
+    },
+    cardAmount: 65,
+    id: "gig-worker",
+    merchant: "Fuel stop",
+    name: "Gig worker",
+    paycheck: 1800,
+    unlockAmount: 125,
+    unlockBucket: "insurance",
+    unlockMode: "slow",
+  },
+];
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("en-US", {
@@ -135,24 +230,188 @@ function toNumber(value: string, fallback: number) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function toFiniteNumber(value: unknown, fallback: number) {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : Number.NaN;
+
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-export function PaycheckPlanner() {
-  const [paycheck, setPaycheck] = useState(3000);
-  const [bucketAmounts, setBucketAmounts] = useState<Record<BucketId, number>>(
-    () =>
-      buckets.reduce(
-        (current, bucket) => ({ ...current, [bucket.id]: bucket.amount }),
-        {} as Record<BucketId, number>,
-      ),
+function createDefaultBucketAmounts() {
+  return plannerScenarios[0].bucketAmounts;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function isBucketId(value: unknown): value is BucketId {
+  return typeof value === "string" && bucketIds.includes(value as BucketId);
+}
+
+function isUnlockMode(value: unknown): value is UnlockMode {
+  return value === "slow" || value === "instant";
+}
+
+function isScenarioId(value: unknown): value is ScenarioId {
+  return (
+    value === "custom" ||
+    plannerScenarios.some((scenario) => scenario.id === value)
   );
-  const [merchant, setMerchant] = useState(merchants[1]);
-  const [cardAmount, setCardAmount] = useState(80);
-  const [unlockBucket, setUnlockBucket] = useState<BucketId>("rent");
-  const [unlockAmount, setUnlockAmount] = useState(200);
-  const [unlockMode, setUnlockMode] = useState<UnlockMode>("slow");
+}
+
+function isMerchant(value: unknown): value is string {
+  return typeof value === "string" && merchants.includes(value);
+}
+
+function readPlannerSnapshot(value: string): PlannerSnapshot | null {
+  try {
+    const parsed: unknown = JSON.parse(value);
+
+    if (!isRecord(parsed)) {
+      return null;
+    }
+
+    const defaults = plannerScenarios[0];
+    const savedBuckets = isRecord(parsed.bucketAmounts)
+      ? parsed.bucketAmounts
+      : {};
+    const bucketAmounts = buckets.reduce(
+      (current, bucket) => ({
+        ...current,
+        [bucket.id]: clamp(
+          toFiniteNumber(savedBuckets[bucket.id], defaults.bucketAmounts[bucket.id]),
+          0,
+          2000,
+        ),
+      }),
+      {} as Record<BucketId, number>,
+    );
+
+    return {
+      activeScenario: isScenarioId(parsed.activeScenario)
+        ? parsed.activeScenario
+        : "custom",
+      bucketAmounts,
+      cardAmount: clamp(toFiniteNumber(parsed.cardAmount, defaults.cardAmount), 1, 5000),
+      merchant: isMerchant(parsed.merchant) ? parsed.merchant : defaults.merchant,
+      paycheck: clamp(toFiniteNumber(parsed.paycheck, defaults.paycheck), 500, 8000),
+      unlockAmount: clamp(
+        toFiniteNumber(parsed.unlockAmount, defaults.unlockAmount),
+        25,
+        2000,
+      ),
+      unlockBucket: isBucketId(parsed.unlockBucket)
+        ? parsed.unlockBucket
+        : defaultUnlockBucket,
+      unlockMode: isUnlockMode(parsed.unlockMode)
+        ? parsed.unlockMode
+        : defaultUnlockMode,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function PaycheckPlanner() {
+  const [activeScenario, setActiveScenario] =
+    useState<ScenarioId>(defaultScenarioId);
+  const [storageReady, setStorageReady] = useState(false);
+  const [storageStatus, setStorageStatus] =
+    useState<StorageStatus>("loading");
+  const [paycheck, setPaycheck] = useState(plannerScenarios[0].paycheck);
+  const [bucketAmounts, setBucketAmounts] = useState<Record<BucketId, number>>(
+    createDefaultBucketAmounts,
+  );
+  const [merchant, setMerchant] = useState(plannerScenarios[0].merchant);
+  const [cardAmount, setCardAmount] = useState(plannerScenarios[0].cardAmount);
+  const [unlockBucket, setUnlockBucket] =
+    useState<BucketId>(defaultUnlockBucket);
+  const [unlockAmount, setUnlockAmount] = useState(
+    plannerScenarios[0].unlockAmount,
+  );
+  const [unlockMode, setUnlockMode] =
+    useState<UnlockMode>(defaultUnlockMode);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      try {
+        const saved = window.localStorage.getItem(plannerStorageKey);
+
+        if (saved) {
+          const snapshot = readPlannerSnapshot(saved);
+
+          if (snapshot && !cancelled) {
+            setActiveScenario(snapshot.activeScenario);
+            setBucketAmounts(snapshot.bucketAmounts);
+            setCardAmount(snapshot.cardAmount);
+            setMerchant(snapshot.merchant);
+            setPaycheck(snapshot.paycheck);
+            setUnlockAmount(snapshot.unlockAmount);
+            setUnlockBucket(snapshot.unlockBucket);
+            setUnlockMode(snapshot.unlockMode);
+          }
+        }
+
+        if (!cancelled) {
+          setStorageStatus("saved");
+          setStorageReady(true);
+        }
+      } catch {
+        if (!cancelled) {
+          setStorageStatus("unavailable");
+          setStorageReady(true);
+        }
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!storageReady) {
+      return;
+    }
+
+    try {
+      const snapshot: PlannerSnapshot = {
+        activeScenario,
+        bucketAmounts,
+        cardAmount,
+        merchant,
+        paycheck,
+        unlockAmount,
+        unlockBucket,
+        unlockMode,
+      };
+
+      window.localStorage.setItem(plannerStorageKey, JSON.stringify(snapshot));
+    } catch {
+      queueMicrotask(() => setStorageStatus("unavailable"));
+    }
+  }, [
+    activeScenario,
+    bucketAmounts,
+    cardAmount,
+    merchant,
+    paycheck,
+    storageReady,
+    unlockAmount,
+    unlockBucket,
+    unlockMode,
+  ]);
 
   const plan = useMemo(() => {
     const allocationState = buckets.reduce(
@@ -220,8 +479,8 @@ export function PaycheckPlanner() {
     {
       body: "Rules ready for the next funding event",
       icon: CalendarDays,
-      label: "Next paycheck",
-      value: "Jun 14",
+      label: "Funding event",
+      value: "Next check",
     },
     {
       body: `${coveredBuckets.length} of ${plan.allocations.length} buckets covered`,
@@ -303,12 +562,59 @@ export function PaycheckPlanner() {
       title: "Recovery rule staged",
     },
   ];
+  const activeScenarioLabel =
+    activeScenario === "custom"
+      ? "Custom plan"
+      : plannerScenarios.find((scenario) => scenario.id === activeScenario)?.name ??
+        "Custom plan";
+
+  function applyScenario(scenario: PlannerScenario) {
+    setActiveScenario(scenario.id);
+    setBucketAmounts(scenario.bucketAmounts);
+    setCardAmount(scenario.cardAmount);
+    setMerchant(scenario.merchant);
+    setPaycheck(scenario.paycheck);
+    setUnlockAmount(scenario.unlockAmount);
+    setUnlockBucket(scenario.unlockBucket);
+    setUnlockMode(scenario.unlockMode);
+  }
+
+  function updatePaycheck(nextAmount: number) {
+    setActiveScenario("custom");
+    setPaycheck(clamp(nextAmount, 500, 8000));
+  }
 
   function updateBucketAmount(id: BucketId, nextAmount: number) {
+    setActiveScenario("custom");
     setBucketAmounts((current) => ({
       ...current,
       [id]: clamp(nextAmount, 0, 2000),
     }));
+  }
+
+  function updateCardAmount(nextAmount: number) {
+    setActiveScenario("custom");
+    setCardAmount(clamp(nextAmount, 1, 5000));
+  }
+
+  function updateMerchant(nextMerchant: string) {
+    setActiveScenario("custom");
+    setMerchant(nextMerchant);
+  }
+
+  function updateUnlockAmount(nextAmount: number) {
+    setActiveScenario("custom");
+    setUnlockAmount(clamp(nextAmount, 25, 2000));
+  }
+
+  function updateUnlockBucket(nextBucket: BucketId) {
+    setActiveScenario("custom");
+    setUnlockBucket(nextBucket);
+  }
+
+  function updateUnlockMode(nextMode: UnlockMode) {
+    setActiveScenario("custom");
+    setUnlockMode(nextMode);
   }
 
   return (
@@ -435,6 +741,55 @@ export function PaycheckPlanner() {
               })}
             </div>
 
+            <div className="mb-4 grid max-w-4xl gap-3 lg:grid-cols-[minmax(0,1fr)_170px]">
+              <div className="rounded-[8px] border border-white/10 bg-[#060908]/80 p-3 ring-1 ring-white/[0.03]">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-[#f7f2e7]">
+                      Plan scenarios
+                    </p>
+                    <p className="text-xs leading-5 text-[#a8b0a6]">
+                      {activeScenarioLabel} - {storageStatusCopy[storageStatus]}
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-2 rounded-[8px] border border-emerald-300/25 bg-emerald-300/10 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-100">
+                    <CheckCircle2 className="size-3.5" aria-hidden="true" />
+                    Local plan
+                  </span>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  {plannerScenarios.map((scenario) => (
+                    <button
+                      aria-pressed={activeScenario === scenario.id}
+                      className={`rounded-[8px] border px-3 py-2 text-left transition ${
+                        activeScenario === scenario.id
+                          ? "border-emerald-300/60 bg-emerald-300/15 text-emerald-50"
+                          : "border-white/10 bg-white/[0.03] text-[#d6cfbf] hover:border-white/25 hover:bg-white/[0.06]"
+                      }`}
+                      key={scenario.id}
+                      type="button"
+                      onClick={() => applyScenario(scenario)}
+                    >
+                      <span className="block text-sm font-semibold">
+                        {scenario.name}
+                      </span>
+                      <span className="mt-1 block text-xs leading-5 text-[#a8b0a6]">
+                        {scenario.body}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <button
+                className="inline-flex min-h-24 items-center justify-center gap-2 rounded-[8px] border border-white/10 bg-[#0b100d] px-4 py-3 text-sm font-semibold text-[#f7f2e7] hover:border-emerald-300/50 hover:bg-emerald-300/10"
+                type="button"
+                onClick={() => applyScenario(plannerScenarios[0])}
+              >
+                <RefreshCcw className="size-4" aria-hidden="true" />
+                Reset plan
+              </button>
+            </div>
+
             <div className="overflow-hidden rounded-[8px] border border-white/10 bg-[#0c120f]/95 shadow-[0_28px_110px_rgba(0,0,0,0.5)] ring-1 ring-emerald-300/10">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-white/[0.035] px-4 py-3">
                 <div className="flex items-center gap-3">
@@ -489,22 +844,12 @@ export function PaycheckPlanner() {
                       type="number"
                       value={paycheck}
                       onInput={(event) =>
-                        setPaycheck(
-                          clamp(
-                            toNumber(event.currentTarget.value, paycheck),
-                            500,
-                            8000,
-                          ),
+                        updatePaycheck(
+                          toNumber(event.currentTarget.value, paycheck),
                         )
                       }
                       onChange={(event) =>
-                        setPaycheck(
-                          clamp(
-                            toNumber(event.target.value, paycheck),
-                            500,
-                            8000,
-                          ),
-                        )
+                        updatePaycheck(toNumber(event.target.value, paycheck))
                       }
                     />
                   </div>
@@ -516,7 +861,7 @@ export function PaycheckPlanner() {
                     step={50}
                     type="range"
                     value={paycheck}
-                    onChange={(event) => setPaycheck(Number(event.target.value))}
+                    onChange={(event) => updatePaycheck(Number(event.target.value))}
                   />
 
                   <div className="mt-5 grid grid-cols-3 gap-2 text-center">
@@ -685,7 +1030,7 @@ export function PaycheckPlanner() {
                     <select
                       className="mt-2 h-11 w-full rounded-[8px] border border-white/10 bg-[#070807] px-3 text-[#f4f1e8] outline-none focus:border-emerald-300"
                       value={merchant}
-                      onChange={(event) => setMerchant(event.target.value)}
+                      onChange={(event) => updateMerchant(event.target.value)}
                     >
                       {merchants.map((option) => (
                         <option key={option}>{option}</option>
@@ -707,22 +1052,12 @@ export function PaycheckPlanner() {
                         type="number"
                         value={cardAmount}
                         onInput={(event) =>
-                          setCardAmount(
-                            clamp(
-                              toNumber(event.currentTarget.value, cardAmount),
-                              1,
-                              5000,
-                            ),
+                          updateCardAmount(
+                            toNumber(event.currentTarget.value, cardAmount),
                           )
                         }
                         onChange={(event) =>
-                          setCardAmount(
-                            clamp(
-                              toNumber(event.target.value, cardAmount),
-                              1,
-                              5000,
-                            ),
-                          )
+                          updateCardAmount(toNumber(event.target.value, cardAmount))
                         }
                       />
                     </div>
@@ -851,7 +1186,7 @@ export function PaycheckPlanner() {
                     className="mt-2 h-11 w-full rounded-[8px] border border-white/10 bg-[#070807] px-3 text-[#f4f1e8] outline-none focus:border-emerald-300"
                     value={unlockBucket}
                     onChange={(event) =>
-                      setUnlockBucket(event.target.value as BucketId)
+                      updateUnlockBucket(event.target.value as BucketId)
                     }
                   >
                     {plan.allocations.map((bucket) => (
@@ -874,21 +1209,13 @@ export function PaycheckPlanner() {
                     type="number"
                     value={unlockAmount}
                     onInput={(event) =>
-                      setUnlockAmount(
-                        clamp(
-                          toNumber(event.currentTarget.value, unlockAmount),
-                          25,
-                          2000,
-                        ),
+                      updateUnlockAmount(
+                        toNumber(event.currentTarget.value, unlockAmount),
                       )
                     }
                     onChange={(event) =>
-                      setUnlockAmount(
-                        clamp(
-                          toNumber(event.target.value, unlockAmount),
-                          25,
-                          2000,
-                        ),
+                      updateUnlockAmount(
+                        toNumber(event.target.value, unlockAmount),
                       )
                     }
                   />
@@ -906,7 +1233,7 @@ export function PaycheckPlanner() {
                         : "text-[#b9b2a3]"
                     }`}
                     type="button"
-                    onClick={() => setUnlockMode("slow")}
+                    onClick={() => updateUnlockMode("slow")}
                   >
                     Free, 24h
                   </button>
@@ -917,7 +1244,7 @@ export function PaycheckPlanner() {
                         : "text-[#b9b2a3]"
                     }`}
                     type="button"
-                    onClick={() => setUnlockMode("instant")}
+                    onClick={() => updateUnlockMode("instant")}
                   >
                     <Zap className="size-4" aria-hidden="true" />
                     Instant
