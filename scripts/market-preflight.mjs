@@ -121,6 +121,7 @@ requireText(
 );
 requireText("scripts/smoke-deploy.mjs", "--expect-site-url");
 requireText("scripts/smoke-deploy.mjs", "--require-webhook");
+requireText("scripts/smoke-deploy.mjs", "webhookSigningConfigured");
 requireText("scripts/smoke-deploy.mjs", "x-content-type-options");
 requireText("scripts/smoke-deploy.mjs", "strict-transport-security");
 requireText("scripts/smoke-deploy.mjs", "permissions-policy");
@@ -129,6 +130,7 @@ requireText("next.config.ts", "Strict-Transport-Security");
 requireText("next.config.ts", "max-age=31536000");
 requireText("scripts/paid-traffic-readiness.mjs", "--allow-prototype");
 requireText("scripts/paid-traffic-readiness.mjs", "paidTrafficReady");
+requireText("scripts/paid-traffic-readiness.mjs", "webhookSigningConfigured");
 requireText("scripts/paid-traffic-readiness.mjs", "publicCopyBannedPhrases");
 requireText("scripts/test-waitlist-webhook.mjs", "sendSignedWebhookTest");
 requireText("scripts/test-waitlist-webhook.mjs", "x-payshield-webhook-signature");
@@ -145,6 +147,7 @@ requireText(
   "waitlist.paidTrafficReady: true",
 );
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
+requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET is required");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-signature");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-timestamp");
 requireText(
@@ -158,6 +161,7 @@ requireText(
 );
 requireText("src/app/api/health/route.ts", "paidTrafficReady");
 requireText("src/app/api/health/route.ts", "webhookConfigured");
+requireText("src/app/api/health/route.ts", "webhookSigningConfigured");
 requireText("scripts/smoke-deploy.mjs", "/api/health");
 requireText("scripts/waitlist-webhook-receiver.mjs", "verifyPayShieldSignature");
 requireText("scripts/waitlist-webhook-receiver.mjs", "waitlist.ndjson");

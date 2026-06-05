@@ -34,6 +34,7 @@ function evidence(overrides: Record<string, unknown> = {}) {
         paidTrafficReady: true,
         requireWebhook: true,
         webhookConfigured: true,
+        webhookSigningConfigured: true,
       },
     },
     homeBody,
@@ -74,7 +75,32 @@ test("fails demo capture in paid-traffic mode", () => {
   assert.equal(result.ok, false);
   assert.match(
     result.failures.join("\n"),
-    /paid-traffic-ready webhook capture/,
+    /paid-traffic-ready signed webhook capture/,
+  );
+});
+
+test("fails unsigned webhook capture in paid-traffic mode", () => {
+  const result = evaluatePaidTrafficReadiness(
+    evidence({
+      health: {
+        ok: false,
+        service: "payshield-market-site",
+        siteUrl: expectedSiteUrl,
+        waitlist: {
+          mode: "webhook",
+          paidTrafficReady: false,
+          requireWebhook: true,
+          webhookConfigured: true,
+          webhookSigningConfigured: false,
+        },
+      },
+    }),
+  );
+
+  assert.equal(result.ok, false);
+  assert.match(
+    result.failures.join("\n"),
+    /paid-traffic-ready signed webhook capture/,
   );
 });
 
@@ -91,6 +117,7 @@ test("allows prototype mode while warning about demo capture", () => {
           paidTrafficReady: false,
           requireWebhook: false,
           webhookConfigured: false,
+          webhookSigningConfigured: false,
         },
       },
     }),
@@ -100,7 +127,7 @@ test("allows prototype mode while warning about demo capture", () => {
   assert.equal(result.failures.length, 0);
   assert.match(
     result.warnings.join("\n"),
-    /paid-traffic-ready webhook capture/,
+    /paid-traffic-ready signed webhook capture/,
   );
 });
 

@@ -108,6 +108,7 @@ function isRateLimited(key: string) {
 async function forwardToWebhook(data: WaitlistSubmission) {
   const webhookUrl = process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
   const requireWebhook = process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK === "true";
+  const secret = process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET?.trim() ?? "";
 
   if (!webhookUrl) {
     if (requireWebhook) {
@@ -119,9 +120,14 @@ async function forwardToWebhook(data: WaitlistSubmission) {
     return { mode: "demo" as const };
   }
 
+  if (requireWebhook && !secret) {
+    throw new WaitlistConfigurationError(
+      "PAYSHIELD_WAITLIST_WEBHOOK_SECRET is required when PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true",
+    );
+  }
+
   const body = JSON.stringify(data);
   const timestamp = String(Math.floor(Date.now() / 1000));
-  const secret = process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET;
   const signature = secret
     ? `v1=${createHmac("sha256", secret)
         .update(`${timestamp}.${body}`)

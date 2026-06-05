@@ -15,7 +15,8 @@ Use this checklist after the repository is pushed to
   demo-mode success and emits logs/analytics, but real lead persistence still
   requires a CRM, Airtable, Slack, Make, Zapier, or internal webhook. Keep
   `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK` unset or `false` until the webhook is
-  ready, then set it to `true` before paid traffic.
+  ready and signed with `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`, then set it to
+  `true` before paid traffic.
 
 ## Import
 
@@ -46,7 +47,7 @@ PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true
 `NEXT_PUBLIC_SITE_URL` is exposed to the browser and should contain only the
 public site URL. The webhook URL and shared signing secret are server-only.
 `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` makes valid waitlist submissions fail
-closed unless the webhook URL is configured.
+closed unless the webhook URL and signing secret are configured.
 
 If there is no webhook yet, leave `PAYSHIELD_WAITLIST_WEBHOOK_URL` empty. The
 form will still return demo-mode success for prototype walkthroughs, but
@@ -146,9 +147,11 @@ sitemap entries match `NEXT_PUBLIC_SITE_URL`.
 
 `/api/health` returns public-safe readiness state. In demo mode, it returns
 `waitlist.mode: "demo"` and `waitlist.paidTrafficReady: false`. After the
-webhook URL and `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` are configured, it
-should return `waitlist.mode: "webhook"` and `waitlist.paidTrafficReady: true`.
-The endpoint does not expose the webhook URL or signing secret.
+webhook URL, signing secret, and `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` are
+configured, it should return `waitlist.mode: "webhook"`,
+`waitlist.webhookSigningConfigured: true`, and
+`waitlist.paidTrafficReady: true`. The endpoint does not expose the webhook URL
+or signing secret.
 
 After the webhook is configured, run one explicit submission test:
 

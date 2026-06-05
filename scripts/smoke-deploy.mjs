@@ -151,7 +151,13 @@ async function checkHealth() {
   }
 
   if (requireWebhook && body.waitlist?.paidTrafficReady !== true) {
-    failures.push("/api/health does not report paid-traffic-ready waitlist capture");
+    failures.push(
+      "/api/health does not report paid-traffic-ready signed waitlist capture",
+    );
+  }
+
+  if (requireWebhook && body.waitlist?.webhookSigningConfigured !== true) {
+    failures.push("/api/health does not report signed webhook configuration");
   }
 }
 

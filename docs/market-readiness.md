@@ -12,8 +12,8 @@ deployments, partner demos, and pilot demand capture.
 - Pilot request form with server-side validation, bounded in-memory rate
   limiting, request-size guardrails, honeypot filtering, required privacy/terms
   consent, sensitive financial-detail rejection, optional webhook forwarding,
-  and an opt-in fail-closed mode for paid traffic when webhook persistence is
-  required.
+  and an opt-in fail-closed mode for paid traffic when signed webhook
+  persistence is required.
 - Vercel-compatible Next.js app with production build, metadata, sitemap,
   robots, and baseline browser security headers.
 - JPEG social preview card for broad Open Graph and Twitter crawler support,
@@ -65,7 +65,8 @@ deployments, partner demos, and pilot demand capture.
 - Set `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` so the receiving webhook can validate
   the HMAC-SHA256 signature headers before storing leads.
 - Set `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` after the webhook is configured
-  so valid public submissions do not return demo-mode success.
+  so valid public submissions fail closed unless signed webhook capture is
+  configured.
 - Confirm the receiving webhook responds in under eight seconds.
 - If no CRM receiver exists yet, deploy or tunnel `npm run webhook:receive` with
   `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` set, then use that endpoint as the
@@ -74,8 +75,9 @@ deployments, partner demos, and pilot demand capture.
   against the receiver and confirm it returns a 2xx response before configuring
   Vercel to require webhook persistence.
 - Confirm `https://payshield-lime.vercel.app/api/health` reports
-  `waitlist.paidTrafficReady: true` after the webhook and fail-closed flag are
-  configured.
+  `waitlist.webhookSigningConfigured: true` and
+  `waitlist.paidTrafficReady: true` after the webhook, signing secret, and
+  fail-closed flag are configured.
 - Run `npm run readiness:paid-traffic -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app`
   and confirm it passes without `--allow-prototype`.
 - Run `npm run smoke:deploy -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --submit-test --require-webhook`

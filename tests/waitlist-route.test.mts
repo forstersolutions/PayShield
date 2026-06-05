@@ -110,6 +110,7 @@ test("accepts a valid request in demo mode", async () => {
 
 test("fails closed when webhook persistence is required but missing", async () => {
   delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
+  delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET;
   process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK = "true";
 
   try {
@@ -134,6 +135,40 @@ test("fails closed when webhook persistence is required but missing", async () =
     );
   } finally {
     delete process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK;
+  }
+});
+
+test("fails closed when webhook persistence is required but unsigned", async () => {
+  const webhook = await startWebhook();
+  process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL = webhook.url;
+  delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET;
+  process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK = "true";
+
+  try {
+    const response = await POST(
+      makeRequest(
+        {
+          email: "unsigned-required@example.com",
+          name: "Unsigned Required",
+          segment: "Employer",
+          message: "Need signed durable lead capture.",
+          consent: true,
+        },
+        "198.51.100.22",
+      ),
+    );
+    const body = await parseJson(response);
+
+    assert.equal(response.status, 503);
+    assert.equal(
+      body.error,
+      "Pilot request capture is temporarily unavailable. Try again shortly.",
+    );
+    assert.equal(webhook.requests.length, 0);
+  } finally {
+    delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
+    delete process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK;
+    await webhook.close();
   }
 });
 

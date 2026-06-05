@@ -10,8 +10,12 @@ export function GET() {
   const waitlistMode = getWaitlistMode();
   const requireWebhook = process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK === "true";
   const webhookConfigured = waitlistMode === "webhook";
-  const paidTrafficReady = webhookConfigured && requireWebhook;
-  const ok = !requireWebhook || webhookConfigured;
+  const webhookSigningConfigured = Boolean(
+    process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET?.trim(),
+  );
+  const paidTrafficReady =
+    webhookConfigured && webhookSigningConfigured && requireWebhook;
+  const ok = !requireWebhook || paidTrafficReady;
 
   return NextResponse.json(
     {
@@ -28,6 +32,7 @@ export function GET() {
         paidTrafficReady,
         requireWebhook,
         webhookConfigured,
+        webhookSigningConfigured,
       },
     },
     {
