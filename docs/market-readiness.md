@@ -25,7 +25,12 @@ deployments, partner demos, and pilot demand capture.
 - Dependabot is configured for weekly npm and GitHub Actions update PRs, with
   grouped runtime, observability, lint/type, and workflow maintenance. npm
   semver-major updates are deferred during launch so major framework and tooling
-  migrations stay intentional.
+  migrations stay intentional. Dependabot security updates, secret scanning, and
+  push protection are enabled on GitHub.
+- Security policy for private vulnerability reporting, sensitive data handling,
+  and the current prototype/live-money boundary.
+- Paid-traffic readiness issue form for tracking launch evidence and the
+  remaining lead-capture, legal, analytics, and production-ops gates.
 - Automated market preflight checks for required prototype disclaimers, consent
   links, launch assets, env examples, and blocked regulated-finance claims.
 - Post-deploy smoke checker for Vercel preview and production URLs, including
@@ -77,6 +82,9 @@ deployments, partner demos, and pilot demand capture.
   failure after the first production or preview deployment.
 - Confirm privacy policy and terms links before collecting personal data beyond
   pilot emails and optional notes.
+- Open a Paid Traffic Readiness issue and attach evidence for the webhook test,
+  production health response, CI run, Vercel deployment, analytics, and legal
+  review before spending on acquisition.
 
 ## Do Not Claim Yet
 

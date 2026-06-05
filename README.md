@@ -49,7 +49,8 @@ Dependabot is configured for weekly npm and GitHub Actions update pull requests,
 grouped by runtime, Vercel observability, lint/type tooling, and workflow
 maintenance. During launch, npm semver-major updates are ignored so patch/minor
 maintenance can keep moving without pulling unplanned framework or tooling
-migrations into the release path.
+migrations into the release path. GitHub Dependabot security updates, secret
+scanning, and push protection are enabled for the repository.
 
 ## Vercel
 
@@ -125,6 +126,8 @@ environment, webhook, and post-deploy smoke-test runbook. The deploy smoke
 checker validates required pages, launch assets, safe waitlist API validation,
 browser security headers, and, when `--expect-site-url` is provided, production
 canonical, sitemap, robots, and social image URLs.
+See [SECURITY.md](SECURITY.md) for vulnerability reporting and production
+security baseline notes.
 
 ## Source Asset
 

@@ -1,0 +1,62 @@
+name: Paid Traffic Readiness
+description: Track the remaining operational gates before broad or paid acquisition.
+title: "Paid traffic readiness: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this issue before paid acquisition, broad public launch, or any campaign that depends on durable lead capture.
+  - type: input
+    id: production-url
+    attributes:
+      label: Production URL
+      placeholder: https://payshield-lime.vercel.app
+    validations:
+      required: true
+  - type: checkboxes
+    id: lead-capture
+    attributes:
+      label: Lead Capture Gates
+      options:
+        - label: Receiver selected and owned by the launch operator.
+        - label: Receiver accepts signed PayShield webhook payloads.
+        - label: "`PAYSHIELD_WAITLIST_WEBHOOK_URL` is configured in Vercel Production."
+        - label: "`PAYSHIELD_WAITLIST_WEBHOOK_SECRET` is configured in Vercel Production."
+        - label: "`PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` is configured in Vercel Production."
+        - label: "`/api/health` reports `waitlist.paidTrafficReady: true`."
+        - label: "`npm run smoke:deploy -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --submit-test --require-webhook` passes."
+  - type: checkboxes
+    id: market-compliance
+    attributes:
+      label: Market And Compliance Gates
+      options:
+        - label: Prototype Privacy Notice reviewed for the current campaign.
+        - label: Prototype Terms reviewed for the current campaign.
+        - label: Public copy does not claim PayShield is a bank.
+        - label: Public copy does not claim FDIC insurance or sponsor-bank coverage.
+        - label: No live money movement, account opening, ACH, card issuing, or bill-pay promises are used in campaign copy.
+        - label: Counsel has reviewed the launch surface before regulated financial-service claims or live funds.
+  - type: checkboxes
+    id: production-ops
+    attributes:
+      label: Production Operations Gates
+      options:
+        - label: Production deployment is on the intended `main` commit.
+        - label: Vercel Web Analytics is enabled and receiving non-PII conversion events.
+        - label: Vercel Speed Insights is enabled and receiving page data.
+        - label: Custom domain, `NEXT_PUBLIC_SITE_URL`, canonical metadata, robots, and sitemap match if a custom domain is used.
+        - label: GitHub CI passes on the launch commit.
+        - label: GitHub Dependabot security updates, secret scanning, and push protection are enabled.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Paste command output, health JSON, Vercel deployment URL, CI run URL, legal review note, and receiver test result.
+      placeholder: |
+        /api/health:
+        smoke:deploy:
+        Vercel deployment:
+        CI run:
+        Legal/counsel review:
+    validations:
+      required: true

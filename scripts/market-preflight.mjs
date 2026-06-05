@@ -70,7 +70,9 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/components/site-footer.tsx",
   "src/app/components/waitlist-form.tsx",
   "src/app/components/paycheck-planner.tsx",
+  ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   "next.config.ts",
+  "SECURITY.md",
   "scripts/smoke-deploy.mjs",
   "scripts/test-waitlist-webhook.mjs",
   "scripts/waitlist-webhook-receiver.mjs",
@@ -123,6 +125,16 @@ requireText("next.config.ts", "max-age=31536000");
 requireText("scripts/test-waitlist-webhook.mjs", "sendSignedWebhookTest");
 requireText("scripts/test-waitlist-webhook.mjs", "x-payshield-webhook-signature");
 requireText("scripts/test-waitlist-webhook.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");
+requireText("SECURITY.md", "GitHub Dependabot security updates are enabled");
+requireText("SECURITY.md", "Do not open a public issue for security vulnerabilities");
+requireText(
+  ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
+  "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true",
+);
+requireText(
+  ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
+  "waitlist.paidTrafficReady: true",
+);
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-signature");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-timestamp");
