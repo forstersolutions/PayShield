@@ -70,6 +70,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/components/site-footer.tsx",
   "src/app/components/waitlist-form.tsx",
   "src/app/components/paycheck-planner.tsx",
+  "next.config.ts",
   "scripts/smoke-deploy.mjs",
   "scripts/test-waitlist-webhook.mjs",
   "scripts/waitlist-webhook-receiver.mjs",
@@ -114,8 +115,11 @@ requireText(
 requireText("scripts/smoke-deploy.mjs", "--expect-site-url");
 requireText("scripts/smoke-deploy.mjs", "--require-webhook");
 requireText("scripts/smoke-deploy.mjs", "x-content-type-options");
+requireText("scripts/smoke-deploy.mjs", "strict-transport-security");
 requireText("scripts/smoke-deploy.mjs", "permissions-policy");
 requireText("scripts/smoke-deploy.mjs", "payshield-social-card.jpg");
+requireText("next.config.ts", "Strict-Transport-Security");
+requireText("next.config.ts", "max-age=31536000");
 requireText("scripts/test-waitlist-webhook.mjs", "sendSignedWebhookTest");
 requireText("scripts/test-waitlist-webhook.mjs", "x-payshield-webhook-signature");
 requireText("scripts/test-waitlist-webhook.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");

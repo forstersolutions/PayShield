@@ -179,6 +179,7 @@ function expectSecurityHeaders(response, path) {
   expectHeader(response, path, "x-content-type-options", "nosniff");
   expectHeader(response, path, "referrer-policy", "strict-origin-when-cross-origin");
   expectHeader(response, path, "x-frame-options", "DENY");
+  expectHeader(response, path, "strict-transport-security", "max-age=31536000");
   expectHeaderIncludes(response, path, "permissions-policy", [
     "camera=()",
     "microphone=()",

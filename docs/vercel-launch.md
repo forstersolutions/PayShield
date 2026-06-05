@@ -160,7 +160,7 @@ Manual equivalents:
 
 ```bash
 curl -I https://your-domain.com/
-curl -I https://your-domain.com/ | rg 'x-content-type-options|referrer-policy|x-frame-options|permissions-policy'
+curl -I https://your-domain.com/ | rg 'x-content-type-options|referrer-policy|x-frame-options|strict-transport-security|permissions-policy'
 curl -I https://your-domain.com/images/payshield-social-card.jpg
 curl https://your-domain.com/robots.txt
 curl https://your-domain.com/sitemap.xml
