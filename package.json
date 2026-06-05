@@ -16,6 +16,7 @@
     "market-preflight": "node scripts/market-preflight.mjs",
     "smoke:deploy": "node scripts/smoke-deploy.mjs",
     "webhook:receive": "node scripts/waitlist-webhook-receiver.mjs",
+    "webhook:test": "node scripts/test-waitlist-webhook.mjs",
     "test": "NODE_ENV=test VERCEL_WEB_ANALYTICS_DISABLE_LOGS=1 node --test tests/*.test.mts",
     "verify": "npm run lint && npm run typecheck && npm test && npm run market-preflight && npm run build && npm audit --omit=dev"
   },

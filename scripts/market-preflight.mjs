@@ -71,6 +71,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/components/waitlist-form.tsx",
   "src/app/components/paycheck-planner.tsx",
   "scripts/smoke-deploy.mjs",
+  "scripts/test-waitlist-webhook.mjs",
   "scripts/waitlist-webhook-receiver.mjs",
   "vercel.json",
 ].forEach((path) => requireFile(path));
@@ -115,6 +116,9 @@ requireText("scripts/smoke-deploy.mjs", "--require-webhook");
 requireText("scripts/smoke-deploy.mjs", "x-content-type-options");
 requireText("scripts/smoke-deploy.mjs", "permissions-policy");
 requireText("scripts/smoke-deploy.mjs", "payshield-social-card.jpg");
+requireText("scripts/test-waitlist-webhook.mjs", "sendSignedWebhookTest");
+requireText("scripts/test-waitlist-webhook.mjs", "x-payshield-webhook-signature");
+requireText("scripts/test-waitlist-webhook.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-signature");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-timestamp");

@@ -42,6 +42,8 @@ deployments, partner demos, and pilot demand capture.
   without exposing the webhook URL or signing secret.
 - Signed webhook receiver utility for validating HMAC headers and writing leads
   to ignored local NDJSON/CSV files when a lightweight receiver is needed.
+- Signed webhook smoke tester for proving a CRM or lightweight receiver accepts
+  PayShield HMAC payloads before paid traffic is enabled.
 - Conservative fintech language that does not claim PayShield is a bank or that
   funds are FDIC insured.
 - Prototype Privacy Notice and Terms pages linked from the pilot form and
@@ -62,6 +64,9 @@ deployments, partner demos, and pilot demand capture.
 - If no CRM receiver exists yet, deploy or tunnel `npm run webhook:receive` with
   `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` set, then use that endpoint as the
   temporary webhook target.
+- Run `PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run webhook:test -- https://your-webhook-url`
+  against the receiver and confirm it returns a 2xx response before configuring
+  Vercel to require webhook persistence.
 - Confirm `https://payshield-lime.vercel.app/api/health` reports
   `waitlist.paidTrafficReady: true` after the webhook and fail-closed flag are
   configured.

@@ -30,6 +30,7 @@ npm run market-preflight
 npm run smoke:deploy -- https://your-domain.com
 npm run smoke:deploy -- https://your-domain.com --expect-site-url https://your-domain.com
 npm run webhook:receive
+PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run webhook:test -- https://your-webhook-url
 npm run build
 npm run start
 npm run lint
@@ -88,6 +89,9 @@ capture.
 want a lightweight persistence target before wiring a CRM. It verifies the
 PayShield HMAC headers and appends accepted leads to ignored local
 `data/waitlist/waitlist.ndjson` and `data/waitlist/waitlist.csv` files.
+`npm run webhook:test -- https://your-webhook-url` sends one signed sample
+payload to any receiver using `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`, so the
+endpoint can be verified before Vercel is switched into required-webhook mode.
 
 `/api/health` exposes public-safe deployment and waitlist readiness state. It
 does not expose the webhook URL or signing secret, and it reports whether the

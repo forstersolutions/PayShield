@@ -119,6 +119,16 @@ with production traffic, host the receiver behind HTTPS, set
 `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` in Vercel, then set
 `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true`.
 
+Before changing Vercel to required-webhook mode, prove the receiver accepts a
+signed PayShield payload:
+
+```bash
+PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook npm run webhook:test -- https://your-webhook-url
+```
+
+The tester sends one sample lead, expects a 2xx response, and prints the
+receiver response without printing the signing secret.
+
 ## Post-Deploy Smoke Checks
 
 Run the smoke checker against the preview URL and then the production URL:
