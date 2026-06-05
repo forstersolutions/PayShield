@@ -20,7 +20,9 @@ body:
       options:
         - label: "`npm run lead-capture:dry-run` passes locally and the non-PII output is attached."
         - label: "`npm run receiver:docker:smoke` passes in CI or locally if the lightweight receiver will be used."
+        - label: "`npm run receiver:compose:config` passes if `compose.receiver.yml` will be used."
         - label: Receiver selected and owned by the launch operator.
+        - label: "`compose.receiver.yml` is used or an equivalent persistent-volume receiver deployment is documented if the lightweight receiver is used."
         - label: "Receiver accepts `npm run webhook:test -- https://your-webhook-url --replay`."
         - label: "`PAYSHIELD_WAITLIST_WEBHOOK_URL` is configured in Vercel Production."
         - label: "`PAYSHIELD_WAITLIST_WEBHOOK_SECRET` is configured in Vercel Production."

@@ -72,6 +72,10 @@ deployments, partner demos, and pilot demand capture.
   and pilot outreach auditability.
 - Dedicated `Dockerfile.receiver` for running the signed receiver on a container
   host with a persistent `/data/waitlist` volume and `GET /health` checks.
+- Dedicated `compose.receiver.yml` handoff manifest that builds the receiver
+  image, requires a runtime signing secret, bind-mounts an operator-owned
+  persistent host data directory, adds a `/health` healthcheck, and restarts
+  unless stopped.
 - Docker receiver smoke command for proving the container image starts with a
   mounted `/data/waitlist` volume, reports health, accepts signed replayed
   submissions, writes summary-ready data, and supports deletion dry-run
@@ -118,12 +122,19 @@ deployments, partner demos, and pilot demand capture.
 - Run `npm run lead-capture:dry-run` locally before choosing the hosted receiver
   or CRM endpoint, and attach the non-PII command output to the readiness issue.
 - If the lightweight receiver is used for production capture, run it from
-  `Dockerfile.receiver` on a host with a persistent volume mounted at
-  `/data/waitlist`, confirm `GET /health` returns
+  `compose.receiver.yml` or `Dockerfile.receiver` on a host with a persistent
+  volume mounted at `/data/waitlist`, confirm `GET /health` returns
   `service: "payshield-waitlist-receiver"`, and include the volume backup/export
   owner in the launch evidence.
+- If `compose.receiver.yml` is used, set `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`
+  and `PAYSHIELD_RECEIVER_HOST_DATA_DIR` in `.env.receiver`, start it with
+  `docker compose --env-file .env.receiver -f compose.receiver.yml up -d --build`,
+  and confirm the host data directory is outside git with restricted access.
 - Run `npm run receiver:docker:smoke` before deploying the lightweight receiver
   path and attach the redacted output to the readiness issue.
+- Run `npm run receiver:compose:config` before deploying
+  `compose.receiver.yml` and attach the command result or CI run to the
+  readiness issue.
 - If the lightweight receiver is used, run
   `npm run waitlist:data -- summary --data-dir /path/to/waitlist` after test
   submissions to confirm non-PII counts, run

@@ -87,7 +87,9 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "next.config.ts",
   "SECURITY.md",
   ".dockerignore",
+  "compose.receiver.yml",
   "Dockerfile.receiver",
+  ".env.receiver.example",
   "scripts/analytics-audit.mjs",
   "scripts/check-campaign-copy.mjs",
   "scripts/launch-evidence.mjs",
@@ -109,6 +111,13 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK",
   "PAYSHIELD_RECEIVER_HEALTH_PATH",
 ].forEach((key) => requireText(".env.example", key));
+
+[
+  "PAYSHIELD_WAITLIST_WEBHOOK_SECRET",
+  "PAYSHIELD_RECEIVER_HOST_DATA_DIR",
+  "PAYSHIELD_RECEIVER_HOST_PORT",
+  "PAYSHIELD_RECEIVER_BACKUP_DIR",
+].forEach((key) => requireText(".env.receiver.example", key));
 
 requireText(
   "src/app/components/site-footer.tsx",
@@ -194,6 +203,7 @@ requireText("package.json", "\"analytics:audit\"");
 requireText("package.json", "\"launch:evidence\"");
 requireText("package.json", "\"lead-capture:dry-run\"");
 requireText("package.json", "\"receiver:docker:smoke\"");
+requireText("package.json", "\"receiver:compose:config\"");
 requireText("package.json", "npm run legal:lint");
 requireText("docs/campaign-copy.md", "npm run campaign:lint");
 requireText("docs/campaign-copy.md", "npm run legal:lint");
@@ -254,6 +264,7 @@ requireText("package.json", "\"waitlist:data\"");
 requireText("package.json", "\"vercel:env:audit\"");
 requireText("package.json", "\"receiver:docker:build\"");
 requireText(".github/workflows/ci.yml", "npm run receiver:docker:smoke");
+requireText(".github/workflows/ci.yml", "npm run receiver:compose:config");
 requireText("SECURITY.md", "GitHub Dependabot security updates are enabled");
 requireText("SECURITY.md", "GitHub private vulnerability reporting is enabled");
 requireText("SECURITY.md", "Do not open a public issue for security vulnerabilities");
@@ -312,6 +323,10 @@ requireText(
 );
 requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
+  "npm run receiver:compose:config",
+);
+requireText(
+  ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   "npm run legal:lint",
 );
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
@@ -360,9 +375,16 @@ requireText("scripts/waitlist-webhook-receiver.mjs", "submissionId");
 requireText("Dockerfile.receiver", "PAYSHIELD_RECEIVER_DATA_DIR=/data/waitlist");
 requireText("Dockerfile.receiver", "PAYSHIELD_RECEIVER_HEALTH_PATH=/health");
 requireText("Dockerfile.receiver", "scripts/waitlist-webhook-receiver.mjs");
+requireText("compose.receiver.yml", "dockerfile: Dockerfile.receiver");
+requireText("compose.receiver.yml", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");
+requireText("compose.receiver.yml", "PAYSHIELD_RECEIVER_HOST_DATA_DIR");
+requireText("compose.receiver.yml", "target: /data/waitlist");
+requireText("compose.receiver.yml", "healthcheck");
+requireText("compose.receiver.yml", "restart: unless-stopped");
 requireText(".dockerignore", "data");
 requireText(".gitignore", "/data/waitlist/");
 requireText(".gitignore", "/data/waitlist-backups/");
+requireText(".gitignore", "!.env.receiver.example");
 requireText("vercel.json", '"framework": "nextjs"');
 requireText("docs/vercel-launch.md", "attribution");
 requireText("docs/vercel-launch.md", "utm_source");
@@ -372,6 +394,8 @@ requireText("docs/vercel-launch.md", "termsVersion");
 requireText("docs/vercel-launch.md", "submissionId");
 requireText("docs/vercel-launch.md", "webhook:test -- https://your-webhook-url --replay");
 requireText("docs/vercel-launch.md", "npm run vercel:env:audit");
+requireText("docs/vercel-launch.md", "docker compose --env-file .env.receiver -f compose.receiver.yml up -d --build");
+requireText("docs/vercel-launch.md", "npm run receiver:compose:config");
 requireText("docs/vercel-launch.md", "npm run waitlist:data -- audit --data-dir /path/to/waitlist");
 requireText("docs/vercel-launch.md", "npm run waitlist:data -- backup --data-dir /path/to/waitlist --backup-dir /secure/path");
 requireText("docs/vercel-launch.md", "npm run waitlist:data -- verify-backup --backup-path /secure/path/waitlist-backup-...");
@@ -382,6 +406,8 @@ requireText("docs/market-readiness.md", "webhook:test -- https://your-webhook-ur
 requireText("docs/market-readiness.md", "npm run legal:lint");
 requireText("docs/market-readiness.md", "npm run vercel:env:audit");
 requireText("docs/market-readiness.md", "npm run analytics:audit");
+requireText("docs/market-readiness.md", "docker compose --env-file .env.receiver -f compose.receiver.yml up -d --build");
+requireText("docs/market-readiness.md", "npm run receiver:compose:config");
 requireText("docs/market-readiness.md", "npm run waitlist:data -- audit --data-dir /path/to/waitlist");
 requireText("docs/market-readiness.md", "npm run waitlist:data -- backup --data-dir /path/to/waitlist --backup-dir /secure/path");
 requireText("docs/market-readiness.md", "npm run waitlist:data -- verify-backup --backup-path /secure/path/waitlist-backup-...");
@@ -390,6 +416,7 @@ requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run analyt
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run waitlist:data -- audit");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run waitlist:data -- backup");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run waitlist:data -- verify-backup");
+requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "compose.receiver.yml");
 
 requireMaxSize("src/app/icon.svg", 5_000);
 requireMaxSize("public/images/payshield-product-mockup.avif", 125_000);

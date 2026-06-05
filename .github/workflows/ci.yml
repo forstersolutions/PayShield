@@ -33,3 +33,6 @@ jobs:
 
       - name: Smoke waitlist receiver image
         run: npm run receiver:docker:smoke
+
+      - name: Validate waitlist receiver compose manifest
+        run: npm run receiver:compose:config

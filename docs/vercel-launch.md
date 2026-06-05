@@ -194,24 +194,31 @@ with production traffic, host the receiver behind HTTPS, set
 `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` in Vercel, then set
 `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true`.
 
-For a container host with a persistent volume, build the dedicated receiver
-image:
+For a container host with a persistent volume, use the dedicated receiver
+compose manifest:
 
 ```bash
 npm run receiver:docker:smoke
-docker build -f Dockerfile.receiver -t payshield-waitlist-receiver .
-docker run --rm \
-  -p 8787:8787 \
-  -e PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook \
-  -v "$PWD/data/waitlist:/data/waitlist" \
-  payshield-waitlist-receiver
+npm run receiver:compose:config
+cp .env.receiver.example .env.receiver
+mkdir -p /srv/payshield/waitlist /srv/payshield/waitlist-backups
+# Set PAYSHIELD_WAITLIST_WEBHOOK_SECRET in .env.receiver before starting.
+docker compose --env-file .env.receiver -f compose.receiver.yml up -d --build
 curl http://localhost:8787/health
-PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook npm run webhook:test -- http://localhost:8787/payshield-waitlist
+PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook npm run webhook:test -- http://localhost:8787/payshield-waitlist --replay
 ```
 
 The Docker smoke command uses a temporary host-mounted `/data/waitlist` volume
 and prints redacted JSON. It should pass before the lightweight receiver is used
 for production capture. GitHub Actions also runs it on every launch commit.
+The compose config command validates the production handoff manifest with a
+dummy secret and host data directory before an operator starts it on a receiver
+host.
+`compose.receiver.yml` builds `Dockerfile.receiver`, requires
+`PAYSHIELD_WAITLIST_WEBHOOK_SECRET`, bind-mounts
+`PAYSHIELD_RECEIVER_HOST_DATA_DIR` to `/data/waitlist`, publishes
+`PAYSHIELD_RECEIVER_HOST_PORT`, adds a `/health` healthcheck, and restarts the
+receiver unless stopped.
 
 Do not use a container instance without a persistent volume for paid traffic.
 The receiver writes lead data to files under `/data/waitlist`; ephemeral storage

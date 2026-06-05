@@ -32,6 +32,7 @@ npm run launch:evidence -- https://your-domain.com --expect-site-url https://you
 npm run lead-capture:dry-run
 npm test
 npm run market-preflight
+npm run receiver:compose:config
 npm run receiver:docker:build
 npm run receiver:docker:smoke
 npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com
@@ -61,6 +62,8 @@ pushes to `main` and pull requests, then runs `npm run receiver:docker:smoke` to
 build `Dockerfile.receiver`, start it with a mounted data volume, verify health,
 signed replay capture, non-PII summary/audit output, and deletion dry-run
 handling, including backup manifest hash verification.
+CI also runs `npm run receiver:compose:config` to validate the production
+receiver compose handoff manifest with a dummy secret and host data directory.
 Vercel's Git integration will still create preview and production deployments;
 the workflow is a source-level quality gate before deployment.
 
@@ -155,12 +158,11 @@ For a container host with a persistent volume:
 
 ```bash
 npm run receiver:docker:smoke
-docker build -f Dockerfile.receiver -t payshield-waitlist-receiver .
-docker run --rm \
-  -p 8787:8787 \
-  -e PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook \
-  -v "$PWD/data/waitlist:/data/waitlist" \
-  payshield-waitlist-receiver
+npm run receiver:compose:config
+cp .env.receiver.example .env.receiver
+mkdir -p /srv/payshield/waitlist /srv/payshield/waitlist-backups
+# Set PAYSHIELD_WAITLIST_WEBHOOK_SECRET in .env.receiver before starting.
+docker compose --env-file .env.receiver -f compose.receiver.yml up -d --build
 curl http://localhost:8787/health
 PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook npm run webhook:test -- http://localhost:8787/payshield-waitlist --replay
 ```
@@ -171,6 +173,10 @@ signed replay smoke payload, verifies non-PII data summary/audit output, and
 dry-runs email deletion handling, including backup manifest hash verification.
 GitHub Actions runs this smoke check on each launch commit so the lightweight
 receiver fallback is more than build-only.
+`compose.receiver.yml` is the production handoff manifest for that fallback:
+it uses the same image, requires a runtime webhook signing secret, mounts
+`PAYSHIELD_RECEIVER_HOST_DATA_DIR` into `/data/waitlist`, adds a container
+healthcheck, and restarts unless stopped.
 
 `npm run webhook:test -- https://your-webhook-url --replay` sends one signed
 sample payload to any receiver using `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`, then
