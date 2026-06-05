@@ -70,6 +70,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/components/waitlist-form.tsx",
   "src/app/components/paycheck-planner.tsx",
   "scripts/smoke-deploy.mjs",
+  "scripts/waitlist-webhook-receiver.mjs",
   "vercel.json",
 ].forEach((path) => requireFile(path));
 
@@ -116,6 +117,10 @@ requireText("scripts/smoke-deploy.mjs", "payshield-social-card.jpg");
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-signature");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-timestamp");
+requireText("scripts/waitlist-webhook-receiver.mjs", "verifyPayShieldSignature");
+requireText("scripts/waitlist-webhook-receiver.mjs", "waitlist.ndjson");
+requireText("scripts/waitlist-webhook-receiver.mjs", "waitlist.csv");
+requireText(".gitignore", "/data/waitlist/");
 requireText("vercel.json", '"framework": "nextjs"');
 
 requireMaxSize("src/app/icon.svg", 5_000);

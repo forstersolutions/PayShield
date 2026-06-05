@@ -29,6 +29,7 @@ npm test
 npm run market-preflight
 npm run smoke:deploy -- https://your-domain.com
 npm run smoke:deploy -- https://your-domain.com --expect-site-url https://your-domain.com
+npm run webhook:receive
 npm run build
 npm run start
 npm run lint
@@ -82,6 +83,11 @@ request open indefinitely.
 Set `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` before paid traffic so valid
 submissions fail closed instead of appearing successful without durable lead
 capture.
+
+`npm run webhook:receive` starts a small signed webhook receiver for teams that
+want a lightweight persistence target before wiring a CRM. It verifies the
+PayShield HMAC headers and appends accepted leads to ignored local
+`data/waitlist/waitlist.ndjson` and `data/waitlist/waitlist.csv` files.
 
 The pilot form requires consent to the prototype Privacy Notice and Terms before
 submission.

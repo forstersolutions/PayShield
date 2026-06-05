@@ -96,6 +96,29 @@ function verifyPayShieldSignature({ rawBody, secret, signature, timestamp }) {
 }
 ```
 
+## Lightweight Receiver
+
+If a CRM, Airtable, Slack, Make, Zapier, or internal receiver is not ready yet,
+the repository includes a minimal signed receiver:
+
+```bash
+PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook npm run webhook:receive
+```
+
+Defaults:
+
+- Path: `/payshield-waitlist`.
+- Port: `8787`, override with `PORT`.
+- Output directory: `data/waitlist`, override with
+  `PAYSHIELD_RECEIVER_DATA_DIR`.
+- Files written: `waitlist.ndjson` and `waitlist.csv`.
+
+The output directory is ignored by git because it contains lead data. To use it
+with production traffic, host the receiver behind HTTPS, set
+`PAYSHIELD_WAITLIST_WEBHOOK_URL` to that endpoint, set the same
+`PAYSHIELD_WAITLIST_WEBHOOK_SECRET` in Vercel, then set
+`PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true`.
+
 ## Post-Deploy Smoke Checks
 
 Run the smoke checker against the preview URL and then the production URL:
