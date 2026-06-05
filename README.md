@@ -129,12 +129,13 @@ docker run --rm \
   -v "$PWD/data/waitlist:/data/waitlist" \
   payshield-waitlist-receiver
 curl http://localhost:8787/health
-PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook npm run webhook:test -- http://localhost:8787/payshield-waitlist
+PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook npm run webhook:test -- http://localhost:8787/payshield-waitlist --replay
 ```
 
-`npm run webhook:test -- https://your-webhook-url` sends one signed sample
-payload to any receiver using `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`, so the
-endpoint can be verified before Vercel is switched into required-webhook mode.
+`npm run webhook:test -- https://your-webhook-url --replay` sends one signed
+sample payload to any receiver using `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`, then
+sends the same signed payload again so idempotent replay handling can be
+verified before Vercel is switched into required-webhook mode.
 
 If the lightweight receiver is used, `npm run waitlist:data -- summary` prints
 non-PII totals, segment counts, and campaign/source counts from the local

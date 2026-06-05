@@ -187,6 +187,8 @@ requireText("scripts/test-waitlist-webhook.mjs", "pilot-contact-consent-2026-06-
 requireText("scripts/test-waitlist-webhook.mjs", "pilot-terms-2026-06-05");
 requireText("scripts/test-waitlist-webhook.mjs", "x-payshield-submission-id");
 requireText("scripts/test-waitlist-webhook.mjs", "submissionId");
+requireText("scripts/test-waitlist-webhook.mjs", "--replay");
+requireText("scripts/test-waitlist-webhook.mjs", "replayResult");
 requireText("scripts/waitlist-data-ops.mjs", "summarizeWaitlistData");
 requireText("scripts/waitlist-data-ops.mjs", "eraseWaitlistEmail");
 requireText("scripts/waitlist-data-ops.mjs", "malformedLines");
@@ -232,6 +234,10 @@ requireText(
 requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   "idempotent",
+);
+requireText(
+  ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
+  "webhook:test -- https://your-webhook-url --replay",
 );
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET is required");
@@ -280,9 +286,11 @@ requireText("docs/vercel-launch.md", "consentVersion");
 requireText("docs/vercel-launch.md", "privacyVersion");
 requireText("docs/vercel-launch.md", "termsVersion");
 requireText("docs/vercel-launch.md", "submissionId");
+requireText("docs/vercel-launch.md", "webhook:test -- https://your-webhook-url --replay");
 requireText("docs/market-readiness.md", "sanitized campaign metadata");
 requireText("docs/market-readiness.md", "consent audit fields");
 requireText("docs/market-readiness.md", "idempotent capture");
+requireText("docs/market-readiness.md", "webhook:test -- https://your-webhook-url --replay");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "sanitized `attribution` fields");
 
 requireMaxSize("src/app/icon.svg", 5_000);

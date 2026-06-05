@@ -6,9 +6,10 @@ const defaultTimeoutMs = 8_000;
 
 function usage() {
   return [
-    "Usage: PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run webhook:test -- https://your-webhook-url [--email lead@example.com] [--timeout-ms 8000]",
+    "Usage: PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run webhook:test -- https://your-webhook-url [--email lead@example.com] [--timeout-ms 8000] [--replay]",
     "",
     "Sends one signed sample waitlist payload directly to a receiver URL.",
+    "--replay sends the same signed payload twice to verify idempotent acceptance.",
     "Does not print the signing secret.",
   ].join("\n");
 }
@@ -33,6 +34,7 @@ function flagValue(args, index) {
 function parseCliArgs(args) {
   const positional = [];
   let email = "";
+  let replay = false;
   let timeoutMs = defaultTimeoutMs;
 
   for (let index = 0; index < args.length; index += 1) {
@@ -53,6 +55,11 @@ function parseCliArgs(args) {
       const parsed = flagValue(args, index);
       timeoutMs = Number(parsed.value);
       index = parsed.nextIndex;
+      continue;
+    }
+
+    if (arg === "--replay") {
+      replay = true;
       continue;
     }
 
@@ -78,6 +85,7 @@ function parseCliArgs(args) {
   return {
     email,
     help: false,
+    replay,
     timeoutMs,
     url: positional[0],
   };
@@ -152,6 +160,7 @@ export function createWaitlistWebhookTestPayload(options = {}) {
 /**
  * @param {{
  *   payload?: ReturnType<typeof createWaitlistWebhookTestPayload>;
+ *   replay?: boolean;
  *   secret?: string;
  *   timeoutMs?: number;
  *   timestamp?: string;
@@ -161,6 +170,7 @@ export function createWaitlistWebhookTestPayload(options = {}) {
 export async function sendSignedWebhookTest(options = {}) {
   const {
     payload,
+    replay = false,
     secret = process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET,
     timeoutMs = defaultTimeoutMs,
     timestamp = String(Math.floor(Date.now() / 1000)),
@@ -178,41 +188,69 @@ export async function sendSignedWebhookTest(options = {}) {
 
   const body = payload ?? createWaitlistWebhookTestPayload();
   const rawBody = JSON.stringify(body);
-  const response = await fetch(targetUrl, {
-    body: rawBody,
-    headers: {
-      "content-type": "application/json",
-      "user-agent": "payshield-webhook-test",
-      ...(body.submissionId
-        ? { "x-payshield-submission-id": body.submissionId }
-        : {}),
-      "x-payshield-webhook-signature": signPayShieldWebhook({
-        rawBody,
-        secret,
-        timestamp,
-      }),
-      "x-payshield-webhook-timestamp": timestamp,
-    },
-    method: "POST",
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-  const responseBody = parseResponseBody(await response.text());
-  const result = {
-    body: responseBody,
-    ok: response.ok,
-    payload: body,
-    status: response.status,
+  const sendOnce = async () => {
+    const response = await fetch(targetUrl, {
+      body: rawBody,
+      headers: {
+        "content-type": "application/json",
+        "user-agent": "payshield-webhook-test",
+        ...(body.submissionId
+          ? { "x-payshield-submission-id": body.submissionId }
+          : {}),
+        "x-payshield-webhook-signature": signPayShieldWebhook({
+          rawBody,
+          secret,
+          timestamp,
+        }),
+        "x-payshield-webhook-timestamp": timestamp,
+      },
+      method: "POST",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    const responseBody = parseResponseBody(await response.text());
+
+    return {
+      body: responseBody,
+      ok: response.ok,
+      payload: body,
+      status: response.status,
+    };
   };
 
-  if (!response.ok) {
+  const result = await sendOnce();
+
+  if (!result.ok) {
     throw Object.assign(
       new Error(
-        `Webhook smoke test failed with HTTP ${response.status}${
-          responseBody ? `: ${responsePreview(responseBody)}` : ""
+        `Webhook smoke test failed with HTTP ${result.status}${
+          result.body ? `: ${responsePreview(result.body)}` : ""
         }`,
       ),
       result,
     );
+  }
+
+  if (replay) {
+    const replayResult = await sendOnce();
+
+    if (!replayResult.ok) {
+      throw Object.assign(
+        new Error(
+          `Webhook replay test failed with HTTP ${replayResult.status}${
+            replayResult.body ? `: ${responsePreview(replayResult.body)}` : ""
+          }`,
+        ),
+        {
+          ...result,
+          replay: replayResult,
+        },
+      );
+    }
+
+    return {
+      ...result,
+      replay: replayResult,
+    };
   }
 
   return result;
@@ -228,19 +266,27 @@ async function main() {
 
   const result = await sendSignedWebhookTest({
     payload: createWaitlistWebhookTestPayload({ email: parsed.email || undefined }),
+    replay: parsed.replay,
     timeoutMs: parsed.timeoutMs,
     url: parsed.url,
   });
 
+  const output = {
+    ok: true,
+    receiverResponse: result.body,
+    sentEmail: result.payload.email,
+    status: result.status,
+    url: parseWebhookUrl(parsed.url),
+  };
+
+  if (result.replay) {
+    output.replayReceiverResponse = result.replay.body;
+    output.replayStatus = result.replay.status;
+  }
+
   console.log(
     JSON.stringify(
-      {
-        ok: true,
-        receiverResponse: result.body,
-        sentEmail: result.payload.email,
-        status: result.status,
-        url: parseWebhookUrl(parsed.url),
-      },
+      output,
       null,
       2,
     ),

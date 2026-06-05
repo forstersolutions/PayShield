@@ -104,9 +104,9 @@ deployments, partner demos, and pilot demand capture.
   `termsVersion`, `consentedAt`, and `consentText` for every accepted test lead.
 - Replay the same signed test payload and confirm the receiver returns success
   without appending a second row for the same `submissionId`.
-- Run `PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run webhook:test -- https://your-webhook-url`
-  against the receiver and confirm it returns a 2xx response before configuring
-  Vercel to require webhook persistence.
+- Run `PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run webhook:test -- https://your-webhook-url --replay`
+  against the receiver and confirm the initial send and replay both return 2xx
+  responses before configuring Vercel to require webhook persistence.
 - Confirm `https://payshield-lime.vercel.app/api/health` reports
   `waitlist.webhookSigningConfigured: true` and
   `waitlist.paidTrafficReady: true` after the webhook, signing secret, and

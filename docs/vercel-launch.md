@@ -191,11 +191,13 @@ Before changing Vercel to required-webhook mode, prove the receiver accepts a
 signed PayShield payload:
 
 ```bash
-PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook npm run webhook:test -- https://your-webhook-url
+PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook npm run webhook:test -- https://your-webhook-url --replay
 ```
 
-The tester sends one sample lead, expects a 2xx response, and prints the
-receiver response without printing the signing secret.
+The tester sends one sample lead, expects a 2xx response, sends the exact same
+signed payload again, and prints both receiver responses without printing the
+signing secret. The lightweight receiver returns `duplicate: true` for the
+replay and does not append a second row.
 
 ## Post-Deploy Smoke Checks
 

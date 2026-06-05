@@ -70,6 +70,58 @@ test("sends a signed webhook smoke payload to a receiver", async () => {
   }
 });
 
+test("replays a signed webhook smoke payload without duplicating receiver data", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "payshield-waitlist-test-"));
+  const secret = "receiver-secret";
+  const server = createWaitlistWebhookReceiver({ dataDir, secret });
+  const listener = await listen(server);
+  const payload = createWaitlistWebhookTestPayload({
+    email: "Replay@Example.com",
+    now: new Date("2026-06-05T00:00:00.000Z"),
+  });
+
+  try {
+    const result = await sendSignedWebhookTest({
+      payload,
+      replay: true,
+      secret,
+      url: listener.url,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.status, 202);
+    assert.deepEqual(result.body, {
+      duplicate: false,
+      ok: true,
+      email: "replay@example.com",
+      submissionId: payload.submissionId,
+    });
+    assert.equal("replay" in result, true);
+
+    const replay = (result as typeof result & {
+      replay: { body: unknown; ok: boolean; status: number };
+    }).replay;
+
+    assert.equal(replay.ok, true);
+    assert.equal(replay.status, 200);
+    assert.deepEqual(replay.body, {
+      duplicate: true,
+      ok: true,
+      email: "replay@example.com",
+      submissionId: payload.submissionId,
+    });
+
+    const ndjson = await readFile(join(dataDir, "waitlist.ndjson"), "utf8");
+    const csv = await readFile(join(dataDir, "waitlist.csv"), "utf8");
+
+    assert.equal(ndjson.trim().split("\n").length, 1);
+    assert.equal(csv.trim().split("\n").length, 2);
+  } finally {
+    await listener.close();
+    await rm(dataDir, { recursive: true });
+  }
+});
+
 test("requires a webhook signing secret before sending", async () => {
   await assert.rejects(
     sendSignedWebhookTest({

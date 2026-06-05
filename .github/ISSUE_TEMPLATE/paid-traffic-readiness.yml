@@ -19,7 +19,7 @@ body:
       label: Lead Capture Gates
       options:
         - label: Receiver selected and owned by the launch operator.
-        - label: Receiver accepts signed PayShield webhook payloads.
+        - label: "Receiver accepts `npm run webhook:test -- https://your-webhook-url --replay`."
         - label: "`PAYSHIELD_WAITLIST_WEBHOOK_URL` is configured in Vercel Production."
         - label: "`PAYSHIELD_WAITLIST_WEBHOOK_SECRET` is configured in Vercel Production."
         - label: "`PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` is configured in Vercel Production."
