@@ -81,13 +81,18 @@ test("persists signed waitlist submissions to NDJSON and CSV", async () => {
       utmSource: "Paid Social",
       utmTerm: "123456789",
     },
+    consentText:
+      "I agree that PayShield can contact me about the pilot and handle my information under the Privacy Notice and Terms.",
+    consentedAt: "2026-06-05T00:00:00.000Z",
+    consentVersion: "pilot-contact-consent-2026-06-05",
     createdAt: "2026-06-05T00:00:00.000Z",
     email: "Lead@Example.com",
     name: "Pilot Lead",
     segment: "Household",
     message: "Rent first.",
-    consentVersion: "pilot-privacy-2026-06-05",
+    privacyVersion: "pilot-privacy-2026-06-05",
     source: "payshield-market-site",
+    termsVersion: "pilot-terms-2026-06-05",
   };
   const rawBody = JSON.stringify(payload);
   const timestamp = String(Math.floor(Date.now() / 1000));
@@ -117,11 +122,13 @@ test("persists signed waitlist submissions to NDJSON and CSV", async () => {
 
     assert.match(ndjson, /"email":"lead@example.com"/);
     assert.match(ndjson, /"segment":"Household"/);
+    assert.match(ndjson, /"privacyVersion":"pilot-privacy-2026-06-05"/);
+    assert.match(ndjson, /"termsVersion":"pilot-terms-2026-06-05"/);
     assert.match(ndjson, /"utmCampaign":"Household Launch"/);
     assert.doesNotMatch(ndjson, /123456789/);
     assert.match(
       csv,
-      /^createdAt,email,name,segment,message,consentVersion,source,utmSource,utmMedium,utmCampaign,utmContent,utmTerm,landingPath,receivedAt/m,
+      /^createdAt,email,name,segment,message,consentVersion,privacyVersion,termsVersion,consentedAt,consentText,source,utmSource,utmMedium,utmCampaign,utmContent,utmTerm,landingPath,receivedAt/m,
     );
     assert.match(csv, /"lead@example.com"/);
     assert.match(csv, /"Household Launch"/);
@@ -151,6 +158,48 @@ test("reports receiver health without exposing secret or data path", async () =>
     });
     assert.equal(serialized.includes("receiver-secret"), false);
     assert.equal(serialized.includes(dataDir), false);
+  } finally {
+    await listener.close();
+    await rm(dataDir, { recursive: true });
+  }
+});
+
+test("rejects signed submissions without consent audit metadata", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "payshield-waitlist-"));
+  const secret = "receiver-secret";
+  const server = createWaitlistWebhookReceiver({ dataDir, secret });
+  const listener = await listen(server);
+  const payload = {
+    createdAt: "2026-06-05T00:00:00.000Z",
+    email: "Lead@Example.com",
+    name: "Pilot Lead",
+    segment: "Household",
+    message: "Rent first.",
+    consentVersion: "pilot-contact-consent-2026-06-05",
+    privacyVersion: "pilot-privacy-2026-06-05",
+    source: "payshield-market-site",
+  };
+  const rawBody = JSON.stringify(payload);
+  const timestamp = String(Math.floor(Date.now() / 1000));
+
+  try {
+    const response = await fetch(listener.url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-payshield-webhook-signature": signPayShieldWebhook({
+          rawBody,
+          secret,
+          timestamp,
+        }),
+        "x-payshield-webhook-timestamp": timestamp,
+      },
+      body: rawBody,
+    });
+    const body = (await response.json()) as Record<string, unknown>;
+
+    assert.equal(response.status, 400);
+    assert.equal(body.error, "Webhook body is missing required lead metadata.");
   } finally {
     await listener.close();
     await rm(dataDir, { recursive: true });

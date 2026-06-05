@@ -23,12 +23,16 @@ type CampaignAttribution = {
 
 type WaitlistSubmission = {
   attribution?: CampaignAttribution;
+  consentText: string;
   email: string;
   name: string;
   segment: string;
   message: string;
+  consentedAt: string;
   consentVersion: string;
+  privacyVersion: string;
   source: string;
+  termsVersion: string;
   createdAt: string;
 };
 
@@ -59,6 +63,11 @@ const attributionFields = [
   "utmContent",
   "utmTerm",
 ] as const;
+const consentText =
+  "I agree that PayShield can contact me about the pilot and handle my information under the Privacy Notice and Terms.";
+const consentVersion = "pilot-contact-consent-2026-06-05";
+const privacyVersion = "pilot-privacy-2026-06-05";
+const termsVersion = "pilot-terms-2026-06-05";
 
 class WaitlistConfigurationError extends Error {}
 
@@ -395,14 +404,19 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const createdAt = new Date().toISOString();
   const submission = {
     email,
     name,
     segment,
     message,
-    consentVersion: "pilot-privacy-2026-06-05",
+    consentText,
+    consentedAt: createdAt,
+    consentVersion,
+    privacyVersion,
     source: "payshield-market-site",
-    createdAt: new Date().toISOString(),
+    termsVersion,
+    createdAt,
     ...(Object.keys(attribution).length ? { attribution } : {}),
   };
 

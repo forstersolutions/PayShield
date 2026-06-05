@@ -12,8 +12,9 @@ deployments, partner demos, and pilot demand capture.
 - Pilot request form with server-side validation, bounded in-memory rate
   limiting, request-size guardrails, honeypot filtering, required privacy/terms
   consent, sensitive financial-detail rejection, optional webhook forwarding,
-  allowlisted campaign attribution from UTM fields, and an opt-in fail-closed
-  mode for paid traffic when signed webhook persistence is required.
+  consent audit fields, allowlisted campaign attribution from UTM fields, and an
+  opt-in fail-closed mode for paid traffic when signed webhook persistence is
+  required.
 - Vercel-compatible Next.js app with production build, metadata, sitemap,
   robots, and baseline browser security headers.
 - JPEG social preview card for broad Open Graph and Twitter crawler support,
@@ -58,6 +59,8 @@ deployments, partner demos, and pilot demand capture.
   without exposing the webhook URL or signing secret.
 - Signed webhook receiver utility for validating HMAC headers and writing leads
   to ignored local NDJSON/CSV files when a lightweight receiver is needed.
+- Waitlist webhook payloads include consent text, consent timestamp, Privacy
+  Notice version, and Terms version for pilot outreach auditability.
 - Dedicated `Dockerfile.receiver` for running the signed receiver on a container
   host with a persistent `/data/waitlist` volume and `GET /health` checks.
 - Receiver data-ops command for non-PII lead summaries and email-based deletion
@@ -96,6 +99,8 @@ deployments, partner demos, and pilot demand capture.
   submissions to confirm non-PII counts, and use
   `npm run waitlist:data -- erase --email lead@example.com --dry-run` before
   honoring deletion requests.
+- Confirm the receiver stores `consentVersion`, `privacyVersion`,
+  `termsVersion`, `consentedAt`, and `consentText` for every accepted test lead.
 - Run `PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run webhook:test -- https://your-webhook-url`
   against the receiver and confirm it returns a 2xx response before configuring
   Vercel to require webhook persistence.

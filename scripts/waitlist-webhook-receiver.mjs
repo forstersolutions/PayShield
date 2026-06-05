@@ -161,13 +161,17 @@ function normalizeSubmission(value) {
 
   const attribution = normalizeAttribution(value.attribution);
   const submission = {
+    consentText: cleanText(value.consentText, 240),
+    consentedAt: cleanText(value.consentedAt, 40),
     createdAt: cleanText(value.createdAt, 40),
     email: cleanText(value.email, 254).toLowerCase(),
     name: cleanText(value.name, 80),
     segment: cleanText(value.segment, 40),
     message: cleanText(value.message, 800),
     consentVersion: cleanText(value.consentVersion, 80),
+    privacyVersion: cleanText(value.privacyVersion, 80),
     source: cleanText(value.source, 80),
+    termsVersion: cleanText(value.termsVersion, 80),
     ...(Object.keys(attribution).length ? { attribution } : {}),
   };
 
@@ -175,7 +179,15 @@ function normalizeSubmission(value) {
     throw new Error("Webhook body is missing a valid email.");
   }
 
-  if (!submission.segment || !submission.consentVersion || !submission.source) {
+  if (
+    !submission.segment ||
+    !submission.consentText ||
+    !submission.consentVersion ||
+    !submission.consentedAt ||
+    !submission.privacyVersion ||
+    !submission.source ||
+    !submission.termsVersion
+  ) {
     throw new Error("Webhook body is missing required lead metadata.");
   }
 
@@ -196,6 +208,10 @@ function csvRow(submission, receivedAt) {
     submission.segment,
     submission.message,
     submission.consentVersion,
+    submission.privacyVersion,
+    submission.termsVersion,
+    submission.consentedAt,
+    submission.consentText,
     submission.source,
     attribution.utmSource ?? "",
     attribution.utmMedium ?? "",
@@ -225,7 +241,7 @@ export async function persistSubmission({ dataDir, rawBody, receivedAt }) {
 
   const csvPath = join(dataDir, "waitlist.csv");
   const header =
-    "createdAt,email,name,segment,message,consentVersion,source,utmSource,utmMedium,utmCampaign,utmContent,utmTerm,landingPath,receivedAt\n";
+    "createdAt,email,name,segment,message,consentVersion,privacyVersion,termsVersion,consentedAt,consentText,source,utmSource,utmMedium,utmCampaign,utmContent,utmTerm,landingPath,receivedAt\n";
 
   await appendFile(
     csvPath,

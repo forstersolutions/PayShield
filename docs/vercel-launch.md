@@ -73,11 +73,19 @@ submissions will not persist outside Vercel logs and analytics.
   "name": "Pilot Lead",
   "segment": "Household",
   "message": "Rent and insurance first.",
-  "consentVersion": "pilot-privacy-2026-06-05",
+  "consentText": "I agree that PayShield can contact me about the pilot and handle my information under the Privacy Notice and Terms.",
+  "consentedAt": "2026-06-05T00:00:00.000Z",
+  "consentVersion": "pilot-contact-consent-2026-06-05",
+  "privacyVersion": "pilot-privacy-2026-06-05",
   "source": "payshield-market-site",
+  "termsVersion": "pilot-terms-2026-06-05",
   "createdAt": "2026-06-05T00:00:00.000Z"
 }
 ```
+
+The consent fields are required for production lead capture. Receivers should
+store `consentVersion`, `privacyVersion`, `termsVersion`, `consentedAt`, and
+`consentText` with the lead so pilot outreach consent can be audited later.
 
 `attribution` is optional. The site captures only allowlisted UTM parameters
 from `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, and `utm_term`,

@@ -91,6 +91,9 @@ The form also captures allowlisted campaign attribution from `utm_source`,
 path without query parameters. The API re-sanitizes those fields before sending
 an optional `attribution` object to the webhook; raw query strings, emails,
 URLs, and long account-like numbers are not forwarded.
+Webhook payloads include audit fields for the accepted contact-consent text,
+Privacy Notice version, Terms version, and consent timestamp so production
+receivers can retain proof of pilot outreach consent.
 If `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` is set, PayShield signs the exact JSON
 body with HMAC-SHA256 and sends `x-payshield-webhook-signature` plus
 `x-payshield-webhook-timestamp`. The raw secret is not forwarded. Webhook

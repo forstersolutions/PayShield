@@ -16,14 +16,19 @@ const records = [
       utmMedium: "cpc",
       utmSource: "Paid Social",
     },
-    consentVersion: "pilot-privacy-2026-06-05",
+    consentText:
+      "I agree that PayShield can contact me about the pilot and handle my information under the Privacy Notice and Terms.",
+    consentedAt: "2026-06-05T00:00:00.000Z",
+    consentVersion: "pilot-contact-consent-2026-06-05",
     createdAt: "2026-06-05T00:00:00.000Z",
     email: "lead@example.com",
     message: "Rent first.",
     name: "Pilot Lead",
+    privacyVersion: "pilot-privacy-2026-06-05",
     receivedAt: "2026-06-05T00:00:01.000Z",
     segment: "Household",
     source: "payshield-market-site",
+    termsVersion: "pilot-terms-2026-06-05",
   },
   {
     attribution: {
@@ -32,14 +37,19 @@ const records = [
       utmMedium: "email",
       utmSource: "Partner Newsletter",
     },
-    consentVersion: "pilot-privacy-2026-06-05",
+    consentText:
+      "I agree that PayShield can contact me about the pilot and handle my information under the Privacy Notice and Terms.",
+    consentedAt: "2026-06-05T01:00:00.000Z",
+    consentVersion: "pilot-contact-consent-2026-06-05",
     createdAt: "2026-06-05T01:00:00.000Z",
     email: "partner@example.com",
     message: "Partner pilot.",
     name: "Partner Lead",
+    privacyVersion: "pilot-privacy-2026-06-05",
     receivedAt: "2026-06-05T01:00:01.000Z",
     segment: "Investor or partner",
     source: "payshield-market-site",
+    termsVersion: "pilot-terms-2026-06-05",
   },
 ];
 
@@ -104,11 +114,12 @@ test("erases matching email records and regenerates receiver files", async () =>
     assert.equal(ndjson.includes("partner@example.com"), true);
     assert.match(
       csv,
-      /^createdAt,email,name,segment,message,consentVersion,source,utmSource,utmMedium,utmCampaign,utmContent,utmTerm,landingPath,receivedAt/m,
+      /^createdAt,email,name,segment,message,consentVersion,privacyVersion,termsVersion,consentedAt,consentText,source,utmSource,utmMedium,utmCampaign,utmContent,utmTerm,landingPath,receivedAt/m,
     );
     assert.equal(csv.includes("lead@example.com"), false);
     assert.equal(csv.includes("partner@example.com"), true);
     assert.equal(csv.includes("Partner Launch"), true);
+    assert.equal(csv.includes("pilot-terms-2026-06-05"), true);
   } finally {
     await rm(dataDir, { recursive: true });
   }

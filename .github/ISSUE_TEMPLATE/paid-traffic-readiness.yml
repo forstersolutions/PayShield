@@ -26,6 +26,7 @@ body:
         - label: "`/api/health` reports `waitlist.webhookSigningConfigured: true`."
         - label: "`/api/health` reports `waitlist.paidTrafficReady: true`."
         - label: "`npm run smoke:deploy -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --submit-test --require-webhook` passes."
+        - label: "Receiver stores `consentVersion`, `privacyVersion`, `termsVersion`, `consentedAt`, and `consentText` for accepted test leads."
         - label: "A signed test submission with `utm_source`, `utm_medium`, and `utm_campaign` persists sanitized `attribution` fields."
   - type: checkboxes
     id: market-compliance

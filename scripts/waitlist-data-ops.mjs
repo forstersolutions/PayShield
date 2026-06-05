@@ -7,7 +7,7 @@ import { pathToFileURL } from "node:url";
 const defaultDataDir =
   process.env.PAYSHIELD_RECEIVER_DATA_DIR ?? join(process.cwd(), "data", "waitlist");
 const csvHeader =
-  "createdAt,email,name,segment,message,consentVersion,source,utmSource,utmMedium,utmCampaign,utmContent,utmTerm,landingPath,receivedAt";
+  "createdAt,email,name,segment,message,consentVersion,privacyVersion,termsVersion,consentedAt,consentText,source,utmSource,utmMedium,utmCampaign,utmContent,utmTerm,landingPath,receivedAt";
 const attributionFields = [
   "utmSource",
   "utmMedium",
@@ -158,14 +158,18 @@ function normalizeRecord(value) {
 
   const attribution = normalizeAttribution(value.attribution);
   const record = {
+    consentText: cleanText(value.consentText, 240),
+    consentedAt: cleanText(value.consentedAt, 40),
     consentVersion: cleanText(value.consentVersion, 80),
     createdAt: cleanText(value.createdAt, 40),
     email: normalizeEmail(value.email),
     message: cleanText(value.message, 800),
     name: cleanText(value.name, 80),
+    privacyVersion: cleanText(value.privacyVersion, 80),
     receivedAt: cleanText(value.receivedAt, 40),
     segment: cleanText(value.segment, 40),
     source: cleanText(value.source, 80),
+    termsVersion: cleanText(value.termsVersion, 80),
     ...(Object.keys(attribution).length ? { attribution } : {}),
   };
 
@@ -226,6 +230,10 @@ function csvRow(record) {
     record.segment,
     record.message,
     record.consentVersion,
+    record.privacyVersion,
+    record.termsVersion,
+    record.consentedAt,
+    record.consentText,
     record.source,
     attribution.utmSource ?? "",
     attribution.utmMedium ?? "",

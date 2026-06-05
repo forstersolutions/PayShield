@@ -347,6 +347,19 @@ test("forwards valid submissions to the configured webhook", async () => {
     );
     assert.equal(webhook.requests[0]?.body.email, "partner@example.com");
     assert.equal(webhook.requests[0]?.body.segment, "Investor or partner");
+    assert.equal(
+      webhook.requests[0]?.body.consentText,
+      "I agree that PayShield can contact me about the pilot and handle my information under the Privacy Notice and Terms.",
+    );
+    assert.match(String(webhook.requests[0]?.body.consentedAt ?? ""), /^\d{4}-/);
+    assert.equal(
+      webhook.requests[0]?.body.privacyVersion,
+      "pilot-privacy-2026-06-05",
+    );
+    assert.equal(
+      webhook.requests[0]?.body.termsVersion,
+      "pilot-terms-2026-06-05",
+    );
     assert.deepEqual(webhook.requests[0]?.body.attribution, {
       landingPath: "/pilot",
       utmCampaign: "Household Launch",
@@ -356,7 +369,7 @@ test("forwards valid submissions to the configured webhook", async () => {
     });
     assert.equal(
       webhook.requests[0]?.body.consentVersion,
-      "pilot-privacy-2026-06-05",
+      "pilot-contact-consent-2026-06-05",
     );
   } finally {
     delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
