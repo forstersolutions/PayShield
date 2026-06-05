@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
+import { evaluateLiveAnalyticsEvidence } from "./check-analytics-evidence.mjs";
 import { buildLaunchEvidence } from "./launch-evidence.mjs";
 import { normalizeSiteUrl } from "./paid-traffic-readiness.mjs";
 
@@ -413,47 +414,8 @@ export function evaluateCounselSignoff(signoff) {
   };
 }
 
-export function evaluateAnalyticsEvidence(evidence) {
-  if (!isObject(evidence)) {
-    return missingEvidence("analyticsEvidence", "--analytics-evidence-file");
-  }
-
-  const checks = [];
-  const findings = scanEvidenceForSensitiveValues(evidence);
-
-  addCheck(checks, "analyticsEvidenceOk", evidence.ok === true);
-  addCheck(checks, "analyticsObservedAt", isValidIsoDate(evidence.observedAt));
-  addCheck(
-    checks,
-    "webAnalyticsPilotConversions",
-    evidence.webAnalyticsPilotConversions === true,
-  );
-  addCheck(
-    checks,
-    "sanitizedCampaignMetadata",
-    evidence.sanitizedCampaignMetadata === true,
-  );
-  addCheck(
-    checks,
-    "speedInsightsProductionData",
-    evidence.speedInsightsProductionData === true,
-  );
-  addCheck(
-    checks,
-    "analyticsEvidenceRedacted",
-    findings.length === 0,
-    findings.map((finding) => finding.finding),
-  );
-
-  return {
-    checks,
-    findings,
-    ok: allChecksPass(checks),
-    summary: {
-      observedAt: evidence.observedAt ?? "",
-      provided: true,
-    },
-  };
+export function evaluateAnalyticsEvidence(evidence, { targetUrl = "" } = {}) {
+  return evaluateLiveAnalyticsEvidence(evidence, { targetUrl });
 }
 
 export function evaluateStrictLaunchEvidence(launchEvidence) {
@@ -503,7 +465,9 @@ export function summarizeMarketGoNoGo({
   const strictLaunch = evaluateStrictLaunchEvidence(launchEvidence);
   const receiver = evaluateReceiverEvidence(receiverEvidence);
   const counsel = evaluateCounselSignoff(counselSignoff);
-  const analytics = evaluateAnalyticsEvidence(analyticsEvidence);
+  const analytics = evaluateAnalyticsEvidence(analyticsEvidence, {
+    targetUrl: normalizedTargetUrl,
+  });
   const gates = [
     {
       name: "strictProductionLaunchEvidence",

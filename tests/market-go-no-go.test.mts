@@ -106,7 +106,19 @@ const counselSignoff = {
 const analyticsEvidence = {
   ok: true,
   observedAt: "2026-06-05T00:00:00.000Z",
+  observedCampaignProperties: [
+    "campaignMedium",
+    "campaignName",
+    "campaignSource",
+    "hasCampaignAttribution",
+  ],
+  observedEventNames: [
+    "Pilot Request Attempted",
+    "Pilot Request Submitted",
+  ],
+  productionUrl: targetUrl,
   sanitizedCampaignMetadata: true,
+  source: "Vercel Web Analytics and Speed Insights dashboard",
   speedInsightsProductionData: true,
   webAnalyticsPilotConversions: true,
 };

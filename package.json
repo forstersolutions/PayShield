@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "next dev",
     "analytics:audit": "node scripts/analytics-audit.mjs",
+    "analytics:evidence:check": "node scripts/check-analytics-evidence.mjs",
     "build": "next build",
     "campaign:lint": "node scripts/check-campaign-copy.mjs",
     "campaign:lint:all": "node scripts/check-campaign-manifest.mjs",

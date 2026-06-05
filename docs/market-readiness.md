@@ -70,6 +70,8 @@ deployments, partner demos, and pilot demand capture.
   Insights, approved pilot event names, approved analytics property keys,
   sanitized campaign metadata mapping, and banned PII fields before campaign
   traffic.
+- Live analytics evidence validator for checking redacted Vercel Web Analytics
+  and Speed Insights proof before final go/no-go.
 - Prototype Privacy Notice discloses campaign attribution fields, Vercel Web
   Analytics, Speed Insights, and the analytics boundary that excludes emails,
   names, sensitive financial details, and free-text pilot notes.
@@ -201,6 +203,10 @@ deployments, partner demos, and pilot demand capture.
 - Submit at least one test URL with `utm_source`, `utm_medium`, and
   `utm_campaign`, then confirm analytics and the receiver show only sanitized
   campaign fields, not raw query strings or free-text notes.
+- Fill `launch-evidence/analytics-evidence.json` after the live
+  campaign-attributed production test, then run
+  `npm run analytics:evidence:check -- --file launch-evidence/analytics-evidence.json --site-url https://payshield-lime.vercel.app`
+  and attach the redacted output before final go/no-go.
 - Confirm the Privacy Notice still discloses campaign attribution, analytics,
   performance metadata, and the analytics PII boundary before campaign traffic.
 - Confirm privacy policy and terms links before collecting personal data beyond
@@ -258,6 +264,18 @@ test:
 {
   "ok": true,
   "observedAt": "2026-06-05T00:00:00.000Z",
+  "productionUrl": "https://payshield-lime.vercel.app",
+  "source": "Vercel Web Analytics and Speed Insights dashboard",
+  "observedEventNames": [
+    "Pilot Request Attempted",
+    "Pilot Request Submitted"
+  ],
+  "observedCampaignProperties": [
+    "campaignMedium",
+    "campaignName",
+    "campaignSource",
+    "hasCampaignAttribution"
+  ],
   "webAnalyticsPilotConversions": true,
   "sanitizedCampaignMetadata": true,
   "speedInsightsProductionData": true

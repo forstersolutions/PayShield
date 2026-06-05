@@ -91,6 +91,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "Dockerfile.receiver",
   ".env.receiver.example",
   "scripts/analytics-audit.mjs",
+  "scripts/check-analytics-evidence.mjs",
   "scripts/check-campaign-manifest.mjs",
   "scripts/check-campaign-copy.mjs",
   "docs/campaigns/manifest.json",
@@ -204,6 +205,13 @@ requireText("scripts/analytics-audit.mjs", "Pilot Request Submitted");
 requireText("scripts/analytics-audit.mjs", "approvedTrackPropertySpreads");
 requireText("scripts/analytics-audit.mjs", "bannedTrackPropertyPatterns");
 requireText("scripts/analytics-audit.mjs", "sends unapproved analytics property");
+requireText("scripts/check-analytics-evidence.mjs", "evaluateLiveAnalyticsEvidence");
+requireText("scripts/check-analytics-evidence.mjs", "Pilot Request Attempted");
+requireText("scripts/check-analytics-evidence.mjs", "Pilot Request Submitted");
+requireText("scripts/check-analytics-evidence.mjs", "campaignSource");
+requireText("scripts/check-analytics-evidence.mjs", "campaignMedium");
+requireText("scripts/check-analytics-evidence.mjs", "hasCampaignAttribution");
+requireText("scripts/check-analytics-evidence.mjs", "analyticsEvidenceRedacted");
 requireText("scripts/check-campaign-copy.mjs", "lintCampaignCopy");
 requireText("scripts/check-campaign-copy.mjs", "fdic-insurance");
 requireText("scripts/check-campaign-copy.mjs", "direct-deposit");
@@ -214,6 +222,7 @@ requireText("package.json", "\"campaign:lint\"");
 requireText("package.json", "\"campaign:lint:all\"");
 requireText("package.json", "\"legal:lint\"");
 requireText("package.json", "\"analytics:audit\"");
+requireText("package.json", "\"analytics:evidence:check\"");
 requireText("package.json", "\"launch:evidence\"");
 requireText("package.json", "\"lead-capture:dry-run\"");
 requireText("package.json", "\"market:evidence:init\"");
@@ -265,11 +274,13 @@ requireText("scripts/launch-evidence.mjs", "--strict");
 requireText("scripts/market-evidence-init.mjs", "createMarketEvidencePacket");
 requireText("scripts/market-evidence-init.mjs", "counsel-signoff.json");
 requireText("scripts/market-evidence-init.mjs", "analytics-evidence.json");
+requireText("scripts/market-evidence-init.mjs", "analytics:evidence:check");
 requireText("scripts/market-evidence-init.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET=...");
 requireText("scripts/market-go-no-go.mjs", "summarizeMarketGoNoGo");
 requireText("scripts/market-go-no-go.mjs", "evaluateReceiverEvidence");
 requireText("scripts/market-go-no-go.mjs", "evaluateCounselSignoff");
 requireText("scripts/market-go-no-go.mjs", "evaluateAnalyticsEvidence");
+requireText("scripts/market-go-no-go.mjs", "evaluateLiveAnalyticsEvidence");
 requireText("scripts/market-go-no-go.mjs", "strictProductionLaunchEvidence");
 requireText("scripts/market-evidence-init.mjs", "vercel:webhook:cutover");
 requireText("scripts/vercel-webhook-cutover.mjs", "buildVercelWebhookCutoverPlan");
@@ -393,6 +404,10 @@ requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   "npm run legal:lint",
 );
+requireText(
+  ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
+  "npm run analytics:evidence:check",
+);
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET is required");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-signature");
@@ -467,6 +482,7 @@ requireText("docs/vercel-launch.md", "docker compose --env-file .env.receiver -f
 requireText("docs/vercel-launch.md", "npm run receiver:compose:config");
 requireText("docs/vercel-launch.md", "npm run receiver:evidence");
 requireText("docs/vercel-launch.md", "npm run market:evidence:init");
+requireText("docs/vercel-launch.md", "npm run analytics:evidence:check");
 requireText("docs/vercel-launch.md", "npm run vercel:webhook:cutover");
 requireText("docs/vercel-launch.md", "npm run market:go-no-go");
 requireText("docs/vercel-launch.md", "npm run campaign:lint:all");
@@ -487,6 +503,7 @@ requireText("docs/market-readiness.md", "docker compose --env-file .env.receiver
 requireText("docs/market-readiness.md", "npm run receiver:compose:config");
 requireText("docs/market-readiness.md", "npm run receiver:evidence");
 requireText("docs/market-readiness.md", "npm run market:evidence:init");
+requireText("docs/market-readiness.md", "npm run analytics:evidence:check");
 requireText("docs/market-readiness.md", "npm run vercel:webhook:cutover");
 requireText("docs/market-readiness.md", "npm run market:go-no-go");
 requireText("docs/market-readiness.md", "npm run waitlist:data -- audit --data-dir /path/to/waitlist");
@@ -504,6 +521,7 @@ requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run waitli
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "compose.receiver.yml");
 requireText("docs/legal-review-packet.md", "npm run receiver:evidence");
 requireText("docs/legal-review-packet.md", "npm run vercel:webhook:cutover");
+requireText("docs/legal-review-packet.md", "npm run analytics:evidence:check");
 
 requireMaxSize("src/app/icon.svg", 5_000);
 requireMaxSize("public/images/payshield-product-mockup.avif", 125_000);

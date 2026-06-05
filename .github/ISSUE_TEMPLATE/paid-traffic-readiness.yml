@@ -66,6 +66,7 @@ body:
         - label: "`npm run analytics:audit` passes and the redacted output is attached."
         - label: Vercel Web Analytics is enabled and receiving non-PII conversion events with sanitized campaign metadata.
         - label: Vercel Speed Insights is enabled and receiving page data.
+        - label: "`npm run analytics:evidence:check -- --file launch-evidence/analytics-evidence.json --site-url https://payshield-lime.vercel.app` passes and the redacted output is attached."
         - label: "`/.well-known/security.txt` links to private GitHub vulnerability reporting and the repository security policy."
         - label: Default scaffold assets such as `/next.svg` and `/vercel.svg` are not publicly served.
         - label: Custom domain, `NEXT_PUBLIC_SITE_URL`, canonical metadata, robots, and sitemap match if a custom domain is used.
@@ -80,6 +81,7 @@ body:
         /api/health:
         smoke:deploy:
         vercel:webhook:cutover:
+        analytics:evidence:check:
         market:go-no-go:
         Vercel deployment:
         CI run:

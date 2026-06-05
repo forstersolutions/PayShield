@@ -102,6 +102,15 @@ files only after counsel review and live analytics observation, then run the
 generated final `npm run market:go-no-go` command without
 `--allow-not-ready`.
 
+After a campaign-attributed production test appears in Vercel Web Analytics and
+Speed Insights, validate the redacted analytics evidence file:
+
+```bash
+npm run analytics:evidence:check -- \
+  --file launch-evidence/analytics-evidence.json \
+  --site-url https://payshield-lime.vercel.app
+```
+
 After `launch-evidence/receiver-evidence.json` exists, generate the Vercel
 Production cutover plan without printing the signing secret:
 
@@ -392,6 +401,8 @@ Submit one pilot request from the site and confirm:
 - Vercel Web Analytics receives `Pilot Request Attempted` and
   `Pilot Request Submitted` with non-PII campaign metadata.
 - Vercel Speed Insights starts recording page data.
+- `npm run analytics:evidence:check -- --file launch-evidence/analytics-evidence.json --site-url https://payshield-lime.vercel.app`
+  passes before final go/no-go.
 
 ## Before Paid Traffic
 

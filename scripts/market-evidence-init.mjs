@@ -128,12 +128,24 @@ function counselTemplate(generatedAt) {
   };
 }
 
-function analyticsTemplate(generatedAt) {
+function analyticsTemplate({ generatedAt, siteUrl }) {
   return {
     generatedAt,
+    observedCampaignProperties: [
+      "campaignMedium",
+      "campaignName",
+      "campaignSource",
+      "hasCampaignAttribution",
+    ],
+    observedEventNames: [
+      "Pilot Request Attempted",
+      "Pilot Request Submitted",
+    ],
     observedAt: "",
     ok: false,
+    productionUrl: siteUrl,
     sanitizedCampaignMetadata: false,
+    source: "Vercel Web Analytics and Speed Insights dashboard",
     speedInsightsProductionData: false,
     webAnalyticsPilotConversions: false,
   };
@@ -175,6 +187,13 @@ function commandsMarkdown({
     "--receiver-evidence-file",
     shellQuote(receiverEvidenceFile),
   ].join(" ");
+  const analyticsEvidenceCommand = [
+    "npm run analytics:evidence:check --",
+    "--file",
+    shellQuote(analyticsFile),
+    "--site-url",
+    shellQuote(siteUrl),
+  ].join(" ");
   const goNoGoCommand = [
     "npm run market:go-no-go --",
     shellQuote(siteUrl),
@@ -214,7 +233,11 @@ function commandsMarkdown({
     "",
     "4. Fill `counsel-signoff.json` only after counsel approves the current Privacy Notice, Terms, public claims, and campaign copy.",
     "",
-    "5. Fill `analytics-evidence.json` only after Vercel Web Analytics and Speed Insights show production data from a campaign-attributed pilot test.",
+    "5. Fill `analytics-evidence.json` only after Vercel Web Analytics and Speed Insights show production data from a campaign-attributed pilot test, then validate it:",
+    "",
+    "```bash",
+    analyticsEvidenceCommand,
+    "```",
     "",
     "6. Run the final go/no-go gate without `--allow-not-ready`:",
     "",
@@ -264,7 +287,12 @@ export async function createMarketEvidencePacket({
       path: counselFile,
     },
     {
-      content: jsonWithNewline(analyticsTemplate(generatedAt)),
+      content: jsonWithNewline(
+        analyticsTemplate({
+          generatedAt,
+          siteUrl: normalizedSiteUrl,
+        }),
+      ),
       path: analyticsFile,
     },
     {

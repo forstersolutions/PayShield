@@ -40,8 +40,20 @@ test("creates local market evidence templates and redacted commands", async () =
       "campaignCopy",
     ]);
     assert.equal(analytics.webAnalyticsPilotConversions, false);
+    assert.equal(analytics.productionUrl, "https://payshield-lime.vercel.app");
+    assert.deepEqual(analytics.observedEventNames, [
+      "Pilot Request Attempted",
+      "Pilot Request Submitted",
+    ]);
+    assert.deepEqual(analytics.observedCampaignProperties, [
+      "campaignMedium",
+      "campaignName",
+      "campaignSource",
+      "hasCampaignAttribution",
+    ]);
     assert.match(commands, /npm run receiver:evidence/);
     assert.match(commands, /npm run vercel:webhook:cutover/);
+    assert.match(commands, /npm run analytics:evidence:check/);
     assert.match(commands, /npm run launch:evidence/);
     assert.match(commands, /npm run market:go-no-go/);
     assert.match(commands, /PAYSHIELD_WAITLIST_WEBHOOK_SECRET=\.\.\./);
