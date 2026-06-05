@@ -245,6 +245,50 @@ function unique(values) {
   return [...new Set(values.filter(Boolean))];
 }
 
+function safeNormalizeSiteUrl(input) {
+  if (typeof input !== "string" || input.trim().length === 0) {
+    return "";
+  }
+
+  try {
+    return normalizeSiteUrl(input);
+  } catch {
+    return "";
+  }
+}
+
+function resolveVercelDeploymentFromHealth({
+  health,
+  normalizedTargetUrl,
+  vercelDeployment,
+}) {
+  const deployment = isObject(vercelDeployment) ? vercelDeployment : {};
+  const healthSiteUrl = safeNormalizeSiteUrl(health.siteUrl);
+  const healthProvesTarget =
+    health.ok === true &&
+    healthSiteUrl === normalizedTargetUrl &&
+    health.vercel?.environment === "production" &&
+    typeof health.vercel?.gitCommitSha === "string" &&
+    health.vercel.gitCommitSha.length > 0;
+
+  if (!deployment.error || !healthProvesTarget) {
+    return deployment;
+  }
+
+  const aliases = Array.isArray(deployment.aliases) ? deployment.aliases : [];
+
+  return {
+    ...deployment,
+    aliases: unique([...aliases, normalizedTargetUrl]),
+    inspectError: deployment.error,
+    ok: true,
+    ready: true,
+    source: "health-fallback",
+    status: "Ready (verified by /api/health)",
+    url: deployment.url || normalizedTargetUrl,
+  };
+}
+
 function addCheck(checks, name, ok, detail = undefined) {
   const check = {
     name,
@@ -323,6 +367,11 @@ export function summarizeMarketStatus({
   const health = launchEvidence?.production?.health ?? {};
   const productionCommit = health.vercel?.gitCommitSha ?? "";
   const localCommit = localGit.commit || launchEvidence?.gitCommit || "";
+  const resolvedVercelDeployment = resolveVercelDeploymentFromHealth({
+    health,
+    normalizedTargetUrl,
+    vercelDeployment,
+  });
   const latestCiRun = isObject(githubLatestCiRun) ? githubLatestCiRun : {};
   const ciPassesOnProductionCommit =
     latestCiRun.ok === true &&
@@ -330,11 +379,11 @@ export function summarizeMarketStatus({
     latestCiRun.headSha === productionCommit;
   const productionCommitMatchesLocalGit =
     Boolean(productionCommit && localCommit) && productionCommit === localCommit;
-  const deploymentAliases = Array.isArray(vercelDeployment.aliases)
-    ? vercelDeployment.aliases
+  const deploymentAliases = Array.isArray(resolvedVercelDeployment.aliases)
+    ? resolvedVercelDeployment.aliases
     : [];
   const deploymentAliasesTarget =
-    vercelDeployment.url === normalizedTargetUrl ||
+    resolvedVercelDeployment.url === normalizedTargetUrl ||
     deploymentAliases.includes(normalizedTargetUrl);
   const decision =
     marketDecision ??
@@ -366,16 +415,20 @@ export function summarizeMarketStatus({
   addCheck(
     checks,
     "vercelDeploymentReady",
-    vercelDeployment.ready === true || vercelDeployment.ok === true,
+    resolvedVercelDeployment.ready === true ||
+      resolvedVercelDeployment.ok === true,
     {
-      status: vercelDeployment.status ?? "",
-      url: vercelDeployment.url ?? "",
+      inspectError: resolvedVercelDeployment.inspectError ?? "",
+      source: resolvedVercelDeployment.source ?? "vercel-inspect",
+      status: resolvedVercelDeployment.status ?? "",
+      url: resolvedVercelDeployment.url ?? "",
     },
   );
   addCheck(checks, "vercelDeploymentAliasesTargetUrl", deploymentAliasesTarget, {
     aliases: deploymentAliases,
+    source: resolvedVercelDeployment.source ?? "vercel-inspect",
     targetUrl: normalizedTargetUrl,
-    url: vercelDeployment.url ?? "",
+    url: resolvedVercelDeployment.url ?? "",
   });
   addCheck(checks, "prototypeLaunchEvidenceOk", launchEvidence?.ok === true);
 
@@ -404,7 +457,7 @@ export function summarizeMarketStatus({
     marketDecision: decision,
     repository,
     targetUrl: normalizedTargetUrl,
-    vercelDeployment,
+    vercelDeployment: resolvedVercelDeployment,
   });
   const result = {
     checks,
@@ -437,7 +490,7 @@ export function summarizeMarketStatus({
     remainingGates,
     targetUrl: normalizedTargetUrl,
     vercel: {
-      deployment: vercelDeployment,
+      deployment: resolvedVercelDeployment,
     },
     goNoGo: {
       gates: decision.gates ?? [],

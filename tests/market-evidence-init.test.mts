@@ -76,13 +76,17 @@ test("creates local market evidence templates and redacted commands", async () =
     assert.match(commands, /npm run receiver:managed:check/);
     assert.match(commands, /npm run receiver:upstash:check/);
     assert.match(commands, /npm run vercel:webhook:cutover/);
+    assert.match(commands, /npm run vercel:upstash:cutover/);
     assert.match(commands, /npm run counsel:signoff:check/);
     assert.match(commands, /npm run analytics:evidence:check/);
     assert.match(commands, /npm run launch:evidence/);
     assert.match(commands, /npm run market:go-no-go/);
     assert.match(commands, /npm run market:status/);
     assert.match(commands, /PAYSHIELD_WAITLIST_WEBHOOK_SECRET=\.\.\./);
+    assert.match(commands, /UPSTASH_REDIS_REST_URL=\.\.\./);
+    assert.match(commands, /UPSTASH_REDIS_REST_TOKEN=\.\.\./);
     assert.match(result.cutoverPlanCommand, /vercel:webhook:cutover/);
+    assert.match(result.upstashCutoverPlanCommand, /vercel:upstash:cutover/);
     assert.match(result.counselSignoffCommand, /counsel:signoff:check/);
     assert.match(
       result.managedReceiverEvidenceCommand,

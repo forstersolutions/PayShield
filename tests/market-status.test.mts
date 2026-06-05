@@ -155,6 +155,81 @@ test("flags stale CI and a deployment that is not aliased to the target URL", ()
   );
 });
 
+test("uses production health as a fallback when Vercel inspect is unavailable", () => {
+  const status = summarizeMarketStatus({
+    githubLatestCiRun: passingCiRun,
+    launchEvidence,
+    localGit: {
+      branch: "main",
+      commit,
+      dirty: false,
+      ok: true,
+    },
+    targetUrl,
+    vercelDeployment: {
+      error: "Command failed: npx vercel inspect https://payshield-lime.vercel.app",
+      ok: false,
+      ready: false,
+    },
+  });
+
+  assert.equal(status.ok, true);
+  assert.equal(status.vercel.deployment.ready, true);
+  assert.equal(status.vercel.deployment.source, "health-fallback");
+  assert.equal(status.vercel.deployment.url, targetUrl);
+  assert.equal(status.vercel.deployment.aliases.includes(targetUrl), true);
+  assert.equal(
+    status.remainingGates.includes("vercelDeploymentReady"),
+    false,
+  );
+  assert.equal(
+    status.remainingGates.includes("vercelDeploymentAliasesTargetUrl"),
+    false,
+  );
+});
+
+test("does not use the inspect fallback without production health proof", () => {
+  const status = summarizeMarketStatus({
+    githubLatestCiRun: passingCiRun,
+    launchEvidence: {
+      ...launchEvidence,
+      production: {
+        ...launchEvidence.production,
+        health: {
+          ...launchEvidence.production.health,
+          vercel: {
+            ...launchEvidence.production.health.vercel,
+            environment: "preview",
+          },
+        },
+      },
+    },
+    localGit: {
+      branch: "main",
+      commit,
+      dirty: false,
+      ok: true,
+    },
+    targetUrl,
+    vercelDeployment: {
+      error: "Command failed: npx vercel inspect https://payshield-lime.vercel.app",
+      ok: false,
+      ready: false,
+    },
+  });
+
+  assert.equal(status.ok, false);
+  assert.equal(status.vercel.deployment.ready, false);
+  assert.equal(
+    status.remainingGates.includes("vercelDeploymentReady"),
+    true,
+  );
+  assert.equal(
+    status.remainingGates.includes("vercelDeploymentAliasesTargetUrl"),
+    true,
+  );
+});
+
 test("flags a dirty local worktree", () => {
   const status = summarizeMarketStatus({
     githubLatestCiRun: passingCiRun,

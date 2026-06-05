@@ -113,6 +113,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "scripts/smoke-docker-receiver.mjs",
   "scripts/test-waitlist-webhook.mjs",
   "scripts/vercel-env-audit.mjs",
+  "scripts/vercel-upstash-cutover.mjs",
   "scripts/vercel-webhook-cutover.mjs",
   "scripts/waitlist-data-ops.mjs",
   "scripts/waitlist-webhook-receiver.mjs",
@@ -327,9 +328,17 @@ requireText("scripts/market-status.mjs", "parseVercelInspectOutput");
 requireText("scripts/market-status.mjs", "githubCiPassesOnProductionCommit");
 requireText("scripts/market-status.mjs", "localGitWorktreeClean");
 requireText("scripts/market-status.mjs", "vercelDeploymentReady");
+requireText("scripts/market-status.mjs", "health-fallback");
+requireText("scripts/market-status.mjs", "inspectError");
 requireText("scripts/market-status.mjs", "issueSummaryMarkdown");
+requireText("scripts/market-evidence-init.mjs", "vercel:upstash:cutover");
 requireText("scripts/market-evidence-init.mjs", "vercel:webhook:cutover");
 requireText("scripts/market-evidence-init.mjs", "market:status");
+requireText("scripts/vercel-upstash-cutover.mjs", "buildVercelUpstashCutoverPlan");
+requireText("scripts/vercel-upstash-cutover.mjs", "UPSTASH_REDIS_REST_URL");
+requireText("scripts/vercel-upstash-cutover.mjs", "UPSTASH_REDIS_REST_TOKEN");
+requireText("scripts/vercel-upstash-cutover.mjs", "npx vercel env add UPSTASH_REDIS_REST_TOKEN ${environment} --sensitive");
+requireText("scripts/vercel-upstash-cutover.mjs", "upstashSecretsNotPrinted");
 requireText("scripts/vercel-webhook-cutover.mjs", "buildVercelWebhookCutoverPlan");
 requireText("scripts/vercel-webhook-cutover.mjs", "evaluateReceiverEvidence");
 requireText("scripts/vercel-webhook-cutover.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");
@@ -385,6 +394,7 @@ requireText("scripts/waitlist-data-ops.mjs", "consentedAt");
 requireText("scripts/waitlist-data-ops.mjs", "submissionId");
 requireText("package.json", "\"waitlist:data\"");
 requireText("package.json", "\"vercel:env:audit\"");
+requireText("package.json", "\"vercel:upstash:cutover\"");
 requireText("package.json", "\"vercel:webhook:cutover\"");
 requireText("package.json", "\"receiver:docker:build\"");
 requireText("package.json", "\"receiver:evidence\"");
@@ -571,6 +581,7 @@ requireText("docs/vercel-launch.md", "npm run receiver:upstash:check");
 requireText("docs/vercel-launch.md", "npm run market:evidence:init");
 requireText("docs/vercel-launch.md", "npm run counsel:signoff:check");
 requireText("docs/vercel-launch.md", "npm run analytics:evidence:check");
+requireText("docs/vercel-launch.md", "npm run vercel:upstash:cutover");
 requireText("docs/vercel-launch.md", "npm run vercel:webhook:cutover");
 requireText("docs/vercel-launch.md", "npm run market:go-no-go");
 requireText("docs/vercel-launch.md", "npm run market:status");
@@ -598,6 +609,7 @@ requireText("docs/market-readiness.md", "npm run receiver:managed:check");
 requireText("docs/market-readiness.md", "npm run receiver:upstash:check");
 requireText("docs/market-readiness.md", "npm run market:evidence:init");
 requireText("docs/market-readiness.md", "npm run analytics:evidence:check");
+requireText("docs/market-readiness.md", "npm run vercel:upstash:cutover");
 requireText("docs/market-readiness.md", "npm run vercel:webhook:cutover");
 requireText("docs/market-readiness.md", "npm run market:go-no-go");
 requireText("docs/market-readiness.md", "npm run market:status");
@@ -608,6 +620,7 @@ requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "sanitized `att
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run analytics:audit");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run campaign:lint:all");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run market:evidence:init");
+requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run vercel:upstash:cutover");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run vercel:webhook:cutover");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run market:go-no-go");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run waitlist:data -- audit");
@@ -619,6 +632,7 @@ requireText("docs/legal-review-packet.md", "npm run receiver:managed:check");
 requireText("docs/legal-review-packet.md", "npm run receiver:upstash:check");
 requireText("docs/legal-review-packet.md", "PAYSHIELD_WAITLIST_STORAGE=upstash");
 requireText("docs/legal-review-packet.md", "UPSTASH_REDIS_REST_TOKEN");
+requireText("docs/legal-review-packet.md", "npm run vercel:upstash:cutover");
 requireText("docs/legal-review-packet.md", "npm run vercel:webhook:cutover");
 requireText("docs/legal-review-packet.md", "npm run counsel:signoff:check");
 requireText("docs/legal-review-packet.md", "npm run analytics:evidence:check");

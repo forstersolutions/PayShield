@@ -51,6 +51,10 @@ deployments, partner demos, and pilot demand capture.
 - Vercel webhook cutover planner that validates receiver evidence and prints
   the redacted Production env, redeploy, strict evidence, and required-webhook
   smoke sequence without exposing the signing secret.
+- Vercel Upstash cutover planner that validates local Upstash env references
+  and prints the redacted Production env, redeploy, strict evidence,
+  required-capture smoke, and Upstash evidence commands without exposing the
+  REST URL or token.
 - Automated market preflight checks for required prototype disclaimers, consent
   links, launch assets, env examples, and blocked regulated-finance claims.
 - Campaign copy linter and guardrails for checking paid ads, email campaigns,
@@ -199,6 +203,10 @@ deployments, partner demos, and pilot demand capture.
   `PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run vercel:webhook:cutover -- --site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json`
   and follow the printed redacted Vercel Production env, redeploy, strict
   launch evidence, and required-webhook smoke sequence.
+- If Vercel Marketplace Upstash Redis is used, run
+  `UPSTASH_REDIS_REST_URL=https://your-upstash-endpoint UPSTASH_REDIS_REST_TOKEN=server-side-rest-token npm run vercel:upstash:cutover -- --site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json`
+  and follow the printed redacted Vercel Production env, redeploy, strict
+  launch evidence, required-capture smoke, and Upstash evidence sequence.
 - Run `npm run vercel:env:audit` and confirm Vercel Production has
   `NEXT_PUBLIC_SITE_URL`, `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK`, and either the
   webhook env vars or the Upstash env vars before paid traffic.

@@ -44,6 +44,8 @@ npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url http
 npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com --allow-prototype
 npm run smoke:deploy -- https://your-domain.com
 npm run smoke:deploy -- https://your-domain.com --expect-site-url https://your-domain.com
+npm run vercel:upstash:cutover -- --site-url https://your-domain.com
+npm run vercel:webhook:cutover -- --site-url https://your-domain.com --receiver-evidence-file launch-evidence/receiver-evidence.json
 npm run waitlist:data -- summary
 npm run waitlist:data -- audit
 npm run waitlist:data -- backup
@@ -137,6 +139,14 @@ capture. For the Vercel-native path, install Upstash Redis from Vercel
 Marketplace, set `PAYSHIELD_WAITLIST_STORAGE=upstash`, and configure
 `UPSTASH_REDIS_REST_URL` plus `UPSTASH_REDIS_REST_TOKEN` as encrypted
 Production env vars.
+Use the Upstash cutover planner to print the redacted Vercel env, redeploy,
+strict evidence, smoke, and Upstash evidence commands without exposing the
+Upstash values:
+
+```bash
+UPSTASH_REDIS_REST_URL=... UPSTASH_REDIS_REST_TOKEN=... \
+  npm run vercel:upstash:cutover -- --site-url https://your-domain.com
+```
 
 `npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com`
 audits the public launch surface and fails unless `/api/health` proves

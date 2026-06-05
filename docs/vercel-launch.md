@@ -178,15 +178,24 @@ in the local environment, and prints the `npx vercel env add` commands for
 strict launch evidence, and required-webhook smoke commands. It references
 `$PAYSHIELD_WAITLIST_WEBHOOK_SECRET` but does not print the secret value.
 
-For the Upstash path, configure these Vercel Production env vars instead of the
-webhook URL and signing secret:
+For the Upstash path, generate the redacted cutover plan instead of manually
+typing the env commands:
 
 ```bash
-printf '%s' 'upstash' | npx vercel env add PAYSHIELD_WAITLIST_STORAGE production
-printf '%s' "$UPSTASH_REDIS_REST_URL" | npx vercel env add UPSTASH_REDIS_REST_URL production --sensitive
-printf '%s' "$UPSTASH_REDIS_REST_TOKEN" | npx vercel env add UPSTASH_REDIS_REST_TOKEN production --sensitive
-printf '%s' 'true' | npx vercel env add PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK production
+UPSTASH_REDIS_REST_URL=https://your-upstash-endpoint \
+UPSTASH_REDIS_REST_TOKEN=server-side-rest-token \
+  npm run vercel:upstash:cutover -- \
+  --site-url https://payshield-lime.vercel.app \
+  --receiver-evidence-file launch-evidence/receiver-evidence.json
 ```
+
+The command confirms the local Upstash env vars exist, validates the REST URL is
+HTTPS and redacted, and prints `npx vercel env add` commands for
+`PAYSHIELD_WAITLIST_STORAGE=upstash`, `UPSTASH_REDIS_REST_URL`,
+`UPSTASH_REDIS_REST_TOKEN`, and `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` plus
+the required redeploy, env audit, strict launch evidence, required-capture
+smoke, and `receiver:upstash:check` commands. It references the local env vars
+but does not print the REST URL or token values.
 
 Before selecting a hosted receiver or CRM endpoint, prove the repo-owned lead
 capture path locally:
