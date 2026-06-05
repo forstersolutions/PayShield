@@ -74,7 +74,7 @@ test("persists signed waitlist submissions to NDJSON and CSV", async () => {
   const listener = await listen(server);
   const payload = {
     attribution: {
-      landingPath: "/pilot",
+      landingPath: "/early-access",
       utmCampaign: "Household Launch",
       utmContent: "rent-card",
       utmMedium: "cpc",
@@ -82,18 +82,18 @@ test("persists signed waitlist submissions to NDJSON and CSV", async () => {
       utmTerm: "123456789",
     },
     consentText:
-      "I agree that PayShield can contact me about the pilot and handle my information under the Privacy Notice and Terms.",
+      "I agree that PayShield can contact me about early access and handle my information under the Privacy Notice and Terms.",
     consentedAt: "2026-06-05T00:00:00.000Z",
-    consentVersion: "pilot-contact-consent-2026-06-05",
+    consentVersion: "early-access-contact-consent-2026-06-05",
     createdAt: "2026-06-05T00:00:00.000Z",
     email: "Lead@Example.com",
     name: "Pilot Lead",
     segment: "Household",
     message: "Rent first.",
-    privacyVersion: "pilot-privacy-2026-06-05",
-    source: "payshield-market-site",
+    privacyVersion: "early-access-privacy-2026-06-05",
+    source: "payshield-web-app",
     submissionId: "018f7f62-9878-4aab-9ed3-86368f7f4512",
-    termsVersion: "pilot-terms-2026-06-05",
+    termsVersion: "early-access-terms-2026-06-05",
   };
   const rawBody = JSON.stringify(payload);
   const timestamp = String(Math.floor(Date.now() / 1000));
@@ -126,8 +126,8 @@ test("persists signed waitlist submissions to NDJSON and CSV", async () => {
     assert.match(ndjson, /"submissionId":"018f7f62-9878-4aab-9ed3-86368f7f4512"/);
     assert.match(ndjson, /"email":"lead@example.com"/);
     assert.match(ndjson, /"segment":"Household"/);
-    assert.match(ndjson, /"privacyVersion":"pilot-privacy-2026-06-05"/);
-    assert.match(ndjson, /"termsVersion":"pilot-terms-2026-06-05"/);
+    assert.match(ndjson, /"privacyVersion":"early-access-privacy-2026-06-05"/);
+    assert.match(ndjson, /"termsVersion":"early-access-terms-2026-06-05"/);
     assert.match(ndjson, /"utmCampaign":"Household Launch"/);
     assert.doesNotMatch(ndjson, /123456789/);
     assert.match(
@@ -150,18 +150,18 @@ test("does not duplicate persisted records when a signed submission is replayed"
   const listener = await listen(server);
   const payload = {
     consentText:
-      "I agree that PayShield can contact me about the pilot and handle my information under the Privacy Notice and Terms.",
+      "I agree that PayShield can contact me about early access and handle my information under the Privacy Notice and Terms.",
     consentedAt: "2026-06-05T00:00:00.000Z",
-    consentVersion: "pilot-contact-consent-2026-06-05",
+    consentVersion: "early-access-contact-consent-2026-06-05",
     createdAt: "2026-06-05T00:00:00.000Z",
     email: "Lead@Example.com",
     name: "Pilot Lead",
     segment: "Household",
     message: "Rent first.",
-    privacyVersion: "pilot-privacy-2026-06-05",
-    source: "payshield-market-site",
+    privacyVersion: "early-access-privacy-2026-06-05",
+    source: "payshield-web-app",
     submissionId: "018f7f62-9878-4aab-9ed3-86368f7f4513",
-    termsVersion: "pilot-terms-2026-06-05",
+    termsVersion: "early-access-terms-2026-06-05",
   };
   const rawBody = JSON.stringify(payload);
   const timestamp = String(Math.floor(Date.now() / 1000));
@@ -251,9 +251,9 @@ test("rejects signed submissions without consent audit metadata", async () => {
     name: "Pilot Lead",
     segment: "Household",
     message: "Rent first.",
-    consentVersion: "pilot-contact-consent-2026-06-05",
-    privacyVersion: "pilot-privacy-2026-06-05",
-    source: "payshield-market-site",
+    consentVersion: "early-access-contact-consent-2026-06-05",
+    privacyVersion: "early-access-privacy-2026-06-05",
+    source: "payshield-web-app",
     submissionId: "018f7f62-9878-4aab-9ed3-86368f7f4514",
   };
   const rawBody = JSON.stringify(payload);

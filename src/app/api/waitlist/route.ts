@@ -63,10 +63,10 @@ const attributionFields = [
   "utmTerm",
 ] as const;
 const consentText =
-  "I agree that PayShield can contact me about the pilot and handle my information under the Privacy Notice and Terms.";
-const consentVersion = "pilot-contact-consent-2026-06-05";
-const privacyVersion = "pilot-privacy-2026-06-05";
-const termsVersion = "pilot-terms-2026-06-05";
+  "I agree that PayShield can contact me about early access and handle my information under the Privacy Notice and Terms.";
+const consentVersion = "early-access-contact-consent-2026-06-05";
+const privacyVersion = "early-access-privacy-2026-06-05";
+const termsVersion = "early-access-terms-2026-06-05";
 
 class WaitlistConfigurationError extends Error {}
 
@@ -451,7 +451,7 @@ export async function POST(request: NextRequest) {
       ms: Date.now() - start,
     });
     return NextResponse.json(
-      { error: "Choose a pilot segment." },
+      { error: "Choose an access segment." },
       { status: 400 },
     );
   }
@@ -478,7 +478,7 @@ export async function POST(request: NextRequest) {
       ms: Date.now() - start,
     });
     return NextResponse.json(
-      { error: "Accept the pilot privacy and terms notice." },
+      { error: "Accept the privacy and terms notice." },
       { status: 400 },
     );
   }
@@ -493,7 +493,7 @@ export async function POST(request: NextRequest) {
     consentedAt: createdAt,
     consentVersion,
     privacyVersion,
-    source: "payshield-market-site",
+    source: "payshield-web-app",
     submissionId: randomUUID(),
     termsVersion,
     createdAt,
@@ -504,7 +504,7 @@ export async function POST(request: NextRequest) {
     const result = await captureWaitlistSubmission(submission);
 
     await track(
-      "Pilot Request Received",
+      "Early Access Request Received",
       {
         segment,
         hasName: Boolean(name),
@@ -540,13 +540,13 @@ export async function POST(request: NextRequest) {
         result.mode === "blob" ||
         result.mode === "upstash" ||
         result.mode === "webhook"
-          ? "Pilot request received."
-          : "Prototype request accepted for this walkthrough. Pilot capture opens when production lead storage is enabled.",
+          ? "Early access request received."
+          : "Request accepted for this walkthrough. Early access capture opens when production lead storage is enabled.",
     });
   } catch (error) {
     if (error instanceof WaitlistConfigurationError) {
       await track(
-        "Pilot Request Failed",
+        "Early Access Request Failed",
         {
           segment,
           status: "missing_webhook",
@@ -568,7 +568,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Pilot request capture is temporarily unavailable. Try again shortly.",
+            "Early access capture is temporarily unavailable. Try again shortly.",
         },
         { status: 503 },
       );

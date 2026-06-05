@@ -5,11 +5,11 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "PayShield",
     short_name: "PayShield",
     description:
-      "Protected-paycheck prototype for bill buckets, goal reserves, and safe-to-spend planning.",
+      "Paycheck planning app for bills, reserves, and safe-to-spend decisions.",
     start_url: "/",
     display: "standalone",
-    background_color: "#f7f5ef",
-    theme_color: "#1c1917",
+    background_color: "#08110f",
+    theme_color: "#10201c",
     icons: [
       {
         src: "/icon.svg",

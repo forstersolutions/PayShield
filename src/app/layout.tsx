@@ -21,9 +21,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   applicationName: "PayShield",
   metadataBase: new URL(siteUrl),
-  title: "PayShield | Protected Paycheck OS",
+  title: "PayShield | Paycheck Planning App",
   description:
-    "PayShield is a protected-paycheck prototype designed around bill buckets, goal reserves, and one honest safe-to-spend balance.",
+    "PayShield helps households plan each paycheck around bills, reserves, and one clear safe-to-spend number.",
   alternates: {
     canonical: "/",
   },
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "PayShield",
     description:
-      "Your paycheck, protected before it becomes spending money.",
+      "Plan the paycheck before the week spends it for you.",
     images: [
       {
         url: socialImageUrl,
@@ -51,7 +51,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "PayShield",
     description:
-      "Your paycheck, protected before it becomes spending money.",
+      "Plan the paycheck before the week spends it for you.",
     images: [socialImageUrl],
   },
 };

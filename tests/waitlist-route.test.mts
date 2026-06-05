@@ -117,7 +117,7 @@ test("accepts a valid request in demo mode", async () => {
   assert.equal(body.mode, "demo");
   assert.equal(
     body.message,
-    "Prototype request accepted for this walkthrough. Pilot capture opens when production lead storage is enabled.",
+    "Request accepted for this walkthrough. Early access capture opens when production lead storage is enabled.",
   );
   assert.equal(JSON.stringify(body).includes("PAYSHIELD_WAITLIST_WEBHOOK_URL"), false);
   assert.equal(JSON.stringify(body).includes("Vercel"), false);
@@ -143,7 +143,7 @@ test("fails closed when webhook persistence is required but missing", async () =
   assert.equal(response.status, 503);
   assert.equal(
     body.error,
-    "Pilot request capture is temporarily unavailable. Try again shortly.",
+    "Early access capture is temporarily unavailable. Try again shortly.",
   );
 });
 
@@ -171,7 +171,7 @@ test("fails closed when webhook persistence is required but unsigned", async () 
     assert.equal(response.status, 503);
     assert.equal(
       body.error,
-      "Pilot request capture is temporarily unavailable. Try again shortly.",
+      "Early access capture is temporarily unavailable. Try again shortly.",
     );
     assert.equal(webhook.requests.length, 0);
   } finally {
@@ -196,7 +196,7 @@ test("requires a valid email, allowed segment, and consent", async () => {
     ),
   );
   assert.equal(invalidSegment.status, 400);
-  assert.equal((await parseJson(invalidSegment)).error, "Choose a pilot segment.");
+  assert.equal((await parseJson(invalidSegment)).error, "Choose an access segment.");
 
   const missingConsent = await POST(
     makeRequest(
@@ -207,7 +207,7 @@ test("requires a valid email, allowed segment, and consent", async () => {
   assert.equal(missingConsent.status, 400);
   assert.equal(
     (await parseJson(missingConsent)).error,
-    "Accept the pilot privacy and terms notice.",
+    "Accept the privacy and terms notice.",
   );
 });
 
@@ -319,7 +319,7 @@ test("forwards valid submissions to the configured webhook", async () => {
       makeRequest(
         {
           attribution: {
-            landingPath: "/pilot?email=bad@example.com",
+            landingPath: "/early-access?email=bad@example.com",
             utmCampaign: "Household Launch",
             utmContent: "card<a>",
             utmMedium: "cpc",
@@ -329,7 +329,7 @@ test("forwards valid submissions to the configured webhook", async () => {
           email: "Partner@Example.com",
           name: "Partner Lead",
           segment: "Investor or partner",
-          message: "Interested in a pilot.",
+          message: "Interested in early access.",
           consent: true,
         },
         "198.51.100.17",
@@ -363,19 +363,19 @@ test("forwards valid submissions to the configured webhook", async () => {
     assert.equal(webhook.requests[0]?.body.segment, "Investor or partner");
     assert.equal(
       webhook.requests[0]?.body.consentText,
-      "I agree that PayShield can contact me about the pilot and handle my information under the Privacy Notice and Terms.",
+      "I agree that PayShield can contact me about early access and handle my information under the Privacy Notice and Terms.",
     );
     assert.match(String(webhook.requests[0]?.body.consentedAt ?? ""), /^\d{4}-/);
     assert.equal(
       webhook.requests[0]?.body.privacyVersion,
-      "pilot-privacy-2026-06-05",
+      "early-access-privacy-2026-06-05",
     );
     assert.equal(
       webhook.requests[0]?.body.termsVersion,
-      "pilot-terms-2026-06-05",
+      "early-access-terms-2026-06-05",
     );
     assert.deepEqual(webhook.requests[0]?.body.attribution, {
-      landingPath: "/pilot",
+      landingPath: "/early-access",
       utmCampaign: "Household Launch",
       utmContent: "carda",
       utmMedium: "cpc",
@@ -383,7 +383,7 @@ test("forwards valid submissions to the configured webhook", async () => {
     });
     assert.equal(
       webhook.requests[0]?.body.consentVersion,
-      "pilot-contact-consent-2026-06-05",
+      "early-access-contact-consent-2026-06-05",
     );
   } finally {
     delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
@@ -430,7 +430,7 @@ test("stores valid submissions in Upstash Redis when Vercel-native storage is co
     makeRequest(
       {
         attribution: {
-          landingPath: "/pilot?email=bad@example.com",
+          landingPath: "/early-access?email=bad@example.com",
           utmCampaign: "Household Launch",
           utmMedium: "cpc",
           utmSource: "Paid Social",
@@ -438,7 +438,7 @@ test("stores valid submissions in Upstash Redis when Vercel-native storage is co
         email: "Storage@Example.com",
         name: "Storage Lead",
         segment: "Household",
-        message: "Interested in the pilot.",
+        message: "Interested in early access.",
         consent: true,
       },
       "198.51.100.23",
@@ -455,7 +455,7 @@ test("stores valid submissions in Upstash Redis when Vercel-native storage is co
   assert.equal(response.status, 200);
   assert.equal(body.ok, true);
   assert.equal(body.mode, "upstash");
-  assert.equal(body.message, "Pilot request received.");
+  assert.equal(body.message, "Early access request received.");
   assert.equal(upstashCalls.length, 1);
   assert.equal(upstashCalls[0]?.url, "https://known-lion.upstash.io/multi-exec");
   assert.equal(
@@ -472,14 +472,14 @@ test("stores valid submissions in Upstash Redis when Vercel-native storage is co
   assert.equal(lead.email, "storage@example.com");
   assert.equal(lead.segment, "Household");
   assert.deepEqual(lead.attribution, {
-    landingPath: "/pilot",
+    landingPath: "/early-access",
     utmCampaign: "Household Launch",
     utmMedium: "cpc",
     utmSource: "Paid Social",
   });
   assert.equal(
     lead.consentVersion,
-    "pilot-contact-consent-2026-06-05",
+    "early-access-contact-consent-2026-06-05",
   );
   assert.equal(serializedResponse.includes("upstash-secret"), false);
 });
@@ -517,7 +517,7 @@ test("stores valid submissions in private Vercel Blob when Blob storage is confi
     makeRequest(
       {
         attribution: {
-          landingPath: "/pilot?email=bad@example.com",
+          landingPath: "/early-access?email=bad@example.com",
           utmCampaign: "Household Launch",
           utmMedium: "cpc",
           utmSource: "Paid Social",
@@ -525,7 +525,7 @@ test("stores valid submissions in private Vercel Blob when Blob storage is confi
         email: "Blob@Example.com",
         name: "Blob Lead",
         segment: "Household",
-        message: "Interested in the pilot.",
+        message: "Interested in early access.",
         consent: true,
       },
       "198.51.100.26",
@@ -542,7 +542,7 @@ test("stores valid submissions in private Vercel Blob when Blob storage is confi
   assert.equal(body.ok, true);
   assert.equal(body.mode, "blob");
   assert.match(String(body.receiptId ?? ""), /^[0-9a-f-]{36}$/);
-  assert.equal(body.message, "Pilot request received.");
+  assert.equal(body.message, "Early access request received.");
   assert.equal(blobWrites.length, 1);
   assert.match(blobWrites[0]?.pathname ?? "", /^payshield\/test\/leads\/[0-9a-f-]{36}\.json$/);
   assert.equal(blobWrites[0]?.options.access, "private");
@@ -552,13 +552,13 @@ test("stores valid submissions in private Vercel Blob when Blob storage is confi
   assert.equal(lead.email, "blob@example.com");
   assert.equal(lead.segment, "Household");
   assert.deepEqual(lead.attribution, {
-    landingPath: "/pilot",
+    landingPath: "/early-access",
     utmCampaign: "Household Launch",
     utmMedium: "cpc",
     utmSource: "Paid Social",
   });
   assert.equal(lead.submissionId, body.receiptId);
-  assert.equal(lead.consentVersion, "pilot-contact-consent-2026-06-05");
+  assert.equal(lead.consentVersion, "early-access-contact-consent-2026-06-05");
   assert.equal(serializedResponse.includes("blob-secret"), false);
 });
 
@@ -586,7 +586,7 @@ test("fails closed when required production webhook URL is not HTTPS", async () 
   assert.equal(response.status, 503);
   assert.equal(
     body.error,
-    "Pilot request capture is temporarily unavailable. Try again shortly.",
+    "Early access capture is temporarily unavailable. Try again shortly.",
   );
   assert.equal(serializedResponse.includes("http://example.com/webhook"), false);
   assert.equal(serializedResponse.includes("shared-secret"), false);
@@ -617,7 +617,7 @@ test("fails closed when webhook URL includes credentials, query strings, or frag
   assert.equal(response.status, 503);
   assert.equal(
     body.error,
-    "Pilot request capture is temporarily unavailable. Try again shortly.",
+    "Early access capture is temporarily unavailable. Try again shortly.",
   );
   assert.equal(serializedResponse.includes("token=secret"), false);
   assert.equal(serializedResponse.includes("shared-secret"), false);

@@ -5,51 +5,51 @@ import { SiteFooter } from "@/app/components/site-footer";
 export const metadata: Metadata = {
   title: "Terms | PayShield",
   description:
-    "Terms for using the PayShield protected paycheck prototype and pilot request form.",
+    "Terms for using the PayShield paycheck planning MVP and early access form.",
 };
 
 const lastUpdated = "June 5, 2026";
 
 export default function TermsPage() {
   return (
-    <main className="bg-[#070807] text-[#f4f1e8]">
+    <main className="bg-[#08110f] text-[#fff7ea]">
       <section className="mx-auto min-h-screen max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
         <Link
-          className="text-sm font-semibold text-emerald-300 hover:text-emerald-200"
+          className="text-sm font-semibold text-[#9ee6d6] hover:text-[#baf3e7]"
           href="/"
         >
           Back to PayShield
         </Link>
 
-        <div className="mt-8 rounded-[8px] border border-white/10 bg-[#101410] p-6 shadow-[0_24px_90px_rgba(0,0,0,0.38)] sm:p-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-300">
-            PayShield prototype
+        <div className="mt-8 rounded-[8px] border border-white/10 bg-[#15211d] p-6 shadow-[0_24px_90px_rgba(0,0,0,0.32)] sm:p-8">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#9ee6d6]">
+            PayShield MVP
           </p>
           <h1 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
             Terms
           </h1>
-          <p className="mt-3 text-sm text-[#9c9588]">
+          <p className="mt-3 text-sm text-[#a89f90]">
             Last updated: {lastUpdated}
           </p>
 
-          <div className="mt-8 grid gap-8 text-base leading-7 text-[#c8c0af]">
+          <div className="mt-8 grid gap-8 text-base leading-7 text-[#d7ccbb]">
             <section>
-              <h2 className="text-xl font-semibold text-[#f4f1e8]">
-                Prototype only
+              <h2 className="text-xl font-semibold text-[#fff7ea]">
+                Manual planning MVP
               </h2>
               <p className="mt-3">
-                PayShield is currently a product prototype and pilot request
+                PayShield is currently a manual planning app and early access
                 website. It does not provide banking, deposit, payment, debit
                 card, bill-pay, or money movement services through this site.
               </p>
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-[#f4f1e8]">
+              <h2 className="text-xl font-semibold text-[#fff7ea]">
                 No bank or insurance claim
               </h2>
               <p className="mt-3">
-                PayShield is not a bank. The prototype does not represent that
+                PayShield is not a bank. The MVP does not represent that
                 funds are held, insured, protected by FDIC insurance, or
                 eligible for pass-through deposit insurance. Any future banking
                 services would require approved partner-bank and compliance
@@ -58,7 +58,7 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-[#f4f1e8]">
+              <h2 className="text-xl font-semibold text-[#fff7ea]">
                 No financial advice
               </h2>
               <p className="mt-3">
@@ -69,37 +69,37 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-[#f4f1e8]">
-                Pilot requests
+              <h2 className="text-xl font-semibold text-[#fff7ea]">
+                Early access requests
               </h2>
               <p className="mt-3">
-                Submitting a pilot request does not guarantee access,
+                Submitting an early access request does not guarantee access,
                 availability, pricing, account approval, or future service
                 terms. Do not submit sensitive financial information through the
-                pilot form.
+                early access form.
               </p>
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-[#f4f1e8]">
+              <h2 className="text-xl font-semibold text-[#fff7ea]">
                 Acceptable use
               </h2>
               <p className="mt-3">
                 Do not misuse the site, interfere with its operation, attempt
                 unauthorized access, submit unlawful content, or use automated
-                systems to overload the pilot request endpoint.
+                systems to overload the early access endpoint.
               </p>
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-[#f4f1e8]">
+              <h2 className="text-xl font-semibold text-[#fff7ea]">
                 Changes
               </h2>
               <p className="mt-3">
-                These terms may be updated as PayShield moves from prototype to
-                pilot, partner onboarding, or regulated financial service
+                These terms may be updated as PayShield moves from MVP to
+                broader release, partner onboarding, or regulated financial service
                 launch. Continued use of the site after updates means you accept
-                the updated terms for the prototype site.
+                the updated terms for the early access site.
               </p>
             </section>
           </div>

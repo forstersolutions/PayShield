@@ -234,7 +234,7 @@ export async function runLeadCaptureDryRun({ keepData = false } = {}) {
 
     const payload = {
       attribution: {
-        landingPath: "/pilot?email=bad@example.com",
+        landingPath: "/early-access?email=bad@example.com",
         utmCampaign: "Household Launch",
         utmContent: "safe-card<a>",
         utmMedium: "cpc",
@@ -267,13 +267,13 @@ export async function runLeadCaptureDryRun({ keepData = false } = {}) {
     requireCheck(
       checks,
       record.email === testEmail,
-      "receiver persists the normalized pilot email",
+      "receiver persists the normalized access email",
     );
     requireCheck(
       checks,
-      record.consentVersion === "pilot-contact-consent-2026-06-05" &&
-        record.privacyVersion === "pilot-privacy-2026-06-05" &&
-        record.termsVersion === "pilot-terms-2026-06-05" &&
+      record.consentVersion === "early-access-contact-consent-2026-06-05" &&
+        record.privacyVersion === "early-access-privacy-2026-06-05" &&
+        record.termsVersion === "early-access-terms-2026-06-05" &&
         Boolean(record.consentedAt) &&
         Boolean(record.consentText),
       "receiver persists consent, privacy, and terms audit fields",
@@ -287,7 +287,7 @@ export async function runLeadCaptureDryRun({ keepData = false } = {}) {
     );
     requireCheck(
       checks,
-      record.attribution?.landingPath === "/pilot" &&
+      record.attribution?.landingPath === "/early-access" &&
         record.attribution?.utmCampaign === "Household Launch" &&
         record.attribution?.utmContent === "safe-carda" &&
         record.attribution?.utmMedium === "cpc" &&
@@ -341,7 +341,7 @@ export async function runLeadCaptureDryRun({ keepData = false } = {}) {
       checks,
       !summaryJson.includes(testEmail) &&
         !summaryJson.includes("Rent and insurance first."),
-      "waitlist data summary does not print pilot email or notes",
+      "waitlist data summary does not print access email or notes",
     );
 
     const dataAudit = await auditWaitlistData({ dataDir });
@@ -362,7 +362,7 @@ export async function runLeadCaptureDryRun({ keepData = false } = {}) {
       checks,
       !dataAuditJson.includes(testEmail) &&
         !dataAuditJson.includes("Rent and insurance first."),
-      "waitlist data audit does not print pilot email or notes",
+      "waitlist data audit does not print access email or notes",
     );
 
     const backup = await backupWaitlistData({ backupDir, dataDir });
@@ -386,7 +386,7 @@ export async function runLeadCaptureDryRun({ keepData = false } = {}) {
       checks,
       !backupJson.includes(testEmail) &&
         !backupJson.includes("Rent and insurance first."),
-      "waitlist data backup manifest does not print pilot email or notes",
+      "waitlist data backup manifest does not print access email or notes",
     );
     requireCheck(
       checks,
@@ -399,7 +399,7 @@ export async function runLeadCaptureDryRun({ keepData = false } = {}) {
       checks,
       !backupVerificationJson.includes(testEmail) &&
         !backupVerificationJson.includes("Rent and insurance first."),
-      "waitlist data backup verification does not print pilot email or notes",
+      "waitlist data backup verification does not print access email or notes",
     );
 
     const eraseDryRun = await eraseWaitlistEmail({
@@ -413,7 +413,7 @@ export async function runLeadCaptureDryRun({ keepData = false } = {}) {
       eraseDryRun.dryRun === true &&
         eraseDryRun.removed === 1 &&
         eraseDryRun.remaining === 0,
-      "waitlist data erase dry-run identifies the matching pilot email",
+      "waitlist data erase dry-run identifies the matching access email",
     );
 
     return {

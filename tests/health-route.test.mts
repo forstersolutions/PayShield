@@ -41,7 +41,7 @@ test("reports demo waitlist mode without exposing webhook details", async () => 
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("cache-control"), "no-store");
   assert.equal(body.ok, true);
-  assert.equal(body.service, "payshield-market-site");
+  assert.equal(body.service, "payshield-web-app");
   assert.equal(body.waitlist?.mode, "demo");
   assert.equal(body.waitlist?.paidTrafficReady, false);
   assert.equal(body.waitlist?.storageConfigured, false);

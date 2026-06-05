@@ -3,8 +3,8 @@ import { pathToFileURL } from "node:url";
 import { normalizeSiteUrl } from "./paid-traffic-readiness.mjs";
 
 export const requiredLiveAnalyticsEventNames = [
-  "Pilot Request Attempted",
-  "Pilot Request Submitted",
+  "Early Access Request Attempted",
+  "Early Access Request Submitted",
 ];
 
 export const requiredLiveAnalyticsCampaignProperties = [
@@ -32,7 +32,7 @@ const sensitivePatterns = [
     pattern: /\?[A-Za-z0-9_.~%+-]+=/,
   },
   {
-    finding: "raw pilot note",
+    finding: "raw access note",
     pattern: /\b(?:rent|insurance|car note|routing|account|ssn)\b/i,
   },
 ];

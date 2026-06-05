@@ -46,7 +46,7 @@ async function startUpstashEvidenceTarget() {
     if (requestUrl.pathname === "/api/health") {
       json(response, 200, {
         ok: true,
-        service: "payshield-market-site",
+        service: "payshield-web-app",
         siteUrl: "https://payshield-lime.vercel.app",
         waitlist: {
           mode: "upstash",
@@ -65,18 +65,18 @@ async function startUpstashEvidenceTarget() {
       const record = {
         attribution: payload.attribution,
         consentText:
-          "I agree that PayShield can contact me about the pilot and handle my information under the Privacy Notice and Terms.",
+          "I agree that PayShield can contact me about early access and handle my information under the Privacy Notice and Terms.",
         consentedAt: createdAt,
-        consentVersion: "pilot-contact-consent-2026-06-05",
+        consentVersion: "early-access-contact-consent-2026-06-05",
         createdAt,
         email,
         message: payload.message,
         name: payload.name,
-        privacyVersion: "pilot-privacy-2026-06-05",
+        privacyVersion: "early-access-privacy-2026-06-05",
         segment: payload.segment,
-        source: "payshield-market-site",
+        source: "payshield-web-app",
         submissionId,
-        termsVersion: "pilot-terms-2026-06-05",
+        termsVersion: "early-access-terms-2026-06-05",
       };
       const hash = emailHash(email);
 

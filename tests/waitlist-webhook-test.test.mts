@@ -60,8 +60,8 @@ test("sends a signed webhook smoke payload to a receiver", async () => {
     assert.match(ndjson, /"email":"smoke@example.com"/);
     assert.match(ndjson, new RegExp(`"submissionId":"${payload.submissionId}"`));
     assert.match(ndjson, /"source":"payshield-webhook-test"/);
-    assert.match(ndjson, /"consentVersion":"pilot-contact-consent-2026-06-05"/);
-    assert.match(ndjson, /"termsVersion":"pilot-terms-2026-06-05"/);
+    assert.match(ndjson, /"consentVersion":"early-access-contact-consent-2026-06-05"/);
+    assert.match(ndjson, /"termsVersion":"early-access-terms-2026-06-05"/);
     assert.match(ndjson, /"utmCampaign":"receiver-smoke"/);
     assert.match(csv, /"Signed webhook smoke test\. Safe to delete\."/);
     assert.match(csv, /"webhook-test","ops","receiver-smoke"/);

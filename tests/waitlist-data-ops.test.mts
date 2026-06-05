@@ -20,19 +20,19 @@ const records = [
       utmSource: "Paid Social",
     },
     consentText:
-      "I agree that PayShield can contact me about the pilot and handle my information under the Privacy Notice and Terms.",
+      "I agree that PayShield can contact me about early access and handle my information under the Privacy Notice and Terms.",
     consentedAt: "2026-06-05T00:00:00.000Z",
-    consentVersion: "pilot-contact-consent-2026-06-05",
+    consentVersion: "early-access-contact-consent-2026-06-05",
     createdAt: "2026-06-05T00:00:00.000Z",
     email: "lead@example.com",
     message: "Rent first.",
     name: "Pilot Lead",
-    privacyVersion: "pilot-privacy-2026-06-05",
+    privacyVersion: "early-access-privacy-2026-06-05",
     receivedAt: "2026-06-05T00:00:01.000Z",
     segment: "Household",
-    source: "payshield-market-site",
+    source: "payshield-web-app",
     submissionId: "018f7f62-9878-4aab-9ed3-86368f7f4512",
-    termsVersion: "pilot-terms-2026-06-05",
+    termsVersion: "early-access-terms-2026-06-05",
   },
   {
     attribution: {
@@ -42,19 +42,19 @@ const records = [
       utmSource: "Partner Newsletter",
     },
     consentText:
-      "I agree that PayShield can contact me about the pilot and handle my information under the Privacy Notice and Terms.",
+      "I agree that PayShield can contact me about early access and handle my information under the Privacy Notice and Terms.",
     consentedAt: "2026-06-05T01:00:00.000Z",
-    consentVersion: "pilot-contact-consent-2026-06-05",
+    consentVersion: "early-access-contact-consent-2026-06-05",
     createdAt: "2026-06-05T01:00:00.000Z",
     email: "partner@example.com",
-    message: "Partner pilot.",
+    message: "Partner access.",
     name: "Partner Lead",
-    privacyVersion: "pilot-privacy-2026-06-05",
+    privacyVersion: "early-access-privacy-2026-06-05",
     receivedAt: "2026-06-05T01:00:01.000Z",
     segment: "Investor or partner",
-    source: "payshield-market-site",
+    source: "payshield-web-app",
     submissionId: "018f7f62-9878-4aab-9ed3-86368f7f4513",
-    termsVersion: "pilot-terms-2026-06-05",
+    termsVersion: "early-access-terms-2026-06-05",
   },
 ];
 
@@ -132,7 +132,7 @@ test("audits receiver files without exposing PII", async () => {
     assert.equal(serialized.includes("lead@example.com"), false);
     assert.equal(serialized.includes("partner@example.com"), false);
     assert.equal(serialized.includes("Rent first."), false);
-    assert.equal(serialized.includes("Partner pilot."), false);
+    assert.equal(serialized.includes("Partner access."), false);
   } finally {
     await rm(dataDir, { recursive: true });
   }
@@ -176,7 +176,7 @@ test("flags missing metadata, duplicate submissions, and CSV mismatches", async 
       true,
     );
     assert.equal(serialized.includes("lead@example.com"), false);
-    assert.equal(serialized.includes("Partner pilot."), false);
+    assert.equal(serialized.includes("Partner access."), false);
   } finally {
     await rm(dataDir, { recursive: true });
   }
@@ -245,9 +245,9 @@ test("backs up receiver files with a redacted manifest", async () => {
     assert.match(manifest, /"backupId": "waitlist-backup-2026-06-05T00-00-00-000Z"/);
     assert.match(manifest, /"sha256": "[a-f0-9]{64}"/);
     assert.equal(serialized.includes("lead@example.com"), false);
-    assert.equal(serialized.includes("Partner pilot."), false);
+    assert.equal(serialized.includes("Partner access."), false);
     assert.equal(manifest.includes("lead@example.com"), false);
-    assert.equal(manifest.includes("Partner pilot."), false);
+    assert.equal(manifest.includes("Partner access."), false);
     assert.equal(verification.ok, true);
     assert.equal(verification.backupId, result.backupId);
     const checkedFiles = verification.checkedFiles as Record<
@@ -258,7 +258,7 @@ test("backs up receiver files with a redacted manifest", async () => {
     assert.equal(checkedFiles["waitlist.ndjson"].sha256Match, true);
     assert.equal(checkedFiles["waitlist.csv"].bytesMatch, true);
     assert.equal(JSON.stringify(verification).includes("lead@example.com"), false);
-    assert.equal(JSON.stringify(verification).includes("Partner pilot."), false);
+    assert.equal(JSON.stringify(verification).includes("Partner access."), false);
     assert.equal(backupNdjson.includes("lead@example.com"), true);
     assert.equal(backupCsv.includes("partner@example.com"), true);
   } finally {
@@ -315,7 +315,7 @@ test("flags tampered backup files without exposing PII", async () => {
 
     await writeFile(
       join(result.backupPath, "waitlist.csv"),
-      "tampered lead@example.com Partner pilot.\n",
+      "tampered lead@example.com Partner access.\n",
       "utf8",
     );
 
@@ -338,7 +338,7 @@ test("flags tampered backup files without exposing PII", async () => {
 
     assert.equal(checkedFiles["waitlist.csv"].sha256Match, false);
     assert.equal(serialized.includes("lead@example.com"), false);
-    assert.equal(serialized.includes("Partner pilot."), false);
+    assert.equal(serialized.includes("Partner access."), false);
   } finally {
     await rm(dataDir, { recursive: true });
     await rm(backupDir, { recursive: true });
@@ -419,7 +419,7 @@ test("erases matching email records and regenerates receiver files", async () =>
     assert.equal(csv.includes("partner@example.com"), true);
     assert.equal(csv.includes("018f7f62-9878-4aab-9ed3-86368f7f4513"), true);
     assert.equal(csv.includes("Partner Launch"), true);
-    assert.equal(csv.includes("pilot-terms-2026-06-05"), true);
+    assert.equal(csv.includes("early-access-terms-2026-06-05"), true);
   } finally {
     await rm(dataDir, { recursive: true });
   }

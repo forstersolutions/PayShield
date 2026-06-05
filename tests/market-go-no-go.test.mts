@@ -16,7 +16,7 @@ const launchEvidence = {
   production: {
     health: {
       ok: true,
-      service: "payshield-market-site",
+      service: "payshield-web-app",
       siteUrl: targetUrl,
       waitlist: {
         mode: "webhook",
@@ -167,8 +167,8 @@ const analyticsEvidence = {
     "hasCampaignAttribution",
   ],
   observedEventNames: [
-    "Pilot Request Attempted",
-    "Pilot Request Submitted",
+    "Early Access Request Attempted",
+    "Early Access Request Submitted",
   ],
   productionUrl: targetUrl,
   sanitizedCampaignMetadata: true,

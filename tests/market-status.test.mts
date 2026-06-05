@@ -17,7 +17,7 @@ const launchEvidence = {
   production: {
     health: {
       ok: true,
-      service: "payshield-market-site",
+      service: "payshield-web-app",
       siteUrl: targetUrl,
       vercel: {
         environment: "production",

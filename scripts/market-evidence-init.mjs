@@ -145,8 +145,8 @@ function analyticsTemplate({ generatedAt, siteUrl }) {
       "hasCampaignAttribution",
     ],
     observedEventNames: [
-      "Pilot Request Attempted",
-      "Pilot Request Submitted",
+      "Early Access Request Attempted",
+      "Early Access Request Submitted",
     ],
     observedAt: "",
     ok: false,

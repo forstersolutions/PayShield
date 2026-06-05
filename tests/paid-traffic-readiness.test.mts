@@ -11,13 +11,13 @@ const homeHeaders = {
   "x-frame-options": "DENY",
 };
 const homeBody = `
-  <title>PayShield | Protected Paycheck OS</title>
+  <title>PayShield | Paycheck Planning App</title>
   <link rel="canonical" href="https://payshield-lime.vercel.app" />
   <meta property="og:image" content="https://payshield-lime.vercel.app/images/payshield-social-card.jpg" />
   <main>
-    <h2>Prototype ready for diligence</h2>
-    <p>Join the pilot list or start a partner conversation.</p>
-    <p>Prototype only. PayShield is not a bank.</p>
+    <h1>Know what is safe to spend before the week gets loud.</h1>
+    <p>Request early access.</p>
+    <p>Manual planning MVP. PayShield is not a bank.</p>
   </main>
 `;
 
@@ -27,7 +27,7 @@ function evidence(overrides: Record<string, unknown> = {}) {
     expectedSiteUrl,
     health: {
       ok: true,
-      service: "payshield-market-site",
+      service: "payshield-web-app",
       siteUrl: expectedSiteUrl,
       waitlist: {
         mode: "webhook",
@@ -43,7 +43,7 @@ function evidence(overrides: Record<string, unknown> = {}) {
       "PayShield does not currently open deposit accounts.",
       "Campaign links may add allowlisted attribution fields such as utm_source and utm_campaign.",
       "Vercel Web Analytics and Speed Insights may process non-PII event metadata.",
-      "PayShield does not send email addresses, names, bank details, or free-text pilot notes to analytics.",
+      "PayShield does not send email addresses, names, bank details, or free-text access notes to analytics.",
     ].join(" "),
     securityBody: [
       "Contact: https://github.com/forstersolutions/PayShield/security/advisories/new",
@@ -51,7 +51,7 @@ function evidence(overrides: Record<string, unknown> = {}) {
       "Canonical: https://payshield-lime.vercel.app/.well-known/security.txt",
     ].join("\n"),
     termsBody: "PayShield is not a bank.",
-    validationBody: { error: "Accept the pilot privacy and terms notice." },
+    validationBody: { error: "Accept the privacy and terms notice." },
     validationStatus: 400,
     ...overrides,
   };
@@ -70,7 +70,7 @@ test("passes when production Upstash capture is paid-traffic ready", () => {
     evidence({
       health: {
         ok: true,
-        service: "payshield-market-site",
+        service: "payshield-web-app",
         siteUrl: expectedSiteUrl,
         waitlist: {
           mode: "upstash",
@@ -94,7 +94,7 @@ test("passes when production Blob capture is paid-traffic ready", () => {
     evidence({
       health: {
         ok: true,
-        service: "payshield-market-site",
+        service: "payshield-web-app",
         siteUrl: expectedSiteUrl,
         waitlist: {
           mode: "blob",
@@ -118,7 +118,7 @@ test("fails demo capture in paid-traffic mode", () => {
     evidence({
       health: {
         ok: true,
-        service: "payshield-market-site",
+        service: "payshield-web-app",
         siteUrl: expectedSiteUrl,
         waitlist: {
           mode: "demo",
@@ -142,7 +142,7 @@ test("fails unsigned webhook capture in paid-traffic mode", () => {
     evidence({
       health: {
         ok: false,
-        service: "payshield-market-site",
+        service: "payshield-web-app",
         siteUrl: expectedSiteUrl,
         waitlist: {
           mode: "webhook",
@@ -167,7 +167,7 @@ test("fails misconfigured webhook capture in paid-traffic mode", () => {
     evidence({
       health: {
         ok: false,
-        service: "payshield-market-site",
+        service: "payshield-web-app",
         siteUrl: expectedSiteUrl,
         waitlist: {
           mode: "webhook",
@@ -195,7 +195,7 @@ test("allows prototype mode while warning about demo capture", () => {
       allowPrototype: true,
       health: {
         ok: true,
-        service: "payshield-market-site",
+        service: "payshield-web-app",
         siteUrl: expectedSiteUrl,
         waitlist: {
           mode: "demo",

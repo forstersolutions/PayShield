@@ -1,53 +1,49 @@
 import {
-  BellRing,
-  Building2,
   CheckCircle2,
-  ClipboardCheck,
-  FileLock2,
-  Gauge,
-  Landmark,
-  ReceiptText,
+  Home,
   ShieldCheck,
+  TimerReset,
   WalletCards,
 } from "lucide-react";
 import { PaycheckPlanner } from "@/app/components/paycheck-planner";
 import { SiteFooter } from "@/app/components/site-footer";
 import { WaitlistForm } from "@/app/components/waitlist-form";
 
-export default function Home() {
+export default function HomePage() {
   return (
-    <main className="bg-[#070807] text-[#f4f1e8]">
+    <main className="bg-[#08110f] text-[#fff7ea]">
       <PaycheckPlanner />
 
-      <section id="rails" className="border-b border-white/10 bg-[#0b0d0b]">
+      <section className="border-b border-white/10 bg-[#101817]">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-300">
-              Product architecture
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#9ee6d6]">
+              MVP workflow
             </p>
             <h2 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
-              A controlled ledger first. Banking rails when the partner stack is
-              approved.
+              A calmer paycheck routine in four steps.
             </h2>
-            <p className="mt-4 text-lg leading-8 text-[#b9b2a3]">
-              The front-end presents prototype mechanics: paycheck planning,
-              protected internal buckets, future bill-routing rules,
-              spending-control simulations, emergency unlock friction, and
-              recovery plans.
+            <p className="mt-4 text-lg leading-8 text-[#cfc6b7]">
+              PayShield starts as a manual planning app: add the paycheck, fund
+              the bills first, see what is truly safe to spend, and create a
+              recovery plan when money has to move.
             </p>
           </div>
 
           <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {railItems.map((item) => {
+            {workflow.map((item) => {
               const Icon = item.icon;
+
               return (
                 <article
-                  className="rounded-[8px] border border-white/10 bg-[#111611] p-5 shadow-[0_18px_60px_rgba(0,0,0,0.22)]"
+                  className="rounded-[8px] border border-white/10 bg-[#16231f] p-5 shadow-[0_18px_60px_rgba(0,0,0,0.18)]"
                   key={item.title}
                 >
-                  <Icon className="size-6 text-emerald-300" aria-hidden="true" />
-                  <h3 className="mt-5 text-lg font-semibold">{item.title}</h3>
-                  <p className="mt-3 text-sm leading-6 text-[#b9b2a3]">
+                  <Icon className="size-6 text-[#9ee6d6]" aria-hidden="true" />
+                  <h3 className="mt-5 text-lg font-semibold text-[#fff7ea]">
+                    {item.title}
+                  </h3>
+                  <p className="mt-3 text-sm leading-6 text-[#cfc6b7]">
                     {item.body}
                   </p>
                 </article>
@@ -57,249 +53,100 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="border-b border-white/10 bg-[#11100d]">
-        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
+      <section className="border-b border-white/10 bg-[#0b1412]">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-300">
-              Positioning
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#ffbf91]">
+              Built for real households
             </p>
             <h2 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
-              The bank balance is not the truth. Safe to spend is.
+              Friendly enough for Sunday night. Clear enough for payday.
             </h2>
-            <p className="mt-4 text-lg leading-8 text-[#b9b2a3]">
-              PayShield is built for families, hourly workers, gig workers,
-              military households, and anyone paid on a schedule but charged on
-              another one.
+            <p className="mt-4 text-lg leading-8 text-[#cfc6b7]">
+              The app avoids bank-speak and spreadsheet chores. It shows the
+              practical answers people need before spending starts.
             </p>
           </div>
+
           <div className="grid gap-3">
-            {positioning.map((line) => (
+            {outcomes.map((line) => (
               <div
-                className="flex items-start gap-3 rounded-[8px] border border-white/10 bg-[#171611] p-4"
+                className="flex items-start gap-3 rounded-[8px] border border-white/10 bg-[#17201b] p-4"
                 key={line}
               >
                 <CheckCircle2
-                  className="mt-0.5 size-5 shrink-0 text-emerald-300"
+                  className="mt-0.5 size-5 shrink-0 text-[#9ee6d6]"
                   aria-hidden="true"
                 />
-                <p className="text-base leading-7 text-[#e8e1d3]">{line}</p>
+                <p className="text-base leading-7 text-[#efe6d7]">{line}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section id="pricing" className="border-b border-white/10 bg-[#090b09]">
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap items-end justify-between gap-5">
-            <div className="max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-300">
-                Pricing
-              </p>
-              <h2 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
-                Subscription-led revenue, not desperation fees.
-              </h2>
-            </div>
-            <p className="max-w-sm text-sm leading-6 text-[#b9b2a3]">
-              Interchange, bill-pay convenience features, and employer
-              partnerships can layer in after the core protection promise earns
-              trust.
-            </p>
-          </div>
-
-          <div className="mt-10 grid gap-4 lg:grid-cols-4">
-            {plans.map((plan) => (
-              <article
-                className={`rounded-[8px] border p-5 ${
-                  plan.featured
-                    ? "border-emerald-300/70 bg-[#eaf8ee] text-[#07110f]"
-                    : "border-white/10 bg-[#111611] text-[#f4f1e8]"
-                }`}
-                key={plan.name}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-lg font-semibold">{plan.name}</h3>
-                  {plan.featured ? (
-                    <ShieldCheck className="size-5" aria-hidden="true" />
-                  ) : null}
-                </div>
-                <p
-                  className={`mt-4 text-3xl font-semibold ${
-                    plan.featured ? "text-[#07110f]" : "text-[#f4f1e8]"
-                  }`}
-                >
-                  {plan.price}
-                </p>
-                <p
-                  className={`mt-3 text-sm leading-6 ${
-                    plan.featured ? "text-[#284238]" : "text-[#b9b2a3]"
-                  }`}
-                >
-                  {plan.body}
-                </p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="launch" className="border-b border-white/10 bg-[#11100d]">
-        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-300">
-              Launch readiness
-            </p>
-            <h2 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
-              Prototype ready for diligence. Regulated-money launch still
-              needs the partner stack.
-            </h2>
-            <p className="mt-4 text-lg leading-8 text-[#b9b2a3]">
-              The public surface avoids saying PayShield is a bank and avoids
-              FDIC-insurance promises until a sponsor bank, program manager, and
-              recordkeeping model are in place.
-            </p>
-          </div>
-
-          <div className="grid gap-3">
-            {launchItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <div
-                  className="grid gap-4 rounded-[8px] border border-white/10 bg-[#171611] p-4 sm:grid-cols-[36px_minmax(0,1fr)_auto]"
-                  key={item.title}
-                >
-                  <Icon className="size-6 text-emerald-300" aria-hidden="true" />
-                  <div className="min-w-0">
-                    <h3 className="font-semibold">{item.title}</h3>
-                    <p className="mt-1 text-sm leading-6 text-[#b9b2a3]">
-                      {item.body}
-                    </p>
-                  </div>
-                  <span className="h-fit rounded-[8px] border border-white/10 bg-[#0b0d0b] px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#d6cfbf]">
-                    {item.status}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      <section id="pilot" className="bg-[#070807] text-[#f4f1e8]">
+      <section id="early-access" className="bg-[#08110f] text-[#fff7ea]">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-14 sm:px-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-8">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-300">
-              Pilot path
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#9ee6d6]">
+              Early access
             </p>
             <h2 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
-              Start with demand validation, then partner-led launch diligence.
+              Help shape the first shipped version.
             </h2>
-            <p className="mt-4 max-w-3xl text-lg leading-8 text-[#b9b2a3]">
-              The prototype is ready for customer discovery, employer
-              conversations, investor review, and banking-partner diligence.
-              The next phase should prove durable lead capture, campaign
-              analytics, and partner onboarding readiness.
+            <p className="mt-4 max-w-3xl text-lg leading-8 text-[#cfc6b7]">
+              We are collecting real household, worker, employer, and partner
+              feedback around the MVP workflow: bills first, safe-to-spend
+              clarity, shared planning, and recovery after an unlock.
             </p>
-            <div className="mt-8 grid gap-3 text-sm leading-6 text-[#c8c0af] sm:grid-cols-3">
-              <p className="rounded-[8px] border border-white/10 bg-white/[0.03] p-3">
-                Validate the safe-spend message with households before
-                regulated financial services.
+            <div className="mt-8 grid gap-3 text-sm leading-6 text-[#d7ccbb] sm:grid-cols-3">
+              <p className="rounded-[8px] border border-white/10 bg-white/[0.04] p-3">
+                Bring one real paycheck week and see where the plan helps.
               </p>
-              <p className="rounded-[8px] border border-white/10 bg-white/[0.03] p-3">
-                Segment pilots by household, employer, partner, and investor
-                interest.
+              <p className="rounded-[8px] border border-white/10 bg-white/[0.04] p-3">
+                Tell us which bills need the clearest protection.
               </p>
-              <p className="rounded-[8px] border border-white/10 bg-white/[0.03] p-3">
-                Collect pilot requests only after durable lead storage is
-                verified and privacy expectations are clear.
+              <p className="rounded-[8px] border border-white/10 bg-white/[0.04] p-3">
+                Join the first feedback group before broader release.
               </p>
             </div>
           </div>
           <WaitlistForm />
         </div>
       </section>
+
       <SiteFooter />
     </main>
   );
 }
 
-const railItems = [
+const workflow = [
   {
-    title: "Paycheck split model",
-    body: "A future partner-approved paycheck event would fund obligations first and send the remainder to safe spending.",
-    icon: Landmark,
+    title: "Add the paycheck",
+    body: "Enter the check amount and pick a scenario that matches the week: normal, tight, or variable income.",
+    icon: Home,
   },
   {
-    title: "Protected ledger",
-    body: "Each dollar has a state: available, protected, bill-pending, unlock-pending, transferred, failed, or reversed.",
-    icon: ClipboardCheck,
+    title: "Reserve bills first",
+    body: "Rent, vehicle, insurance, family needs, goals, and flexible money get funded in order.",
+    icon: ShieldCheck,
   },
   {
-    title: "Card controls",
-    body: "Future card-control logic would check safe spending instead of a total account-style balance.",
+    title: "Check spending",
+    body: "The app compares a purchase against the safe-to-spend number so the decision is obvious.",
     icon: WalletCards,
   },
   {
-    title: "Bill-only buckets",
-    body: "Rent, insurance, and vehicle reserves can be modeled for approved payees before payment rails are live.",
-    icon: ReceiptText,
+    title: "Plan recovery",
+    body: "Emergency unlocks show the refill amount before a household commits to moving money.",
+    icon: TimerReset,
   },
 ];
 
-const positioning = [
-  "Every paycheck gets a job before everyday spending can touch it.",
-  "Rent money cannot disappear into ordinary purchase decisions.",
-  "Short paychecks fund high-priority obligations before flexible goals.",
-  "Emergency access creates a recovery plan instead of a penalty spiral.",
-];
-
-const plans = [
-  {
-    name: "Free",
-    price: "$0",
-    body: "Three buckets, manual planning, safe-spend balance, and alerts for paycheck timing.",
-  },
-  {
-    name: "Plus",
-    price: "$7.99",
-    body: "Unlimited buckets, automatic paycheck plans, soft locks, goal tracking, and reminders.",
-    featured: true,
-  },
-  {
-    name: "Pro",
-    price: "$12.99",
-    body: "Partner-led pilot planning, protected bill buckets, card-control concepts, and shared household views.",
-  },
-  {
-    name: "Premium",
-    price: "$19.99",
-    body: "Instant unlocks included, advanced automation, custom rules, priority support, and analytics.",
-  },
-];
-
-const launchItems = [
-  {
-    title: "Compliance language",
-    body: "Use partner-bank phrasing only after contracts are executed; keep pass-through insurance claims conditional and specific.",
-    status: "Guarded",
-    icon: FileLock2,
-  },
-  {
-    title: "BaaS partner decision",
-    body: "Evaluate sponsor bank, ledgering, approved payment rails, card-program controls, KYC, fraud tooling, disputes, and program oversight.",
-    status: "Next",
-    icon: Building2,
-  },
-  {
-    title: "Prototype funnel",
-    body: "Use the live prototype for customer discovery, investor review, and partner diligence while validating the safe-spend message.",
-    status: "Ready",
-    icon: Gauge,
-  },
-  {
-    title: "Operational controls",
-    body: "Before live funds, implement double-entry ledgering, audit logs, error handling, disclosures, support, and monitoring.",
-    status: "Required",
-    icon: BellRing,
-  },
+const outcomes = [
+  "The big number is not the total balance. It is what can be spent after the important stuff is covered.",
+  "Short paychecks become visible early, with the first underfunded bill called out before the week gets messy.",
+  "A shared household view can focus on coverage, shortfalls, and recovery instead of blaming individual purchases.",
+  "The MVP works as a planning layer first, with no bank login or sensitive account numbers required.",
+  "Reminders, safe-to-spend checks, and unlock plans are built around how people already think about payday.",
 ];

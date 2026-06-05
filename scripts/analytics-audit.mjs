@@ -8,10 +8,10 @@ const analyticsFiles = [
   "src/app/api/waitlist/route.ts",
 ];
 const expectedAnalyticsEvents = [
-  "Pilot Request Attempted",
-  "Pilot Request Failed",
-  "Pilot Request Received",
-  "Pilot Request Submitted",
+  "Early Access Request Attempted",
+  "Early Access Request Failed",
+  "Early Access Request Received",
+  "Early Access Request Submitted",
 ];
 const expectedPropertyKeys = [
   "campaignMedium",

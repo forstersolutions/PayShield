@@ -145,7 +145,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
 
 requireText(
   "src/app/components/site-footer.tsx",
-  "Prototype only. PayShield is not a bank.",
+  "Manual planning MVP. PayShield is not a bank.",
 );
 requireText("src/app/terms/page.tsx", "PayShield is not a bank.");
 requireText(
@@ -164,7 +164,7 @@ requireText(
   "src/app/privacy/page.tsx",
   "does not send email addresses, names, bank details",
 );
-requireText("src/app/privacy/page.tsx", "free-text pilot notes");
+requireText("src/app/privacy/page.tsx", "free-text access notes");
 requireText("src/app/components/waitlist-form.tsx", "Privacy Notice");
 requireText("src/app/components/waitlist-form.tsx", "Terms");
 requireText("src/app/components/waitlist-form.tsx", "consent");
@@ -181,17 +181,17 @@ requireText(
 requireText("src/app/layout.tsx", 'manifest: "/manifest.webmanifest"');
 requireText("src/app/layout.tsx", 'url: "/icon.svg"');
 requireText("src/app/manifest.ts", 'name: "PayShield"');
-requireText("src/app/manifest.ts", 'theme_color: "#1c1917"');
+requireText("src/app/manifest.ts", 'theme_color: "#10201c"');
 requireText(
   "src/app/components/paycheck-planner.tsx",
   'src="/images/payshield-product-mockup.avif"',
 );
-requireText("src/app/page.tsx", "Paycheck split model");
-requireText("src/app/page.tsx", "spending-control simulations");
-requireText("src/app/page.tsx", "partner-led launch diligence");
+requireText("src/app/page.tsx", "A calmer paycheck routine in four steps.");
+requireText("src/app/page.tsx", "Friendly enough for Sunday night.");
+requireText("src/app/components/waitlist-form.tsx", "Request early access");
 requireText(
   "src/app/components/paycheck-planner.tsx",
-  "Spending authorization",
+  "Purchase check",
 );
 requireText("docs/legal-review-packet.md", "Paycheck split model");
 requireText(
@@ -222,14 +222,14 @@ requireText("scripts/smoke-docker-receiver.mjs", "sendSignedWebhookTest");
 requireText("scripts/smoke-docker-receiver.mjs", "summarizeWaitlistData");
 requireText("scripts/smoke-docker-receiver.mjs", "eraseWaitlistEmail");
 requireText("scripts/analytics-audit.mjs", "auditAnalyticsInstrumentation");
-requireText("scripts/analytics-audit.mjs", "Pilot Request Attempted");
-requireText("scripts/analytics-audit.mjs", "Pilot Request Submitted");
+requireText("scripts/analytics-audit.mjs", "Early Access Request Attempted");
+requireText("scripts/analytics-audit.mjs", "Early Access Request Submitted");
 requireText("scripts/analytics-audit.mjs", "approvedTrackPropertySpreads");
 requireText("scripts/analytics-audit.mjs", "bannedTrackPropertyPatterns");
 requireText("scripts/analytics-audit.mjs", "sends unapproved analytics property");
 requireText("scripts/check-analytics-evidence.mjs", "evaluateLiveAnalyticsEvidence");
-requireText("scripts/check-analytics-evidence.mjs", "Pilot Request Attempted");
-requireText("scripts/check-analytics-evidence.mjs", "Pilot Request Submitted");
+requireText("scripts/check-analytics-evidence.mjs", "Early Access Request Attempted");
+requireText("scripts/check-analytics-evidence.mjs", "Early Access Request Submitted");
 requireText("scripts/check-analytics-evidence.mjs", "campaignSource");
 requireText("scripts/check-analytics-evidence.mjs", "campaignMedium");
 requireText("scripts/check-analytics-evidence.mjs", "hasCampaignAttribution");
@@ -380,8 +380,8 @@ requireText("scripts/vercel-webhook-cutover.mjs", "secretNotPrinted");
 requireText("scripts/test-waitlist-webhook.mjs", "sendSignedWebhookTest");
 requireText("scripts/test-waitlist-webhook.mjs", "x-payshield-webhook-signature");
 requireText("scripts/test-waitlist-webhook.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");
-requireText("scripts/test-waitlist-webhook.mjs", "pilot-contact-consent-2026-06-05");
-requireText("scripts/test-waitlist-webhook.mjs", "pilot-terms-2026-06-05");
+requireText("scripts/test-waitlist-webhook.mjs", "early-access-contact-consent-2026-06-05");
+requireText("scripts/test-waitlist-webhook.mjs", "early-access-terms-2026-06-05");
 requireText("scripts/test-waitlist-webhook.mjs", "x-payshield-submission-id");
 requireText("scripts/test-waitlist-webhook.mjs", "submissionId");
 requireText("scripts/test-waitlist-webhook.mjs", "--replay");
@@ -545,14 +545,14 @@ requireText("src/app/api/waitlist/route.ts", "multi-exec");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-signature");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-timestamp");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-submission-id");
-requireText("src/app/api/waitlist/route.ts", "pilot-contact-consent-2026-06-05");
-requireText("src/app/api/waitlist/route.ts", "pilot-terms-2026-06-05");
+requireText("src/app/api/waitlist/route.ts", "early-access-contact-consent-2026-06-05");
+requireText("src/app/api/waitlist/route.ts", "early-access-terms-2026-06-05");
 requireText("src/app/api/waitlist/route.ts", "consentedAt");
 requireText("src/app/api/waitlist/route.ts", "consentText");
 requireText("src/app/api/waitlist/route.ts", "randomUUID");
 requireText(
   "src/app/api/waitlist/route.ts",
-  "Prototype request accepted for this walkthrough",
+  "Request accepted for this walkthrough",
 );
 requireText("src/app/api/waitlist/route.ts", "request_sensitive_financial_info");
 requireText(

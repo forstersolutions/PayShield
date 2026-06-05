@@ -172,18 +172,18 @@ export function createWaitlistWebhookTestPayload(options = {}) {
       utmSource: "webhook-test",
     },
     consentText:
-      "I agree that PayShield can contact me about the pilot and handle my information under the Privacy Notice and Terms.",
+      "I agree that PayShield can contact me about early access and handle my information under the Privacy Notice and Terms.",
     consentedAt: createdAt,
-    consentVersion: "pilot-contact-consent-2026-06-05",
+    consentVersion: "early-access-contact-consent-2026-06-05",
     createdAt,
     email: email ?? `webhook-smoke+${token}@example.com`,
     name: "PayShield Webhook Smoke",
     segment: "Operations",
     message: "Signed webhook smoke test. Safe to delete.",
-    privacyVersion: "pilot-privacy-2026-06-05",
+    privacyVersion: "early-access-privacy-2026-06-05",
     source: "payshield-webhook-test",
     submissionId: randomUUID(),
-    termsVersion: "pilot-terms-2026-06-05",
+    termsVersion: "early-access-terms-2026-06-05",
   };
 }
 

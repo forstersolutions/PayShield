@@ -1,12 +1,12 @@
 import { pathToFileURL } from "node:url";
 
 const defaultTimeoutMs = 10_000;
-const serviceName = "payshield-market-site";
+const serviceName = "payshield-web-app";
 const requiredHomeText = [
-  "PayShield | Protected Paycheck OS",
-  "Prototype ready for diligence",
-  "Join the pilot list",
-  "Prototype only. PayShield is not a bank.",
+  "PayShield | Paycheck Planning App",
+  "Know what is safe to spend before the week gets loud.",
+  "Request early access",
+  "Manual planning MVP. PayShield is not a bank.",
 ];
 const publicCopyBannedPhrases = [
   "Vercel preview",
@@ -242,7 +242,7 @@ export function evaluatePaidTrafficReadiness(evidence) {
   record(
     result,
     normalizedPrivacyBody.includes("does not currently open deposit accounts"),
-    "/privacy states the prototype does not open deposit accounts",
+    "/privacy states PayShield does not open deposit accounts",
   );
   record(
     result,
@@ -260,7 +260,7 @@ export function evaluatePaidTrafficReadiness(evidence) {
     result,
     normalizedPrivacyBody.includes(
       "does not send email addresses, names, bank details",
-    ) && normalizedPrivacyBody.includes("free-text pilot notes to analytics"),
+    ) && normalizedPrivacyBody.includes("free-text access notes to analytics"),
     "/privacy states analytics events exclude PII and free-text notes",
   );
   record(
@@ -294,7 +294,7 @@ export function evaluatePaidTrafficReadiness(evidence) {
   record(
     result,
     evidence.validationStatus === 400 &&
-      evidence.validationBody?.error === "Accept the pilot privacy and terms notice.",
+      evidence.validationBody?.error === "Accept the privacy and terms notice.",
     "/api/waitlist rejects missing consent without creating a persisted lead",
   );
 

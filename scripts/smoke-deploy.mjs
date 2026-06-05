@@ -136,7 +136,7 @@ async function checkWaitlistValidation() {
   });
   const body = await response.json().catch(() => ({}));
 
-  if (body.error !== "Accept the pilot privacy and terms notice.") {
+  if (body.error !== "Accept the privacy and terms notice.") {
     failures.push("/api/waitlist consent validation returned an unexpected body");
   }
 }
@@ -145,7 +145,7 @@ async function checkHealth() {
   const response = await expectStatus("/api/health", 200);
   const body = await response.json().catch(() => ({}));
 
-  if (body.service !== "payshield-market-site") {
+  if (body.service !== "payshield-web-app") {
     failures.push("/api/health returned an unexpected service name");
   }
 
@@ -295,13 +295,13 @@ async function submitLead() {
 
 try {
   const home = await expectText("/", [
-    "PayShield | Protected Paycheck OS",
+    "PayShield | Paycheck Planning App",
     "/manifest.webmanifest",
     "/icon.svg",
     "payshield-social-card.jpg",
     "payshield-product-mockup.avif",
-    "Request pilot access",
-    "Prototype only. PayShield is not a bank.",
+    "Request early access",
+    "Manual planning MVP. PayShield is not a bank.",
   ]);
   expectSecurityHeaders(home.response, "/");
 
@@ -311,7 +311,7 @@ try {
     "utm_source",
     "Vercel Web Analytics",
     "does not send email addresses, names, bank details",
-    "free-text pilot notes to analytics",
+    "free-text access notes to analytics",
   ]);
   await expectText("/terms", [
     "Terms",

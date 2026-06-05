@@ -13,8 +13,8 @@ const analyticsEvidence = {
     "hasCampaignAttribution",
   ],
   observedEventNames: [
-    "Pilot Request Attempted",
-    "Pilot Request Submitted",
+    "Early Access Request Attempted",
+    "Early Access Request Submitted",
   ],
   ok: true,
   productionUrl: targetUrl,
@@ -33,8 +33,8 @@ test("validates complete live analytics evidence", () => {
   assert.equal(result.findings.length, 0);
   assert.equal(result.summary.productionUrl, targetUrl);
   assert.deepEqual(result.summary.observedEventNames, [
-    "Pilot Request Attempted",
-    "Pilot Request Submitted",
+    "Early Access Request Attempted",
+    "Early Access Request Submitted",
   ]);
 });
 
@@ -43,7 +43,7 @@ test("flags missing required live analytics events and campaign properties", () 
     {
       ...analyticsEvidence,
       observedCampaignProperties: ["hasCampaignAttribution"],
-      observedEventNames: ["Pilot Request Attempted"],
+      observedEventNames: ["Early Access Request Attempted"],
     },
     {
       targetUrl,

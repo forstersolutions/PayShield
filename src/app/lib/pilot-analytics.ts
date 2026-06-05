@@ -8,10 +8,10 @@ export type CampaignAttribution = {
 };
 
 export const pilotAnalyticsEventNames = [
-  "Pilot Request Attempted",
-  "Pilot Request Failed",
-  "Pilot Request Received",
-  "Pilot Request Submitted",
+  "Early Access Request Attempted",
+  "Early Access Request Failed",
+  "Early Access Request Received",
+  "Early Access Request Submitted",
 ] as const;
 
 export const pilotAnalyticsPropertyKeys = [

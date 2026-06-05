@@ -22,13 +22,13 @@ function html(siteUrl: string) {
     '<link rel="manifest" href="/manifest.webmanifest">',
     '<link rel="icon" href="/icon.svg">',
     "</head><body>",
-    "PayShield | Protected Paycheck OS",
+    "PayShield | Paycheck Planning App",
     "/manifest.webmanifest",
     "/icon.svg",
     "payshield-social-card.jpg",
     "payshield-product-mockup.avif",
-    "Request pilot access",
-    "Prototype only. PayShield is not a bank.",
+    "Request early access",
+    "Manual planning MVP. PayShield is not a bank.",
     "</body></html>",
   ].join("");
 }
@@ -77,7 +77,7 @@ async function startSmokeTarget() {
           "utm_source",
           "Vercel Web Analytics",
           "does not send email addresses, names, bank details",
-          "free-text pilot notes to analytics",
+          "free-text access notes to analytics",
         ].join("\n"),
         { "content-type": "text/html" },
       );
@@ -152,7 +152,7 @@ async function startSmokeTarget() {
         200,
         JSON.stringify({
           ok: true,
-          service: "payshield-market-site",
+          service: "payshield-web-app",
           waitlist: {
             mode: "upstash",
             paidTrafficReady: true,
@@ -171,7 +171,7 @@ async function startSmokeTarget() {
         send(
           response,
           400,
-          JSON.stringify({ error: "Accept the pilot privacy and terms notice." }),
+          JSON.stringify({ error: "Accept the privacy and terms notice." }),
           { "content-type": "application/json" },
         );
         return;

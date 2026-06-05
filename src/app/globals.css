@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #050706;
-  --foreground: #f7f2e7;
+  --background: #08110f;
+  --foreground: #fff7ea;
 }
 
 @theme inline {
@@ -14,7 +14,7 @@
 
 body {
   background:
-    linear-gradient(180deg, #050706 0%, #090c0a 48%, #050607 100%);
+    linear-gradient(180deg, #08110f 0%, #101817 46%, #0a0d0c 100%);
   color: var(--foreground);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
@@ -26,7 +26,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -35,29 +36,29 @@ html {
   color-scheme: dark;
 }
 
-.pay-hero-shell {
+.pay-app-shell {
   background:
-    linear-gradient(135deg, rgba(125, 230, 201, 0.08), transparent 34%),
-    linear-gradient(180deg, #050706 0%, #08100d 52%, #050607 100%);
+    linear-gradient(135deg, rgba(158, 230, 214, 0.12), transparent 38%),
+    linear-gradient(180deg, #091512 0%, #101b18 54%, #090d0c 100%);
 }
 
-.pay-hero-shell::before {
+.pay-app-shell::before {
   position: absolute;
   inset: 0;
   pointer-events: none;
   content: "";
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-  background-size: 72px 72px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.65), transparent 72%);
+    linear-gradient(rgba(255, 247, 234, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 247, 234, 0.028) 1px, transparent 1px);
+  background-size: 96px 96px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.42), transparent 66%);
 }
 
-.pay-hero-shell::after {
+.pay-app-shell::after {
   position: absolute;
   inset: auto 0 0;
   height: 32%;
   pointer-events: none;
   content: "";
-  background: linear-gradient(180deg, transparent, rgba(5, 7, 6, 0.88));
+  background: linear-gradient(180deg, transparent, rgba(8, 17, 15, 0.92));
 }

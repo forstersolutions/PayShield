@@ -11,7 +11,7 @@ export function GET() {
   return NextResponse.json(
     {
       ok,
-      service: "payshield-market-site",
+      service: "payshield-web-app",
       siteUrl:
         process.env.NEXT_PUBLIC_SITE_URL ?? "https://payshield.vercel.app",
       vercel: {

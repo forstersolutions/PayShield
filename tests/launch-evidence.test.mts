@@ -5,17 +5,17 @@ import { summarizeLaunchReadiness } from "../scripts/launch-evidence.mjs";
 const targetUrl = "https://payshield-lime.vercel.app";
 const gitCommit = "abc123";
 const requiredHome = [
-  "PayShield | Protected Paycheck OS",
-  "Prototype ready for diligence",
-  "Join the pilot list",
-  "Prototype only. PayShield is not a bank.",
+  "PayShield | Paycheck Planning App",
+  "Know what is safe to spend before the week gets loud.",
+  "Request early access",
+  "Manual planning MVP. PayShield is not a bank.",
 ].join(" ");
 
 function publicEvidence(waitlist: Record<string, unknown>) {
   return {
     health: {
       ok: true,
-      service: "payshield-market-site",
+      service: "payshield-web-app",
       siteUrl: targetUrl,
       vercel: {
         environment: "production",
@@ -42,7 +42,7 @@ function publicEvidence(waitlist: Record<string, unknown>) {
       "Vercel Web Analytics",
       "Speed Insights",
       "does not send email addresses, names, bank details",
-      "free-text pilot notes to analytics",
+      "free-text access notes to analytics",
     ].join(" "),
     securityBody: [
       "Contact: https://github.com/forstersolutions/PayShield/security/advisories/new",
@@ -51,7 +51,7 @@ function publicEvidence(waitlist: Record<string, unknown>) {
     ].join("\n"),
     termsBody: "PayShield is not a bank.",
     validationBody: {
-      error: "Accept the pilot privacy and terms notice.",
+      error: "Accept the privacy and terms notice.",
     },
     validationStatus: 400,
   };
@@ -208,10 +208,10 @@ const leadCaptureDryRun = {
 };
 const analyticsAudit = {
   allowedEventNames: [
-    "Pilot Request Attempted",
-    "Pilot Request Failed",
-    "Pilot Request Received",
-    "Pilot Request Submitted",
+    "Early Access Request Attempted",
+    "Early Access Request Failed",
+    "Early Access Request Received",
+    "Early Access Request Submitted",
   ],
   allowedPropertyKeys: [
     "campaignMedium",
@@ -226,10 +226,10 @@ const analyticsAudit = {
   ],
   analyticsMounted: true,
   eventNames: [
-    "Pilot Request Attempted",
-    "Pilot Request Failed",
-    "Pilot Request Received",
-    "Pilot Request Submitted",
+    "Early Access Request Attempted",
+    "Early Access Request Failed",
+    "Early Access Request Received",
+    "Early Access Request Submitted",
   ],
   findings: [],
   ok: true,
