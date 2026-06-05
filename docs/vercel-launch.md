@@ -153,8 +153,13 @@ The endpoint does not expose the webhook URL or signing secret.
 After the webhook is configured, run one explicit submission test:
 
 ```bash
+npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com
 npm run smoke:deploy -- https://your-domain.com --expect-site-url https://your-domain.com --submit-test --require-webhook
 ```
+
+Before the webhook is configured, the same readiness command may be run with
+`--allow-prototype`; it should pass the public launch-surface checks while
+warning that waitlist capture is still in demo mode.
 
 Manual equivalents:
 

@@ -27,6 +27,8 @@ npm run dev
 npm run verify
 npm test
 npm run market-preflight
+npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com
+npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com --allow-prototype
 npm run smoke:deploy -- https://your-domain.com
 npm run smoke:deploy -- https://your-domain.com --expect-site-url https://your-domain.com
 npm run webhook:receive
@@ -86,6 +88,11 @@ request open indefinitely.
 Set `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` before paid traffic so valid
 submissions fail closed instead of appearing successful without durable lead
 capture.
+
+`npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com`
+audits the public launch surface and fails unless `/api/health` proves
+paid-traffic-ready webhook capture. Add `--allow-prototype` to document the
+current prototype state while keeping demo capture as a warning.
 
 `npm run webhook:receive` starts a small signed webhook receiver for teams that
 want a lightweight persistence target before wiring a CRM. It verifies the

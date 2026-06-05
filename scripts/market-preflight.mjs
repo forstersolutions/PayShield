@@ -73,6 +73,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   "next.config.ts",
   "SECURITY.md",
+  "scripts/paid-traffic-readiness.mjs",
   "scripts/smoke-deploy.mjs",
   "scripts/test-waitlist-webhook.mjs",
   "scripts/waitlist-webhook-receiver.mjs",
@@ -122,6 +123,9 @@ requireText("scripts/smoke-deploy.mjs", "permissions-policy");
 requireText("scripts/smoke-deploy.mjs", "payshield-social-card.jpg");
 requireText("next.config.ts", "Strict-Transport-Security");
 requireText("next.config.ts", "max-age=31536000");
+requireText("scripts/paid-traffic-readiness.mjs", "--allow-prototype");
+requireText("scripts/paid-traffic-readiness.mjs", "paidTrafficReady");
+requireText("scripts/paid-traffic-readiness.mjs", "publicCopyBannedPhrases");
 requireText("scripts/test-waitlist-webhook.mjs", "sendSignedWebhookTest");
 requireText("scripts/test-waitlist-webhook.mjs", "x-payshield-webhook-signature");
 requireText("scripts/test-waitlist-webhook.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");

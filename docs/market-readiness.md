@@ -75,6 +75,8 @@ deployments, partner demos, and pilot demand capture.
 - Confirm `https://payshield-lime.vercel.app/api/health` reports
   `waitlist.paidTrafficReady: true` after the webhook and fail-closed flag are
   configured.
+- Run `npm run readiness:paid-traffic -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app`
+  and confirm it passes without `--allow-prototype`.
 - Run `npm run smoke:deploy -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --submit-test --require-webhook`
   and confirm it returns webhook mode before paid traffic.
 - Enable Vercel Web Analytics and Speed Insights in the Vercel dashboard.

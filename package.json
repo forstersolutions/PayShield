@@ -14,6 +14,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "market-preflight": "node scripts/market-preflight.mjs",
+    "readiness:paid-traffic": "node scripts/paid-traffic-readiness.mjs",
     "smoke:deploy": "node scripts/smoke-deploy.mjs",
     "webhook:receive": "node scripts/waitlist-webhook-receiver.mjs",
     "webhook:test": "node scripts/test-waitlist-webhook.mjs",
