@@ -139,6 +139,10 @@ requireText(
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-signature");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-timestamp");
+requireText(
+  "src/app/api/waitlist/route.ts",
+  "Prototype request accepted for this walkthrough",
+);
 requireText("src/app/api/health/route.ts", "paidTrafficReady");
 requireText("src/app/api/health/route.ts", "webhookConfigured");
 requireText("scripts/smoke-deploy.mjs", "/api/health");
@@ -184,6 +188,12 @@ for (const path of publicCopyFiles) {
     "Do not claim FDIC insurance before the final sponsor and recordkeeping model",
   );
 }
+
+rejectPattern(
+  "src/app/api/waitlist/route.ts",
+  /Configure PAYSHIELD_WAITLIST_WEBHOOK_URL in Vercel/i,
+  "Do not expose internal Vercel env setup in public waitlist responses",
+);
 
 if (failures.length) {
   console.error("Market preflight failed:");

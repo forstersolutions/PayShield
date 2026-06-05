@@ -100,6 +100,12 @@ test("accepts a valid request in demo mode", async () => {
   assert.equal(response.status, 200);
   assert.equal(body.ok, true);
   assert.equal(body.mode, "demo");
+  assert.equal(
+    body.message,
+    "Prototype request accepted for this walkthrough. Pilot capture opens when production lead storage is enabled.",
+  );
+  assert.equal(JSON.stringify(body).includes("PAYSHIELD_WAITLIST_WEBHOOK_URL"), false);
+  assert.equal(JSON.stringify(body).includes("Vercel"), false);
 });
 
 test("fails closed when webhook persistence is required but missing", async () => {

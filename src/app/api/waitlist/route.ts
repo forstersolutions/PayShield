@@ -297,7 +297,7 @@ export async function POST(request: NextRequest) {
       message:
         result.mode === "webhook"
           ? "Pilot request received."
-          : "Demo request accepted. Configure PAYSHIELD_WAITLIST_WEBHOOK_URL in Vercel to persist submissions.",
+          : "Prototype request accepted for this walkthrough. Pilot capture opens when production lead storage is enabled.",
     });
   } catch (error) {
     if (error instanceof WaitlistConfigurationError) {
