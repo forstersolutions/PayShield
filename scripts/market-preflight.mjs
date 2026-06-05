@@ -66,6 +66,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/manifest.ts",
   "src/app/privacy/page.tsx",
   "src/app/terms/page.tsx",
+  "docs/campaign-copy.md",
   "src/app/api/health/route.ts",
   "src/app/components/site-footer.tsx",
   "src/app/components/waitlist-form.tsx",
@@ -76,6 +77,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "SECURITY.md",
   ".dockerignore",
   "Dockerfile.receiver",
+  "scripts/check-campaign-copy.mjs",
   "scripts/paid-traffic-readiness.mjs",
   "scripts/smoke-deploy.mjs",
   "scripts/test-waitlist-webhook.mjs",
@@ -131,6 +133,12 @@ requireText("scripts/smoke-deploy.mjs", "x-content-type-options");
 requireText("scripts/smoke-deploy.mjs", "strict-transport-security");
 requireText("scripts/smoke-deploy.mjs", "permissions-policy");
 requireText("scripts/smoke-deploy.mjs", "payshield-social-card.jpg");
+requireText("scripts/check-campaign-copy.mjs", "lintCampaignCopy");
+requireText("scripts/check-campaign-copy.mjs", "fdic-insurance");
+requireText("scripts/check-campaign-copy.mjs", "direct-deposit");
+requireText("package.json", "\"campaign:lint\"");
+requireText("docs/campaign-copy.md", "npm run campaign:lint");
+requireText("docs/campaign-copy.md", "PayShield is not a bank.");
 requireText("next.config.ts", "Strict-Transport-Security");
 requireText("next.config.ts", "max-age=31536000");
 requireText("scripts/paid-traffic-readiness.mjs", "--allow-prototype");

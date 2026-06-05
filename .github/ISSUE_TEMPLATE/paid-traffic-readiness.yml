@@ -36,6 +36,7 @@ body:
         - label: Public copy does not claim PayShield is a bank.
         - label: Public copy does not claim FDIC insurance or sponsor-bank coverage.
         - label: No live money movement, account opening, ACH, card issuing, or bill-pay promises are used in campaign copy.
+        - label: "`npm run campaign:lint -- path/to/campaign-copy.md` passes for every campaign draft."
         - label: Counsel has reviewed the launch surface before regulated financial-service claims or live funds.
   - type: checkboxes
     id: production-ops

@@ -25,6 +25,7 @@ Production is deployed on Vercel at
 ```bash
 npm run dev
 npm run verify
+npm run campaign:lint -- path/to/campaign-copy.md
 npm test
 npm run market-preflight
 npm run receiver:docker:build
@@ -160,7 +161,8 @@ name, or free-text notes to analytics.
   acquisition or regulated financial-service launch.
 
 See [docs/market-readiness.md](docs/market-readiness.md) for the current launch
-checklist and regulated-money gates. See
+checklist and regulated-money gates. See [docs/campaign-copy.md](docs/campaign-copy.md)
+for paid campaign and ad-copy guardrails. See
 [docs/vercel-launch.md](docs/vercel-launch.md) for the Vercel import,
 environment, webhook, and post-deploy smoke-test runbook. The deploy smoke
 checker validates required pages, launch assets, safe waitlist API validation,

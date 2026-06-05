@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "campaign:lint": "node scripts/check-campaign-copy.mjs",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",

@@ -35,6 +35,9 @@ deployments, partner demos, and pilot demand capture.
   remaining lead-capture, legal, analytics, and production-ops gates.
 - Automated market preflight checks for required prototype disclaimers, consent
   links, launch assets, env examples, and blocked regulated-finance claims.
+- Campaign copy linter and guardrails for checking paid ads, email campaigns,
+  social posts, partner one-pagers, and alternate landing-page copy before
+  counsel review.
 - Post-deploy smoke checker for Vercel preview and production URLs, including
   homepage metadata, legal pages, SEO routes, assets, browser security headers,
   production site URL alignment, and safe waitlist API validation.
@@ -102,6 +105,9 @@ deployments, partner demos, and pilot demand capture.
   failure after the first production or preview deployment.
 - Confirm privacy policy and terms links before collecting personal data beyond
   pilot emails and optional notes.
+- Run `npm run campaign:lint -- path/to/campaign-copy.md` for every paid ad,
+  email, social, partner, or alternate landing-page copy draft and attach the
+  output to the readiness issue before counsel review.
 - Open a Paid Traffic Readiness issue and attach evidence for the webhook test,
   production health response, CI run, Vercel deployment, analytics, and legal
   review before spending on acquisition.

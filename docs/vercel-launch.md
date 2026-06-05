@@ -228,6 +228,8 @@ Submit one pilot request from the site and confirm:
 - Confirm custom domain and `NEXT_PUBLIC_SITE_URL` match.
 - Confirm Privacy Notice and Terms links work from the pilot form and footer.
 - Confirm social previews use `payshield-social-card.jpg`.
+- Run `npm run campaign:lint -- path/to/campaign-copy.md` against paid ads,
+  emails, social posts, partner one-pagers, and alternate landing-page copy.
 - Confirm no public copy says PayShield is a bank, claims FDIC insurance, or
   implies live money movement.
 - Have counsel review the prototype Privacy Notice, Terms, fintech claims, and
