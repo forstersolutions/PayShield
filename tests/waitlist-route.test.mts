@@ -16,6 +16,7 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
   delete process.env.UPSTASH_REDIS_REST_TOKEN;
   delete process.env.UPSTASH_REDIS_REST_URL;
+  delete process.env.VERCEL_ENV;
   globalThis.fetch = originalFetch;
 });
 
@@ -477,6 +478,67 @@ test("stores valid submissions in Upstash Redis when Vercel-native storage is co
     "pilot-contact-consent-2026-06-05",
   );
   assert.equal(serializedResponse.includes("upstash-secret"), false);
+});
+
+test("fails closed when required production webhook URL is not HTTPS", async () => {
+  process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL = "http://example.com/webhook";
+  process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET = "shared-secret";
+  process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK = "true";
+  process.env.VERCEL_ENV = "production";
+
+  const response = await POST(
+    makeRequest(
+      {
+        email: "insecure-webhook@example.com",
+        name: "Insecure Webhook",
+        segment: "Employer",
+        message: "Need durable lead capture.",
+        consent: true,
+      },
+      "198.51.100.24",
+    ),
+  );
+  const body = await parseJson(response);
+  const serializedResponse = JSON.stringify(body);
+
+  assert.equal(response.status, 503);
+  assert.equal(
+    body.error,
+    "Pilot request capture is temporarily unavailable. Try again shortly.",
+  );
+  assert.equal(serializedResponse.includes("http://example.com/webhook"), false);
+  assert.equal(serializedResponse.includes("shared-secret"), false);
+});
+
+test("fails closed when webhook URL includes credentials, query strings, or fragments", async () => {
+  process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL =
+    "https://user:pass@example.com/webhook?token=secret#fragment";
+  process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET = "shared-secret";
+  process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK = "true";
+  process.env.VERCEL_ENV = "production";
+
+  const response = await POST(
+    makeRequest(
+      {
+        email: "unsafe-webhook@example.com",
+        name: "Unsafe Webhook",
+        segment: "Employer",
+        message: "Need durable lead capture.",
+        consent: true,
+      },
+      "198.51.100.25",
+    ),
+  );
+  const body = await parseJson(response);
+  const serializedResponse = JSON.stringify(body);
+
+  assert.equal(response.status, 503);
+  assert.equal(
+    body.error,
+    "Pilot request capture is temporarily unavailable. Try again shortly.",
+  );
+  assert.equal(serializedResponse.includes("token=secret"), false);
+  assert.equal(serializedResponse.includes("shared-secret"), false);
 });
 
 test("returns a 502 when the configured webhook fails", async () => {

@@ -1,32 +1,12 @@
 import { NextResponse } from "next/server.js";
-
-type WaitlistMode = "demo" | "upstash" | "webhook";
-
-function getWaitlistMode(): WaitlistMode {
-  if (process.env.PAYSHIELD_WAITLIST_STORAGE?.trim().toLowerCase() === "upstash") {
-    return "upstash";
-  }
-
-  return process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL ? "webhook" : "demo";
-}
+import { getWaitlistCaptureConfig } from "../../lib/waitlist-capture-config.ts";
 
 export function GET() {
-  const waitlistMode = getWaitlistMode();
-  const requireWebhook = process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK === "true";
-  const webhookConfigured = waitlistMode === "webhook";
-  const webhookSigningConfigured = Boolean(
-    process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET?.trim(),
-  );
-  const storageConfigured =
-    waitlistMode === "upstash" &&
-    Boolean(process.env.UPSTASH_REDIS_REST_URL?.trim()) &&
-    Boolean(process.env.UPSTASH_REDIS_REST_TOKEN?.trim());
-  const durableCaptureConfigured =
-    (webhookConfigured && webhookSigningConfigured) || storageConfigured;
-  const paidTrafficReady =
-    durableCaptureConfigured && requireWebhook;
-  const storageMisconfigured = waitlistMode === "upstash" && !storageConfigured;
-  const ok = (!requireWebhook || paidTrafficReady) && !storageMisconfigured;
+  const capture = getWaitlistCaptureConfig();
+  const ok =
+    (!capture.requireWebhook || capture.paidTrafficReady) &&
+    !capture.storageMisconfigured &&
+    !capture.webhookMisconfigured;
 
   return NextResponse.json(
     {
@@ -39,14 +19,16 @@ export function GET() {
         gitCommitSha: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
       },
       waitlist: {
-        mode: waitlistMode,
-        paidTrafficReady,
-        requireWebhook,
-        storageConfigured,
-        storageMisconfigured,
-        storageProvider: waitlistMode === "upstash" ? "upstash" : null,
-        webhookConfigured,
-        webhookSigningConfigured,
+        mode: capture.mode,
+        paidTrafficReady: capture.paidTrafficReady,
+        requireWebhook: capture.requireWebhook,
+        storageConfigured: capture.storageConfigured,
+        storageMisconfigured: capture.storageMisconfigured,
+        storageProvider: capture.storageProvider,
+        webhookConfigured: capture.webhookConfigured,
+        webhookEndpointConfigured: capture.webhookEndpointConfigured,
+        webhookMisconfigured: capture.webhookMisconfigured,
+        webhookSigningConfigured: capture.webhookSigningConfigured,
       },
     },
     {

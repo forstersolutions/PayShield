@@ -94,8 +94,9 @@ deployments, partner demos, and pilot demand capture.
 - `/api/health` reports public-safe deployment and waitlist readiness state
   without exposing the webhook URL or signing secret.
 - `/api/health` can prove paid-traffic-ready durable capture through either a
-  signed webhook receiver or Vercel Marketplace Upstash Redis storage without
-  exposing storage URLs or REST tokens.
+  signed HTTPS webhook receiver or Vercel Marketplace Upstash Redis storage
+  without exposing storage URLs or REST tokens. Localhost HTTP is allowed only
+  for non-production receiver proofs.
 - Signed webhook receiver utility for validating HMAC headers and writing leads
   to ignored local NDJSON/CSV files when a lightweight receiver is needed.
 - Waitlist webhook payloads include a `submissionId`, consent text, consent
@@ -144,6 +145,10 @@ deployments, partner demos, and pilot demand capture.
   Slack, Make, Zapier, or internal webhook.
 - For a webhook path, set `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` so the receiving
   webhook can validate the HMAC-SHA256 signature headers before storing leads.
+- For a webhook path in Vercel Production, use an HTTPS webhook URL. Localhost
+  HTTP is only accepted by the app for local/non-production receiver proof.
+  Keep credentials, query strings, and fragments out of the webhook URL; use a
+  path-scoped provider URL plus `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` for signing.
 - For the Vercel-native storage path, install Upstash Redis from Vercel
   Marketplace, set `PAYSHIELD_WAITLIST_STORAGE=upstash`, and configure
   `UPSTASH_REDIS_REST_URL` plus `UPSTASH_REDIS_REST_TOKEN` in Vercel

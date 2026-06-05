@@ -122,6 +122,8 @@ function durableCaptureReady(waitlist) {
   const webhookReady =
     waitlist.mode === "webhook" &&
     waitlist.webhookConfigured === true &&
+    waitlist.webhookEndpointConfigured !== false &&
+    waitlist.webhookMisconfigured !== true &&
     waitlist.webhookSigningConfigured === true;
   const storageReady =
     waitlist.mode === "upstash" &&

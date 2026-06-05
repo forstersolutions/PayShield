@@ -138,6 +138,33 @@ test("fails unsigned webhook capture in paid-traffic mode", () => {
   );
 });
 
+test("fails misconfigured webhook capture in paid-traffic mode", () => {
+  const result = evaluatePaidTrafficReadiness(
+    evidence({
+      health: {
+        ok: false,
+        service: "payshield-market-site",
+        siteUrl: expectedSiteUrl,
+        waitlist: {
+          mode: "webhook",
+          paidTrafficReady: false,
+          requireWebhook: true,
+          webhookConfigured: true,
+          webhookEndpointConfigured: false,
+          webhookMisconfigured: true,
+          webhookSigningConfigured: true,
+        },
+      },
+    }),
+  );
+
+  assert.equal(result.ok, false);
+  assert.match(
+    result.failures.join("\n"),
+    /paid-traffic-ready durable lead capture/,
+  );
+});
+
 test("allows prototype mode while warning about demo capture", () => {
   const result = evaluatePaidTrafficReadiness(
     evidence({

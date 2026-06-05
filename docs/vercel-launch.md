@@ -62,6 +62,9 @@ public site URL. The webhook URL, shared signing secret, Upstash REST URL, and
 Upstash REST token are server-only.
 `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` makes valid waitlist submissions fail
 closed unless a signed webhook path or Upstash storage path is configured.
+Production webhook URLs must use HTTPS and must not include credentials, query
+strings, or fragments. Localhost HTTP is accepted only for local receiver proof
+outside Vercel Production.
 
 For Vercel-native durable capture, install Upstash Redis through Vercel
 Marketplace and let Vercel inject the encrypted Redis REST env vars. Then set
@@ -426,6 +429,7 @@ sensitive financial details, and free-text pilot notes.
 `waitlist.mode: "demo"` and `waitlist.paidTrafficReady: false`. After the
 webhook URL, signing secret, and `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` are
 configured, it should return `waitlist.mode: "webhook"`,
+`waitlist.webhookEndpointConfigured: true`,
 `waitlist.webhookSigningConfigured: true`, and
 `waitlist.paidTrafficReady: true`. After Upstash capture is configured, it
 should return `waitlist.mode: "upstash"`, `waitlist.storageConfigured: true`, and

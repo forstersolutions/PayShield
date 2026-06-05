@@ -6,6 +6,7 @@ import {
   pilotCampaignAnalyticsProperties,
   type CampaignAttribution,
 } from "../../lib/pilot-analytics.ts";
+import { getWaitlistCaptureConfig } from "../../lib/waitlist-capture-config.ts";
 
 type WaitlistPayload = {
   attribution?: unknown;
@@ -67,10 +68,6 @@ const privacyVersion = "pilot-privacy-2026-06-05";
 const termsVersion = "pilot-terms-2026-06-05";
 
 class WaitlistConfigurationError extends Error {}
-
-function waitlistStorageMode() {
-  return process.env.PAYSHIELD_WAITLIST_STORAGE?.trim().toLowerCase() ?? "";
-}
 
 function cleanText(value: unknown, maxLength: number) {
   if (typeof value !== "string") {
@@ -195,12 +192,11 @@ function isRateLimited(key: string) {
 }
 
 async function forwardToWebhook(data: WaitlistSubmission) {
-  const webhookUrl = process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
-  const requireWebhook = process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK === "true";
+  const capture = getWaitlistCaptureConfig();
   const secret = process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET?.trim() ?? "";
 
-  if (!webhookUrl) {
-    if (requireWebhook) {
+  if (!capture.webhookUrl) {
+    if (capture.requireWebhook) {
       throw new WaitlistConfigurationError(
         "PAYSHIELD_WAITLIST_WEBHOOK_URL is required when PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true",
       );
@@ -209,7 +205,13 @@ async function forwardToWebhook(data: WaitlistSubmission) {
     return { mode: "demo" as const };
   }
 
-  if (requireWebhook && !secret) {
+  if (!capture.webhook || !capture.webhookEndpointConfigured) {
+    throw new WaitlistConfigurationError(
+      "PAYSHIELD_WAITLIST_WEBHOOK_URL must be a valid HTTPS URL without credentials, query strings, or fragments. Localhost HTTP is allowed only outside Vercel production.",
+    );
+  }
+
+  if (capture.requireWebhook && !secret) {
     throw new WaitlistConfigurationError(
       "PAYSHIELD_WAITLIST_WEBHOOK_SECRET is required when PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true",
     );
@@ -223,7 +225,7 @@ async function forwardToWebhook(data: WaitlistSubmission) {
         .digest("hex")}`
     : "";
 
-  const response = await fetch(webhookUrl, {
+  const response = await fetch(capture.webhook.toString(), {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -319,7 +321,7 @@ async function storeInUpstash(data: WaitlistSubmission) {
 }
 
 async function captureWaitlistSubmission(data: WaitlistSubmission) {
-  if (waitlistStorageMode() === "upstash") {
+  if (getWaitlistCaptureConfig().mode === "upstash") {
     return storeInUpstash(data);
   }
 

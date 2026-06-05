@@ -15,6 +15,8 @@ async function parseJson(response: Response) {
       storageMisconfigured?: unknown;
       storageProvider?: unknown;
       webhookConfigured?: unknown;
+      webhookEndpointConfigured?: unknown;
+      webhookMisconfigured?: unknown;
       webhookSigningConfigured?: unknown;
     };
   };
@@ -27,6 +29,7 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
   delete process.env.UPSTASH_REDIS_REST_TOKEN;
   delete process.env.UPSTASH_REDIS_REST_URL;
+  delete process.env.VERCEL_ENV;
 });
 
 test("reports demo waitlist mode without exposing webhook details", async () => {
@@ -44,6 +47,8 @@ test("reports demo waitlist mode without exposing webhook details", async () => 
   assert.equal(body.waitlist?.storageMisconfigured, false);
   assert.equal(body.waitlist?.storageProvider, null);
   assert.equal(body.waitlist?.webhookConfigured, false);
+  assert.equal(body.waitlist?.webhookEndpointConfigured, false);
+  assert.equal(body.waitlist?.webhookMisconfigured, false);
   assert.equal(body.waitlist?.webhookSigningConfigured, false);
   assert.equal(serialized.includes("PAYSHIELD_WAITLIST_WEBHOOK_SECRET"), false);
   assert.equal(serialized.includes("UPSTASH_REDIS_REST_TOKEN"), false);
@@ -74,6 +79,8 @@ test("reports unhealthy when webhook persistence is required but unsigned", asyn
   assert.equal(body.ok, false);
   assert.equal(body.waitlist?.mode, "webhook");
   assert.equal(body.waitlist?.webhookConfigured, true);
+  assert.equal(body.waitlist?.webhookEndpointConfigured, true);
+  assert.equal(body.waitlist?.webhookMisconfigured, false);
   assert.equal(body.waitlist?.webhookSigningConfigured, false);
   assert.equal(body.waitlist?.paidTrafficReady, false);
   assert.equal(serialized.includes("https://example.com/webhook"), false);
@@ -92,9 +99,56 @@ test("reports paid-traffic ready when signed webhook persistence is required and
   assert.equal(body.ok, true);
   assert.equal(body.waitlist?.mode, "webhook");
   assert.equal(body.waitlist?.webhookConfigured, true);
+  assert.equal(body.waitlist?.webhookEndpointConfigured, true);
+  assert.equal(body.waitlist?.webhookMisconfigured, false);
   assert.equal(body.waitlist?.webhookSigningConfigured, true);
   assert.equal(body.waitlist?.paidTrafficReady, true);
   assert.equal(serialized.includes("https://example.com/webhook"), false);
+  assert.equal(serialized.includes("secret-value"), false);
+});
+
+test("reports unhealthy when production webhook persistence is not HTTPS", async () => {
+  process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL = "http://example.com/webhook";
+  process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET = "secret-value";
+  process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK = "true";
+  process.env.VERCEL_ENV = "production";
+
+  const response = GET();
+  const body = await parseJson(response);
+  const serialized = JSON.stringify(body);
+
+  assert.equal(response.status, 503);
+  assert.equal(body.ok, false);
+  assert.equal(body.waitlist?.mode, "webhook");
+  assert.equal(body.waitlist?.webhookConfigured, true);
+  assert.equal(body.waitlist?.webhookEndpointConfigured, false);
+  assert.equal(body.waitlist?.webhookMisconfigured, true);
+  assert.equal(body.waitlist?.webhookSigningConfigured, true);
+  assert.equal(body.waitlist?.paidTrafficReady, false);
+  assert.equal(serialized.includes("http://example.com/webhook"), false);
+  assert.equal(serialized.includes("secret-value"), false);
+});
+
+test("reports unhealthy when webhook URL includes unsafe secret-bearing parts", async () => {
+  process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL =
+    "https://example.com/webhook?token=secret";
+  process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET = "secret-value";
+  process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK = "true";
+  process.env.VERCEL_ENV = "production";
+
+  const response = GET();
+  const body = await parseJson(response);
+  const serialized = JSON.stringify(body);
+
+  assert.equal(response.status, 503);
+  assert.equal(body.ok, false);
+  assert.equal(body.waitlist?.mode, "webhook");
+  assert.equal(body.waitlist?.webhookConfigured, true);
+  assert.equal(body.waitlist?.webhookEndpointConfigured, false);
+  assert.equal(body.waitlist?.webhookMisconfigured, true);
+  assert.equal(body.waitlist?.webhookSigningConfigured, true);
+  assert.equal(body.waitlist?.paidTrafficReady, false);
+  assert.equal(serialized.includes("token=secret"), false);
   assert.equal(serialized.includes("secret-value"), false);
 });
 
