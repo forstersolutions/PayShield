@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { test } from "node:test";
 import { NextRequest } from "next/server.js";
@@ -32,7 +33,10 @@ async function parseJson(response: Response) {
 function startWebhook(status = 200) {
   const requests: Array<{
     body: Record<string, unknown>;
+    rawBody: string;
     secret: string | null;
+    signature: string | null;
+    timestamp: string | null;
   }> = [];
 
   const server = createServer((request: IncomingMessage, response: ServerResponse) => {
@@ -40,12 +44,16 @@ function startWebhook(status = 200) {
 
     request.on("data", (chunk: Buffer) => chunks.push(chunk));
     request.on("end", () => {
+      const rawBody = Buffer.concat(chunks).toString("utf8");
+
       requests.push({
-        body: JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<
-          string,
-          unknown
-        >,
+        body: JSON.parse(rawBody) as Record<string, unknown>,
+        rawBody,
         secret: request.headers["x-payshield-webhook-secret"]?.toString() ?? null,
+        signature:
+          request.headers["x-payshield-webhook-signature"]?.toString() ?? null,
+        timestamp:
+          request.headers["x-payshield-webhook-timestamp"]?.toString() ?? null,
       });
       response.writeHead(status, { "content-type": "application/json" });
       response.end(JSON.stringify({ ok: status < 400 }));
@@ -239,7 +247,17 @@ test("forwards valid submissions to the configured webhook", async () => {
     assert.equal(response.status, 200);
     assert.equal(body.mode, "webhook");
     assert.equal(webhook.requests.length, 1);
-    assert.equal(webhook.requests[0]?.secret, "shared-secret");
+    assert.equal(webhook.requests[0]?.secret, null);
+    assert.match(webhook.requests[0]?.timestamp ?? "", /^\d+$/);
+    assert.match(webhook.requests[0]?.signature ?? "", /^v1=[a-f0-9]{64}$/);
+    assert.equal(
+      webhook.requests[0]?.signature,
+      `v1=${createHmac("sha256", "shared-secret")
+        .update(
+          `${webhook.requests[0]?.timestamp}.${webhook.requests[0]?.rawBody}`,
+        )
+        .digest("hex")}`,
+    );
     assert.equal(webhook.requests[0]?.body.email, "partner@example.com");
     assert.equal(webhook.requests[0]?.body.segment, "Investor or partner");
     assert.equal(

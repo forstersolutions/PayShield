@@ -50,8 +50,8 @@ deployments, partner demos, and pilot demand capture.
 
 - Set `PAYSHIELD_WAITLIST_WEBHOOK_URL` to a CRM, Airtable, Slack, Make, Zapier,
   or internal webhook.
-- Set `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` if the receiving webhook validates a
-  shared secret.
+- Set `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` so the receiving webhook can validate
+  the HMAC-SHA256 signature headers before storing leads.
 - Set `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` after the webhook is configured
   so valid public submissions do not return demo-mode success.
 - Confirm the receiving webhook responds in under eight seconds.

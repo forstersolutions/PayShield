@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server.js";
 import { track } from "@vercel/analytics/server";
 
@@ -111,19 +112,28 @@ async function forwardToWebhook(data: WaitlistSubmission) {
     return { mode: "demo" as const };
   }
 
+  const body = JSON.stringify(data);
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const secret = process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET;
+  const signature = secret
+    ? `v1=${createHmac("sha256", secret)
+        .update(`${timestamp}.${body}`)
+        .digest("hex")}`
+    : "";
+
   const response = await fetch(webhookUrl, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      ...(process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET
+      ...(signature
         ? {
-            "x-payshield-webhook-secret":
-              process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET,
+            "x-payshield-webhook-signature": signature,
+            "x-payshield-webhook-timestamp": timestamp,
           }
         : {}),
     },
     signal: AbortSignal.timeout(webhookTimeoutMs),
-    body: JSON.stringify(data),
+    body,
   });
 
   if (!response.ok) {

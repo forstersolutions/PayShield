@@ -114,6 +114,8 @@ requireText("scripts/smoke-deploy.mjs", "x-content-type-options");
 requireText("scripts/smoke-deploy.mjs", "permissions-policy");
 requireText("scripts/smoke-deploy.mjs", "payshield-social-card.jpg");
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
+requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-signature");
+requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-timestamp");
 requireText("vercel.json", '"framework": "nextjs"');
 
 requireMaxSize("src/app/icon.svg", 5_000);

@@ -44,7 +44,7 @@ PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true
 ```
 
 `NEXT_PUBLIC_SITE_URL` is exposed to the browser and should contain only the
-public site URL. The webhook URL and shared secret are server-only.
+public site URL. The webhook URL and shared signing secret are server-only.
 `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` makes valid waitlist submissions fail
 closed unless the webhook URL is configured.
 
@@ -68,9 +68,33 @@ submissions will not persist outside Vercel logs and analytics.
 }
 ```
 
-The request includes `x-payshield-webhook-secret` when
-`PAYSHIELD_WAITLIST_WEBHOOK_SECRET` is configured. The receiving endpoint should
-respond in under eight seconds.
+When `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` is configured, the request includes:
+
+- `x-payshield-webhook-timestamp`: Unix timestamp in seconds.
+- `x-payshield-webhook-signature`: `v1=<hex-hmac-sha256>`.
+
+The HMAC message is `${timestamp}.${rawBody}` using the exact JSON request body.
+The receiving endpoint should reject missing or invalid signatures, reject stale
+timestamps, and respond in under eight seconds.
+
+Node verification example:
+
+```js
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+function verifyPayShieldSignature({ rawBody, secret, signature, timestamp }) {
+  const expected = `v1=${createHmac("sha256", secret)
+    .update(`${timestamp}.${rawBody}`)
+    .digest("hex")}`;
+  const signatureBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+
+  return (
+    signatureBuffer.length === expectedBuffer.length &&
+    timingSafeEqual(signatureBuffer, expectedBuffer)
+  );
+}
+```
 
 ## Post-Deploy Smoke Checks
 

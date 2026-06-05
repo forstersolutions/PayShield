@@ -74,9 +74,11 @@ limiting and request-size guardrails, filters a honeypot field, and forwards
 submissions to `PAYSHIELD_WAITLIST_WEBHOOK_URL` when configured. Without the
 webhook, the form returns a demo-mode success so the Vercel preview can still be
 used in investor and partner conversations.
-If `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` is set, it is forwarded as
-`x-payshield-webhook-secret`. Webhook delivery times out after eight seconds so
-slow downstream tools do not hold the request open indefinitely.
+If `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` is set, PayShield signs the exact JSON
+body with HMAC-SHA256 and sends `x-payshield-webhook-signature` plus
+`x-payshield-webhook-timestamp`. The raw secret is not forwarded. Webhook
+delivery times out after eight seconds so slow downstream tools do not hold the
+request open indefinitely.
 Set `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` before paid traffic so valid
 submissions fail closed instead of appearing successful without durable lead
 capture.
