@@ -39,6 +39,8 @@ npm run receiver:docker:build
 npm run receiver:docker:smoke
 npm run receiver:evidence -- --url https://your-webhook-url --data-dir /path/to/waitlist --backup-dir /secure/path
 npm run receiver:managed:check -- --file launch-evidence/receiver-evidence.json
+npm run receiver:blob:evidence -- https://payshield-lime.vercel.app --site-url https://payshield-lime.vercel.app --output launch-evidence/receiver-evidence.json
+npm run receiver:blob:check -- --file launch-evidence/receiver-evidence.json
 npm run receiver:upstash:check -- --file launch-evidence/receiver-evidence.json
 npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com
 npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com --allow-prototype
@@ -102,6 +104,10 @@ NEXT_PUBLIC_SITE_URL=https://your-domain.com
 PAYSHIELD_WAITLIST_WEBHOOK_URL=https://your-webhook-url
 PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook
 
+# Vercel-native Blob capture path:
+PAYSHIELD_WAITLIST_STORAGE=blob
+BLOB_READ_WRITE_TOKEN=server-side-blob-token
+
 # Vercel-native Upstash capture path:
 PAYSHIELD_WAITLIST_STORAGE=upstash
 UPSTASH_REDIS_REST_URL=https://your-upstash-endpoint
@@ -114,10 +120,12 @@ PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true
 `/api/waitlist` validates pilot requests, applies bounded in-memory rate
 limiting and request-size guardrails, filters a honeypot field, and forwards
 submissions to `PAYSHIELD_WAITLIST_WEBHOOK_URL` when configured. If
-`PAYSHIELD_WAITLIST_STORAGE=upstash` is set, it stores validated submissions in
-Vercel Marketplace Upstash Redis instead. Without webhook or Upstash capture,
-the form returns a demo-mode success so the Vercel preview can still be used in
-investor and partner conversations.
+`PAYSHIELD_WAITLIST_STORAGE=blob` is set, it stores one private JSON object per
+validated submission in Vercel Blob. If `PAYSHIELD_WAITLIST_STORAGE=upstash` is
+set, it stores validated submissions in Vercel Marketplace Upstash Redis
+instead. Without webhook, Blob, or Upstash capture, the form returns a
+demo-mode success so the Vercel preview can still be used in investor and
+partner conversations.
 The form also captures allowlisted campaign attribution from `utm_source`,
 `utm_medium`, `utm_campaign`, `utm_content`, and `utm_term`, plus the landing
 path without query parameters. The API re-sanitizes those fields before sending
@@ -135,7 +143,10 @@ delivery times out after eight seconds so slow downstream tools do not hold the
 request open indefinitely.
 Set `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` before paid traffic so valid
 submissions fail closed instead of appearing successful without durable lead
-capture. For the Vercel-native path, install Upstash Redis from Vercel
+capture. For the preferred Vercel-native path, create a private Vercel Blob
+store, set `PAYSHIELD_WAITLIST_STORAGE=blob`, and confirm Vercel has injected
+`BLOB_READ_WRITE_TOKEN` as an encrypted server-side Production env var.
+For the alternate Vercel-native path, install Upstash Redis from Vercel
 Marketplace, set `PAYSHIELD_WAITLIST_STORAGE=upstash`, and configure
 `UPSTASH_REDIS_REST_URL` plus `UPSTASH_REDIS_REST_TOKEN` as encrypted
 Production env vars.
@@ -250,6 +261,28 @@ If production capture uses Vercel Marketplace Upstash Redis, copy
 `launch-evidence/receiver-evidence.json`, fill it after `/api/health`,
 production submit, storage, export, and deletion review, then run
 `npm run receiver:upstash:check -- --file launch-evidence/receiver-evidence.json`.
+
+If production capture uses Vercel Blob, copy
+`launch-evidence/blob-receiver-evidence-template.json` to
+`launch-evidence/receiver-evidence.json`, fill it after `/api/health`,
+production submit, private Blob object, export, and deletion review, then run
+`npm run receiver:blob:check -- --file launch-evidence/receiver-evidence.json`.
+After Production is configured and redeployed, generate redacted proof directly
+from the live site and private store:
+
+```bash
+BLOB_READ_WRITE_TOKEN=server-side-blob-token \
+  npm run receiver:blob:evidence -- \
+  https://payshield-lime.vercel.app \
+  --site-url https://payshield-lime.vercel.app \
+  --reviewer "Launch operator" \
+  --storage-owner "Revenue operations" \
+  --deletion-process-documented \
+  --export-process-documented \
+  --output launch-evidence/receiver-evidence.json
+
+npm run receiver:blob:check -- --file launch-evidence/receiver-evidence.json
+```
 
 `npm run webhook:test -- https://your-webhook-url --replay` sends one signed
 sample payload to any receiver using `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`, then

@@ -27,6 +27,7 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_WAITLIST_STORAGE;
   delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET;
   delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
+  delete process.env.BLOB_READ_WRITE_TOKEN;
   delete process.env.UPSTASH_REDIS_REST_TOKEN;
   delete process.env.UPSTASH_REDIS_REST_URL;
   delete process.env.VERCEL_ENV;
@@ -173,6 +174,41 @@ test("reports paid-traffic ready when Upstash persistence is required and config
   assert.equal(body.waitlist?.webhookSigningConfigured, false);
   assert.equal(serialized.includes("known-lion.upstash.io"), false);
   assert.equal(serialized.includes("upstash-secret"), false);
+});
+
+test("reports paid-traffic ready when Blob persistence is required and configured", async () => {
+  process.env.BLOB_READ_WRITE_TOKEN = "blob-secret";
+  process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK = "true";
+  process.env.PAYSHIELD_WAITLIST_STORAGE = "blob";
+
+  const response = GET();
+  const body = await parseJson(response);
+  const serialized = JSON.stringify(body);
+
+  assert.equal(response.status, 200);
+  assert.equal(body.ok, true);
+  assert.equal(body.waitlist?.mode, "blob");
+  assert.equal(body.waitlist?.paidTrafficReady, true);
+  assert.equal(body.waitlist?.storageConfigured, true);
+  assert.equal(body.waitlist?.storageMisconfigured, false);
+  assert.equal(body.waitlist?.storageProvider, "blob");
+  assert.equal(body.waitlist?.webhookConfigured, false);
+  assert.equal(body.waitlist?.webhookSigningConfigured, false);
+  assert.equal(serialized.includes("blob-secret"), false);
+});
+
+test("reports unhealthy when Blob persistence is selected but missing token", async () => {
+  process.env.PAYSHIELD_WAITLIST_STORAGE = "blob";
+
+  const response = GET();
+  const body = await parseJson(response);
+
+  assert.equal(response.status, 503);
+  assert.equal(body.ok, false);
+  assert.equal(body.waitlist?.mode, "blob");
+  assert.equal(body.waitlist?.storageConfigured, false);
+  assert.equal(body.waitlist?.storageMisconfigured, true);
+  assert.equal(body.waitlist?.paidTrafficReady, false);
 });
 
 test("reports unhealthy when Upstash persistence is selected but missing credentials", async () => {

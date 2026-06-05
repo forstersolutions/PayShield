@@ -6,6 +6,7 @@ import {
   pilotCampaignAnalyticsProperties,
   type CampaignAttribution,
 } from "../../lib/pilot-analytics.ts";
+import { putWaitlistBlob } from "../../lib/waitlist-blob-storage.ts";
 import { getWaitlistCaptureConfig } from "../../lib/waitlist-capture-config.ts";
 
 type WaitlistPayload = {
@@ -264,6 +265,24 @@ function leadEmailHash(email: string) {
     .slice(0, 24);
 }
 
+async function storeInBlob(data: WaitlistSubmission) {
+  const token = process.env.BLOB_READ_WRITE_TOKEN?.trim() ?? "";
+
+  if (!token) {
+    throw new WaitlistConfigurationError(
+      "BLOB_READ_WRITE_TOKEN is required when PAYSHIELD_WAITLIST_STORAGE=blob",
+    );
+  }
+
+  await putWaitlistBlob({
+    data,
+    prefix: process.env.PAYSHIELD_WAITLIST_STORAGE_PREFIX ?? "payshield:waitlist",
+    token,
+  });
+
+  return { mode: "blob" as const };
+}
+
 async function storeInUpstash(data: WaitlistSubmission) {
   const restUrl = process.env.UPSTASH_REDIS_REST_URL?.trim() ?? "";
   const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim() ?? "";
@@ -321,7 +340,13 @@ async function storeInUpstash(data: WaitlistSubmission) {
 }
 
 async function captureWaitlistSubmission(data: WaitlistSubmission) {
-  if (getWaitlistCaptureConfig().mode === "upstash") {
+  const capture = getWaitlistCaptureConfig();
+
+  if (capture.mode === "blob") {
+    return storeInBlob(data);
+  }
+
+  if (capture.mode === "upstash") {
     return storeInUpstash(data);
   }
 
@@ -505,8 +530,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ok: true,
       mode: result.mode,
+      receiptId:
+        result.mode === "blob" ||
+        result.mode === "upstash" ||
+        result.mode === "webhook"
+          ? submission.submissionId
+          : undefined,
       message:
-        result.mode === "webhook" || result.mode === "upstash"
+        result.mode === "blob" ||
+        result.mode === "upstash" ||
+        result.mode === "webhook"
           ? "Pilot request received."
           : "Prototype request accepted for this walkthrough. Pilot capture opens when production lead storage is enabled.",
     });

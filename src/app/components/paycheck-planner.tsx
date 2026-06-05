@@ -5,15 +5,22 @@ import {
   AlertTriangle,
   ArrowRight,
   Baby,
+  CalendarDays,
   Car,
   CheckCircle2,
   CircleDollarSign,
   Home,
   KeyRound,
   Landmark,
+  ListChecks,
   Lock,
   Plane,
+  RefreshCcw,
   ShieldCheck,
+  SlidersHorizontal,
+  TimerReset,
+  TrendingUp,
+  Users,
   Umbrella,
   WalletCards,
   XCircle,
@@ -204,6 +211,37 @@ export function PaycheckPlanner() {
   const recoveryChecks = unlockMode === "slow" ? 2 : 1;
   const recoveryAmount = Math.ceil(actualUnlock / recoveryChecks);
   const safeSpendShare = paycheck > 0 ? (plan.safeSpend / paycheck) * 100 : 0;
+  const coveredBuckets = plan.allocations.filter((bucket) => bucket.short === 0);
+  const priorityQueue = plan.allocations
+    .filter((bucket) => bucket.protection !== "Flexible")
+    .slice(0, 4);
+  const firstShortBucket = plan.allocations.find((bucket) => bucket.short > 0);
+  const operatingVitals = [
+    {
+      body: "Rules ready for the next funding event",
+      icon: CalendarDays,
+      label: "Next paycheck",
+      value: "Jun 14",
+    },
+    {
+      body: `${coveredBuckets.length} of ${plan.allocations.length} buckets covered`,
+      icon: ListChecks,
+      label: "Coverage",
+      value: firstShortBucket ? `${firstShortBucket.name} short` : "All covered",
+    },
+    {
+      body: `${merchant} ${cardApproved ? "inside" : "over"} current safe-spend`,
+      icon: SlidersHorizontal,
+      label: "Card guard",
+      value: cardApproved ? "Allow" : "Block",
+    },
+    {
+      body: "Recovery plan generated before unlock",
+      icon: RefreshCcw,
+      label: "Unlock policy",
+      value: unlockMode === "slow" ? "24h review" : "Instant review",
+    },
+  ];
   const heroSignals = [
     {
       body: "Bills and goals funded first",
@@ -241,6 +279,30 @@ export function PaycheckPlanner() {
       title: cardApproved ? "3. Transaction approved" : "3. Transaction declined",
     },
   ];
+  const activity = [
+    {
+      body: `${formatMoney(plan.protectedFunded)} reserved from the modeled paycheck before everyday spending.`,
+      icon: ShieldCheck,
+      title: "Paycheck rules applied",
+    },
+    {
+      body: `${formatMoney(plan.safeSpend)} exposed to the card-control simulation after bucket funding.`,
+      icon: WalletCards,
+      title: "Safe-spend balance refreshed",
+    },
+    {
+      body: cardApproved
+        ? `${merchant} can clear because ${formatMoney(cardAmount)} stays within safe spend.`
+        : `${merchant} is blocked because ${formatMoney(cardAmount)} exceeds safe spend.`,
+      icon: cardApproved ? CheckCircle2 : XCircle,
+      title: cardApproved ? "Purchase cleared" : "Purchase blocked",
+    },
+    {
+      body: `${formatMoney(actualUnlock)} unlock request creates ${formatMoney(recoveryAmount)} refill steps.`,
+      icon: TimerReset,
+      title: "Recovery rule staged",
+    },
+  ];
 
   function updateBucketAmount(id: BucketId, nextAmount: number) {
     setBucketAmounts((current) => ({
@@ -273,20 +335,26 @@ export function PaycheckPlanner() {
             aria-label="Primary"
             className="flex flex-wrap items-center gap-1 rounded-[8px] border border-white/10 bg-white/[0.035] p-1 text-sm font-medium text-[#d6cfbf]"
           >
-            <a className="rounded-[8px] px-3 py-2 hover:bg-white/10" href="#rails">
-              Rails
+            <a className="rounded-[8px] px-3 py-2 hover:bg-white/10" href="#product">
+              Today
             </a>
             <a
               className="rounded-[8px] px-3 py-2 hover:bg-white/10"
-              href="#pricing"
+              href="#buckets"
             >
-              Pricing
+              Buckets
             </a>
             <a
               className="rounded-[8px] px-3 py-2 hover:bg-white/10"
-              href="#launch"
+              href="#card-guard"
             >
-              Launch
+              Card guard
+            </a>
+            <a
+              className="rounded-[8px] px-3 py-2 hover:bg-white/10"
+              href="#recovery"
+            >
+              Recovery
             </a>
             <a
               className="inline-flex items-center gap-2 rounded-[8px] bg-emerald-300 px-4 py-2 font-semibold text-[#07110f] hover:bg-emerald-200"
@@ -309,9 +377,9 @@ export function PaycheckPlanner() {
                 PayShield
               </h1>
               <p className="mt-3 max-w-2xl text-lg leading-8 text-[#b9b2a3]">
-                A protected-paycheck app concept designed to turn paychecks
-                into bill buckets, goal reserves, and one honest safe-to-spend
-                balance.
+                A protected-paycheck workspace that turns each paycheck into
+                bill buckets, goal reserves, card guardrails, and one honest
+                safe-to-spend balance.
               </p>
             </div>
 
@@ -341,16 +409,42 @@ export function PaycheckPlanner() {
               })}
             </div>
 
+            <div className="mb-4 grid max-w-4xl gap-3 md:grid-cols-4">
+              {operatingVitals.map((vital) => {
+                const Icon = vital.icon;
+
+                return (
+                  <div
+                    className="rounded-[8px] border border-white/10 bg-[#060908]/75 p-3 ring-1 ring-white/[0.03]"
+                    key={vital.label}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8d9b92]">
+                        {vital.label}
+                      </p>
+                      <Icon className="size-4 text-[#75d6ff]" aria-hidden="true" />
+                    </div>
+                    <p className="mt-2 text-sm font-semibold text-[#f7f2e7]">
+                      {vital.value}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-[#a8b0a6]">
+                      {vital.body}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+
             <div className="overflow-hidden rounded-[8px] border border-white/10 bg-[#0c120f]/95 shadow-[0_28px_110px_rgba(0,0,0,0.5)] ring-1 ring-emerald-300/10">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-white/[0.035] px-4 py-3">
                 <div className="flex items-center gap-3">
                   <span className="size-2 rounded-full bg-emerald-300 shadow-[0_0_16px_rgba(110,231,183,0.7)]" />
                   <div>
                     <p className="text-sm font-semibold text-[#f7f2e7]">
-                      Live paycheck model
+                      Paycheck command center
                     </p>
                     <p className="text-xs leading-5 text-[#9c9588]">
-                      Demo rules, real launch positioning
+                      Interactive rules, protected states, and card outcomes
                     </p>
                   </div>
                 </div>
@@ -459,7 +553,7 @@ export function PaycheckPlanner() {
                   </div>
                 </aside>
 
-                <div className="min-w-0 p-4">
+                <div id="buckets" className="min-w-0 p-4">
                   <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-[#f7f2e7]">
@@ -485,13 +579,74 @@ export function PaycheckPlanner() {
                       />
                     ))}
                   </div>
+
+                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                    <div className="rounded-[8px] border border-white/10 bg-[#070807] p-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-[#f7f2e7]">
+                          Priority queue
+                        </p>
+                        <TrendingUp
+                          className="size-4 text-[#75d6ff]"
+                          aria-hidden="true"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        {priorityQueue.map((bucket, index) => (
+                          <div
+                            className="flex items-center justify-between gap-3 rounded-[8px] border border-white/10 bg-white/[0.03] px-3 py-2"
+                            key={bucket.id}
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-[#f4f1e8]">
+                                {index + 1}. {bucket.name}
+                              </p>
+                              <p className="text-xs text-[#9c9588]">
+                                {bucket.protection} - {bucket.due}
+                              </p>
+                            </div>
+                            <p
+                              className={`text-sm font-semibold ${
+                                bucket.short > 0 ? "text-amber-300" : "text-emerald-300"
+                              }`}
+                            >
+                              {bucket.short > 0
+                                ? `${formatMoney(bucket.short)} short`
+                                : "Locked"}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[8px] border border-white/10 bg-[#070807] p-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-[#f7f2e7]">
+                          Household access
+                        </p>
+                        <Users className="size-4 text-emerald-300" aria-hidden="true" />
+                      </div>
+                      <div className="grid gap-2 text-sm leading-6 text-[#c8c0af]">
+                        <p className="rounded-[8px] border border-white/10 bg-white/[0.03] px-3 py-2">
+                          Primary user can adjust bucket targets before rules lock.
+                        </p>
+                        <p className="rounded-[8px] border border-white/10 bg-white/[0.03] px-3 py-2">
+                          Partner view can see coverage, shortfalls, and recovery
+                          plans without seeing notes.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
           <aside className="grid gap-4">
-            <div className="overflow-hidden rounded-[8px] border border-white/10 bg-[#0c120f]/95 shadow-[0_24px_90px_rgba(0,0,0,0.42)] ring-1 ring-white/5">
+            <div
+              id="card-guard"
+              className="overflow-hidden rounded-[8px] border border-white/10 bg-[#0c120f]/95 shadow-[0_24px_90px_rgba(0,0,0,0.42)] ring-1 ring-white/5"
+            >
               <div className="flex items-center justify-between gap-3 border-b border-white/10 p-4">
                 <div>
                   <p className="text-sm font-semibold text-[#f7f2e7]">
@@ -637,7 +792,46 @@ export function PaycheckPlanner() {
               </div>
             </div>
 
-            <div className="rounded-[8px] border border-white/10 bg-[#0c120f]/95 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.35)] ring-1 ring-amber-300/10">
+            <div className="rounded-[8px] border border-white/10 bg-[#0c120f]/95 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.35)] ring-1 ring-[#75d6ff]/10">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-[#f7f2e7]">
+                    Protection feed
+                  </p>
+                  <p className="text-sm text-[#9c9588]">
+                    Rule outcomes a user would review.
+                  </p>
+                </div>
+                <ListChecks className="size-5 text-[#75d6ff]" aria-hidden="true" />
+              </div>
+              <div className="grid gap-2">
+                {activity.map((event) => {
+                  const Icon = event.icon;
+
+                  return (
+                    <div
+                      className="flex items-start gap-3 rounded-[8px] border border-white/10 bg-[#070807] p-3"
+                      key={event.title}
+                    >
+                      <Icon className="mt-0.5 size-4 shrink-0 text-[#75d6ff]" aria-hidden="true" />
+                      <div>
+                        <p className="text-sm font-semibold text-[#f7f2e7]">
+                          {event.title}
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-[#b9b2a3]">
+                          {event.body}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div
+              id="recovery"
+              className="rounded-[8px] border border-white/10 bg-[#0c120f]/95 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.35)] ring-1 ring-amber-300/10"
+            >
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-[#f7f2e7]">

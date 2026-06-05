@@ -7,6 +7,10 @@ const commonProductionEnv = [
   "NEXT_PUBLIC_SITE_URL",
   "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK",
 ];
+const blobProductionEnv = [
+  "PAYSHIELD_WAITLIST_STORAGE",
+  "BLOB_READ_WRITE_TOKEN",
+];
 const webhookProductionEnv = [
   "PAYSHIELD_WAITLIST_WEBHOOK_URL",
   "PAYSHIELD_WAITLIST_WEBHOOK_SECRET",
@@ -173,17 +177,28 @@ export function auditVercelEnvList({
     [...commonProductionEnv, ...webhookProductionEnv],
     environment,
   );
+  const blob = auditRequiredVariables(
+    variables,
+    [...commonProductionEnv, ...blobProductionEnv],
+    environment,
+  );
   const upstash = auditRequiredVariables(
     variables,
     [...commonProductionEnv, ...upstashProductionEnv],
     environment,
   );
-  const ok = webhook.ok || upstash.ok;
-  const selected = webhook.ok ? webhook : upstash.ok ? upstash : webhook;
+  const ok = webhook.ok || blob.ok || upstash.ok;
+  const selected = webhook.ok ? webhook : blob.ok ? blob : upstash.ok ? upstash : webhook;
 
   return {
-    capturePath: webhook.ok ? "webhook" : upstash.ok ? "upstash" : "",
+    capturePath: webhook.ok ? "webhook" : blob.ok ? "blob" : upstash.ok ? "upstash" : "",
     capturePaths: {
+      blob: {
+        missing: blob.missing,
+        ok: blob.ok,
+        required: blob.required,
+        wrongEnvironment: blob.wrongEnvironment,
+      },
       upstash: {
         missing: upstash.missing,
         ok: upstash.ok,

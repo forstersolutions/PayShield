@@ -12,7 +12,8 @@ deployments, partner demos, and pilot demand capture.
 - Pilot request form with server-side validation, bounded in-memory rate
   limiting, request-size guardrails, honeypot filtering, required privacy/terms
   consent, sensitive financial-detail rejection, optional webhook forwarding,
-  optional Vercel Marketplace Upstash Redis storage, consent audit fields,
+  optional private Vercel Blob storage, optional Vercel Marketplace Upstash
+  Redis storage, consent audit fields,
   allowlisted campaign attribution from UTM fields, and an opt-in fail-closed
   mode for paid traffic when durable persistence is required.
 - Vercel-compatible Next.js app with production build, metadata, sitemap,
@@ -46,11 +47,15 @@ deployments, partner demos, and pilot demand capture.
   commit, GitHub CI, Vercel deployment readiness, launch evidence, and
   go/no-go remaining gates for repeatable readiness issue updates.
 - Local evidence packet initializer that creates ignored counsel, analytics,
-  managed receiver, and Upstash receiver JSON templates plus redacted
+  managed receiver, Blob receiver, and Upstash receiver JSON templates plus redacted
   receiver/launch/go-no-go commands for the final operator handoff.
 - Vercel webhook cutover planner that validates receiver evidence and prints
   the redacted Production env, redeploy, strict evidence, and required-webhook
   smoke sequence without exposing the signing secret.
+- Private Vercel Blob receiver evidence generator and validator that submit a
+  production smoke lead, verify the exact private object by receipt ID, and
+  emit redacted proof for final go/no-go without printing lead PII or
+  `BLOB_READ_WRITE_TOKEN`.
 - Vercel Upstash cutover planner that validates local Upstash env references
   and prints the redacted Production env, redeploy, strict evidence,
   required-capture smoke, and Upstash evidence commands without exposing the
@@ -93,10 +98,10 @@ deployments, partner demos, and pilot demand capture.
   webhook mode, completion, and failures.
 - `/api/health` reports public-safe deployment and waitlist readiness state
   without exposing the webhook URL or signing secret.
-- `/api/health` can prove paid-traffic-ready durable capture through either a
-  signed HTTPS webhook receiver or Vercel Marketplace Upstash Redis storage
-  without exposing storage URLs or REST tokens. Localhost HTTP is allowed only
-  for non-production receiver proofs.
+- `/api/health` can prove paid-traffic-ready durable capture through a signed
+  HTTPS webhook receiver, private Vercel Blob storage, or Vercel Marketplace
+  Upstash Redis storage without exposing storage URLs or tokens. Localhost HTTP
+  is allowed only for non-production receiver proofs.
 - Signed webhook receiver utility for validating HMAC headers and writing leads
   to ignored local NDJSON/CSV files when a lightweight receiver is needed.
 - Waitlist webhook payloads include a `submissionId`, consent text, consent
@@ -149,8 +154,11 @@ deployments, partner demos, and pilot demand capture.
   HTTP is only accepted by the app for local/non-production receiver proof.
   Keep credentials, query strings, and fragments out of the webhook URL; use a
   path-scoped provider URL plus `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` for signing.
-- For the Vercel-native storage path, install Upstash Redis from Vercel
-  Marketplace, set `PAYSHIELD_WAITLIST_STORAGE=upstash`, and configure
+- For the preferred Vercel-native storage path, create and link a private
+  Vercel Blob store, set `PAYSHIELD_WAITLIST_STORAGE=blob`, and confirm
+  `BLOB_READ_WRITE_TOKEN` is configured in Vercel Production.
+- For the alternate Vercel-native storage path, install Upstash Redis from
+  Vercel Marketplace, set `PAYSHIELD_WAITLIST_STORAGE=upstash`, and configure
   `UPSTASH_REDIS_REST_URL` plus `UPSTASH_REDIS_REST_TOKEN` in Vercel
   Production.
 - Set `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` after the selected capture path
@@ -212,6 +220,10 @@ deployments, partner demos, and pilot demand capture.
   `UPSTASH_REDIS_REST_URL=https://your-upstash-endpoint UPSTASH_REDIS_REST_TOKEN=server-side-rest-token npm run vercel:upstash:cutover -- --site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json --apply-env`
   and apply or follow the printed redacted Vercel Production env, redeploy,
   strict launch evidence, required-capture smoke, and Upstash evidence sequence.
+- If Vercel Blob is used, create and link a private store, set
+  `PAYSHIELD_WAITLIST_STORAGE=blob` and
+  `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true`, redeploy Production, then run the
+  required-capture smoke and Blob evidence sequence.
 - After Upstash capture is configured in Vercel Production and the
   required-capture smoke passes, run
   `UPSTASH_REDIS_REST_URL=https://your-upstash-endpoint UPSTASH_REDIS_REST_TOKEN=server-side-rest-token npm run receiver:upstash:evidence -- https://payshield-lime.vercel.app --site-url https://payshield-lime.vercel.app --reviewer "Launch operator" --storage-owner "Revenue operations" --deletion-process-documented --export-process-documented --output launch-evidence/receiver-evidence.json`,
@@ -220,9 +232,17 @@ deployments, partner demos, and pilot demand capture.
   and attach the redacted output. The command verifies the live Upstash record,
   consent metadata, sanitized attribution, `submissionId`, and email-hash index
   without printing the smoke lead email, REST URL, or token.
+- After Blob capture is configured in Vercel Production and the
+  required-capture smoke passes, run
+  `BLOB_READ_WRITE_TOKEN=server-side-blob-token npm run receiver:blob:evidence -- https://payshield-lime.vercel.app --site-url https://payshield-lime.vercel.app --reviewer "Launch operator" --storage-owner "Revenue operations" --deletion-process-documented --export-process-documented --output launch-evidence/receiver-evidence.json`,
+  then run
+  `npm run receiver:blob:check -- --file launch-evidence/receiver-evidence.json`
+  and attach the redacted output. The command verifies the live private Blob
+  object, consent metadata, sanitized attribution, and `submissionId` without
+  printing the smoke lead email, note, or Blob read-write token.
 - Run `npm run vercel:env:audit` and confirm Vercel Production has
   `NEXT_PUBLIC_SITE_URL`, `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK`, and either the
-  webhook env vars or the Upstash env vars before paid traffic.
+  webhook env vars, Blob env vars, or Upstash env vars before paid traffic.
 - Run `npm run launch:evidence -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app`
   and attach the redacted JSON output to the readiness issue. After production
   durable capture is configured, rerun the command with `--strict`.
@@ -237,7 +257,7 @@ deployments, partner demos, and pilot demand capture.
   to the readiness issue.
 - Confirm `https://payshield-lime.vercel.app/api/health` reports
   either `waitlist.webhookSigningConfigured: true` for webhook capture or
-  `waitlist.storageConfigured: true` for Upstash capture, and
+  `waitlist.storageConfigured: true` for Blob or Upstash capture, and
   `waitlist.paidTrafficReady: true` after the selected durable capture path and
   fail-closed flag are configured.
 - Run `npm run readiness:paid-traffic -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app`
@@ -292,7 +312,8 @@ npm run market:evidence:init -- \
 `launch-evidence/` is ignored by git. The command creates
 `counsel-signoff.json`, `analytics-evidence.json`,
 `managed-receiver-evidence-template.json`,
-`upstash-receiver-evidence-template.json`, and `commands.md` with the exact
+`upstash-receiver-evidence-template.json`,
+`blob-receiver-evidence-template.json`, and `commands.md` with the exact
 redacted receiver, env audit, required-capture smoke, strict launch, final
 go/no-go, and status snapshot commands.
 
@@ -305,6 +326,9 @@ For Vercel Marketplace Upstash Redis, copy
 `upstash-receiver-evidence-template.json` to that path, fill the redacted health,
 production submit, storage, export, and deletion review fields, and run
 `npm run receiver:upstash:check`.
+For Vercel Blob, copy `blob-receiver-evidence-template.json` to that path, fill
+the redacted health, production submit, private object, export, and deletion
+review fields, and run `npm run receiver:blob:check`.
 Production receiver evidence URLs must use HTTPS and must not include
 credentials, query strings, or fragments. Localhost HTTP is accepted only for
 local proof packets, not final paid-traffic go/no-go evidence.

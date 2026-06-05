@@ -126,9 +126,9 @@ function durableCaptureReady(waitlist) {
     waitlist.webhookMisconfigured !== true &&
     waitlist.webhookSigningConfigured === true;
   const storageReady =
-    waitlist.mode === "upstash" &&
+    ["blob", "upstash"].includes(String(waitlist.mode)) &&
     waitlist.storageConfigured === true &&
-    waitlist.storageProvider === "upstash";
+    ["blob", "upstash"].includes(String(waitlist.storageProvider));
 
   return (
     (webhookReady || storageReady) &&

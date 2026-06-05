@@ -255,6 +255,10 @@ export function evaluateReceiverEvidence(evidence) {
     return evaluateManagedReceiverEvidence(evidence);
   }
 
+  if (evidence.receiverType === "blob") {
+    return evaluateBlobReceiverEvidence(evidence);
+  }
+
   if (evidence.receiverType === "upstash") {
     return evaluateUpstashReceiverEvidence(evidence);
   }
@@ -550,6 +554,107 @@ export function evaluateUpstashReceiverEvidence(evidence) {
       reviewer: evidence.reviewer ?? "",
       storageOwner: evidence.storageOwner ?? "",
       storageProvider: "upstash",
+      total: null,
+      urls: {
+        productionUrl,
+      },
+    },
+  };
+}
+
+export function evaluateBlobReceiverEvidence(evidence) {
+  if (!isObject(evidence)) {
+    return missingEvidence("receiverEvidence", "--receiver-evidence-file");
+  }
+
+  const checks = [];
+  const findings = scanEvidenceForSensitiveValues(evidence);
+  const target = isObject(evidence.target) ? evidence.target : {};
+  const health = isObject(evidence.health) ? evidence.health : {};
+  const productionSubmit = isObject(evidence.productionSubmit)
+    ? evidence.productionSubmit
+    : {};
+  const blob = isObject(evidence.blob) ? evidence.blob : {};
+  const productionUrl = publicUrl(
+    target.productionUrl,
+    "Blob production URL",
+    findings,
+  );
+
+  addCheck(checks, "blobReceiverEvidenceOk", evidence.ok === true);
+  addCheck(checks, "blobReceiverType", evidence.receiverType === "blob");
+  addCheck(
+    checks,
+    "blobStorageOwnerRecorded",
+    typeof evidence.storageOwner === "string" &&
+      evidence.storageOwner.trim().length > 0,
+  );
+  addCheck(checks, "blobReviewedAt", isValidIsoDate(evidence.reviewedAt));
+  addCheck(
+    checks,
+    "blobReviewerRecorded",
+    typeof evidence.reviewer === "string" && evidence.reviewer.trim().length > 0,
+  );
+  addCheck(
+    checks,
+    "blobHealthReady",
+    health.mode === "blob" &&
+      health.storageConfigured === true &&
+      health.paidTrafficReady === true,
+  );
+  addCheck(
+    checks,
+    "blobProductionSubmit",
+    isHttpSuccess(productionSubmit.status) &&
+      productionSubmit.mode === "blob" &&
+      typeof productionSubmit.receiptId === "string" &&
+      productionSubmit.receiptId.length > 0,
+    {
+      mode: productionSubmit.mode ?? "",
+      status: productionSubmit.status ?? null,
+    },
+  );
+  addCheck(
+    checks,
+    "blobPrivateObjectVerified",
+    blob.access === "private" &&
+      typeof blob.pathname === "string" &&
+      blob.pathname.length > 0 &&
+      Number(blob.size) > 0,
+  );
+  addCheck(checks, "blobDurableStorage", evidence.durableStorage === true);
+  addCheck(checks, "blobConsentFieldsStored", evidence.storesConsentFields === true);
+  addCheck(checks, "blobSubmissionIdStored", evidence.storesSubmissionId === true);
+  addCheck(checks, "blobAttributionStored", evidence.storesAttribution === true);
+  addCheck(
+    checks,
+    "blobDeletionProcessDocumented",
+    evidence.deletionProcessDocumented === true,
+  );
+  addCheck(
+    checks,
+    "blobExportProcessDocumented",
+    evidence.exportProcessDocumented === true,
+  );
+  addCheck(
+    checks,
+    "blobReceiverEvidenceRedacted",
+    findings.length === 0,
+    findings.map((finding) => finding.finding),
+  );
+
+  return {
+    checks,
+    findings,
+    ok: allChecksPass(checks),
+    summary: {
+      blobPathname: blob.pathname ?? "",
+      provided: true,
+      receiverType: "blob",
+      reviewedAt: evidence.reviewedAt ?? "",
+      reviewer: evidence.reviewer ?? "",
+      storageOwner: evidence.storageOwner ?? "",
+      storageProvider: "blob",
       total: null,
       urls: {
         productionUrl,

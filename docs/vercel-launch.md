@@ -12,11 +12,14 @@ Use this checklist after the repository is pushed to
   `https://payshield-lime.vercel.app`.
 - Vercel Web Analytics and Speed Insights are enabled for the project.
 - `PAYSHIELD_WAITLIST_WEBHOOK_URL` is not configured yet. The pilot form returns
-  demo-mode success and emits logs/analytics, but real lead persistence still
-  requires a CRM, Airtable, Slack, Make, Zapier, internal webhook, or Vercel
-  Marketplace Upstash Redis storage. Keep
-  `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK` unset or `false` until the selected
-  capture path is ready, then set it to `true` before paid traffic.
+  demo-mode success and emits logs/analytics until durable capture is selected.
+- A private Vercel Blob store named `payshield-waitlist` is linked to the
+  project and `BLOB_READ_WRITE_TOKEN` is configured for Production. Set
+  `PAYSHIELD_WAITLIST_STORAGE=blob` and
+  `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` only after the Blob code path is
+  deployed.
+- Upstash Redis Marketplace installation still requires Vercel marketplace terms
+  acceptance before that alternate path can be used.
 
 ## Import
 
@@ -48,6 +51,10 @@ NEXT_PUBLIC_SITE_URL=https://your-domain.com
 PAYSHIELD_WAITLIST_WEBHOOK_URL=https://your-webhook-url
 PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook
 
+# Vercel-native Blob capture path:
+PAYSHIELD_WAITLIST_STORAGE=blob
+BLOB_READ_WRITE_TOKEN=server-side-blob-token
+
 # Vercel-native Upstash capture path:
 PAYSHIELD_WAITLIST_STORAGE=upstash
 UPSTASH_REDIS_REST_URL=https://your-upstash-endpoint
@@ -58,17 +65,25 @@ PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true
 ```
 
 `NEXT_PUBLIC_SITE_URL` is exposed to the browser and should contain only the
-public site URL. The webhook URL, shared signing secret, Upstash REST URL, and
-Upstash REST token are server-only.
+public site URL. The webhook URL, shared signing secret, Blob read-write token,
+Upstash REST URL, and Upstash REST token are server-only.
 `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` makes valid waitlist submissions fail
-closed unless a signed webhook path or Upstash storage path is configured.
+closed unless a signed webhook path, Blob storage path, or Upstash storage path
+is configured.
 Production webhook URLs must use HTTPS and must not include credentials, query
 strings, or fragments. Localhost HTTP is accepted only for local receiver proof
 outside Vercel Production.
 
-For Vercel-native durable capture, install Upstash Redis through Vercel
-Marketplace and let Vercel inject the encrypted Redis REST env vars. Then set
-`PAYSHIELD_WAITLIST_STORAGE=upstash` and
+For preferred Vercel-native durable capture, create a private Vercel Blob store
+linked to the project and let Vercel inject `BLOB_READ_WRITE_TOKEN`. Then set
+`PAYSHIELD_WAITLIST_STORAGE=blob` and
+`PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` in Production. The app writes each
+validated lead as one private JSON object under the configured storage prefix;
+it does not expose the Blob token or object URL in public health responses.
+
+For alternate Vercel-native durable capture, install Upstash Redis through
+Vercel Marketplace and let Vercel inject the encrypted Redis REST env vars.
+Then set `PAYSHIELD_WAITLIST_STORAGE=upstash` and
 `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` in Production. The app writes each
 validated lead as a JSON record plus submission and email-hash indexes through
 the Upstash Redis REST transaction API; it does not expose the Upstash endpoint
@@ -101,7 +116,7 @@ npm run launch:evidence -- https://payshield-lime.vercel.app --expect-site-url h
 The packet includes production health, public paid-traffic readiness checks,
 analytics instrumentation audit status, Vercel env audit status, the local
 lead-capture dry run, and the remaining hard gates. In the current prototype
-state, it should report `paidTrafficReady: false`. After the webhook env
+state, it should report `paidTrafficReady: false`. After durable capture env
 variables are configured, rerun it with `--strict` and attach the output only if
 it passes.
 
@@ -132,7 +147,8 @@ npm run market:evidence:init -- \
 The command creates `launch-evidence/counsel-signoff.json`,
 `launch-evidence/analytics-evidence.json`,
 `launch-evidence/managed-receiver-evidence-template.json`,
-`launch-evidence/upstash-receiver-evidence-template.json`, and
+`launch-evidence/upstash-receiver-evidence-template.json`,
+`launch-evidence/blob-receiver-evidence-template.json`, and
 `launch-evidence/commands.md`. The generated commands include Vercel env audit,
 required-capture production submit smoke, strict launch evidence, final
 go/no-go validation, and status refresh. The directory is ignored by git. Fill
@@ -148,6 +164,12 @@ redeployed, and required-capture smoke passes, run
 `npm run receiver:upstash:evidence -- https://payshield-lime.vercel.app --site-url https://payshield-lime.vercel.app --reviewer "Launch operator" --storage-owner "Revenue operations" --deletion-process-documented --export-process-documented --output launch-evidence/receiver-evidence.json`,
 then validate it with
 `npm run receiver:upstash:check -- --file launch-evidence/receiver-evidence.json`.
+If production capture uses Vercel Blob, keep the Blob template as the
+pre-cutover placeholder. After a private Blob store is linked, Vercel
+Production is configured, redeployed, and required-capture smoke passes, run
+`BLOB_READ_WRITE_TOKEN=server-side-blob-token npm run receiver:blob:evidence -- https://payshield-lime.vercel.app --site-url https://payshield-lime.vercel.app --reviewer "Launch operator" --storage-owner "Revenue operations" --deletion-process-documented --export-process-documented --output launch-evidence/receiver-evidence.json`,
+then validate it with
+`npm run receiver:blob:check -- --file launch-evidence/receiver-evidence.json`.
 Run the generated final `npm run market:go-no-go` command without
 `--allow-not-ready` only after all evidence files pass.
 
@@ -221,6 +243,41 @@ status. After it succeeds, redeploy Production and run the printed env audit,
 strict launch evidence, required-capture smoke, and Upstash evidence checks. If
 Vercel reports an env var already exists, update or remove it in the Vercel
 dashboard before rerunning.
+
+For the Blob path, create and link a private Blob store, then set the two
+non-secret mode flags before the paid-traffic deployment:
+
+```bash
+npx vercel blob create-store payshield-waitlist --access private --region iad1 --yes --environment production
+printf %s blob | npx vercel env add PAYSHIELD_WAITLIST_STORAGE production
+printf %s true | npx vercel env add PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK production
+```
+
+`BLOB_READ_WRITE_TOKEN` is injected by the linked Blob store. Do not print or
+commit it. After the Blob env vars are configured in Vercel Production,
+production is redeployed, and the required-capture smoke passes, generate
+redacted Blob receiver evidence from the live site and private store:
+
+```bash
+BLOB_READ_WRITE_TOKEN=server-side-blob-token \
+  npm run receiver:blob:evidence -- \
+  https://payshield-lime.vercel.app \
+  --site-url https://payshield-lime.vercel.app \
+  --reviewer "Launch operator" \
+  --storage-owner "Revenue operations" \
+  --deletion-process-documented \
+  --export-process-documented \
+  --output launch-evidence/receiver-evidence.json
+
+npm run receiver:blob:check -- \
+  --file launch-evidence/receiver-evidence.json
+```
+
+The evidence command submits one campaign-attributed production smoke lead,
+checks `/api/health`, reads the exact private Blob object by receipt ID,
+verifies stored consent metadata, sanitized attribution, and `submissionId`, and
+writes only redacted evidence. It does not print the smoke lead email, note, or
+Blob read-write token.
 
 After the Upstash env vars are configured in Vercel Production, production is
 redeployed, and the required-capture smoke passes, generate redacted Upstash
@@ -478,12 +535,14 @@ webhook URL, signing secret, and `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` are
 configured, it should return `waitlist.mode: "webhook"`,
 `waitlist.webhookEndpointConfigured: true`,
 `waitlist.webhookSigningConfigured: true`, and
+`waitlist.paidTrafficReady: true`. After Blob capture is configured, it should
+return `waitlist.mode: "blob"`, `waitlist.storageConfigured: true`, and
 `waitlist.paidTrafficReady: true`. After Upstash capture is configured, it
-should return `waitlist.mode: "upstash"`, `waitlist.storageConfigured: true`, and
-`waitlist.paidTrafficReady: true`. The endpoint does not expose the webhook URL,
-signing secret, Upstash endpoint, or Upstash token.
+should return `waitlist.mode: "upstash"`, `waitlist.storageConfigured: true`,
+and `waitlist.paidTrafficReady: true`. The endpoint does not expose the webhook
+URL, signing secret, Blob read-write token, Upstash endpoint, or Upstash token.
 
-After the webhook is configured, run one explicit submission test:
+After durable capture is configured, run one explicit submission test:
 
 ```bash
 npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com
@@ -520,9 +579,10 @@ curl https://your-domain.com/sitemap.xml
 Submit one pilot request from the site and confirm:
 
 - The success message appears.
-- The webhook receives the payload, or the response clearly says demo mode.
+- The selected durable receiver stores the payload, or the response clearly says
+  demo mode.
 - A test URL with `utm_source`, `utm_medium`, and `utm_campaign` produces only
-  sanitized `attribution` fields in the receiver.
+  sanitized `attribution` fields in the receiver or private storage path.
 - Vercel logs show `request_completed`.
 - Vercel Web Analytics receives `Pilot Request Attempted` and
   `Pilot Request Submitted` with non-PII campaign metadata.

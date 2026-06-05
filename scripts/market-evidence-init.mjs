@@ -216,9 +216,46 @@ function upstashReceiverTemplate({ generatedAt, siteUrl }) {
   };
 }
 
+function blobReceiverTemplate({ generatedAt, siteUrl }) {
+  return {
+    blob: {
+      access: "private",
+      contentType: "application/json",
+      pathname: "",
+      size: 0,
+    },
+    deletionProcessDocumented: false,
+    durableStorage: false,
+    exportProcessDocumented: false,
+    generatedAt,
+    health: {
+      mode: "blob",
+      paidTrafficReady: false,
+      storageConfigured: false,
+    },
+    ok: false,
+    productionSubmit: {
+      mode: "",
+      receiptId: "",
+      status: null,
+    },
+    receiverType: "blob",
+    reviewedAt: "",
+    reviewer: "",
+    storageOwner: "",
+    storesAttribution: false,
+    storesConsentFields: false,
+    storesSubmissionId: false,
+    target: {
+      productionUrl: siteUrl,
+    },
+  };
+}
+
 function commandsMarkdown({
   analyticsFile,
   backupDir,
+  blobReceiverTemplateFile,
   counselFile,
   dataDir,
   envAuditCommand,
@@ -256,6 +293,26 @@ function commandsMarkdown({
   const upstashReceiverEvidenceCommand = [
     "npm run receiver:upstash:check --",
     "--file",
+    shellQuote(receiverEvidenceFile),
+  ].join(" ");
+  const blobReceiverEvidenceCommand = [
+    "npm run receiver:blob:check --",
+    "--file",
+    shellQuote(receiverEvidenceFile),
+  ].join(" ");
+  const blobReceiverEvidenceGenerateCommand = [
+    "BLOB_READ_WRITE_TOKEN=...",
+    "npm run receiver:blob:evidence --",
+    shellQuote(siteUrl),
+    "--site-url",
+    shellQuote(siteUrl),
+    "--reviewer",
+    shellQuote("Launch operator"),
+    "--storage-owner",
+    shellQuote("Revenue operations"),
+    "--deletion-process-documented",
+    "--export-process-documented",
+    "--output",
     shellQuote(receiverEvidenceFile),
   ].join(" ");
   const upstashReceiverEvidenceGenerateCommand = [
@@ -356,6 +413,12 @@ function commandsMarkdown({
     ["cp", shellQuote(upstashReceiverTemplateFile), shellQuote(receiverEvidenceFile)].join(" "),
     "```",
     "",
+    "For Vercel Blob capture, keep the Blob template as the local placeholder before cutover. Generate final `receiver-evidence.json` only after a private Blob store is linked to Vercel Production, production is redeployed, and the required-capture smoke passes.",
+    "",
+    "```bash",
+    ["cp", shellQuote(blobReceiverTemplateFile), shellQuote(receiverEvidenceFile)].join(" "),
+    "```",
+    "",
     "2. Generate the redacted Vercel env cutover command sequence for the selected durable capture path.",
     "",
     "For signed webhook capture:",
@@ -389,6 +452,13 @@ function commandsMarkdown({
     "```bash",
     upstashReceiverEvidenceGenerateCommand,
     upstashReceiverEvidenceCommand,
+    "```",
+    "",
+    "If the selected durable path is Vercel Blob, generate redacted receiver evidence from the live site and private Blob store:",
+    "",
+    "```bash",
+    blobReceiverEvidenceGenerateCommand,
+    blobReceiverEvidenceCommand,
     "```",
     "",
     "Finally prove strict launch evidence:",
@@ -465,6 +535,10 @@ export async function createMarketEvidencePacket({
     evidenceDir,
     "upstash-receiver-evidence-template.json",
   );
+  const blobReceiverTemplateFile = join(
+    evidenceDir,
+    "blob-receiver-evidence-template.json",
+  );
   const receiverEvidenceFile = join(evidenceDir, "receiver-evidence.json");
   const commandsFile = join(evidenceDir, "commands.md");
   const envAuditCommand = "npm run vercel:env:audit";
@@ -509,9 +583,19 @@ export async function createMarketEvidencePacket({
       path: upstashReceiverTemplateFile,
     },
     {
+      content: jsonWithNewline(
+        blobReceiverTemplate({
+          generatedAt,
+          siteUrl: normalizedSiteUrl,
+        }),
+      ),
+      path: blobReceiverTemplateFile,
+    },
+    {
       content: commandsMarkdown({
         analyticsFile,
         backupDir: safeBackupDir,
+        blobReceiverTemplateFile,
         counselFile,
         dataDir: safeDataDir,
         envAuditCommand,
@@ -540,6 +624,27 @@ export async function createMarketEvidencePacket({
       shellQuote(receiverEvidenceFile),
       "--apply-env",
     ].join(" "),
+    blobReceiverEvidenceCommand: [
+      "npm run receiver:blob:check --",
+      "--file",
+      shellQuote(receiverEvidenceFile),
+    ].join(" "),
+    blobReceiverEvidenceGenerateCommand: [
+      "BLOB_READ_WRITE_TOKEN=...",
+      "npm run receiver:blob:evidence --",
+      shellQuote(normalizedSiteUrl),
+      "--site-url",
+      shellQuote(normalizedSiteUrl),
+      "--reviewer",
+      shellQuote("Launch operator"),
+      "--storage-owner",
+      shellQuote("Revenue operations"),
+      "--deletion-process-documented",
+      "--export-process-documented",
+      "--output",
+      shellQuote(receiverEvidenceFile),
+    ].join(" "),
+    blobReceiverTemplateFile,
     envAuditCommand,
     counselSignoffCommand: [
       "npm run counsel:signoff:check --",

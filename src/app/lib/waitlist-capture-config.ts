@@ -1,4 +1,4 @@
-export type WaitlistMode = "demo" | "upstash" | "webhook";
+export type WaitlistMode = "blob" | "demo" | "upstash" | "webhook";
 
 type Env = NodeJS.ProcessEnv;
 
@@ -40,17 +40,28 @@ export function getWaitlistCaptureConfig(env: Env = process.env) {
     Boolean(webhookUsesHttps || webhookUsesLocalHttp) &&
     webhookUsesSafeUrlShape;
   const mode: WaitlistMode =
-    storageMode === "upstash" ? "upstash" : webhookUrl ? "webhook" : "demo";
+    storageMode === "blob"
+      ? "blob"
+      : storageMode === "upstash"
+        ? "upstash"
+        : webhookUrl
+          ? "webhook"
+          : "demo";
   const requireWebhook = env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK === "true";
   const webhookSigningConfigured = Boolean(
     env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET?.trim(),
   );
-  const storageConfigured =
+  const blobConfigured =
+    mode === "blob" && Boolean(env.BLOB_READ_WRITE_TOKEN?.trim());
+  const upstashConfigured =
     mode === "upstash" &&
     Boolean(env.UPSTASH_REDIS_REST_URL?.trim()) &&
     Boolean(env.UPSTASH_REDIS_REST_TOKEN?.trim());
+  const storageConfigured =
+    blobConfigured || upstashConfigured;
   const webhookMisconfigured = Boolean(webhookUrl) && !webhookEndpointConfigured;
-  const storageMisconfigured = mode === "upstash" && !storageConfigured;
+  const storageMisconfigured =
+    (mode === "blob" || mode === "upstash") && !storageConfigured;
   const durableCaptureConfigured =
     (mode === "webhook" && webhookEndpointConfigured && webhookSigningConfigured) ||
     storageConfigured;
@@ -64,7 +75,8 @@ export function getWaitlistCaptureConfig(env: Env = process.env) {
     storageConfigured,
     storageMisconfigured,
     storageMode,
-    storageProvider: mode === "upstash" ? "upstash" : null,
+    storageProvider:
+      mode === "blob" ? "blob" : mode === "upstash" ? "upstash" : null,
     webhook,
     webhookConfigured: Boolean(webhookUrl),
     webhookEndpointConfigured,

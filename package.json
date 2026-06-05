@@ -30,6 +30,8 @@
     "receiver:docker:build": "docker build -f Dockerfile.receiver -t payshield-waitlist-receiver:ci .",
     "receiver:docker:smoke": "node scripts/smoke-docker-receiver.mjs",
     "receiver:evidence": "node scripts/receiver-evidence.mjs",
+    "receiver:blob:evidence": "node scripts/blob-receiver-evidence.mjs",
+    "receiver:blob:check": "node scripts/check-blob-receiver-evidence.mjs",
     "receiver:managed:check": "node scripts/check-managed-receiver-evidence.mjs",
     "receiver:upstash:evidence": "node scripts/upstash-receiver-evidence.mjs",
     "receiver:upstash:check": "node scripts/check-upstash-receiver-evidence.mjs",
@@ -45,6 +47,7 @@
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
+    "@vercel/blob": "^2.4.0",
     "@vercel/speed-insights": "^2.0.0",
     "lucide-react": "^1.17.0",
     "next": "16.2.7",

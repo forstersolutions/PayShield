@@ -4,6 +4,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { beforeEach, test } from "node:test";
 import { NextRequest } from "next/server.js";
 import { POST } from "../src/app/api/waitlist/route.ts";
+import { setWaitlistBlobPutForTest } from "../src/app/lib/waitlist-blob-storage.ts";
 
 const endpoint = "https://payshield.test/api/waitlist";
 const originalFetch = globalThis.fetch;
@@ -14,10 +15,12 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_WAITLIST_STORAGE_PREFIX;
   delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET;
   delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
+  delete process.env.BLOB_READ_WRITE_TOKEN;
   delete process.env.UPSTASH_REDIS_REST_TOKEN;
   delete process.env.UPSTASH_REDIS_REST_URL;
   delete process.env.VERCEL_ENV;
   globalThis.fetch = originalFetch;
+  setWaitlistBlobPutForTest(null);
 });
 
 function makeRequest(
@@ -479,6 +482,84 @@ test("stores valid submissions in Upstash Redis when Vercel-native storage is co
     "pilot-contact-consent-2026-06-05",
   );
   assert.equal(serializedResponse.includes("upstash-secret"), false);
+});
+
+test("stores valid submissions in private Vercel Blob when Blob storage is configured", async () => {
+  const blobWrites: Array<{
+    body: string;
+    options: Record<string, unknown>;
+    pathname: string;
+  }> = [];
+
+  process.env.BLOB_READ_WRITE_TOKEN = "blob-secret";
+  process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK = "true";
+  process.env.PAYSHIELD_WAITLIST_STORAGE = "blob";
+  process.env.PAYSHIELD_WAITLIST_STORAGE_PREFIX = "payshield:test";
+  setWaitlistBlobPutForTest(
+    (async (pathname, body, options) => {
+      blobWrites.push({
+        body: String(body),
+        options: options as unknown as Record<string, unknown>,
+        pathname,
+      });
+
+      return {
+        contentDisposition: "inline",
+        contentType: "application/json",
+        downloadUrl: `https://blob.test/${pathname}?download=1`,
+        pathname,
+        url: `https://blob.test/${pathname}`,
+      };
+    }) as Parameters<typeof setWaitlistBlobPutForTest>[0],
+  );
+
+  const response = await POST(
+    makeRequest(
+      {
+        attribution: {
+          landingPath: "/pilot?email=bad@example.com",
+          utmCampaign: "Household Launch",
+          utmMedium: "cpc",
+          utmSource: "Paid Social",
+        },
+        email: "Blob@Example.com",
+        name: "Blob Lead",
+        segment: "Household",
+        message: "Interested in the pilot.",
+        consent: true,
+      },
+      "198.51.100.26",
+    ),
+  );
+  const body = await parseJson(response);
+  const lead = JSON.parse(blobWrites[0]?.body ?? "{}") as Record<
+    string,
+    unknown
+  >;
+  const serializedResponse = JSON.stringify(body);
+
+  assert.equal(response.status, 200);
+  assert.equal(body.ok, true);
+  assert.equal(body.mode, "blob");
+  assert.match(String(body.receiptId ?? ""), /^[0-9a-f-]{36}$/);
+  assert.equal(body.message, "Pilot request received.");
+  assert.equal(blobWrites.length, 1);
+  assert.match(blobWrites[0]?.pathname ?? "", /^payshield\/test\/leads\/[0-9a-f-]{36}\.json$/);
+  assert.equal(blobWrites[0]?.options.access, "private");
+  assert.equal(blobWrites[0]?.options.allowOverwrite, false);
+  assert.equal(blobWrites[0]?.options.contentType, "application/json");
+  assert.equal(blobWrites[0]?.options.token, "blob-secret");
+  assert.equal(lead.email, "blob@example.com");
+  assert.equal(lead.segment, "Household");
+  assert.deepEqual(lead.attribution, {
+    landingPath: "/pilot",
+    utmCampaign: "Household Launch",
+    utmMedium: "cpc",
+    utmSource: "Paid Social",
+  });
+  assert.equal(lead.submissionId, body.receiptId);
+  assert.equal(lead.consentVersion, "pilot-contact-consent-2026-06-05");
+  assert.equal(serializedResponse.includes("blob-secret"), false);
 });
 
 test("fails closed when required production webhook URL is not HTTPS", async () => {

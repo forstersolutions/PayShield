@@ -29,6 +29,7 @@ body:
         - label: "Receiver accepts `npm run webhook:test -- https://your-webhook-url --replay`."
         - label: "`PAYSHIELD_WAITLIST_WEBHOOK_URL` is configured in Vercel Production."
         - label: "`PAYSHIELD_WAITLIST_WEBHOOK_SECRET` is configured in Vercel Production."
+        - label: "`PAYSHIELD_WAITLIST_STORAGE=blob` and `BLOB_READ_WRITE_TOKEN` are configured in Vercel Production if Vercel-native Blob capture is used."
         - label: "`PAYSHIELD_WAITLIST_STORAGE=upstash`, `UPSTASH_REDIS_REST_URL`, and `UPSTASH_REDIS_REST_TOKEN` are configured in Vercel Production if Vercel-native Upstash capture is used."
         - label: "`PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` is configured in Vercel Production."
         - label: "`PAYSHIELD_WAITLIST_WEBHOOK_SECRET=... npm run vercel:webhook:cutover -- --site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json` prints the redacted Production env, redeploy, strict evidence, and required-webhook smoke sequence."
@@ -37,9 +38,11 @@ body:
         - label: "`npm run launch:evidence -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --strict` passes."
         - label: "`UPSTASH_REDIS_REST_URL=... UPSTASH_REDIS_REST_TOKEN=... npm run receiver:upstash:evidence -- https://payshield-lime.vercel.app --site-url https://payshield-lime.vercel.app --reviewer \"Launch operator\" --storage-owner \"Revenue operations\" --deletion-process-documented --export-process-documented --output launch-evidence/receiver-evidence.json` passes and the redacted output is attached if Vercel-native Upstash capture is used."
         - label: "`npm run receiver:upstash:check -- --file launch-evidence/receiver-evidence.json` passes and the redacted output is attached if Vercel-native Upstash capture is used."
+        - label: "`BLOB_READ_WRITE_TOKEN=... npm run receiver:blob:evidence -- https://payshield-lime.vercel.app --site-url https://payshield-lime.vercel.app --reviewer \"Launch operator\" --storage-owner \"Revenue operations\" --deletion-process-documented --export-process-documented --output launch-evidence/receiver-evidence.json` passes and the redacted output is attached if Vercel-native Blob capture is used."
+        - label: "`npm run receiver:blob:check -- --file launch-evidence/receiver-evidence.json` passes and the redacted output is attached if Vercel-native Blob capture is used."
         - label: "`npm run market:go-no-go -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json --counsel-signoff-file launch-evidence/counsel-signoff.json --analytics-evidence-file launch-evidence/analytics-evidence.json` passes and the redacted output is attached."
         - label: "`/api/health` reports `waitlist.webhookSigningConfigured: true`."
-        - label: "`/api/health` reports `waitlist.storageConfigured: true` if Vercel-native Upstash capture is used."
+        - label: "`/api/health` reports `waitlist.storageConfigured: true` if Vercel-native Blob or Upstash capture is used."
         - label: "`/api/health` reports `waitlist.paidTrafficReady: true`."
         - label: "`npm run smoke:deploy -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --submit-test --require-webhook` passes."
         - label: "Receiver stores `consentVersion`, `privacyVersion`, `termsVersion`, `consentedAt`, and `consentText` for accepted test leads."
@@ -89,6 +92,8 @@ body:
         /api/health:
         smoke:deploy:
         receiver:managed:check:
+        receiver:blob:evidence:
+        receiver:blob:check:
         receiver:upstash:evidence:
         receiver:upstash:check:
         vercel:upstash:cutover:

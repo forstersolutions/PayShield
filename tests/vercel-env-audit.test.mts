@@ -57,6 +57,22 @@ test("passes when Vercel-native Upstash capture variables exist for production",
   assert.deepEqual(result.wrongEnvironment, []);
 });
 
+test("passes when Vercel-native Blob capture variables exist for production", () => {
+  const result = auditVercelEnvList({
+    text: `
+      NEXT_PUBLIC_SITE_URL                 Encrypted           Production          11h ago
+      PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK   Encrypted           Production          1m ago
+      PAYSHIELD_WAITLIST_STORAGE           Encrypted           Production          1m ago
+      BLOB_READ_WRITE_TOKEN                Encrypted           Production          1m ago
+    `,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal((result as { capturePath: string }).capturePath, "blob");
+  assert.deepEqual(result.missing, []);
+  assert.deepEqual(result.wrongEnvironment, []);
+});
+
 test("flags variables that exist outside the required environment", () => {
   const result = auditVercelEnvList({
     text: `

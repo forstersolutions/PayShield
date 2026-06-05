@@ -386,6 +386,50 @@ test("marks evidence paid-traffic ready with Vercel-native Upstash env gates", (
   assert.equal(evidence.gates[4]?.capturePath, "upstash");
 });
 
+test("marks evidence paid-traffic ready with Vercel-native Blob env gates", () => {
+  const evidence = summarizeLaunchReadiness({
+    analyticsAudit,
+    expectedSiteUrl: targetUrl,
+    gitCommit,
+    leadCaptureDryRun,
+    publicEvidence: publicEvidence({
+      mode: "blob",
+      paidTrafficReady: true,
+      requireWebhook: true,
+      storageConfigured: true,
+      storageProvider: "blob",
+      webhookConfigured: false,
+      webhookSigningConfigured: false,
+    }),
+    targetUrl,
+    vercelEnvAudit: {
+      capturePath: "blob",
+      configured: [
+        "NEXT_PUBLIC_SITE_URL",
+        "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK",
+        "PAYSHIELD_WAITLIST_STORAGE",
+        "BLOB_READ_WRITE_TOKEN",
+      ],
+      environment: "Production",
+      missing: [],
+      ok: true,
+      required: [
+        "NEXT_PUBLIC_SITE_URL",
+        "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK",
+        "PAYSHIELD_WAITLIST_STORAGE",
+        "BLOB_READ_WRITE_TOKEN",
+      ],
+      wrongEnvironment: [],
+    },
+  });
+
+  assert.equal(evidence.ok, true);
+  assert.equal(evidence.paidTrafficReady, true);
+  assert.deepEqual(evidence.remainingGates, []);
+  assert.equal(evidence.readiness.strict.ok, true);
+  assert.equal(evidence.gates[4]?.capturePath, "blob");
+});
+
 test("flags a production commit mismatch", () => {
   const staleEvidence = publicEvidence({
     mode: "demo",

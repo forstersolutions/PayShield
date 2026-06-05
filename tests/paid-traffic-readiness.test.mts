@@ -89,6 +89,30 @@ test("passes when production Upstash capture is paid-traffic ready", () => {
   assert.equal(result.failures.length, 0);
 });
 
+test("passes when production Blob capture is paid-traffic ready", () => {
+  const result = evaluatePaidTrafficReadiness(
+    evidence({
+      health: {
+        ok: true,
+        service: "payshield-market-site",
+        siteUrl: expectedSiteUrl,
+        waitlist: {
+          mode: "blob",
+          paidTrafficReady: true,
+          requireWebhook: true,
+          storageConfigured: true,
+          storageProvider: "blob",
+          webhookConfigured: false,
+          webhookSigningConfigured: false,
+        },
+      },
+    }),
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.failures.length, 0);
+});
+
 test("fails demo capture in paid-traffic mode", () => {
   const result = evaluatePaidTrafficReadiness(
     evidence({

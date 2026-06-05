@@ -153,7 +153,7 @@ async function checkHealth() {
     failures.push("/api/health did not report ok=true");
   }
 
-  if (!["demo", "upstash", "webhook"].includes(String(body.waitlist?.mode))) {
+  if (!["blob", "demo", "upstash", "webhook"].includes(String(body.waitlist?.mode))) {
     failures.push("/api/health returned an unexpected waitlist mode");
   }
 
@@ -173,10 +173,10 @@ async function checkHealth() {
 
   if (
     requireWebhook &&
-    body.waitlist?.mode === "upstash" &&
+    ["blob", "upstash"].includes(String(body.waitlist?.mode)) &&
     body.waitlist?.storageConfigured !== true
   ) {
-    failures.push("/api/health does not report Upstash storage configuration");
+    failures.push("/api/health does not report durable storage configuration");
   }
 }
 
@@ -279,12 +279,12 @@ async function submitLead() {
 
   if (
     body.ok !== true ||
-    !["demo", "upstash", "webhook"].includes(String(body.mode))
+    !["blob", "demo", "upstash", "webhook"].includes(String(body.mode))
   ) {
     failures.push("/api/waitlist submit test returned an unexpected body");
   }
 
-  if (requireWebhook && !["upstash", "webhook"].includes(String(body.mode))) {
+  if (requireWebhook && !["blob", "upstash", "webhook"].includes(String(body.mode))) {
     failures.push(
       `/api/waitlist submit test returned mode ${String(
         body.mode ?? "missing",

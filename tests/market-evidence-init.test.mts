@@ -33,12 +33,15 @@ test("creates local market evidence templates and redacted commands", async () =
     const upstashReceiver = JSON.parse(
       await readFile(join(dir, "upstash-receiver-evidence-template.json"), "utf8"),
     );
+    const blobReceiver = JSON.parse(
+      await readFile(join(dir, "blob-receiver-evidence-template.json"), "utf8"),
+    );
     const commands = await readFile(join(dir, "commands.md"), "utf8");
     const serialized = JSON.stringify(result) + commands;
 
     assert.equal(result.ok, true);
     assert.equal(result.siteUrl, "https://payshield-lime.vercel.app");
-    assert.equal(result.files.length, 5);
+    assert.equal(result.files.length, 6);
     assert.equal(counsel.ok, false);
     assert.deepEqual(counsel.scope, [
       "privacy",
@@ -72,10 +75,20 @@ test("creates local market evidence templates and redacted commands", async () =
       "https://payshield-lime.vercel.app",
     );
     assert.equal(upstashReceiver.health.storageConfigured, false);
+    assert.equal(blobReceiver.ok, false);
+    assert.equal(blobReceiver.receiverType, "blob");
+    assert.equal(blobReceiver.blob.access, "private");
+    assert.equal(
+      blobReceiver.target.productionUrl,
+      "https://payshield-lime.vercel.app",
+    );
+    assert.equal(blobReceiver.health.storageConfigured, false);
     assert.match(commands, /npm run receiver:evidence/);
     assert.match(commands, /npm run receiver:managed:check/);
     assert.match(commands, /npm run receiver:upstash:evidence/);
     assert.match(commands, /npm run receiver:upstash:check/);
+    assert.match(commands, /npm run receiver:blob:evidence/);
+    assert.match(commands, /npm run receiver:blob:check/);
     assert.match(commands, /npm run vercel:webhook:cutover/);
     assert.match(commands, /npm run vercel:upstash:cutover/);
     assert.match(commands, /npm run counsel:signoff:check/);
@@ -89,6 +102,7 @@ test("creates local market evidence templates and redacted commands", async () =
     assert.match(commands, /PAYSHIELD_WAITLIST_WEBHOOK_SECRET=\.\.\./);
     assert.match(commands, /UPSTASH_REDIS_REST_URL=\.\.\./);
     assert.match(commands, /UPSTASH_REDIS_REST_TOKEN=\.\.\./);
+    assert.match(commands, /BLOB_READ_WRITE_TOKEN=\.\.\./);
     assert.match(result.cutoverPlanCommand, /vercel:webhook:cutover/);
     assert.match(result.upstashCutoverPlanCommand, /vercel:upstash:cutover/);
     assert.match(result.counselSignoffCommand, /counsel:signoff:check/);
@@ -105,6 +119,11 @@ test("creates local market evidence templates and redacted commands", async () =
     assert.match(
       result.upstashReceiverEvidenceGenerateCommand,
       /receiver:upstash:evidence/,
+    );
+    assert.match(result.blobReceiverEvidenceCommand, /receiver:blob:check/);
+    assert.match(
+      result.blobReceiverEvidenceGenerateCommand,
+      /receiver:blob:evidence/,
     );
     assert.match(result.statusCommand, /market:status/);
     assert.equal(serialized.includes("shared-secret"), false);
