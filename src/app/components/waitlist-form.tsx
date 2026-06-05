@@ -177,23 +177,23 @@ export function WaitlistForm() {
 
   return (
     <form
-      className="rounded-[8px] border border-white/15 bg-white p-4 text-stone-950 shadow-[0_24px_80px_rgba(0,0,0,0.25)]"
+      className="rounded-[8px] border border-white/10 bg-[#101410] p-4 text-[#f4f1e8] shadow-[0_24px_90px_rgba(0,0,0,0.42)]"
       onSubmit={submitPilotRequest}
     >
       <div className="mb-4">
         <p className="text-sm font-semibold">Request pilot access</p>
-        <p className="mt-1 text-sm leading-6 text-stone-600">
+        <p className="mt-1 text-sm leading-6 text-[#b9b2a3]">
           Join the pilot list or start a partner conversation about
           protected-paycheck controls.
         </p>
       </div>
 
       <div className="grid gap-3">
-        <label className="text-sm font-medium text-stone-700">
+        <label className="text-sm font-medium text-[#d6cfbf]">
           Email
           <input
             autoComplete="email"
-            className="mt-2 h-11 w-full rounded-[8px] border border-stone-300 bg-white px-3 text-stone-950 outline-none focus:border-teal-700"
+            className="mt-2 h-11 w-full rounded-[8px] border border-white/10 bg-[#080a08] px-3 text-[#f4f1e8] outline-none placeholder:text-[#6f6a5f] focus:border-emerald-300"
             name="email"
             placeholder="you@example.com"
             required
@@ -201,21 +201,21 @@ export function WaitlistForm() {
           />
         </label>
 
-        <label className="text-sm font-medium text-stone-700">
+        <label className="text-sm font-medium text-[#d6cfbf]">
           Name
           <input
             autoComplete="name"
-            className="mt-2 h-11 w-full rounded-[8px] border border-stone-300 bg-white px-3 text-stone-950 outline-none focus:border-teal-700"
+            className="mt-2 h-11 w-full rounded-[8px] border border-white/10 bg-[#080a08] px-3 text-[#f4f1e8] outline-none placeholder:text-[#6f6a5f] focus:border-emerald-300"
             name="name"
             placeholder="Optional"
             type="text"
           />
         </label>
 
-        <label className="text-sm font-medium text-stone-700">
+        <label className="text-sm font-medium text-[#d6cfbf]">
           Segment
           <select
-            className="mt-2 h-11 w-full rounded-[8px] border border-stone-300 bg-white px-3 text-stone-950 outline-none focus:border-teal-700"
+            className="mt-2 h-11 w-full rounded-[8px] border border-white/10 bg-[#080a08] px-3 text-[#f4f1e8] outline-none focus:border-emerald-300"
             defaultValue="Household"
             name="segment"
           >
@@ -225,14 +225,14 @@ export function WaitlistForm() {
           </select>
         </label>
 
-        <label className="text-sm font-medium text-stone-700">
+        <label className="text-sm font-medium text-[#d6cfbf]">
           What should PayShield protect first?
           <textarea
-            className="mt-2 min-h-24 w-full resize-y rounded-[8px] border border-stone-300 bg-white px-3 py-3 text-stone-950 outline-none focus:border-teal-700"
+            className="mt-2 min-h-24 w-full resize-y rounded-[8px] border border-white/10 bg-[#080a08] px-3 py-3 text-[#f4f1e8] outline-none placeholder:text-[#6f6a5f] focus:border-emerald-300"
             name="message"
             placeholder="Rent, car note, insurance, kids, tax set-aside..."
           />
-          <span className="mt-2 block text-xs leading-5 text-stone-500">
+          <span className="mt-2 block text-xs leading-5 text-[#8d8679]">
             Do not include bank, card, SSN, account, or routing numbers.
           </span>
         </label>
@@ -242,9 +242,9 @@ export function WaitlistForm() {
           <input autoComplete="off" name="company" tabIndex={-1} type="text" />
         </label>
 
-        <label className="flex items-start gap-3 rounded-[8px] border border-stone-200 bg-stone-50 p-3 text-sm leading-6 text-stone-700">
+        <label className="flex items-start gap-3 rounded-[8px] border border-white/10 bg-white/[0.03] p-3 text-sm leading-6 text-[#c8c0af]">
           <input
-            className="mt-1 size-4 accent-teal-700"
+            className="mt-1 size-4 accent-emerald-300"
             name="consent"
             required
             type="checkbox"
@@ -252,11 +252,11 @@ export function WaitlistForm() {
           <span>
             I agree that PayShield can contact me about the pilot and handle my
             information under the{" "}
-            <Link className="font-semibold text-teal-800 underline" href="/privacy">
+            <Link className="font-semibold text-emerald-300 underline" href="/privacy">
               Privacy Notice
             </Link>{" "}
             and{" "}
-            <Link className="font-semibold text-teal-800 underline" href="/terms">
+            <Link className="font-semibold text-emerald-300 underline" href="/terms">
               Terms
             </Link>
             .
@@ -265,7 +265,7 @@ export function WaitlistForm() {
       </div>
 
       <button
-        className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-[8px] bg-stone-950 px-4 font-semibold text-white hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
+        className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-[8px] bg-emerald-300 px-4 font-semibold text-[#07110f] hover:bg-emerald-200 disabled:cursor-not-allowed disabled:bg-[#4a5149] disabled:text-[#a5a095]"
         disabled={state.status === "loading"}
         type="submit"
       >
@@ -280,7 +280,7 @@ export function WaitlistForm() {
       {state.status === "success" ? (
         <p
           aria-live="polite"
-          className="mt-4 flex items-start gap-2 rounded-[8px] border border-emerald-200 bg-emerald-50 p-3 text-sm leading-6 text-emerald-900"
+          className="mt-4 flex items-start gap-2 rounded-[8px] border border-emerald-300/30 bg-emerald-300/10 p-3 text-sm leading-6 text-emerald-100"
           role="status"
         >
           <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
@@ -291,7 +291,7 @@ export function WaitlistForm() {
       {state.status === "error" ? (
         <p
           aria-live="assertive"
-          className="mt-4 flex items-start gap-2 rounded-[8px] border border-red-200 bg-red-50 p-3 text-sm leading-6 text-red-900"
+          className="mt-4 flex items-start gap-2 rounded-[8px] border border-red-300/30 bg-red-400/10 p-3 text-sm leading-6 text-red-100"
           role="alert"
         >
           <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />

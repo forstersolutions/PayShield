@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #070807;
+  --foreground: #f4f1e8;
 }
 
 @theme inline {
@@ -18,6 +18,11 @@ body {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
+::selection {
+  background: #9cebd7;
+  color: #07110f;
+}
+
 button,
 input,
 select {
@@ -26,4 +31,5 @@ select {
 
 html {
   scroll-behavior: smooth;
+  color-scheme: dark;
 }

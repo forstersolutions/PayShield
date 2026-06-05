@@ -215,44 +215,44 @@ export function PaycheckPlanner() {
   return (
     <section
       id="product"
-      className="min-h-screen border-b border-stone-200 bg-[#f7f5ef] text-stone-950"
+      className="min-h-screen border-b border-white/10 bg-[#070807] text-[#f4f1e8]"
     >
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
-        <header className="flex flex-wrap items-center justify-between gap-3 py-2">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 py-3">
           <a className="flex items-center gap-3" href="#product">
-            <span className="grid size-10 place-items-center rounded-[8px] bg-stone-950 text-white">
+            <span className="grid size-10 place-items-center rounded-[8px] bg-emerald-300 text-[#07110f]">
               <ShieldCheck className="size-5" aria-hidden="true" />
             </span>
             <span>
               <span className="block text-base font-semibold leading-5">
                 PayShield
               </span>
-              <span className="block text-xs font-medium uppercase leading-4 tracking-[0.18em] text-stone-500">
+              <span className="block text-xs font-medium uppercase leading-4 tracking-[0.18em] text-[#9c9588]">
                 Protected paycheck OS
               </span>
             </span>
           </a>
           <nav
             aria-label="Primary"
-            className="flex flex-wrap items-center gap-2 text-sm font-medium text-stone-700"
+            className="flex flex-wrap items-center gap-2 text-sm font-medium text-[#c8c0af]"
           >
-            <a className="rounded-[8px] px-3 py-2 hover:bg-white" href="#rails">
+            <a className="rounded-[8px] px-3 py-2 hover:bg-white/10" href="#rails">
               Rails
             </a>
             <a
-              className="rounded-[8px] px-3 py-2 hover:bg-white"
+              className="rounded-[8px] px-3 py-2 hover:bg-white/10"
               href="#pricing"
             >
               Pricing
             </a>
             <a
-              className="rounded-[8px] px-3 py-2 hover:bg-white"
+              className="rounded-[8px] px-3 py-2 hover:bg-white/10"
               href="#launch"
             >
               Launch
             </a>
             <a
-              className="inline-flex items-center gap-2 rounded-[8px] bg-stone-950 px-4 py-2 text-white hover:bg-stone-800"
+              className="inline-flex items-center gap-2 rounded-[8px] bg-emerald-300 px-4 py-2 text-[#07110f] hover:bg-emerald-200"
               href="#pilot"
             >
               Pilot
@@ -264,46 +264,46 @@ export function PaycheckPlanner() {
         <div className="grid flex-1 items-center gap-6 py-6 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="min-w-0">
             <div className="mb-5 max-w-3xl">
-              <p className="mb-3 inline-flex items-center gap-2 rounded-[8px] border border-teal-900/15 bg-white px-3 py-2 text-sm font-semibold text-teal-900">
+              <p className="mb-3 inline-flex items-center gap-2 rounded-[8px] border border-emerald-300/25 bg-emerald-300/10 px-3 py-2 text-sm font-semibold text-emerald-200">
                 <Lock className="size-4" aria-hidden="true" />
                 Your paycheck, protected before you can spend it
               </p>
-              <h1 className="text-4xl font-semibold leading-[1.03] text-stone-950 sm:text-5xl lg:text-6xl">
+              <h1 className="text-4xl font-semibold leading-[1.03] text-[#f4f1e8] sm:text-5xl lg:text-6xl">
                 PayShield
               </h1>
-              <p className="mt-3 max-w-2xl text-lg leading-8 text-stone-700">
+              <p className="mt-3 max-w-2xl text-lg leading-8 text-[#b9b2a3]">
                 A neobank-style protected ledger concept designed to turn
                 paychecks into bill buckets, goal reserves, and one honest
                 safe-to-spend balance.
               </p>
             </div>
 
-            <div className="overflow-hidden rounded-[8px] border border-stone-300 bg-white shadow-[0_24px_80px_rgba(28,25,23,0.10)]">
+            <div className="overflow-hidden rounded-[8px] border border-white/10 bg-[#101410] shadow-[0_28px_100px_rgba(0,0,0,0.45)]">
               <div className="grid lg:grid-cols-[320px_minmax(0,1fr)]">
-                <aside className="border-b border-stone-200 bg-stone-50 p-4 lg:border-b-0 lg:border-r">
+                <aside className="border-b border-white/10 bg-[#0b0d0b] p-4 lg:border-b-0 lg:border-r">
                   <div className="mb-4 flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-stone-950">
+                      <p className="text-sm font-semibold text-[#f4f1e8]">
                         Paycheck plan
                       </p>
-                      <p className="text-sm text-stone-600">
+                      <p className="text-sm text-[#9c9588]">
                         Biweekly deposit rules
                       </p>
                     </div>
                     <Landmark
-                      className="size-5 text-teal-700"
+                      className="size-5 text-emerald-300"
                       aria-hidden="true"
                     />
                   </div>
 
-                  <label className="block text-sm font-medium text-stone-700">
+                  <label className="block text-sm font-medium text-[#d6cfbf]">
                     Deposit amount
                   </label>
-                  <div className="mt-2 flex items-center rounded-[8px] border border-stone-300 bg-white px-3">
-                    <span className="text-stone-500">$</span>
+                  <div className="mt-2 flex items-center rounded-[8px] border border-white/10 bg-[#070807] px-3">
+                    <span className="text-[#9c9588]">$</span>
                     <input
                       aria-label="Paycheck deposit amount"
-                      className="h-12 min-w-0 flex-1 bg-transparent px-2 text-xl font-semibold outline-none"
+                      className="h-12 min-w-0 flex-1 bg-transparent px-2 text-xl font-semibold text-[#f4f1e8] outline-none"
                       inputMode="numeric"
                       max={8000}
                       min={500}
@@ -332,7 +332,7 @@ export function PaycheckPlanner() {
                   </div>
                   <input
                     aria-label="Adjust paycheck deposit amount"
-                    className="mt-4 w-full accent-teal-700"
+                    className="mt-4 w-full accent-emerald-300"
                     max={8000}
                     min={500}
                     step={50}
@@ -357,18 +357,18 @@ export function PaycheckPlanner() {
                     />
                   </div>
 
-                  <div className="mt-5 rounded-[8px] border border-stone-200 bg-white p-3">
+                  <div className="mt-5 rounded-[8px] border border-white/10 bg-white/[0.03] p-3">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-stone-900">
+                      <p className="text-sm font-semibold text-[#f4f1e8]">
                         Safe-spend share
                       </p>
-                      <p className="text-sm font-semibold text-teal-800">
+                      <p className="text-sm font-semibold text-emerald-300">
                         {Math.round(safeSpendShare)}%
                       </p>
                     </div>
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-stone-200">
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
                       <div
-                        className="h-full rounded-full bg-teal-700"
+                        className="h-full rounded-full bg-emerald-300"
                         style={{ width: `${clamp(safeSpendShare, 0, 100)}%` }}
                       />
                     </div>
@@ -378,14 +378,14 @@ export function PaycheckPlanner() {
                 <div className="min-w-0 p-4">
                   <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-stone-950">
+                      <p className="text-sm font-semibold text-[#f4f1e8]">
                         Protected buckets
                       </p>
-                      <p className="text-sm text-stone-600">
+                      <p className="text-sm text-[#9c9588]">
                         Priority funding runs before card availability.
                       </p>
                     </div>
-                    <span className="rounded-[8px] bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
+                    <span className="rounded-[8px] border border-emerald-300/30 bg-emerald-300/10 px-3 py-2 text-sm font-semibold text-emerald-200">
                       {formatMoney(plan.safeSpend)} safe to spend
                     </span>
                   </div>
@@ -407,7 +407,7 @@ export function PaycheckPlanner() {
           </div>
 
           <aside className="grid gap-4">
-            <div className="overflow-hidden rounded-[8px] border border-stone-300 bg-white">
+            <div className="overflow-hidden rounded-[8px] border border-white/10 bg-[#101410] shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
               <Image
                 alt="PayShield mobile dashboard and debit card concept"
                 className="aspect-[3/2] w-full object-cover"
@@ -416,22 +416,22 @@ export function PaycheckPlanner() {
                 src="/images/payshield-product-mockup.avif"
                 width={1536}
               />
-              <div className="border-t border-stone-200 p-4">
+              <div className="border-t border-white/10 p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold text-stone-950">
+                  <p className="text-sm font-semibold text-[#f4f1e8]">
                     Card authorization
                   </p>
                   <WalletCards
-                    className="size-5 text-stone-500"
+                    className="size-5 text-[#9c9588]"
                     aria-hidden="true"
                   />
                 </div>
 
                 <div className="mt-4 grid gap-3">
-                  <label className="text-sm font-medium text-stone-700">
+                  <label className="text-sm font-medium text-[#d6cfbf]">
                     Merchant
                     <select
-                      className="mt-2 h-11 w-full rounded-[8px] border border-stone-300 bg-white px-3 text-stone-950 outline-none focus:border-teal-700"
+                      className="mt-2 h-11 w-full rounded-[8px] border border-white/10 bg-[#070807] px-3 text-[#f4f1e8] outline-none focus:border-emerald-300"
                       value={merchant}
                       onChange={(event) => setMerchant(event.target.value)}
                     >
@@ -441,13 +441,13 @@ export function PaycheckPlanner() {
                     </select>
                   </label>
 
-                  <label className="text-sm font-medium text-stone-700">
+                  <label className="text-sm font-medium text-[#d6cfbf]">
                     Card amount
-                    <div className="mt-2 flex h-11 items-center rounded-[8px] border border-stone-300 px-3">
-                      <span className="text-stone-500">$</span>
+                    <div className="mt-2 flex h-11 items-center rounded-[8px] border border-white/10 bg-[#070807] px-3">
+                      <span className="text-[#9c9588]">$</span>
                       <input
                         aria-label="Card transaction amount"
-                        className="min-w-0 flex-1 bg-transparent px-2 text-stone-950 outline-none"
+                        className="min-w-0 flex-1 bg-transparent px-2 text-[#f4f1e8] outline-none"
                         inputMode="numeric"
                         max={5000}
                         min={1}
@@ -480,27 +480,27 @@ export function PaycheckPlanner() {
                 <div
                   className={`mt-4 rounded-[8px] border p-3 ${
                     cardApproved
-                      ? "border-emerald-200 bg-emerald-50"
-                      : "border-red-200 bg-red-50"
+                      ? "border-emerald-300/30 bg-emerald-300/10"
+                      : "border-red-300/30 bg-red-400/10"
                   }`}
                 >
                   <div className="flex items-start gap-3">
                     {cardApproved ? (
                       <CheckCircle2
-                        className="mt-0.5 size-5 text-emerald-700"
+                        className="mt-0.5 size-5 text-emerald-300"
                         aria-hidden="true"
                       />
                     ) : (
                       <XCircle
-                        className="mt-0.5 size-5 text-red-700"
+                        className="mt-0.5 size-5 text-red-300"
                         aria-hidden="true"
                       />
                     )}
                     <div>
-                      <p className="font-semibold text-stone-950">
+                      <p className="font-semibold text-[#f4f1e8]">
                         {cardApproved ? "Approved" : "Declined"} at {merchant}
                       </p>
-                      <p className="mt-1 text-sm leading-6 text-stone-700">
+                      <p className="mt-1 text-sm leading-6 text-[#b9b2a3]">
                         The debit card can only see{" "}
                         {formatMoney(plan.safeSpend)} safe-spending funds.
                       </p>
@@ -510,24 +510,24 @@ export function PaycheckPlanner() {
               </div>
             </div>
 
-            <div className="rounded-[8px] border border-stone-300 bg-white p-4">
+            <div className="rounded-[8px] border border-white/10 bg-[#101410] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-stone-950">
+                  <p className="text-sm font-semibold text-[#f4f1e8]">
                     Emergency unlock
                   </p>
-                  <p className="text-sm text-stone-600">
+                  <p className="text-sm text-[#9c9588]">
                     Friction, audit trail, refill plan.
                   </p>
                 </div>
-                <KeyRound className="size-5 text-amber-700" aria-hidden="true" />
+                <KeyRound className="size-5 text-amber-300" aria-hidden="true" />
               </div>
 
               <div className="grid gap-3">
-                <label className="text-sm font-medium text-stone-700">
+                <label className="text-sm font-medium text-[#d6cfbf]">
                   Protected bucket
                   <select
-                    className="mt-2 h-11 w-full rounded-[8px] border border-stone-300 bg-white px-3 text-stone-950 outline-none focus:border-teal-700"
+                    className="mt-2 h-11 w-full rounded-[8px] border border-white/10 bg-[#070807] px-3 text-[#f4f1e8] outline-none focus:border-emerald-300"
                     value={unlockBucket}
                     onChange={(event) =>
                       setUnlockBucket(event.target.value as BucketId)
@@ -541,11 +541,11 @@ export function PaycheckPlanner() {
                   </select>
                 </label>
 
-                <label className="text-sm font-medium text-stone-700">
+                <label className="text-sm font-medium text-[#d6cfbf]">
                   Unlock amount
                   <input
                     aria-label="Emergency unlock amount"
-                    className="mt-2 h-11 w-full rounded-[8px] border border-stone-300 bg-white px-3 text-stone-950 outline-none focus:border-teal-700"
+                    className="mt-2 h-11 w-full rounded-[8px] border border-white/10 bg-[#070807] px-3 text-[#f4f1e8] outline-none focus:border-emerald-300"
                     inputMode="numeric"
                     max={2000}
                     min={25}
@@ -575,14 +575,14 @@ export function PaycheckPlanner() {
 
                 <div
                   aria-label="Unlock speed"
-                  className="grid grid-cols-2 gap-2 rounded-[8px] bg-stone-100 p-1"
+                  className="grid grid-cols-2 gap-2 rounded-[8px] bg-[#070807] p-1"
                   role="group"
                 >
                   <button
                     className={`rounded-[8px] px-3 py-2 text-sm font-semibold ${
                       unlockMode === "slow"
-                        ? "bg-white text-stone-950 shadow-sm"
-                        : "text-stone-600"
+                        ? "bg-[#eaf8ee] text-[#07110f] shadow-sm"
+                        : "text-[#b9b2a3]"
                     }`}
                     type="button"
                     onClick={() => setUnlockMode("slow")}
@@ -592,8 +592,8 @@ export function PaycheckPlanner() {
                   <button
                     className={`inline-flex items-center justify-center gap-2 rounded-[8px] px-3 py-2 text-sm font-semibold ${
                       unlockMode === "instant"
-                        ? "bg-white text-stone-950 shadow-sm"
-                        : "text-stone-600"
+                        ? "bg-[#eaf8ee] text-[#07110f] shadow-sm"
+                        : "text-[#b9b2a3]"
                     }`}
                     type="button"
                     onClick={() => setUnlockMode("instant")}
@@ -604,13 +604,13 @@ export function PaycheckPlanner() {
                 </div>
               </div>
 
-              <div className="mt-4 rounded-[8px] border border-amber-200 bg-amber-50 p-3">
+              <div className="mt-4 rounded-[8px] border border-amber-300/30 bg-amber-300/10 p-3">
                 <div className="flex items-start gap-3">
                   <AlertTriangle
-                    className="mt-0.5 size-5 text-amber-700"
+                    className="mt-0.5 size-5 text-amber-300"
                     aria-hidden="true"
                   />
-                  <p className="text-sm leading-6 text-stone-800">
+                  <p className="text-sm leading-6 text-[#e8e1d3]">
                     Unlocking {formatMoney(actualUnlock)} from{" "}
                     {selectedUnlockBucket?.name} creates a refill rule of{" "}
                     {formatMoney(recoveryAmount)} from the next{" "}
@@ -637,13 +637,13 @@ function Metric({
   warning?: boolean;
 }) {
   return (
-    <div className="rounded-[8px] border border-stone-200 bg-stone-50 p-2">
-      <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-stone-500">
+    <div className="rounded-[8px] border border-white/10 bg-white/[0.03] p-2">
+      <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[#8d8679]">
         {label}
       </p>
       <p
         className={`mt-1 text-sm font-semibold ${
-          warning ? "text-amber-800" : "text-stone-950"
+          warning ? "text-amber-300" : "text-[#f4f1e8]"
         }`}
       >
         {value}
@@ -664,7 +664,7 @@ function BucketRow({
     bucket.target > 0 ? (bucket.funded / bucket.target) * 100 : 100;
 
   return (
-    <div className="rounded-[8px] border border-stone-200 bg-stone-50 p-3">
+    <div className="rounded-[8px] border border-white/10 bg-white/[0.035] p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <span
@@ -675,12 +675,12 @@ function BucketRow({
           </span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="font-semibold text-stone-950">{bucket.name}</p>
-              <span className="rounded-[8px] bg-white px-2 py-1 text-xs font-semibold text-stone-600">
+              <p className="font-semibold text-[#f4f1e8]">{bucket.name}</p>
+              <span className="rounded-[8px] border border-white/10 bg-[#070807] px-2 py-1 text-xs font-semibold text-[#b9b2a3]">
                 {bucket.protection}
               </span>
             </div>
-            <p className="mt-1 text-sm leading-6 text-stone-600">
+            <p className="mt-1 text-sm leading-6 text-[#9c9588]">
               {bucket.rail} - Due {bucket.due}
             </p>
           </div>
@@ -689,7 +689,7 @@ function BucketRow({
         <div className="flex items-center gap-2">
           <button
             aria-label={`Decrease ${bucket.name} target`}
-            className="grid size-9 place-items-center rounded-[8px] border border-stone-300 bg-white text-lg font-semibold hover:border-stone-500"
+            className="grid size-9 place-items-center rounded-[8px] border border-white/10 bg-[#070807] text-lg font-semibold text-[#f4f1e8] hover:border-emerald-300/60"
             type="button"
             onClick={() => onChange(bucket.target - 25)}
           >
@@ -699,7 +699,7 @@ function BucketRow({
             {bucket.name} target amount
           </label>
           <input
-            className="h-9 w-24 rounded-[8px] border border-stone-300 bg-white px-2 text-right text-sm font-semibold outline-none focus:border-teal-700"
+            className="h-9 w-24 rounded-[8px] border border-white/10 bg-[#070807] px-2 text-right text-sm font-semibold text-[#f4f1e8] outline-none focus:border-emerald-300"
             id={`${bucket.id}-amount`}
             inputMode="numeric"
             max={2000}
@@ -712,7 +712,7 @@ function BucketRow({
           />
           <button
             aria-label={`Increase ${bucket.name} target`}
-            className="grid size-9 place-items-center rounded-[8px] border border-stone-300 bg-white text-lg font-semibold hover:border-stone-500"
+            className="grid size-9 place-items-center rounded-[8px] border border-white/10 bg-[#070807] text-lg font-semibold text-[#f4f1e8] hover:border-emerald-300/60"
             type="button"
             onClick={() => onChange(bucket.target + 25)}
           >
@@ -723,18 +723,18 @@ function BucketRow({
 
       <div className="mt-3">
         <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-          <span className="font-medium text-stone-600">
+          <span className="font-medium text-[#b9b2a3]">
             Funded {formatMoney(bucket.funded)} of {formatMoney(bucket.target)}
           </span>
           {bucket.short > 0 ? (
-            <span className="font-semibold text-red-700">
+            <span className="font-semibold text-red-300">
               Short {formatMoney(bucket.short)}
             </span>
           ) : (
-            <span className="font-semibold text-emerald-700">Covered</span>
+            <span className="font-semibold text-emerald-300">Covered</span>
           )}
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-white">
+        <div className="h-2 overflow-hidden rounded-full bg-[#070807]">
           <div
             className="h-full rounded-full"
             style={{

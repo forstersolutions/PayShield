@@ -12,29 +12,29 @@ const lastUpdated = "June 5, 2026";
 
 export default function TermsPage() {
   return (
-    <main className="bg-[#f7f5ef] text-stone-950">
+    <main className="bg-[#070807] text-[#f4f1e8]">
       <section className="mx-auto min-h-screen max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
         <Link
-          className="text-sm font-semibold text-teal-800 hover:text-teal-950"
+          className="text-sm font-semibold text-emerald-300 hover:text-emerald-200"
           href="/"
         >
           Back to PayShield
         </Link>
 
-        <div className="mt-8 rounded-[8px] border border-stone-300 bg-white p-6 shadow-[0_20px_70px_rgba(28,25,23,0.08)] sm:p-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-teal-800">
+        <div className="mt-8 rounded-[8px] border border-white/10 bg-[#101410] p-6 shadow-[0_24px_90px_rgba(0,0,0,0.38)] sm:p-8">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-300">
             PayShield prototype
           </p>
           <h1 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
             Terms
           </h1>
-          <p className="mt-3 text-sm text-stone-500">
+          <p className="mt-3 text-sm text-[#9c9588]">
             Last updated: {lastUpdated}
           </p>
 
-          <div className="mt-8 grid gap-8 text-base leading-7 text-stone-700">
+          <div className="mt-8 grid gap-8 text-base leading-7 text-[#c8c0af]">
             <section>
-              <h2 className="text-xl font-semibold text-stone-950">
+              <h2 className="text-xl font-semibold text-[#f4f1e8]">
                 Prototype only
               </h2>
               <p className="mt-3">
@@ -45,7 +45,7 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-stone-950">
+              <h2 className="text-xl font-semibold text-[#f4f1e8]">
                 No bank or insurance claim
               </h2>
               <p className="mt-3">
@@ -58,7 +58,7 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-stone-950">
+              <h2 className="text-xl font-semibold text-[#f4f1e8]">
                 No financial advice
               </h2>
               <p className="mt-3">
@@ -69,7 +69,7 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-stone-950">
+              <h2 className="text-xl font-semibold text-[#f4f1e8]">
                 Pilot requests
               </h2>
               <p className="mt-3">
@@ -81,7 +81,7 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-stone-950">
+              <h2 className="text-xl font-semibold text-[#f4f1e8]">
                 Acceptable use
               </h2>
               <p className="mt-3">
@@ -92,7 +92,7 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-stone-950">
+              <h2 className="text-xl font-semibold text-[#f4f1e8]">
                 Changes
               </h2>
               <p className="mt-3">
