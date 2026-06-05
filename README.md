@@ -6,7 +6,7 @@ would only access safe-to-spend money.
 
 ## Getting Started
 
-Use Node.js 20.9 or newer.
+Use Node.js 22.x.
 
 Install dependencies and run the local development server:
 
