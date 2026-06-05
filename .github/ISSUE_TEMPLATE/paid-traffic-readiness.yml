@@ -21,6 +21,7 @@ body:
         - label: "`npm run lead-capture:dry-run` passes locally and the non-PII output is attached."
         - label: "`npm run receiver:docker:smoke` passes in CI or locally if the lightweight receiver will be used."
         - label: "`npm run receiver:compose:config` passes if `compose.receiver.yml` will be used."
+        - label: "`npm run market:evidence:init -- --dir launch-evidence --site-url https://payshield-lime.vercel.app --receiver-url https://your-webhook-url --data-dir /path/to/waitlist --backup-dir /secure/path` creates the ignored local evidence packet."
         - label: Receiver selected and owned by the launch operator.
         - label: "`compose.receiver.yml` is used or an equivalent persistent-volume receiver deployment is documented if the lightweight receiver is used."
         - label: "`PAYSHIELD_WAITLIST_WEBHOOK_SECRET=... npm run receiver:evidence -- --url https://your-webhook-url --data-dir /path/to/waitlist --backup-dir /secure/path` passes and the redacted output is attached if the lightweight receiver is used."
@@ -30,6 +31,7 @@ body:
         - label: "`PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` is configured in Vercel Production."
         - label: "`npm run vercel:env:audit` passes for Production."
         - label: "`npm run launch:evidence -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --strict` passes."
+        - label: "`npm run market:go-no-go -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json --counsel-signoff-file launch-evidence/counsel-signoff.json --analytics-evidence-file launch-evidence/analytics-evidence.json` passes and the redacted output is attached."
         - label: "`/api/health` reports `waitlist.webhookSigningConfigured: true`."
         - label: "`/api/health` reports `waitlist.paidTrafficReady: true`."
         - label: "`npm run smoke:deploy -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --submit-test --require-webhook` passes."
@@ -75,6 +77,7 @@ body:
       placeholder: |
         /api/health:
         smoke:deploy:
+        market:go-no-go:
         Vercel deployment:
         CI run:
         Legal/counsel review:

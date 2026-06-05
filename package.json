@@ -15,6 +15,7 @@
     "legal:lint": "npm run campaign:lint -- docs/legal-review-packet.md docs/campaign-copy.md",
     "launch:evidence": "node scripts/launch-evidence.mjs",
     "lead-capture:dry-run": "node scripts/lead-capture-dry-run.mjs",
+    "market:evidence:init": "node scripts/market-evidence-init.mjs",
     "market:go-no-go": "node scripts/market-go-no-go.mjs",
     "start": "next start",
     "lint": "eslint",

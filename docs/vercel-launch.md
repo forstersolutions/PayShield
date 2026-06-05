@@ -84,6 +84,24 @@ state, it should report `paidTrafficReady: false`. After the webhook env
 variables are configured, rerun it with `--strict` and attach the output only if
 it passes.
 
+Create a local ignored evidence packet before the final cutover:
+
+```bash
+npm run market:evidence:init -- \
+  --dir launch-evidence \
+  --site-url https://payshield-lime.vercel.app \
+  --receiver-url https://your-webhook-url \
+  --data-dir /path/to/waitlist \
+  --backup-dir /secure/path
+```
+
+The command creates `launch-evidence/counsel-signoff.json`,
+`launch-evidence/analytics-evidence.json`, and
+`launch-evidence/commands.md`. The directory is ignored by git. Fill the JSON
+files only after counsel review and live analytics observation, then run the
+generated final `npm run market:go-no-go` command without
+`--allow-not-ready`.
+
 Before selecting a hosted receiver or CRM endpoint, prove the repo-owned lead
 capture path locally:
 

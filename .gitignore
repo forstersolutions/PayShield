@@ -21,6 +21,11 @@
 /build
 /data/waitlist/
 /data/waitlist-backups/
+/launch-evidence/
+/receiver-evidence.json
+/counsel-signoff.json
+/analytics-evidence.json
+/market-go-no-go.json
 
 # misc
 .DS_Store

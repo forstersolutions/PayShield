@@ -106,6 +106,7 @@ Run these commands and attach the outputs to the paid-traffic readiness issue
 before counsel sign-off:
 
 ```bash
+npm run market:evidence:init -- --dir launch-evidence --site-url https://payshield-lime.vercel.app --receiver-url https://your-webhook-url --data-dir /path/to/waitlist --backup-dir /secure/path
 npm run campaign:lint -- docs/legal-review-packet.md docs/campaign-copy.md
 npm run smoke:deploy -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app
 npm run readiness:paid-traffic -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --allow-prototype
@@ -117,6 +118,7 @@ After the production receiver or CRM is configured, add:
 PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run webhook:test -- https://your-webhook-url --replay
 npm run smoke:deploy -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --submit-test --require-webhook
 npm run readiness:paid-traffic -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app
+npm run market:go-no-go -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json --counsel-signoff-file launch-evidence/counsel-signoff.json --analytics-evidence-file launch-evidence/analytics-evidence.json
 ```
 
 ## Sign-Off Record
@@ -127,3 +129,16 @@ npm run readiness:paid-traffic -- https://payshield-lime.vercel.app --expect-sit
 - Required edits before launch:
 - Campaign copy files reviewed:
 - Notes:
+
+The final go/no-go gate expects this local JSON record in
+`launch-evidence/counsel-signoff.json` after counsel review:
+
+```json
+{
+  "ok": true,
+  "reviewedAt": "2026-06-05T00:00:00.000Z",
+  "reviewer": "Counsel or authorized reviewer",
+  "scope": ["privacy", "terms", "publicClaims", "campaignCopy"],
+  "campaignCopyLintOk": true
+}
+```
