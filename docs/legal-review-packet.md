@@ -129,7 +129,7 @@ After the production receiver or CRM is configured, add:
 PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run webhook:test -- https://your-webhook-url --replay
 npm run receiver:managed:check -- --file launch-evidence/receiver-evidence.json
 PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run vercel:webhook:cutover -- --site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json
-UPSTASH_REDIS_REST_URL=https://your-upstash-endpoint UPSTASH_REDIS_REST_TOKEN=server-side-rest-token npm run vercel:upstash:cutover -- --site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json
+UPSTASH_REDIS_REST_URL=https://your-upstash-endpoint UPSTASH_REDIS_REST_TOKEN=server-side-rest-token npm run vercel:upstash:cutover -- --site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json --apply-env
 npm run smoke:deploy -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --submit-test --require-webhook
 UPSTASH_REDIS_REST_URL=https://your-upstash-endpoint UPSTASH_REDIS_REST_TOKEN=server-side-rest-token npm run receiver:upstash:evidence -- https://payshield-lime.vercel.app --site-url https://payshield-lime.vercel.app --reviewer "Launch operator" --storage-owner "Revenue operations" --deletion-process-documented --export-process-documented --output launch-evidence/receiver-evidence.json
 npm run receiver:upstash:check -- --file launch-evidence/receiver-evidence.json

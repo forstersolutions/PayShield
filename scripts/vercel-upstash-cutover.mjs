@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { normalizeSiteUrl } from "./paid-traffic-readiness.mjs";
 
@@ -9,9 +10,10 @@ const allowedEnvironments = new Set(["production"]);
 
 function usage() {
   return [
-    "Usage: UPSTASH_REDIS_REST_URL=... UPSTASH_REDIS_REST_TOKEN=... npm run vercel:upstash:cutover -- [--site-url https://payshield-lime.vercel.app] [--environment production] [--rest-url-env UPSTASH_REDIS_REST_URL] [--token-env UPSTASH_REDIS_REST_TOKEN] [--receiver-evidence-file launch-evidence/receiver-evidence.json]",
+    "Usage: UPSTASH_REDIS_REST_URL=... UPSTASH_REDIS_REST_TOKEN=... npm run vercel:upstash:cutover -- [--site-url https://payshield-lime.vercel.app] [--environment production] [--rest-url-env UPSTASH_REDIS_REST_URL] [--token-env UPSTASH_REDIS_REST_TOKEN] [--receiver-evidence-file launch-evidence/receiver-evidence.json] [--apply-env]",
     "",
     "Validates local Upstash env references and prints a redacted Vercel Production Upstash cutover plan.",
+    "--apply-env adds the Vercel Production env vars from local env values, still without printing the Upstash REST URL or token.",
     "The command never prints the Upstash REST URL or token values.",
   ].join("\n");
 }
@@ -43,6 +45,7 @@ function parseCliArgs(args) {
       arg.startsWith("--") &&
       ![
         "--environment",
+        "--apply-env",
         "--help",
         "--receiver-evidence-file",
         "--rest-url-env",
@@ -62,6 +65,7 @@ function parseCliArgs(args) {
   }
 
   return {
+    applyEnv: args.includes("--apply-env"),
     environment: flagValue(args, "--environment") || "production",
     help: false,
     receiverEvidenceFile:
@@ -82,6 +86,20 @@ function shellEnvReference(name) {
   }
 
   return `"$${name}"`;
+}
+
+function redactedCommand(command, args) {
+  return [command, ...args].join(" ");
+}
+
+function redactSensitiveText(text, secrets) {
+  return secrets.reduce((redacted, secret) => {
+    if (typeof secret !== "string" || secret.length === 0) {
+      return redacted;
+    }
+
+    return redacted.split(secret).join("[redacted]");
+  }, String(text || ""));
 }
 
 function publicSafeUrl(value, label) {
@@ -186,6 +204,74 @@ function commandList({
   ];
 }
 
+function vercelEnvAddSteps({ environment, restUrlValue, tokenValue }) {
+  return [
+    {
+      input: "upstash",
+      name: "setWaitlistStorage",
+      sensitive: false,
+      variable: "PAYSHIELD_WAITLIST_STORAGE",
+    },
+    {
+      input: restUrlValue,
+      name: "setUpstashRestUrl",
+      sensitive: true,
+      variable: "UPSTASH_REDIS_REST_URL",
+    },
+    {
+      input: tokenValue,
+      name: "setUpstashRestToken",
+      sensitive: true,
+      variable: "UPSTASH_REDIS_REST_TOKEN",
+    },
+    {
+      input: "true",
+      name: "requireDurableCapture",
+      sensitive: false,
+      variable: "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK",
+    },
+  ].map((step) => ({
+    ...step,
+    args: [
+      "vercel",
+      "env",
+      "add",
+      step.variable,
+      environment,
+      ...(step.sensitive ? ["--sensitive"] : []),
+    ],
+    command: "npx",
+  }));
+}
+
+async function runCommandWithInput({ args, command, input }) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      resolve({
+        code,
+        stderr,
+        stdout,
+      });
+    });
+    child.stdin.end(input);
+  });
+}
+
 /**
  * @param {{
  *   environment?: string;
@@ -282,6 +368,105 @@ export function buildVercelUpstashCutoverPlan({
   };
 }
 
+/**
+ * @param {{
+ *   environment?: string;
+ *   receiverEvidenceFile?: string;
+ *   restUrlEnvName?: string;
+ *   restUrlValue?: string;
+ *   runCommand?: (options: {args: string[]; command: string; input: string}) => Promise<{code?: number | null; stderr?: string; stdout?: string}>;
+ *   siteUrl?: string;
+ *   tokenEnvName?: string;
+ *   tokenValue?: string;
+ * }} [options]
+ */
+export async function applyVercelUpstashEnv({
+  environment = "production",
+  receiverEvidenceFile = defaultReceiverEvidenceFile,
+  restUrlEnvName = defaultRestUrlEnvName,
+  restUrlValue = process.env[restUrlEnvName],
+  runCommand = runCommandWithInput,
+  siteUrl = defaultSiteUrl,
+  tokenEnvName = defaultTokenEnvName,
+  tokenValue = process.env[tokenEnvName],
+} = {}) {
+  const plan = buildVercelUpstashCutoverPlan({
+    environment,
+    receiverEvidenceFile,
+    restUrlEnvName,
+    restUrlValue,
+    siteUrl,
+    tokenEnvName,
+    tokenValue,
+  });
+
+  if (!plan.ok) {
+    return {
+      applied: false,
+      checks: plan.checks,
+      ok: false,
+      remainingGates: plan.remainingGates,
+      steps: [],
+    };
+  }
+
+  const secrets = [restUrlValue, tokenValue];
+  const steps = [];
+
+  for (const step of vercelEnvAddSteps({
+    environment,
+    restUrlValue,
+    tokenValue,
+  })) {
+    const result = await runCommand({
+      args: step.args,
+      command: step.command,
+      input: String(step.input),
+    });
+    const ok = result.code === 0;
+    const output = [result.stdout, result.stderr].filter(Boolean).join("\n");
+    const redactedOutput = redactSensitiveText(output, secrets).trim();
+    const summary = {
+      command: redactedCommand(step.command, step.args),
+      name: step.name,
+      ok,
+      sensitive: step.sensitive,
+      variable: step.variable,
+    };
+
+    if (!ok) {
+      summary.error = redactedOutput.slice(0, 1200);
+      steps.push(summary);
+      return {
+        applied: false,
+        ok: false,
+        remainingGates: ["vercelEnvAddFailed"],
+        steps,
+      };
+    }
+
+    steps.push(summary);
+  }
+
+  return {
+    applied: true,
+    nextCommands: plan.commands
+      .filter((step) =>
+        [
+          "redeployProduction",
+          "auditVercelEnv",
+          "strictLaunchEvidence",
+          "requiredCaptureSmoke",
+          "validateUpstashEvidence",
+        ].includes(step.name),
+      )
+      .map((step) => step.command),
+    ok: true,
+    remainingGates: [],
+    steps,
+  };
+}
+
 async function main() {
   const parsed = parseCliArgs(process.argv.slice(2));
 
@@ -302,6 +487,22 @@ async function main() {
 
   if (!result.ok) {
     process.exit(1);
+  }
+
+  if (parsed.applyEnv) {
+    const application = await applyVercelUpstashEnv({
+      environment: parsed.environment,
+      receiverEvidenceFile: parsed.receiverEvidenceFile,
+      restUrlEnvName: parsed.restUrlEnvName,
+      siteUrl: parsed.siteUrl,
+      tokenEnvName: parsed.tokenEnvName,
+    });
+
+    console.log(JSON.stringify({ vercelEnvApplication: application }, null, 2));
+
+    if (!application.ok) {
+      process.exit(1);
+    }
   }
 }
 

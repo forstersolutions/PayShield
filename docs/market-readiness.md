@@ -209,9 +209,9 @@ deployments, partner demos, and pilot demand capture.
   and follow the printed redacted Vercel Production env, redeploy, strict
   launch evidence, and required-webhook smoke sequence.
 - If Vercel Marketplace Upstash Redis is used, run
-  `UPSTASH_REDIS_REST_URL=https://your-upstash-endpoint UPSTASH_REDIS_REST_TOKEN=server-side-rest-token npm run vercel:upstash:cutover -- --site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json`
-  and follow the printed redacted Vercel Production env, redeploy, strict
-  launch evidence, required-capture smoke, and Upstash evidence sequence.
+  `UPSTASH_REDIS_REST_URL=https://your-upstash-endpoint UPSTASH_REDIS_REST_TOKEN=server-side-rest-token npm run vercel:upstash:cutover -- --site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json --apply-env`
+  and apply or follow the printed redacted Vercel Production env, redeploy,
+  strict launch evidence, required-capture smoke, and Upstash evidence sequence.
 - After Upstash capture is configured in Vercel Production and the
   required-capture smoke passes, run
   `UPSTASH_REDIS_REST_URL=https://your-upstash-endpoint UPSTASH_REDIS_REST_TOKEN=server-side-rest-token npm run receiver:upstash:evidence -- https://payshield-lime.vercel.app --site-url https://payshield-lime.vercel.app --reviewer "Launch operator" --storage-owner "Revenue operations" --deletion-process-documented --export-process-documented --output launch-evidence/receiver-evidence.json`,

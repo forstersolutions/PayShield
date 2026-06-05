@@ -281,6 +281,7 @@ function commandsMarkdown({
     shellQuote(siteUrl),
     "--receiver-evidence-file",
     shellQuote(receiverEvidenceFile),
+    "--apply-env",
   ].join(" ");
   const upstashCutoverPlanCommand = [
     "UPSTASH_REDIS_REST_URL=...",
@@ -537,6 +538,7 @@ export async function createMarketEvidencePacket({
       shellQuote(normalizedSiteUrl),
       "--receiver-evidence-file",
       shellQuote(receiverEvidenceFile),
+      "--apply-env",
     ].join(" "),
     envAuditCommand,
     counselSignoffCommand: [

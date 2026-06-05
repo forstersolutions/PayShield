@@ -204,6 +204,24 @@ the required redeploy, env audit, strict launch evidence, required-capture
 smoke, and `receiver:upstash:check` commands. It references the local env vars
 but does not print the REST URL or token values.
 
+To apply the Vercel Production env vars directly from the local shell values,
+add `--apply-env`:
+
+```bash
+UPSTASH_REDIS_REST_URL=https://your-upstash-endpoint \
+UPSTASH_REDIS_REST_TOKEN=server-side-rest-token \
+  npm run vercel:upstash:cutover -- \
+  --site-url https://payshield-lime.vercel.app \
+  --receiver-evidence-file launch-evidence/receiver-evidence.json \
+  --apply-env
+```
+
+The apply mode only adds the four Production env vars and prints redacted step
+status. After it succeeds, redeploy Production and run the printed env audit,
+strict launch evidence, required-capture smoke, and Upstash evidence checks. If
+Vercel reports an env var already exists, update or remove it in the Vercel
+dashboard before rerunning.
+
 After the Upstash env vars are configured in Vercel Production, production is
 redeployed, and the required-capture smoke passes, generate redacted Upstash
 receiver evidence from the live site and Redis REST API:
