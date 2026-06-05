@@ -55,6 +55,20 @@ If there is no webhook yet, leave `PAYSHIELD_WAITLIST_WEBHOOK_URL` empty. The
 form will still return demo-mode success for prototype walkthroughs, but
 submissions will not persist outside Vercel logs and analytics.
 
+Audit the current Vercel environment state without printing encrypted values:
+
+```bash
+npm run vercel:env:audit
+```
+
+For prototype evidence before the webhook variables are configured:
+
+```bash
+npx vercel env ls | npm run vercel:env:audit -- --stdin --allow-prototype
+```
+
+The audit must pass without `--allow-prototype` before paid traffic.
+
 ## Webhook Contract
 
 `/api/waitlist` sends a `POST` request with JSON:

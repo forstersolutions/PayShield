@@ -91,6 +91,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "scripts/paid-traffic-readiness.mjs",
   "scripts/smoke-deploy.mjs",
   "scripts/test-waitlist-webhook.mjs",
+  "scripts/vercel-env-audit.mjs",
   "scripts/waitlist-data-ops.mjs",
   "scripts/waitlist-webhook-receiver.mjs",
   "vercel.json",
@@ -211,6 +212,7 @@ requireText("scripts/waitlist-data-ops.mjs", "termsVersion");
 requireText("scripts/waitlist-data-ops.mjs", "consentedAt");
 requireText("scripts/waitlist-data-ops.mjs", "submissionId");
 requireText("package.json", "\"waitlist:data\"");
+requireText("package.json", "\"vercel:env:audit\"");
 requireText("package.json", "\"receiver:docker:build\"");
 requireText(".github/workflows/ci.yml", "npm run receiver:docker:build");
 requireText("SECURITY.md", "GitHub Dependabot security updates are enabled");
@@ -255,6 +257,10 @@ requireText(
 );
 requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
+  "npm run vercel:env:audit",
+);
+requireText(
+  ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   "npm run legal:lint",
 );
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
@@ -281,6 +287,11 @@ requireText("src/app/api/waitlist/route.ts", "hasCampaignAttribution");
 requireText("src/app/api/health/route.ts", "paidTrafficReady");
 requireText("src/app/api/health/route.ts", "webhookConfigured");
 requireText("src/app/api/health/route.ts", "webhookSigningConfigured");
+requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_URL");
+requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");
+requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
+requireText("scripts/vercel-env-audit.mjs", "--allow-prototype");
+requireText("scripts/vercel-env-audit.mjs", "--stdin");
 requireText("scripts/smoke-deploy.mjs", "/api/health");
 requireText("scripts/waitlist-webhook-receiver.mjs", "verifyPayShieldSignature");
 requireText("scripts/waitlist-webhook-receiver.mjs", "payshield-waitlist-receiver");
@@ -305,11 +316,13 @@ requireText("docs/vercel-launch.md", "privacyVersion");
 requireText("docs/vercel-launch.md", "termsVersion");
 requireText("docs/vercel-launch.md", "submissionId");
 requireText("docs/vercel-launch.md", "webhook:test -- https://your-webhook-url --replay");
+requireText("docs/vercel-launch.md", "npm run vercel:env:audit");
 requireText("docs/market-readiness.md", "sanitized campaign metadata");
 requireText("docs/market-readiness.md", "consent audit fields");
 requireText("docs/market-readiness.md", "idempotent capture");
 requireText("docs/market-readiness.md", "webhook:test -- https://your-webhook-url --replay");
 requireText("docs/market-readiness.md", "npm run legal:lint");
+requireText("docs/market-readiness.md", "npm run vercel:env:audit");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "sanitized `attribution` fields");
 
 requireMaxSize("src/app/icon.svg", 5_000);

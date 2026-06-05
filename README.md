@@ -36,6 +36,7 @@ npm run smoke:deploy -- https://your-domain.com
 npm run smoke:deploy -- https://your-domain.com --expect-site-url https://your-domain.com
 npm run waitlist:data -- summary
 npm run waitlist:data -- erase --email lead@example.com --dry-run
+npm run vercel:env:audit
 npm run webhook:receive
 PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run webhook:test -- https://your-webhook-url --replay
 npm run build
@@ -110,6 +111,11 @@ capture.
 audits the public launch surface and fails unless `/api/health` proves
 paid-traffic-ready webhook capture. Add `--allow-prototype` to document the
 current prototype state while keeping demo capture as a warning.
+
+`npm run vercel:env:audit` checks Vercel Production for the site URL, webhook
+URL, webhook signing secret, and fail-closed flag without printing encrypted
+values. Use `npx vercel env ls | npm run vercel:env:audit -- --stdin --allow-prototype`
+to document the current prototype state before the webhook variables exist.
 
 `npm run webhook:receive` starts a small signed webhook receiver for teams that
 want a lightweight persistence target before wiring a CRM. It verifies the

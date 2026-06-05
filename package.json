@@ -20,6 +20,7 @@
     "receiver:docker:build": "docker build -f Dockerfile.receiver -t payshield-waitlist-receiver:ci .",
     "smoke:deploy": "node scripts/smoke-deploy.mjs",
     "waitlist:data": "node scripts/waitlist-data-ops.mjs",
+    "vercel:env:audit": "node scripts/vercel-env-audit.mjs",
     "webhook:receive": "node scripts/waitlist-webhook-receiver.mjs",
     "webhook:test": "node scripts/test-waitlist-webhook.mjs",
     "test": "NODE_ENV=test VERCEL_WEB_ANALYTICS_DISABLE_LOGS=1 node --test tests/*.test.mts",

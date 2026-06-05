@@ -107,6 +107,10 @@ deployments, partner demos, and pilot demand capture.
 - Run `PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run webhook:test -- https://your-webhook-url --replay`
   against the receiver and confirm the initial send and replay both return 2xx
   responses before configuring Vercel to require webhook persistence.
+- Run `npm run vercel:env:audit` and confirm Vercel Production has
+  `NEXT_PUBLIC_SITE_URL`, `PAYSHIELD_WAITLIST_WEBHOOK_URL`,
+  `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`, and
+  `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK` before paid traffic.
 - Confirm `https://payshield-lime.vercel.app/api/health` reports
   `waitlist.webhookSigningConfigured: true` and
   `waitlist.paidTrafficReady: true` after the webhook, signing secret, and
