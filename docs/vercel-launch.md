@@ -142,9 +142,11 @@ Slack, Make, Zapier, or internal webhook, copy the managed receiver template to
 `launch-evidence/receiver-evidence.json`, fill it after signed replay and
 storage review, then validate it with
 `npm run receiver:managed:check -- --file launch-evidence/receiver-evidence.json`.
-If production capture uses Vercel Marketplace Upstash Redis, copy the Upstash
-template to `launch-evidence/receiver-evidence.json`, fill it after health,
-production submit, storage, export, and deletion review, then validate it with
+If production capture uses Vercel Marketplace Upstash Redis, keep the Upstash
+template as the pre-cutover placeholder. After Vercel Production is configured,
+redeployed, and required-capture smoke passes, run
+`npm run receiver:upstash:evidence -- https://payshield-lime.vercel.app --site-url https://payshield-lime.vercel.app --reviewer "Launch operator" --storage-owner "Revenue operations" --deletion-process-documented --export-process-documented --output launch-evidence/receiver-evidence.json`,
+then validate it with
 `npm run receiver:upstash:check -- --file launch-evidence/receiver-evidence.json`.
 Run the generated final `npm run market:go-no-go` command without
 `--allow-not-ready` only after all evidence files pass.
@@ -201,6 +203,31 @@ HTTPS and redacted, and prints `npx vercel env add` commands for
 the required redeploy, env audit, strict launch evidence, required-capture
 smoke, and `receiver:upstash:check` commands. It references the local env vars
 but does not print the REST URL or token values.
+
+After the Upstash env vars are configured in Vercel Production, production is
+redeployed, and the required-capture smoke passes, generate redacted Upstash
+receiver evidence from the live site and Redis REST API:
+
+```bash
+UPSTASH_REDIS_REST_URL=https://your-upstash-endpoint \
+UPSTASH_REDIS_REST_TOKEN=server-side-rest-token \
+  npm run receiver:upstash:evidence -- \
+  https://payshield-lime.vercel.app \
+  --site-url https://payshield-lime.vercel.app \
+  --reviewer "Launch operator" \
+  --storage-owner "Revenue operations" \
+  --deletion-process-documented \
+  --export-process-documented \
+  --output launch-evidence/receiver-evidence.json
+
+npm run receiver:upstash:check -- \
+  --file launch-evidence/receiver-evidence.json
+```
+
+The evidence command submits one campaign-attributed production smoke lead,
+checks `/api/health`, verifies the stored Redis lead record, consent metadata,
+sanitized attribution, `submissionId`, and email-hash index, and writes only
+redacted evidence. It does not print the smoke lead email, REST URL, or token.
 
 Before selecting a hosted receiver or CRM endpoint, prove the repo-owned lead
 capture path locally:

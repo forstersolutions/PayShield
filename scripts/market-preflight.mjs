@@ -234,6 +234,9 @@ requireText(
 );
 requireText("scripts/check-upstash-receiver-evidence.mjs", "receiver:upstash:check");
 requireText("scripts/check-upstash-receiver-evidence.mjs", "Upstash Redis");
+requireText("scripts/upstash-receiver-evidence.mjs", "generateUpstashReceiverEvidence");
+requireText("scripts/upstash-receiver-evidence.mjs", "receiver:upstash:evidence");
+requireText("scripts/upstash-receiver-evidence.mjs", "never prints the smoke lead email");
 requireText("scripts/check-counsel-signoff.mjs", "evaluateCounselSignoffEvidence");
 requireText("scripts/check-counsel-signoff.mjs", "counsel-signoff.json");
 requireText("scripts/check-counsel-signoff.mjs", "Validates the redacted counsel sign-off record");
@@ -398,6 +401,7 @@ requireText("package.json", "\"vercel:upstash:cutover\"");
 requireText("package.json", "\"vercel:webhook:cutover\"");
 requireText("package.json", "\"receiver:docker:build\"");
 requireText("package.json", "\"receiver:evidence\"");
+requireText("package.json", "\"receiver:upstash:evidence\"");
 requireText(".github/workflows/ci.yml", "npm run receiver:docker:smoke");
 requireText(".github/workflows/ci.yml", "npm run receiver:compose:config");
 requireText("SECURITY.md", "GitHub Dependabot security updates are enabled");
@@ -577,6 +581,7 @@ requireText("docs/vercel-launch.md", "docker compose --env-file .env.receiver -f
 requireText("docs/vercel-launch.md", "npm run receiver:compose:config");
 requireText("docs/vercel-launch.md", "npm run receiver:evidence");
 requireText("docs/vercel-launch.md", "npm run receiver:managed:check");
+requireText("docs/vercel-launch.md", "npm run receiver:upstash:evidence");
 requireText("docs/vercel-launch.md", "npm run receiver:upstash:check");
 requireText("docs/vercel-launch.md", "npm run market:evidence:init");
 requireText("docs/vercel-launch.md", "npm run counsel:signoff:check");
@@ -606,6 +611,7 @@ requireText("docs/market-readiness.md", "docker compose --env-file .env.receiver
 requireText("docs/market-readiness.md", "npm run receiver:compose:config");
 requireText("docs/market-readiness.md", "npm run receiver:evidence");
 requireText("docs/market-readiness.md", "npm run receiver:managed:check");
+requireText("docs/market-readiness.md", "npm run receiver:upstash:evidence");
 requireText("docs/market-readiness.md", "npm run receiver:upstash:check");
 requireText("docs/market-readiness.md", "npm run market:evidence:init");
 requireText("docs/market-readiness.md", "npm run analytics:evidence:check");

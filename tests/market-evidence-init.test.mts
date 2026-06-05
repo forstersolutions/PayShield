@@ -74,6 +74,7 @@ test("creates local market evidence templates and redacted commands", async () =
     assert.equal(upstashReceiver.health.storageConfigured, false);
     assert.match(commands, /npm run receiver:evidence/);
     assert.match(commands, /npm run receiver:managed:check/);
+    assert.match(commands, /npm run receiver:upstash:evidence/);
     assert.match(commands, /npm run receiver:upstash:check/);
     assert.match(commands, /npm run vercel:webhook:cutover/);
     assert.match(commands, /npm run vercel:upstash:cutover/);
@@ -100,6 +101,10 @@ test("creates local market evidence templates and redacted commands", async () =
     assert.match(
       result.upstashReceiverEvidenceCommand,
       /receiver:upstash:check/,
+    );
+    assert.match(
+      result.upstashReceiverEvidenceGenerateCommand,
+      /receiver:upstash:evidence/,
     );
     assert.match(result.statusCommand, /market:status/);
     assert.equal(serialized.includes("shared-secret"), false);
