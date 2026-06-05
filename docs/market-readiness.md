@@ -42,6 +42,9 @@ deployments, partner demos, and pilot demand capture.
 - Market go/no-go command that combines strict production launch evidence,
   hosted receiver evidence, counsel sign-off, and live analytics evidence into
   one redacted JSON decision before paid traffic starts.
+- Market status snapshot command that combines production health, local git
+  commit, GitHub CI, Vercel deployment readiness, launch evidence, and
+  go/no-go remaining gates for repeatable readiness issue updates.
 - Local evidence packet initializer that creates ignored counsel and analytics
   JSON templates plus redacted receiver/launch/go-no-go commands for the final
   operator handoff.
@@ -187,6 +190,10 @@ deployments, partner demos, and pilot demand capture.
   before marking the paid-traffic issue ready. Use `--allow-not-ready` while
   gathering evidence so the command prints the current missing gates without
   exiting nonzero.
+- Run
+  `npm run market:status -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json --counsel-signoff-file launch-evidence/counsel-signoff.json --analytics-evidence-file launch-evidence/analytics-evidence.json`
+  after each launch commit or evidence update and attach the redacted snapshot
+  to the readiness issue.
 - Confirm `https://payshield-lime.vercel.app/api/health` reports
   `waitlist.webhookSigningConfigured: true` and
   `waitlist.paidTrafficReady: true` after the webhook, signing secret, and
@@ -238,7 +245,8 @@ npm run market:evidence:init -- \
 
 `launch-evidence/` is ignored by git. The command creates
 `counsel-signoff.json`, `analytics-evidence.json`, and `commands.md` with the
-exact redacted receiver, strict launch, and final go/no-go commands.
+exact redacted receiver, strict launch, final go/no-go, and status snapshot
+commands.
 
 `npm run market:go-no-go` reads the JSON output from
 `npm run receiver:evidence` directly. Keep that file outside git, then attach

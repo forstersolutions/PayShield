@@ -71,6 +71,7 @@ body:
         - label: Default scaffold assets such as `/next.svg` and `/vercel.svg` are not publicly served.
         - label: Custom domain, `NEXT_PUBLIC_SITE_URL`, canonical metadata, robots, and sitemap match if a custom domain is used.
         - label: GitHub CI passes on the launch commit.
+        - label: "`npm run market:status -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app` passes and the redacted status snapshot is attached."
         - label: GitHub Dependabot security updates, secret scanning, and push protection are enabled.
   - type: textarea
     id: evidence
@@ -83,6 +84,7 @@ body:
         vercel:webhook:cutover:
         analytics:evidence:check:
         market:go-no-go:
+        market:status:
         Vercel deployment:
         CI run:
         Legal/counsel review:

@@ -19,6 +19,7 @@
     "lead-capture:dry-run": "node scripts/lead-capture-dry-run.mjs",
     "market:evidence:init": "node scripts/market-evidence-init.mjs",
     "market:go-no-go": "node scripts/market-go-no-go.mjs",
+    "market:status": "node scripts/market-status.mjs",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",

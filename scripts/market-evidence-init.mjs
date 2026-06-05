@@ -206,6 +206,18 @@ function commandsMarkdown({
     "--analytics-evidence-file",
     shellQuote(analyticsFile),
   ].join(" ");
+  const statusCommand = [
+    "npm run market:status --",
+    shellQuote(siteUrl),
+    "--expect-site-url",
+    shellQuote(siteUrl),
+    "--receiver-evidence-file",
+    shellQuote(receiverEvidenceFile),
+    "--counsel-signoff-file",
+    shellQuote(counselFile),
+    "--analytics-evidence-file",
+    shellQuote(analyticsFile),
+  ].join(" ");
 
   return [
     "# PayShield Market Evidence Packet",
@@ -243,6 +255,12 @@ function commandsMarkdown({
     "",
     "```bash",
     goNoGoCommand,
+    "```",
+    "",
+    "7. Refresh the readiness issue status snapshot after each launch commit or evidence update:",
+    "",
+    "```bash",
+    statusCommand,
     "```",
     "",
     "Only attach redacted command outputs to the GitHub readiness issue.",
@@ -351,6 +369,18 @@ export async function createMarketEvidencePacket({
       shellQuote(receiverEvidenceFile),
     ].join(" "),
     siteUrl: normalizedSiteUrl,
+    statusCommand: [
+      "npm run market:status --",
+      shellQuote(normalizedSiteUrl),
+      "--expect-site-url",
+      shellQuote(normalizedSiteUrl),
+      "--receiver-evidence-file",
+      shellQuote(receiverEvidenceFile),
+      "--counsel-signoff-file",
+      shellQuote(counselFile),
+      "--analytics-evidence-file",
+      shellQuote(analyticsFile),
+    ].join(" "),
   };
 }
 

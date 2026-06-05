@@ -84,6 +84,19 @@ state, it should report `paidTrafficReady: false`. After the webhook env
 variables are configured, rerun it with `--strict` and attach the output only if
 it passes.
 
+Refresh the redacted production status snapshot after each launch commit or
+evidence update:
+
+```bash
+npm run market:status -- \
+  https://payshield-lime.vercel.app \
+  --expect-site-url https://payshield-lime.vercel.app
+```
+
+The snapshot combines production health, local git commit, latest GitHub CI,
+Vercel deployment readiness, launch evidence, and market go/no-go remaining
+gates for the readiness issue.
+
 Create a local ignored evidence packet before the final cutover:
 
 ```bash

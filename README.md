@@ -32,6 +32,7 @@ npm run launch:evidence -- https://your-domain.com --expect-site-url https://you
 npm run lead-capture:dry-run
 npm test
 npm run market-preflight
+npm run market:status -- https://your-domain.com --expect-site-url https://your-domain.com
 npm run receiver:compose:config
 npm run receiver:docker:build
 npm run receiver:docker:smoke
@@ -137,6 +138,12 @@ Vercel env audit status, and the local lead-capture dry run. Default mode is
 prototype evidence mode; add `--strict` after the webhook env variables are
 configured to fail unless production health and Vercel env prove
 paid-traffic-ready capture.
+
+`npm run market:status -- https://your-domain.com --expect-site-url https://your-domain.com`
+prints a redacted production status snapshot for the readiness issue. It
+combines production health, local git commit, latest GitHub CI run, Vercel
+deployment readiness, launch evidence, and go/no-go remaining gates so every
+launch commit can be audited without manually stitching outputs together.
 
 `npm run lead-capture:dry-run` starts the lightweight receiver on localhost,
 forces `/api/waitlist` into signed required-webhook mode, submits one pilot

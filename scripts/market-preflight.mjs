@@ -103,6 +103,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "scripts/lead-capture-dry-run.mjs",
   "scripts/market-evidence-init.mjs",
   "scripts/market-go-no-go.mjs",
+  "scripts/market-status.mjs",
   "scripts/paid-traffic-readiness.mjs",
   "scripts/receiver-evidence.mjs",
   "scripts/smoke-deploy.mjs",
@@ -227,6 +228,7 @@ requireText("package.json", "\"launch:evidence\"");
 requireText("package.json", "\"lead-capture:dry-run\"");
 requireText("package.json", "\"market:evidence:init\"");
 requireText("package.json", "\"market:go-no-go\"");
+requireText("package.json", "\"market:status\"");
 requireText("package.json", "\"receiver:docker:smoke\"");
 requireText("package.json", "\"receiver:compose:config\"");
 requireText("package.json", "npm run campaign:lint:all");
@@ -282,7 +284,14 @@ requireText("scripts/market-go-no-go.mjs", "evaluateCounselSignoff");
 requireText("scripts/market-go-no-go.mjs", "evaluateAnalyticsEvidence");
 requireText("scripts/market-go-no-go.mjs", "evaluateLiveAnalyticsEvidence");
 requireText("scripts/market-go-no-go.mjs", "strictProductionLaunchEvidence");
+requireText("scripts/market-status.mjs", "summarizeMarketStatus");
+requireText("scripts/market-status.mjs", "parseVercelInspectOutput");
+requireText("scripts/market-status.mjs", "githubCiPassesOnProductionCommit");
+requireText("scripts/market-status.mjs", "localGitWorktreeClean");
+requireText("scripts/market-status.mjs", "vercelDeploymentReady");
+requireText("scripts/market-status.mjs", "issueSummaryMarkdown");
 requireText("scripts/market-evidence-init.mjs", "vercel:webhook:cutover");
+requireText("scripts/market-evidence-init.mjs", "market:status");
 requireText("scripts/vercel-webhook-cutover.mjs", "buildVercelWebhookCutoverPlan");
 requireText("scripts/vercel-webhook-cutover.mjs", "evaluateReceiverEvidence");
 requireText("scripts/vercel-webhook-cutover.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");
@@ -408,6 +417,10 @@ requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   "npm run analytics:evidence:check",
 );
+requireText(
+  ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
+  "npm run market:status",
+);
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET is required");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-signature");
@@ -485,6 +498,7 @@ requireText("docs/vercel-launch.md", "npm run market:evidence:init");
 requireText("docs/vercel-launch.md", "npm run analytics:evidence:check");
 requireText("docs/vercel-launch.md", "npm run vercel:webhook:cutover");
 requireText("docs/vercel-launch.md", "npm run market:go-no-go");
+requireText("docs/vercel-launch.md", "npm run market:status");
 requireText("docs/vercel-launch.md", "npm run campaign:lint:all");
 requireText("docs/vercel-launch.md", "docs/campaigns/manifest.json");
 requireText("docs/vercel-launch.md", "npm run waitlist:data -- audit --data-dir /path/to/waitlist");
@@ -506,6 +520,7 @@ requireText("docs/market-readiness.md", "npm run market:evidence:init");
 requireText("docs/market-readiness.md", "npm run analytics:evidence:check");
 requireText("docs/market-readiness.md", "npm run vercel:webhook:cutover");
 requireText("docs/market-readiness.md", "npm run market:go-no-go");
+requireText("docs/market-readiness.md", "npm run market:status");
 requireText("docs/market-readiness.md", "npm run waitlist:data -- audit --data-dir /path/to/waitlist");
 requireText("docs/market-readiness.md", "npm run waitlist:data -- backup --data-dir /path/to/waitlist --backup-dir /secure/path");
 requireText("docs/market-readiness.md", "npm run waitlist:data -- verify-backup --backup-path /secure/path/waitlist-backup-...");
@@ -522,6 +537,7 @@ requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "compose.receiv
 requireText("docs/legal-review-packet.md", "npm run receiver:evidence");
 requireText("docs/legal-review-packet.md", "npm run vercel:webhook:cutover");
 requireText("docs/legal-review-packet.md", "npm run analytics:evidence:check");
+requireText("docs/legal-review-packet.md", "npm run market:status");
 
 requireMaxSize("src/app/icon.svg", 5_000);
 requireMaxSize("public/images/payshield-product-mockup.avif", 125_000);
