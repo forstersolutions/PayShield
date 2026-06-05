@@ -95,6 +95,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "scripts/launch-evidence.mjs",
   "scripts/lead-capture-dry-run.mjs",
   "scripts/paid-traffic-readiness.mjs",
+  "scripts/receiver-evidence.mjs",
   "scripts/smoke-deploy.mjs",
   "scripts/smoke-docker-receiver.mjs",
   "scripts/test-waitlist-webhook.mjs",
@@ -245,6 +246,17 @@ requireText("scripts/lead-capture-dry-run.mjs", "auditWaitlistData");
 requireText("scripts/lead-capture-dry-run.mjs", "summarizeWaitlistData");
 requireText("scripts/lead-capture-dry-run.mjs", "eraseWaitlistEmail");
 requireText("scripts/lead-capture-dry-run.mjs", "verifyWaitlistBackup");
+requireText("scripts/receiver-evidence.mjs", "runReceiverEvidence");
+requireText("scripts/receiver-evidence.mjs", "sendSignedWebhookTest");
+requireText("scripts/receiver-evidence.mjs", "summarizeWaitlistData");
+requireText("scripts/receiver-evidence.mjs", "auditWaitlistData");
+requireText("scripts/receiver-evidence.mjs", "backupWaitlistData");
+requireText("scripts/receiver-evidence.mjs", "verifyWaitlistBackup");
+requireText("scripts/receiver-evidence.mjs", "eraseWaitlistEmail");
+requireText(
+  "scripts/receiver-evidence.mjs",
+  "receiver evidence output does not print smoke lead PII or signing secret",
+);
 requireText("scripts/smoke-docker-receiver.mjs", "auditWaitlistData");
 requireText("scripts/smoke-docker-receiver.mjs", "verifyWaitlistBackup");
 requireText("scripts/waitlist-data-ops.mjs", "summarizeWaitlistData");
@@ -263,6 +275,7 @@ requireText("scripts/waitlist-data-ops.mjs", "submissionId");
 requireText("package.json", "\"waitlist:data\"");
 requireText("package.json", "\"vercel:env:audit\"");
 requireText("package.json", "\"receiver:docker:build\"");
+requireText("package.json", "\"receiver:evidence\"");
 requireText(".github/workflows/ci.yml", "npm run receiver:docker:smoke");
 requireText(".github/workflows/ci.yml", "npm run receiver:compose:config");
 requireText("SECURITY.md", "GitHub Dependabot security updates are enabled");
@@ -324,6 +337,10 @@ requireText(
 requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   "npm run receiver:compose:config",
+);
+requireText(
+  ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
+  "npm run receiver:evidence",
 );
 requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
@@ -396,6 +413,7 @@ requireText("docs/vercel-launch.md", "webhook:test -- https://your-webhook-url -
 requireText("docs/vercel-launch.md", "npm run vercel:env:audit");
 requireText("docs/vercel-launch.md", "docker compose --env-file .env.receiver -f compose.receiver.yml up -d --build");
 requireText("docs/vercel-launch.md", "npm run receiver:compose:config");
+requireText("docs/vercel-launch.md", "npm run receiver:evidence");
 requireText("docs/vercel-launch.md", "npm run waitlist:data -- audit --data-dir /path/to/waitlist");
 requireText("docs/vercel-launch.md", "npm run waitlist:data -- backup --data-dir /path/to/waitlist --backup-dir /secure/path");
 requireText("docs/vercel-launch.md", "npm run waitlist:data -- verify-backup --backup-path /secure/path/waitlist-backup-...");
@@ -408,6 +426,7 @@ requireText("docs/market-readiness.md", "npm run vercel:env:audit");
 requireText("docs/market-readiness.md", "npm run analytics:audit");
 requireText("docs/market-readiness.md", "docker compose --env-file .env.receiver -f compose.receiver.yml up -d --build");
 requireText("docs/market-readiness.md", "npm run receiver:compose:config");
+requireText("docs/market-readiness.md", "npm run receiver:evidence");
 requireText("docs/market-readiness.md", "npm run waitlist:data -- audit --data-dir /path/to/waitlist");
 requireText("docs/market-readiness.md", "npm run waitlist:data -- backup --data-dir /path/to/waitlist --backup-dir /secure/path");
 requireText("docs/market-readiness.md", "npm run waitlist:data -- verify-backup --backup-path /secure/path/waitlist-backup-...");
@@ -417,6 +436,7 @@ requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run waitli
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run waitlist:data -- backup");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run waitlist:data -- verify-backup");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "compose.receiver.yml");
+requireText("docs/legal-review-packet.md", "npm run receiver:evidence");
 
 requireMaxSize("src/app/icon.svg", 5_000);
 requireMaxSize("public/images/payshield-product-mockup.avif", 125_000);

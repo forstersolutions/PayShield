@@ -35,6 +35,7 @@ npm run market-preflight
 npm run receiver:compose:config
 npm run receiver:docker:build
 npm run receiver:docker:smoke
+npm run receiver:evidence -- --url https://your-webhook-url --data-dir /path/to/waitlist --backup-dir /secure/path
 npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com
 npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com --allow-prototype
 npm run smoke:deploy -- https://your-domain.com
@@ -177,6 +178,22 @@ receiver fallback is more than build-only.
 it uses the same image, requires a runtime webhook signing secret, mounts
 `PAYSHIELD_RECEIVER_HOST_DATA_DIR` into `/data/waitlist`, adds a container
 healthcheck, and restarts unless stopped.
+
+After the lightweight receiver is reachable and the operator host can read its
+data directory, run the receiver evidence command:
+
+```bash
+PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook \
+  npm run receiver:evidence -- \
+  --url https://your-webhook-url \
+  --data-dir /path/to/waitlist \
+  --backup-dir /secure/path
+```
+
+The command verifies `/health`, sends a signed test payload and signed replay,
+checks non-PII summary counts, audits receiver files, creates and verifies a
+protected backup, and dry-runs deletion of the test lead without printing lead
+PII or the signing secret.
 
 `npm run webhook:test -- https://your-webhook-url --replay` sends one signed
 sample payload to any receiver using `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`, then

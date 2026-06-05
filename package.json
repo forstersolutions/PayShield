@@ -23,6 +23,7 @@
     "receiver:compose:config": "PAYSHIELD_WAITLIST_WEBHOOK_SECRET=compose-check PAYSHIELD_RECEIVER_HOST_DATA_DIR=/tmp/payshield-waitlist docker compose --env-file .env.receiver.example -f compose.receiver.yml config >/dev/null",
     "receiver:docker:build": "docker build -f Dockerfile.receiver -t payshield-waitlist-receiver:ci .",
     "receiver:docker:smoke": "node scripts/smoke-docker-receiver.mjs",
+    "receiver:evidence": "node scripts/receiver-evidence.mjs",
     "smoke:deploy": "node scripts/smoke-deploy.mjs",
     "waitlist:data": "node scripts/waitlist-data-ops.mjs",
     "vercel:env:audit": "node scripts/vercel-env-audit.mjs",

@@ -135,6 +135,10 @@ deployments, partner demos, and pilot demand capture.
 - Run `npm run receiver:compose:config` before deploying
   `compose.receiver.yml` and attach the command result or CI run to the
   readiness issue.
+- After the lightweight receiver is reachable and the operator host can read
+  its data directory, run
+  `PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run receiver:evidence -- --url https://your-webhook-url --data-dir /path/to/waitlist --backup-dir /secure/path`
+  and attach the redacted JSON output to the readiness issue.
 - If the lightweight receiver is used, run
   `npm run waitlist:data -- summary --data-dir /path/to/waitlist` after test
   submissions to confirm non-PII counts, run

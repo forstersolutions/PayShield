@@ -23,6 +23,7 @@ body:
         - label: "`npm run receiver:compose:config` passes if `compose.receiver.yml` will be used."
         - label: Receiver selected and owned by the launch operator.
         - label: "`compose.receiver.yml` is used or an equivalent persistent-volume receiver deployment is documented if the lightweight receiver is used."
+        - label: "`PAYSHIELD_WAITLIST_WEBHOOK_SECRET=... npm run receiver:evidence -- --url https://your-webhook-url --data-dir /path/to/waitlist --backup-dir /secure/path` passes and the redacted output is attached if the lightweight receiver is used."
         - label: "Receiver accepts `npm run webhook:test -- https://your-webhook-url --replay`."
         - label: "`PAYSHIELD_WAITLIST_WEBHOOK_URL` is configured in Vercel Production."
         - label: "`PAYSHIELD_WAITLIST_WEBHOOK_SECRET` is configured in Vercel Production."

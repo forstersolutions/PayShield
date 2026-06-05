@@ -90,6 +90,7 @@ still be reviewed before paid traffic.
    `consentText`, `consentedAt`, `consentVersion`, `privacyVersion`, and
    `termsVersion`.
 7. Confirm lightweight receiver data handling, including
+   `npm run receiver:evidence -- --url https://your-webhook-url --data-dir /path/to/waitlist --backup-dir /secure/path`,
    `npm run waitlist:data -- audit --data-dir /path/to/waitlist`,
    `npm run waitlist:data -- backup --data-dir /path/to/waitlist --backup-dir /secure/path`,
    `npm run waitlist:data -- verify-backup --backup-path /secure/path/waitlist-backup-...`,

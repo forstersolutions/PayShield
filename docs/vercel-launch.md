@@ -224,6 +224,24 @@ Do not use a container instance without a persistent volume for paid traffic.
 The receiver writes lead data to files under `/data/waitlist`; ephemeral storage
 will lose accepted leads on restart or redeploy.
 
+After the receiver is reachable and the operator host can read the receiver data
+directory, run the bundled receiver evidence sequence:
+
+```bash
+PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook \
+  npm run receiver:evidence -- \
+  --url https://your-webhook-url \
+  --data-dir /path/to/waitlist \
+  --backup-dir /secure/path
+```
+
+The command verifies `GET /health`, sends a signed test payload, sends the same
+payload again to prove idempotent replay, runs non-PII summary and file audit
+checks, creates and verifies a protected backup, and dry-runs deletion of the
+test lead without printing lead PII or the signing secret. Attach that redacted
+JSON to the paid-traffic readiness issue before setting Vercel to required
+webhook mode.
+
 The lightweight receiver data files can be checked without printing emails or
 notes:
 
