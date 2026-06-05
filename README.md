@@ -27,6 +27,7 @@ npm run dev
 npm run verify
 npm test
 npm run market-preflight
+npm run receiver:docker:build
 npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com
 npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com --allow-prototype
 npm run smoke:deploy -- https://your-domain.com
@@ -46,8 +47,10 @@ npm run typecheck
 `npm run verify` runs linting, TypeScript checks, waitlist API tests, market
 copy/asset preflight checks, a production build, and a production dependency
 audit. GitHub Actions runs the same preflight on pushes to `main` and pull
-requests. Vercel's Git integration will still create preview and production
-deployments; the workflow is a source-level quality gate before deployment.
+requests, then builds `Dockerfile.receiver` with
+`npm run receiver:docker:build`. Vercel's Git integration will still create
+preview and production deployments; the workflow is a source-level quality gate
+before deployment.
 
 Dependabot is configured for weekly npm and GitHub Actions update pull requests,
 grouped by runtime, Vercel observability, lint/type tooling, and workflow

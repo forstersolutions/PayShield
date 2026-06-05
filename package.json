@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "market-preflight": "node scripts/market-preflight.mjs",
     "readiness:paid-traffic": "node scripts/paid-traffic-readiness.mjs",
+    "receiver:docker:build": "docker build -f Dockerfile.receiver -t payshield-waitlist-receiver:ci .",
     "smoke:deploy": "node scripts/smoke-deploy.mjs",
     "waitlist:data": "node scripts/waitlist-data-ops.mjs",
     "webhook:receive": "node scripts/waitlist-webhook-receiver.mjs",

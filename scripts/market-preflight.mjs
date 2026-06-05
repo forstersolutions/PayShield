@@ -71,6 +71,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/components/waitlist-form.tsx",
   "src/app/components/paycheck-planner.tsx",
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
+  ".github/workflows/ci.yml",
   "next.config.ts",
   "SECURITY.md",
   ".dockerignore",
@@ -143,6 +144,8 @@ requireText("scripts/waitlist-data-ops.mjs", "summarizeWaitlistData");
 requireText("scripts/waitlist-data-ops.mjs", "eraseWaitlistEmail");
 requireText("scripts/waitlist-data-ops.mjs", "malformedLines");
 requireText("package.json", "\"waitlist:data\"");
+requireText("package.json", "\"receiver:docker:build\"");
+requireText(".github/workflows/ci.yml", "npm run receiver:docker:build");
 requireText("SECURITY.md", "GitHub Dependabot security updates are enabled");
 requireText("SECURITY.md", "GitHub private vulnerability reporting is enabled");
 requireText("SECURITY.md", "Do not open a public issue for security vulnerabilities");

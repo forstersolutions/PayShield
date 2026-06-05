@@ -32,6 +32,8 @@ Use this checklist after the repository is pushed to
 GitHub Actions runs `npm run verify` before Vercel deploys from the GitHub
 integration. This includes linting, TypeScript checks, route tests, market
 copy/asset preflight checks, production build, and production dependency audit.
+The same workflow also runs `npm run receiver:docker:build` so the lightweight
+receiver image remains buildable when that fallback capture path is needed.
 
 ## Environment Variables
 

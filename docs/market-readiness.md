@@ -21,8 +21,9 @@ deployments, partner demos, and pilot demand capture.
 - Branded PayShield icon and web app manifest for deploy previews, saved links,
   and install surfaces.
 - `npm run verify` and GitHub Actions CI for linting, TypeScript checks,
-  waitlist API tests, market copy/asset preflight checks, production builds, and
-  production dependency audits before Vercel deployment.
+  waitlist API tests, market copy/asset preflight checks, production builds,
+  production dependency audits, and receiver Docker image builds before Vercel
+  deployment.
 - Dependabot is configured for weekly npm and GitHub Actions update PRs, with
   grouped runtime, observability, lint/type, and workflow maintenance. npm
   semver-major updates are deferred during launch so major framework and tooling

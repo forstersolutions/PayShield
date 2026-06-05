@@ -28,5 +28,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Market readiness preflight
+      - name: Verify market site
         run: npm run verify
+
+      - name: Build waitlist receiver image
+        run: npm run receiver:docker:build
