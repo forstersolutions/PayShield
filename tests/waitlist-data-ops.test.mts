@@ -10,6 +10,12 @@ import {
 
 const records = [
   {
+    attribution: {
+      landingPath: "/",
+      utmCampaign: "Household Launch",
+      utmMedium: "cpc",
+      utmSource: "Paid Social",
+    },
     consentVersion: "pilot-privacy-2026-06-05",
     createdAt: "2026-06-05T00:00:00.000Z",
     email: "lead@example.com",
@@ -20,6 +26,12 @@ const records = [
     source: "payshield-market-site",
   },
   {
+    attribution: {
+      landingPath: "/partners",
+      utmCampaign: "Partner Launch",
+      utmMedium: "email",
+      utmSource: "Partner Newsletter",
+    },
     consentVersion: "pilot-privacy-2026-06-05",
     createdAt: "2026-06-05T01:00:00.000Z",
     email: "partner@example.com",
@@ -51,6 +63,14 @@ test("summarizes waitlist data without PII", async () => {
     assert.deepEqual(summary.bySegment, {
       Household: 1,
       "Investor or partner": 1,
+    });
+    assert.deepEqual(summary.byCampaign, {
+      "Household Launch": 1,
+      "Partner Launch": 1,
+    });
+    assert.deepEqual(summary.byCampaignSource, {
+      "Paid Social": 1,
+      "Partner Newsletter": 1,
     });
     assert.equal(summary.firstReceivedAt, "2026-06-05T00:00:01.000Z");
     assert.equal(summary.lastReceivedAt, "2026-06-05T01:00:01.000Z");
@@ -84,10 +104,11 @@ test("erases matching email records and regenerates receiver files", async () =>
     assert.equal(ndjson.includes("partner@example.com"), true);
     assert.match(
       csv,
-      /^createdAt,email,name,segment,message,consentVersion,source,receivedAt/m,
+      /^createdAt,email,name,segment,message,consentVersion,source,utmSource,utmMedium,utmCampaign,utmContent,utmTerm,landingPath,receivedAt/m,
     );
     assert.equal(csv.includes("lead@example.com"), false);
     assert.equal(csv.includes("partner@example.com"), true);
+    assert.equal(csv.includes("Partner Launch"), true);
   } finally {
     await rm(dataDir, { recursive: true });
   }

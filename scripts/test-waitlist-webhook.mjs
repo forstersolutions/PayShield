@@ -126,6 +126,12 @@ export function createWaitlistWebhookTestPayload(options = {}) {
   const token = createdAt.replace(/\D/g, "").slice(0, 14);
 
   return {
+    attribution: {
+      landingPath: "/",
+      utmCampaign: "receiver-smoke",
+      utmMedium: "ops",
+      utmSource: "webhook-test",
+    },
     createdAt,
     email: email ?? `webhook-smoke+${token}@example.com`,
     name: "PayShield Webhook Smoke",

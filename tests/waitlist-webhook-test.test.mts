@@ -49,7 +49,9 @@ test("sends a signed webhook smoke payload to a receiver", async () => {
 
     assert.match(ndjson, /"email":"smoke@example.com"/);
     assert.match(ndjson, /"source":"payshield-webhook-test"/);
+    assert.match(ndjson, /"utmCampaign":"receiver-smoke"/);
     assert.match(csv, /"Signed webhook smoke test\. Safe to delete\."/);
+    assert.match(csv, /"webhook-test","ops","receiver-smoke"/);
   } finally {
     await listener.close();
     await rm(dataDir, { recursive: true });

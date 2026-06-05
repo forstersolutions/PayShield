@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server.js";
 import { track } from "@vercel/analytics/server";
 
 type WaitlistPayload = {
+  attribution?: unknown;
   email?: unknown;
   name?: unknown;
   segment?: unknown;
@@ -11,7 +12,17 @@ type WaitlistPayload = {
   consent?: unknown;
 };
 
+type CampaignAttribution = {
+  landingPath?: string;
+  utmCampaign?: string;
+  utmContent?: string;
+  utmMedium?: string;
+  utmSource?: string;
+  utmTerm?: string;
+};
+
 type WaitlistSubmission = {
+  attribution?: CampaignAttribution;
   email: string;
   name: string;
   segment: string;
@@ -39,6 +50,15 @@ const requestLog = new Map<string, number[]>();
 const sensitiveFinancialTerms =
   /\b(ssn|social security|routing number|account number|card number|credit card number|debit card number)\b/i;
 const longSensitiveNumber = /\b\d(?:[\s-]?\d){8,}\b/;
+const emailLikeValue = /\b[^\s@]+@[^\s@]+\.[^\s@]+\b/;
+const urlLikeValue = /\b(?:https?:\/\/|www\.)/i;
+const attributionFields = [
+  "utmSource",
+  "utmMedium",
+  "utmCampaign",
+  "utmContent",
+  "utmTerm",
+] as const;
 
 class WaitlistConfigurationError extends Error {}
 
@@ -56,6 +76,95 @@ function isValidEmail(value: string) {
 
 function hasSensitiveFinancialInfo(value: string) {
   return sensitiveFinancialTerms.test(value) || longSensitiveNumber.test(value);
+}
+
+function cleanAttributionValue(value: unknown, maxLength = 80) {
+  const normalized = cleanText(value, maxLength);
+
+  if (
+    !normalized ||
+    emailLikeValue.test(normalized) ||
+    longSensitiveNumber.test(normalized) ||
+    urlLikeValue.test(normalized)
+  ) {
+    return "";
+  }
+
+  return normalized.replace(/[^A-Za-z0-9 .:+/_-]/g, "").trim().slice(0, maxLength);
+}
+
+function cleanLandingPath(value: unknown) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const path = value.trim().split(/[?#]/)[0] ?? "";
+
+  if (
+    !path.startsWith("/") ||
+    emailLikeValue.test(path) ||
+    longSensitiveNumber.test(path)
+  ) {
+    return "";
+  }
+
+  return path.replace(/[^A-Za-z0-9/_-]/g, "").slice(0, 120) || "/";
+}
+
+function cleanCampaignAttribution(value: unknown) {
+  const attribution: CampaignAttribution = {};
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return attribution;
+  }
+
+  const payload = value as Record<string, unknown>;
+
+  for (const field of attributionFields) {
+    const cleaned = cleanAttributionValue(payload[field]);
+
+    if (cleaned) {
+      attribution[field] = cleaned;
+    }
+  }
+
+  const landingPath = cleanLandingPath(payload.landingPath);
+
+  if (landingPath) {
+    attribution.landingPath = landingPath;
+  }
+
+  return attribution;
+}
+
+function hasCampaignAttribution(attribution: CampaignAttribution) {
+  return Boolean(
+    attribution.utmSource ||
+      attribution.utmMedium ||
+      attribution.utmCampaign ||
+      attribution.utmContent ||
+      attribution.utmTerm,
+  );
+}
+
+function campaignAnalyticsProperties(attribution: CampaignAttribution) {
+  const properties: Record<string, string | boolean> = {
+    hasCampaignAttribution: hasCampaignAttribution(attribution),
+  };
+
+  if (attribution.utmSource) {
+    properties.campaignSource = attribution.utmSource;
+  }
+
+  if (attribution.utmMedium) {
+    properties.campaignMedium = attribution.utmMedium;
+  }
+
+  if (attribution.utmCampaign) {
+    properties.campaignName = attribution.utmCampaign;
+  }
+
+  return properties;
 }
 
 function getClientKey(request: NextRequest) {
@@ -234,6 +343,8 @@ export async function POST(request: NextRequest) {
   const segment = cleanText(payload.segment, 40);
   const message = cleanText(payload.message, 800);
   const consent = payload.consent === true;
+  const attribution = cleanCampaignAttribution(payload.attribution);
+  const analyticsAttribution = campaignAnalyticsProperties(attribution);
 
   if (!isValidEmail(email)) {
     logWaitlistEvent("info", "request_invalid_email", {
@@ -292,6 +403,7 @@ export async function POST(request: NextRequest) {
     consentVersion: "pilot-privacy-2026-06-05",
     source: "payshield-market-site",
     createdAt: new Date().toISOString(),
+    ...(Object.keys(attribution).length ? { attribution } : {}),
   };
 
   try {
@@ -304,6 +416,7 @@ export async function POST(request: NextRequest) {
         hasName: Boolean(name),
         hasMessage: Boolean(message),
         mode: result.mode,
+        ...analyticsAttribution,
       },
       {
         request: {
@@ -315,6 +428,7 @@ export async function POST(request: NextRequest) {
     logWaitlistEvent("info", "request_completed", {
       requestId,
       segment,
+      hasCampaignAttribution: hasCampaignAttribution(attribution),
       mode: result.mode,
       ms: Date.now() - start,
     });
@@ -334,6 +448,7 @@ export async function POST(request: NextRequest) {
         {
           segment,
           status: "missing_webhook",
+          ...analyticsAttribution,
         },
         {
           request: {

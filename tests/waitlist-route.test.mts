@@ -312,6 +312,14 @@ test("forwards valid submissions to the configured webhook", async () => {
     const response = await POST(
       makeRequest(
         {
+          attribution: {
+            landingPath: "/pilot?email=bad@example.com",
+            utmCampaign: "Household Launch",
+            utmContent: "card<a>",
+            utmMedium: "cpc",
+            utmSource: "Paid Social",
+            utmTerm: "123-45-6789",
+          },
           email: "Partner@Example.com",
           name: "Partner Lead",
           segment: "Investor or partner",
@@ -339,6 +347,13 @@ test("forwards valid submissions to the configured webhook", async () => {
     );
     assert.equal(webhook.requests[0]?.body.email, "partner@example.com");
     assert.equal(webhook.requests[0]?.body.segment, "Investor or partner");
+    assert.deepEqual(webhook.requests[0]?.body.attribution, {
+      landingPath: "/pilot",
+      utmCampaign: "Household Launch",
+      utmContent: "carda",
+      utmMedium: "cpc",
+      utmSource: "Paid Social",
+    });
     assert.equal(
       webhook.requests[0]?.body.consentVersion,
       "pilot-privacy-2026-06-05",

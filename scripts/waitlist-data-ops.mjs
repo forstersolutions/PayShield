@@ -7,7 +7,17 @@ import { pathToFileURL } from "node:url";
 const defaultDataDir =
   process.env.PAYSHIELD_RECEIVER_DATA_DIR ?? join(process.cwd(), "data", "waitlist");
 const csvHeader =
-  "createdAt,email,name,segment,message,consentVersion,source,receivedAt";
+  "createdAt,email,name,segment,message,consentVersion,source,utmSource,utmMedium,utmCampaign,utmContent,utmTerm,landingPath,receivedAt";
+const attributionFields = [
+  "utmSource",
+  "utmMedium",
+  "utmCampaign",
+  "utmContent",
+  "utmTerm",
+];
+const emailLikeValue = /\b[^\s@]+@[^\s@]+\.[^\s@]+\b/;
+const longSensitiveNumber = /\b\d(?:[\s-]?\d){8,}\b/;
+const urlLikeValue = /\b(?:https?:\/\/|www\.)/i;
 
 function usage() {
   return [
@@ -80,6 +90,63 @@ function normalizeEmail(value) {
   return cleanText(value, 254).toLowerCase();
 }
 
+function cleanAttributionValue(value, maxLength = 80) {
+  const normalized = cleanText(value, maxLength);
+
+  if (
+    !normalized ||
+    emailLikeValue.test(normalized) ||
+    longSensitiveNumber.test(normalized) ||
+    urlLikeValue.test(normalized)
+  ) {
+    return "";
+  }
+
+  return normalized.replace(/[^A-Za-z0-9 .:+/_-]/g, "").trim().slice(0, maxLength);
+}
+
+function cleanLandingPath(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const path = value.trim().split(/[?#]/)[0] ?? "";
+
+  if (
+    !path.startsWith("/") ||
+    emailLikeValue.test(path) ||
+    longSensitiveNumber.test(path)
+  ) {
+    return "";
+  }
+
+  return path.replace(/[^A-Za-z0-9/_-]/g, "").slice(0, 120) || "/";
+}
+
+function normalizeAttribution(value) {
+  const attribution = {};
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return attribution;
+  }
+
+  for (const field of attributionFields) {
+    const cleaned = cleanAttributionValue(value[field]);
+
+    if (cleaned) {
+      attribution[field] = cleaned;
+    }
+  }
+
+  const landingPath = cleanLandingPath(value.landingPath);
+
+  if (landingPath) {
+    attribution.landingPath = landingPath;
+  }
+
+  return attribution;
+}
+
 function emailHash(value) {
   return createHash("sha256").update(normalizeEmail(value)).digest("hex").slice(0, 12);
 }
@@ -89,6 +156,7 @@ function normalizeRecord(value) {
     throw new Error("Waitlist record must be a JSON object.");
   }
 
+  const attribution = normalizeAttribution(value.attribution);
   const record = {
     consentVersion: cleanText(value.consentVersion, 80),
     createdAt: cleanText(value.createdAt, 40),
@@ -98,6 +166,7 @@ function normalizeRecord(value) {
     receivedAt: cleanText(value.receivedAt, 40),
     segment: cleanText(value.segment, 40),
     source: cleanText(value.source, 80),
+    ...(Object.keys(attribution).length ? { attribution } : {}),
   };
 
   if (!isValidEmail(record.email)) {
@@ -148,6 +217,8 @@ function csvValue(value) {
 }
 
 function csvRow(record) {
+  const attribution = record.attribution ?? {};
+
   return [
     record.createdAt,
     record.email,
@@ -156,6 +227,12 @@ function csvRow(record) {
     record.message,
     record.consentVersion,
     record.source,
+    attribution.utmSource ?? "",
+    attribution.utmMedium ?? "",
+    attribution.utmCampaign ?? "",
+    attribution.utmContent ?? "",
+    attribution.utmTerm ?? "",
+    attribution.landingPath ?? "",
     record.receivedAt,
   ]
     .map(csvValue)
@@ -184,10 +261,19 @@ async function writeReceiverFiles(dataDir, records) {
  */
 export async function summarizeWaitlistData({ dataDir = defaultDataDir } = {}) {
   const { malformedLines, records } = await readRecords(dataDir);
+  const byCampaign = {};
+  const byCampaignSource = {};
   const bySegment = {};
   const receivedAtValues = [];
 
   for (const record of records) {
+    const campaign = record.attribution?.utmCampaign || "Unattributed";
+    const campaignSource = record.attribution?.utmSource || "Unattributed";
+
+    byCampaign[campaign] = (byCampaign[campaign] ?? 0) + 1;
+    byCampaignSource[campaignSource] =
+      (byCampaignSource[campaignSource] ?? 0) + 1;
+
     bySegment[record.segment || "Unknown"] =
       (bySegment[record.segment || "Unknown"] ?? 0) + 1;
 
@@ -199,6 +285,8 @@ export async function summarizeWaitlistData({ dataDir = defaultDataDir } = {}) {
   receivedAtValues.sort();
 
   return {
+    byCampaign,
+    byCampaignSource,
     bySegment,
     files: {
       csv: existsSync(join(dataDir, "waitlist.csv")),

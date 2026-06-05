@@ -61,6 +61,14 @@ submissions will not persist outside Vercel logs and analytics.
 
 ```json
 {
+  "attribution": {
+    "landingPath": "/",
+    "utmCampaign": "household-launch",
+    "utmContent": "safe-to-spend-card",
+    "utmMedium": "cpc",
+    "utmSource": "paid-social",
+    "utmTerm": "budget-protection"
+  },
   "email": "pilot@example.com",
   "name": "Pilot Lead",
   "segment": "Household",
@@ -70,6 +78,12 @@ submissions will not persist outside Vercel logs and analytics.
   "createdAt": "2026-06-05T00:00:00.000Z"
 }
 ```
+
+`attribution` is optional. The site captures only allowlisted UTM parameters
+from `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, and `utm_term`,
+plus a landing path without query parameters. The API re-sanitizes those fields
+and drops raw URLs, email-like values, and long account-like numbers before
+forwarding the webhook or emitting analytics events.
 
 When `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` is configured, the request includes:
 
@@ -218,9 +232,11 @@ Submit one pilot request from the site and confirm:
 
 - The success message appears.
 - The webhook receives the payload, or the response clearly says demo mode.
+- A test URL with `utm_source`, `utm_medium`, and `utm_campaign` produces only
+  sanitized `attribution` fields in the receiver.
 - Vercel logs show `request_completed`.
 - Vercel Web Analytics receives `Pilot Request Attempted` and
-  `Pilot Request Submitted`.
+  `Pilot Request Submitted` with non-PII campaign metadata.
 - Vercel Speed Insights starts recording page data.
 
 ## Before Paid Traffic

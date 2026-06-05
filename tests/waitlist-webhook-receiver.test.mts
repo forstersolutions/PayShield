@@ -73,6 +73,14 @@ test("persists signed waitlist submissions to NDJSON and CSV", async () => {
   const server = createWaitlistWebhookReceiver({ dataDir, secret });
   const listener = await listen(server);
   const payload = {
+    attribution: {
+      landingPath: "/pilot",
+      utmCampaign: "Household Launch",
+      utmContent: "rent-card",
+      utmMedium: "cpc",
+      utmSource: "Paid Social",
+      utmTerm: "123456789",
+    },
     createdAt: "2026-06-05T00:00:00.000Z",
     email: "Lead@Example.com",
     name: "Pilot Lead",
@@ -109,8 +117,14 @@ test("persists signed waitlist submissions to NDJSON and CSV", async () => {
 
     assert.match(ndjson, /"email":"lead@example.com"/);
     assert.match(ndjson, /"segment":"Household"/);
-    assert.match(csv, /^createdAt,email,name,segment,message,consentVersion,source,receivedAt/m);
+    assert.match(ndjson, /"utmCampaign":"Household Launch"/);
+    assert.doesNotMatch(ndjson, /123456789/);
+    assert.match(
+      csv,
+      /^createdAt,email,name,segment,message,consentVersion,source,utmSource,utmMedium,utmCampaign,utmContent,utmTerm,landingPath,receivedAt/m,
+    );
     assert.match(csv, /"lead@example.com"/);
+    assert.match(csv, /"Household Launch"/);
   } finally {
     await listener.close();
     await rm(dataDir, { recursive: true });

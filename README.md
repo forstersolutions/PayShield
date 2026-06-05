@@ -86,6 +86,11 @@ limiting and request-size guardrails, filters a honeypot field, and forwards
 submissions to `PAYSHIELD_WAITLIST_WEBHOOK_URL` when configured. Without the
 webhook, the form returns a demo-mode success so the Vercel preview can still be
 used in investor and partner conversations.
+The form also captures allowlisted campaign attribution from `utm_source`,
+`utm_medium`, `utm_campaign`, `utm_content`, and `utm_term`, plus the landing
+path without query parameters. The API re-sanitizes those fields before sending
+an optional `attribution` object to the webhook; raw query strings, emails,
+URLs, and long account-like numbers are not forwarded.
 If `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` is set, PayShield signs the exact JSON
 body with HMAC-SHA256 and sends `x-payshield-webhook-signature` plus
 `x-payshield-webhook-timestamp`. The raw secret is not forwarded. Webhook
@@ -125,8 +130,8 @@ payload to any receiver using `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`, so the
 endpoint can be verified before Vercel is switched into required-webhook mode.
 
 If the lightweight receiver is used, `npm run waitlist:data -- summary` prints
-non-PII totals and segment counts from the local receiver files. To honor a
-pilot deletion request, first run:
+non-PII totals, segment counts, and campaign/source counts from the local
+receiver files. To honor a pilot deletion request, first run:
 
 ```bash
 npm run waitlist:data -- erase --email lead@example.com --dry-run
@@ -144,8 +149,8 @@ submission.
 
 Vercel Web Analytics and Speed Insights are wired in `src/app/layout.tsx`. Enable
 both products in the Vercel project dashboard after import. Pilot conversion
-events track segment, result, and status metadata only; they do not send email,
-name, or free-text notes to analytics.
+events track segment, result, status, and sanitized campaign metadata only; they
+do not send email, name, raw query strings, or free-text notes to analytics.
 
 ## Launch Notes
 

@@ -12,8 +12,8 @@ deployments, partner demos, and pilot demand capture.
 - Pilot request form with server-side validation, bounded in-memory rate
   limiting, request-size guardrails, honeypot filtering, required privacy/terms
   consent, sensitive financial-detail rejection, optional webhook forwarding,
-  and an opt-in fail-closed mode for paid traffic when signed webhook
-  persistence is required.
+  allowlisted campaign attribution from UTM fields, and an opt-in fail-closed
+  mode for paid traffic when signed webhook persistence is required.
 - Vercel-compatible Next.js app with production build, metadata, sitemap,
   robots, and baseline browser security headers.
 - JPEG social preview card for broad Open Graph and Twitter crawler support,
@@ -45,7 +45,8 @@ deployments, partner demos, and pilot demand capture.
   filtering, rate limiting, oversized requests, webhook forwarding, and webhook
   failure handling.
 - Vercel Web Analytics and Speed Insights are installed and mounted.
-- Pilot conversion events track non-PII segment, result, and status metadata.
+- Pilot conversion events track non-PII segment, result, status, and sanitized
+  campaign metadata.
 - `/api/waitlist` emits structured logs for request start, validation outcomes,
   webhook mode, completion, and failures.
 - `/api/health` reports public-safe deployment and waitlist readiness state
@@ -55,7 +56,8 @@ deployments, partner demos, and pilot demand capture.
 - Dedicated `Dockerfile.receiver` for running the signed receiver on a container
   host with a persistent `/data/waitlist` volume and `GET /health` checks.
 - Receiver data-ops command for non-PII lead summaries and email-based deletion
-  requests against the lightweight receiver files.
+  requests against the lightweight receiver files, including campaign/source
+  counts for paid tests.
 - Signed webhook smoke tester for proving a CRM or lightweight receiver accepts
   PayShield HMAC payloads before paid traffic is enabled.
 - Conservative fintech language that does not claim PayShield is a bank or that
@@ -103,6 +105,9 @@ deployments, partner demos, and pilot demand capture.
 - Enable Vercel Web Analytics and Speed Insights in the Vercel dashboard.
 - Confirm custom events appear for pilot request attempt, submission, and
   failure after the first production or preview deployment.
+- Submit at least one test URL with `utm_source`, `utm_medium`, and
+  `utm_campaign`, then confirm analytics and the receiver show only sanitized
+  campaign fields, not raw query strings or free-text notes.
 - Confirm privacy policy and terms links before collecting personal data beyond
   pilot emails and optional notes.
 - Run `npm run campaign:lint -- path/to/campaign-copy.md` for every paid ad,

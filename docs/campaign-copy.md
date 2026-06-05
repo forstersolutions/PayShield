@@ -38,13 +38,14 @@ the review step.
 
 ## Do Not Claim
 
-- PayShield is a bank.
-- Funds are FDIC insured, pass-through insured, or held by a sponsor bank.
-- Users can open a deposit account.
-- PayShield supports live direct deposit, ACH, debit cards, virtual cards, or
-  bill-pay.
-- PayShield moves money, guarantees protection, prevents every overdraft, or
-  guarantees that rent will never be missed.
+- Do not say PayShield is a bank.
+- Do not say funds are FDIC insured, pass-through insured, or held by a sponsor
+  bank.
+- Do not say users can open a deposit account.
+- Do not say PayShield supports live direct deposit, ACH, debit cards, virtual
+  cards, or bill-pay.
+- Do not say PayShield moves money, guarantees protection, prevents every
+  overdraft, or guarantees that rent will never be missed.
 
 ## Evidence To Keep
 

@@ -26,6 +26,7 @@ body:
         - label: "`/api/health` reports `waitlist.webhookSigningConfigured: true`."
         - label: "`/api/health` reports `waitlist.paidTrafficReady: true`."
         - label: "`npm run smoke:deploy -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --submit-test --require-webhook` passes."
+        - label: "A signed test submission with `utm_source`, `utm_medium`, and `utm_campaign` persists sanitized `attribution` fields."
   - type: checkboxes
     id: market-compliance
     attributes:
@@ -44,7 +45,7 @@ body:
       label: Production Operations Gates
       options:
         - label: Production deployment is on the intended `main` commit.
-        - label: Vercel Web Analytics is enabled and receiving non-PII conversion events.
+        - label: Vercel Web Analytics is enabled and receiving non-PII conversion events with sanitized campaign metadata.
         - label: Vercel Speed Insights is enabled and receiving page data.
         - label: Custom domain, `NEXT_PUBLIC_SITE_URL`, canonical metadata, robots, and sitemap match if a custom domain is used.
         - label: GitHub CI passes on the launch commit.

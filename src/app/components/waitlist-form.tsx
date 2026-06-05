@@ -20,6 +20,108 @@ type FormState =
   | { status: "success"; message: string }
   | { status: "error"; message: string };
 
+type CampaignAttribution = {
+  landingPath?: string;
+  utmCampaign?: string;
+  utmContent?: string;
+  utmMedium?: string;
+  utmSource?: string;
+  utmTerm?: string;
+};
+
+const attributionParamMap = [
+  ["utm_source", "utmSource"],
+  ["utm_medium", "utmMedium"],
+  ["utm_campaign", "utmCampaign"],
+  ["utm_content", "utmContent"],
+  ["utm_term", "utmTerm"],
+] as const;
+
+const emailLikeValue = /\b[^\s@]+@[^\s@]+\.[^\s@]+\b/;
+const longSensitiveNumber = /\b\d(?:[\s-]?\d){8,}\b/;
+const urlLikeValue = /\b(?:https?:\/\/|www\.)/i;
+
+function cleanAttributionValue(value: string, maxLength = 80) {
+  const normalized = value.trim().replace(/\s+/g, " ").slice(0, maxLength);
+
+  if (
+    !normalized ||
+    emailLikeValue.test(normalized) ||
+    longSensitiveNumber.test(normalized) ||
+    urlLikeValue.test(normalized)
+  ) {
+    return "";
+  }
+
+  return normalized.replace(/[^A-Za-z0-9 .:+/_-]/g, "").trim().slice(0, maxLength);
+}
+
+function cleanLandingPath(value: string) {
+  const path = value.trim().split(/[?#]/)[0] ?? "";
+
+  if (
+    !path.startsWith("/") ||
+    emailLikeValue.test(path) ||
+    longSensitiveNumber.test(path)
+  ) {
+    return "";
+  }
+
+  return path.replace(/[^A-Za-z0-9/_-]/g, "").slice(0, 120) || "/";
+}
+
+function getCampaignAttribution() {
+  const attribution: CampaignAttribution = {};
+
+  if (typeof window === "undefined") {
+    return attribution;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+
+  for (const [paramName, attributionKey] of attributionParamMap) {
+    const cleaned = cleanAttributionValue(params.get(paramName) ?? "");
+
+    if (cleaned) {
+      attribution[attributionKey] = cleaned;
+    }
+  }
+
+  const landingPath = cleanLandingPath(window.location.pathname);
+
+  if (landingPath) {
+    attribution.landingPath = landingPath;
+  }
+
+  return attribution;
+}
+
+function campaignAnalyticsProperties(attribution: CampaignAttribution) {
+  const properties: Record<string, string | boolean> = {
+    hasCampaignAttribution: Boolean(
+      attribution.utmSource ||
+        attribution.utmMedium ||
+        attribution.utmCampaign ||
+        attribution.utmContent ||
+        attribution.utmTerm,
+    ),
+  };
+
+  if (attribution.utmSource) {
+    properties.campaignSource = attribution.utmSource;
+  }
+
+  if (attribution.utmMedium) {
+    properties.campaignMedium = attribution.utmMedium;
+  }
+
+  if (attribution.utmCampaign) {
+    properties.campaignName = attribution.utmCampaign;
+  }
+
+  return properties;
+}
+
 export function WaitlistForm() {
   const [state, setState] = useState<FormState>({
     status: "idle",
@@ -32,6 +134,8 @@ export function WaitlistForm() {
     const formData = new FormData(form);
     const segment = String(formData.get("segment") ?? "Unknown");
     const hasMessage = Boolean(String(formData.get("message") ?? "").trim());
+    const attribution = getCampaignAttribution();
+    const campaignProperties = campaignAnalyticsProperties(attribution);
 
     setState({
       status: "loading",
@@ -41,6 +145,7 @@ export function WaitlistForm() {
     track("Pilot Request Attempted", {
       segment,
       hasMessage,
+      ...campaignProperties,
     });
 
     try {
@@ -54,6 +159,7 @@ export function WaitlistForm() {
           company: formData.get("company"),
           message: formData.get("message"),
           consent: formData.get("consent") === "on",
+          attribution,
         }),
       });
 
@@ -67,6 +173,7 @@ export function WaitlistForm() {
         track("Pilot Request Failed", {
           segment,
           status: response.status,
+          ...campaignProperties,
         });
         setState({
           status: "error",
@@ -80,6 +187,7 @@ export function WaitlistForm() {
         segment,
         hasMessage,
         mode: String(result.mode ?? "unknown"),
+        ...campaignProperties,
       });
       setState({
         status: "success",
@@ -89,6 +197,7 @@ export function WaitlistForm() {
       track("Pilot Request Failed", {
         segment,
         status: "network",
+        ...campaignProperties,
       });
       setState({
         status: "error",

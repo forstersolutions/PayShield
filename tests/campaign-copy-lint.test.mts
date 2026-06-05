@@ -65,3 +65,17 @@ test("does not let a safe disclaimer hide a later regulated claim", () => {
   assert.equal(ids.includes("direct-deposit"), true);
   assert.equal(ids.includes("ach"), true);
 });
+
+test("allows explicit do-not guardrails that name prohibited claims", () => {
+  const result = lintCampaignCopy({
+    text: [
+      "Do not say PayShield is a bank.",
+      "Do not say users can open a deposit account.",
+      "Do not say PayShield supports live direct deposit, ACH, debit cards, virtual cards, or bill-pay.",
+      "Do not say PayShield moves money or guarantees protection.",
+    ].join("\n"),
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.findings.length, 0);
+});

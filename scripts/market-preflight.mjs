@@ -114,6 +114,8 @@ requireText(
   "src/app/components/waitlist-form.tsx",
   "Do not include bank, card, SSN, account, or routing numbers.",
 );
+requireText("src/app/components/waitlist-form.tsx", "utm_source");
+requireText("src/app/components/waitlist-form.tsx", "hasCampaignAttribution");
 requireText(
   "src/app/layout.tsx",
   'const socialImageUrl = "/images/payshield-social-card.jpg";',
@@ -178,6 +180,8 @@ requireText(
   "src/app/api/waitlist/route.ts",
   "Do not include bank, card, SSN, or other sensitive financial details.",
 );
+requireText("src/app/api/waitlist/route.ts", "cleanCampaignAttribution");
+requireText("src/app/api/waitlist/route.ts", "hasCampaignAttribution");
 requireText("src/app/api/health/route.ts", "paidTrafficReady");
 requireText("src/app/api/health/route.ts", "webhookConfigured");
 requireText("src/app/api/health/route.ts", "webhookSigningConfigured");
@@ -186,12 +190,17 @@ requireText("scripts/waitlist-webhook-receiver.mjs", "verifyPayShieldSignature")
 requireText("scripts/waitlist-webhook-receiver.mjs", "payshield-waitlist-receiver");
 requireText("scripts/waitlist-webhook-receiver.mjs", "waitlist.ndjson");
 requireText("scripts/waitlist-webhook-receiver.mjs", "waitlist.csv");
+requireText("scripts/waitlist-webhook-receiver.mjs", "utmCampaign");
 requireText("Dockerfile.receiver", "PAYSHIELD_RECEIVER_DATA_DIR=/data/waitlist");
 requireText("Dockerfile.receiver", "PAYSHIELD_RECEIVER_HEALTH_PATH=/health");
 requireText("Dockerfile.receiver", "scripts/waitlist-webhook-receiver.mjs");
 requireText(".dockerignore", "data");
 requireText(".gitignore", "/data/waitlist/");
 requireText("vercel.json", '"framework": "nextjs"');
+requireText("docs/vercel-launch.md", "attribution");
+requireText("docs/vercel-launch.md", "utm_source");
+requireText("docs/market-readiness.md", "sanitized campaign metadata");
+requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "sanitized `attribution` fields");
 
 requireMaxSize("src/app/icon.svg", 5_000);
 requireMaxSize("public/images/payshield-product-mockup.avif", 125_000);

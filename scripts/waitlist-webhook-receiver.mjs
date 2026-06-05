@@ -10,6 +10,16 @@ const defaultHealthPath = "/health";
 const defaultPort = 8787;
 const defaultMaxBodyBytes = 20_000;
 const defaultToleranceSeconds = 300;
+const attributionFields = [
+  "utmSource",
+  "utmMedium",
+  "utmCampaign",
+  "utmContent",
+  "utmTerm",
+];
+const emailLikeValue = /\b[^\s@]+@[^\s@]+\.[^\s@]+\b/;
+const longSensitiveNumber = /\b\d(?:[\s-]?\d){8,}\b/;
+const urlLikeValue = /\b(?:https?:\/\/|www\.)/i;
 
 class PayloadTooLargeError extends Error {}
 
@@ -87,11 +97,69 @@ function cleanText(value, maxLength) {
   return value.trim().replace(/\s+/g, " ").slice(0, maxLength);
 }
 
+function cleanAttributionValue(value, maxLength = 80) {
+  const normalized = cleanText(value, maxLength);
+
+  if (
+    !normalized ||
+    emailLikeValue.test(normalized) ||
+    longSensitiveNumber.test(normalized) ||
+    urlLikeValue.test(normalized)
+  ) {
+    return "";
+  }
+
+  return normalized.replace(/[^A-Za-z0-9 .:+/_-]/g, "").trim().slice(0, maxLength);
+}
+
+function cleanLandingPath(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const path = value.trim().split(/[?#]/)[0] ?? "";
+
+  if (
+    !path.startsWith("/") ||
+    emailLikeValue.test(path) ||
+    longSensitiveNumber.test(path)
+  ) {
+    return "";
+  }
+
+  return path.replace(/[^A-Za-z0-9/_-]/g, "").slice(0, 120) || "/";
+}
+
+function normalizeAttribution(value) {
+  const attribution = {};
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return attribution;
+  }
+
+  for (const field of attributionFields) {
+    const cleaned = cleanAttributionValue(value[field]);
+
+    if (cleaned) {
+      attribution[field] = cleaned;
+    }
+  }
+
+  const landingPath = cleanLandingPath(value.landingPath);
+
+  if (landingPath) {
+    attribution.landingPath = landingPath;
+  }
+
+  return attribution;
+}
+
 function normalizeSubmission(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Webhook body must be a JSON object.");
   }
 
+  const attribution = normalizeAttribution(value.attribution);
   const submission = {
     createdAt: cleanText(value.createdAt, 40),
     email: cleanText(value.email, 254).toLowerCase(),
@@ -100,6 +168,7 @@ function normalizeSubmission(value) {
     message: cleanText(value.message, 800),
     consentVersion: cleanText(value.consentVersion, 80),
     source: cleanText(value.source, 80),
+    ...(Object.keys(attribution).length ? { attribution } : {}),
   };
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(submission.email)) {
@@ -118,6 +187,8 @@ function csvValue(value) {
 }
 
 function csvRow(submission, receivedAt) {
+  const attribution = submission.attribution ?? {};
+
   return [
     submission.createdAt,
     submission.email,
@@ -126,6 +197,12 @@ function csvRow(submission, receivedAt) {
     submission.message,
     submission.consentVersion,
     submission.source,
+    attribution.utmSource ?? "",
+    attribution.utmMedium ?? "",
+    attribution.utmCampaign ?? "",
+    attribution.utmContent ?? "",
+    attribution.utmTerm ?? "",
+    attribution.landingPath ?? "",
     receivedAt,
   ]
     .map(csvValue)
@@ -148,7 +225,7 @@ export async function persistSubmission({ dataDir, rawBody, receivedAt }) {
 
   const csvPath = join(dataDir, "waitlist.csv");
   const header =
-    "createdAt,email,name,segment,message,consentVersion,source,receivedAt\n";
+    "createdAt,email,name,segment,message,consentVersion,source,utmSource,utmMedium,utmCampaign,utmContent,utmTerm,landingPath,receivedAt\n";
 
   await appendFile(
     csvPath,

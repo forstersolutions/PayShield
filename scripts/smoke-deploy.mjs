@@ -237,6 +237,12 @@ async function submitLead() {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
+      attribution: {
+        landingPath: "/",
+        utmCampaign: "deploy-smoke",
+        utmMedium: "ops",
+        utmSource: "smoke-test",
+      },
       email: `smoke+${Date.now()}@example.com`,
       name: "Deploy Smoke Test",
       segment: "Investor or partner",
