@@ -151,11 +151,40 @@ function analyticsTemplate({ generatedAt, siteUrl }) {
   };
 }
 
+function managedReceiverTemplate({ generatedAt, receiverUrl }) {
+  return {
+    deletionProcessDocumented: false,
+    durableStorage: false,
+    exportProcessDocumented: false,
+    generatedAt,
+    ok: false,
+    receiverName: "",
+    receiverType: "managed",
+    replayIdempotent: false,
+    reviewedAt: "",
+    reviewer: "",
+    signatureVerified: false,
+    storageOwner: "",
+    storesAttribution: false,
+    storesConsentFields: false,
+    storesSubmissionId: false,
+    target: {
+      webhookUrl: receiverUrl,
+    },
+    webhookTest: {
+      firstStatus: null,
+      replayStatus: null,
+      signedPayloadAccepted: false,
+    },
+  };
+}
+
 function commandsMarkdown({
   analyticsFile,
   backupDir,
   counselFile,
   dataDir,
+  managedReceiverTemplateFile,
   receiverEvidenceFile,
   receiverUrl,
   siteUrl,
@@ -177,6 +206,11 @@ function commandsMarkdown({
     "--backup-dir",
     shellQuote(backupDir),
     ">",
+    shellQuote(receiverEvidenceFile),
+  ].join(" ");
+  const managedReceiverEvidenceCommand = [
+    "npm run receiver:managed:check --",
+    "--file",
     shellQuote(receiverEvidenceFile),
   ].join(" ");
   const cutoverPlanCommand = [
@@ -230,10 +264,19 @@ function commandsMarkdown({
     "This directory is for local operator evidence and is ignored by git.",
     "Do not place lead emails, names, notes, webhook secrets, authorization headers, URL credentials, query tokens, or fragments in these files.",
     "",
-    "1. Configure the hosted receiver or CRM endpoint, then prove signed durable capture:",
+    "1. Configure the hosted receiver or CRM endpoint, then prove signed durable capture.",
+    "",
+    "For the lightweight file receiver, run this from the operator host that can read the receiver data directory:",
     "",
     "```bash",
     receiverEvidenceCommand,
+    "```",
+    "",
+    "For a managed CRM, Airtable, Slack, Make, Zapier, or internal webhook, copy the template to `receiver-evidence.json`, fill it after signed replay and storage review, then validate it:",
+    "",
+    "```bash",
+    ["cp", shellQuote(managedReceiverTemplateFile), shellQuote(receiverEvidenceFile)].join(" "),
+    managedReceiverEvidenceCommand,
     "```",
     "",
     "2. Generate the redacted Vercel env cutover command sequence:",
@@ -306,6 +349,10 @@ export async function createMarketEvidencePacket({
   const safeBackupDir = validatePlainPath(backupDir, "--backup-dir");
   const counselFile = join(evidenceDir, "counsel-signoff.json");
   const analyticsFile = join(evidenceDir, "analytics-evidence.json");
+  const managedReceiverTemplateFile = join(
+    evidenceDir,
+    "managed-receiver-evidence-template.json",
+  );
   const receiverEvidenceFile = join(evidenceDir, "receiver-evidence.json");
   const commandsFile = join(evidenceDir, "commands.md");
   const files = [
@@ -323,11 +370,21 @@ export async function createMarketEvidencePacket({
       path: analyticsFile,
     },
     {
+      content: jsonWithNewline(
+        managedReceiverTemplate({
+          generatedAt,
+          receiverUrl: safeReceiverUrl,
+        }),
+      ),
+      path: managedReceiverTemplateFile,
+    },
+    {
       content: commandsMarkdown({
         analyticsFile,
         backupDir: safeBackupDir,
         counselFile,
         dataDir: safeDataDir,
+        managedReceiverTemplateFile,
         receiverEvidenceFile,
         receiverUrl: safeReceiverUrl,
         siteUrl: normalizedSiteUrl,
@@ -368,6 +425,12 @@ export async function createMarketEvidencePacket({
       "--analytics-evidence-file",
       shellQuote(analyticsFile),
     ].join(" "),
+    managedReceiverEvidenceCommand: [
+      "npm run receiver:managed:check --",
+      "--file",
+      shellQuote(receiverEvidenceFile),
+    ].join(" "),
+    managedReceiverTemplateFile,
     ok: true,
     receiverEvidenceFile,
     receiverEvidenceCommand: [

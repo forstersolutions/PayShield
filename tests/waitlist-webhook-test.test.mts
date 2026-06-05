@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import {
+  buildWebhookTestCliOutput,
   createWaitlistWebhookTestPayload,
   sendSignedWebhookTest,
 } from "../scripts/test-waitlist-webhook.mjs";
@@ -130,4 +131,51 @@ test("requires a webhook signing secret before sending", async () => {
     }),
     /PAYSHIELD_WAITLIST_WEBHOOK_SECRET is required/,
   );
+});
+
+test("redacts lead PII from webhook smoke CLI output", () => {
+  const payload = createWaitlistWebhookTestPayload({
+    email: "Cli-Smoke@Example.com",
+    now: new Date("2026-06-05T00:00:00.000Z"),
+  });
+  const output = buildWebhookTestCliOutput(
+    {
+      body: {
+        duplicate: false,
+        email: "cli-smoke@example.com",
+        message: "Signed webhook smoke test. Safe to delete.",
+        nested: ["cli-smoke@example.com"],
+        ok: true,
+        submissionId: payload.submissionId,
+      },
+      ok: true,
+      payload,
+      replay: {
+        body: {
+          duplicate: true,
+          email: "cli-smoke@example.com",
+          name: "PayShield Webhook Smoke",
+          ok: true,
+          submissionId: payload.submissionId,
+        },
+        ok: true,
+        payload,
+        status: 200,
+      },
+      status: 202,
+    },
+    "https://receiver.example/payshield-waitlist",
+  );
+  const redactedOutput = output as typeof output & {
+    replayStatus: number;
+  };
+  const serialized = JSON.stringify(output);
+
+  assert.equal(output.ok, true);
+  assert.equal(output.status, 202);
+  assert.equal(redactedOutput.replayStatus, 200);
+  assert.match(output.emailHash, /^[a-f0-9]{12}$/);
+  assert.equal(serialized.includes("cli-smoke@example.com"), false);
+  assert.equal(serialized.includes("PayShield Webhook Smoke"), false);
+  assert.equal(serialized.includes("Signed webhook smoke test"), false);
 });

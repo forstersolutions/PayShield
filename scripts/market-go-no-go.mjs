@@ -251,6 +251,10 @@ export function evaluateReceiverEvidence(evidence) {
     return missingEvidence("receiverEvidence", "--receiver-evidence-file");
   }
 
+  if (evidence.receiverType === "managed") {
+    return evaluateManagedReceiverEvidence(evidence);
+  }
+
   const checks = [];
   const findings = scanEvidenceForSensitiveValues(evidence);
   const health = isObject(evidence.health) ? evidence.health : {};
@@ -346,6 +350,98 @@ export function evaluateReceiverEvidence(evidence) {
       total: summary.total ?? null,
       urls: {
         healthUrl,
+        webhookUrl,
+      },
+    },
+  };
+}
+
+function isHttpSuccess(status) {
+  return Number(status) >= 200 && Number(status) < 300;
+}
+
+export function evaluateManagedReceiverEvidence(evidence) {
+  if (!isObject(evidence)) {
+    return missingEvidence("receiverEvidence", "--receiver-evidence-file");
+  }
+
+  const checks = [];
+  const findings = scanEvidenceForSensitiveValues(evidence);
+  const target = isObject(evidence.target) ? evidence.target : {};
+  const webhookTest = isObject(evidence.webhookTest) ? evidence.webhookTest : {};
+  const webhookUrl = publicUrl(
+    target.webhookUrl,
+    "managed receiver webhook URL",
+    findings,
+  );
+
+  addCheck(checks, "managedReceiverEvidenceOk", evidence.ok === true);
+  addCheck(checks, "managedReceiverType", evidence.receiverType === "managed");
+  addCheck(
+    checks,
+    "managedReceiverNameRecorded",
+    typeof evidence.receiverName === "string" &&
+      evidence.receiverName.trim().length > 0,
+  );
+  addCheck(
+    checks,
+    "managedReceiverStorageOwnerRecorded",
+    typeof evidence.storageOwner === "string" &&
+      evidence.storageOwner.trim().length > 0,
+  );
+  addCheck(checks, "managedReceiverReviewedAt", isValidIsoDate(evidence.reviewedAt));
+  addCheck(
+    checks,
+    "managedReceiverReviewerRecorded",
+    typeof evidence.reviewer === "string" && evidence.reviewer.trim().length > 0,
+  );
+  addCheck(
+    checks,
+    "managedSignedWebhookReplay",
+    webhookTest.signedPayloadAccepted === true &&
+      isHttpSuccess(webhookTest.firstStatus) &&
+      isHttpSuccess(webhookTest.replayStatus),
+    {
+      firstStatus: webhookTest.firstStatus ?? null,
+      replayStatus: webhookTest.replayStatus ?? null,
+    },
+  );
+  addCheck(checks, "managedSignatureVerification", evidence.signatureVerified === true);
+  addCheck(checks, "managedDurableStorage", evidence.durableStorage === true);
+  addCheck(checks, "managedConsentFieldsStored", evidence.storesConsentFields === true);
+  addCheck(checks, "managedSubmissionIdStored", evidence.storesSubmissionId === true);
+  addCheck(checks, "managedReplayIdempotent", evidence.replayIdempotent === true);
+  addCheck(checks, "managedAttributionStored", evidence.storesAttribution === true);
+  addCheck(
+    checks,
+    "managedDeletionProcessDocumented",
+    evidence.deletionProcessDocumented === true,
+  );
+  addCheck(
+    checks,
+    "managedExportProcessDocumented",
+    evidence.exportProcessDocumented === true,
+  );
+  addCheck(
+    checks,
+    "managedReceiverEvidenceRedacted",
+    findings.length === 0,
+    findings.map((finding) => finding.finding),
+  );
+
+  return {
+    checks,
+    findings,
+    ok: allChecksPass(checks),
+    summary: {
+      provided: true,
+      receiverName: evidence.receiverName ?? "",
+      receiverType: "managed",
+      reviewedAt: evidence.reviewedAt ?? "",
+      reviewer: evidence.reviewer ?? "",
+      storageOwner: evidence.storageOwner ?? "",
+      total: null,
+      urls: {
         webhookUrl,
       },
     },

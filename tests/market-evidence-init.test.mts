@@ -27,11 +27,15 @@ test("creates local market evidence templates and redacted commands", async () =
     const analytics = JSON.parse(
       await readFile(join(dir, "analytics-evidence.json"), "utf8"),
     );
+    const managedReceiver = JSON.parse(
+      await readFile(join(dir, "managed-receiver-evidence-template.json"), "utf8"),
+    );
     const commands = await readFile(join(dir, "commands.md"), "utf8");
     const serialized = JSON.stringify(result) + commands;
 
     assert.equal(result.ok, true);
     assert.equal(result.siteUrl, "https://payshield-lime.vercel.app");
+    assert.equal(result.files.length, 4);
     assert.equal(counsel.ok, false);
     assert.deepEqual(counsel.scope, [
       "privacy",
@@ -51,7 +55,15 @@ test("creates local market evidence templates and redacted commands", async () =
       "campaignSource",
       "hasCampaignAttribution",
     ]);
+    assert.equal(managedReceiver.ok, false);
+    assert.equal(managedReceiver.receiverType, "managed");
+    assert.equal(
+      managedReceiver.target.webhookUrl,
+      "https://receiver.example/payshield-waitlist",
+    );
+    assert.equal(managedReceiver.webhookTest.signedPayloadAccepted, false);
     assert.match(commands, /npm run receiver:evidence/);
+    assert.match(commands, /npm run receiver:managed:check/);
     assert.match(commands, /npm run vercel:webhook:cutover/);
     assert.match(commands, /npm run counsel:signoff:check/);
     assert.match(commands, /npm run analytics:evidence:check/);
@@ -61,6 +73,10 @@ test("creates local market evidence templates and redacted commands", async () =
     assert.match(commands, /PAYSHIELD_WAITLIST_WEBHOOK_SECRET=\.\.\./);
     assert.match(result.cutoverPlanCommand, /vercel:webhook:cutover/);
     assert.match(result.counselSignoffCommand, /counsel:signoff:check/);
+    assert.match(
+      result.managedReceiverEvidenceCommand,
+      /receiver:managed:check/,
+    );
     assert.match(result.statusCommand, /market:status/);
     assert.equal(serialized.includes("shared-secret"), false);
     assert.equal(serialized.includes("@"), false);

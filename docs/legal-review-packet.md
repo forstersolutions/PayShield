@@ -95,7 +95,9 @@ still be reviewed before paid traffic.
    `npm run waitlist:data -- backup --data-dir /path/to/waitlist --backup-dir /secure/path`,
    `npm run waitlist:data -- verify-backup --backup-path /secure/path/waitlist-backup-...`,
    and
-   `npm run waitlist:data -- erase --email lead@example.com --dry-run`.
+   `npm run waitlist:data -- erase --email lead@example.com --dry-run`; or
+   confirm managed receiver/CRM evidence with
+   `npm run receiver:managed:check -- --file launch-evidence/receiver-evidence.json`.
 8. Confirm prohibited copy boundaries before any claim involving account
    opening, ACH, debit cards, virtual cards, bill-pay, money movement, FDIC, or
    sponsor-bank services.
@@ -117,6 +119,7 @@ After the production receiver or CRM is configured, add:
 
 ```bash
 PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run webhook:test -- https://your-webhook-url --replay
+npm run receiver:managed:check -- --file launch-evidence/receiver-evidence.json
 PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run vercel:webhook:cutover -- --site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json
 npm run smoke:deploy -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --submit-test --require-webhook
 npm run readiness:paid-traffic -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app

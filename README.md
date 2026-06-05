@@ -38,6 +38,7 @@ npm run receiver:compose:config
 npm run receiver:docker:build
 npm run receiver:docker:smoke
 npm run receiver:evidence -- --url https://your-webhook-url --data-dir /path/to/waitlist --backup-dir /secure/path
+npm run receiver:managed:check -- --file launch-evidence/receiver-evidence.json
 npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com
 npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com --allow-prototype
 npm run smoke:deploy -- https://your-domain.com
@@ -209,10 +210,22 @@ checks non-PII summary counts, audits receiver files, creates and verifies a
 protected backup, and dry-runs deletion of the test lead without printing lead
 PII or the signing secret.
 
+If production capture uses a managed CRM, Airtable, Slack, Make, Zapier, or
+internal webhook instead of the lightweight file receiver, copy
+`launch-evidence/managed-receiver-evidence-template.json` to
+`launch-evidence/receiver-evidence.json`, fill it after signed replay and
+storage review, then run
+`npm run receiver:managed:check -- --file launch-evidence/receiver-evidence.json`.
+The validator checks signed replay acceptance, signature verification, durable
+storage, consent metadata, `submissionId` idempotency, sanitized attribution,
+deletion/export process documentation, and redaction before final go/no-go.
+
 `npm run webhook:test -- https://your-webhook-url --replay` sends one signed
 sample payload to any receiver using `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`, then
 sends the same signed payload again so idempotent replay handling can be
-verified before Vercel is switched into required-webhook mode.
+verified before Vercel is switched into required-webhook mode. Its CLI output
+prints an email hash and redacted receiver responses, not the test email, name,
+note, signing secret, or raw receiver message fields.
 
 If the lightweight receiver is used, `npm run waitlist:data -- summary` prints
 non-PII totals, segment counts, and campaign/source counts from the local

@@ -45,9 +45,9 @@ deployments, partner demos, and pilot demand capture.
 - Market status snapshot command that combines production health, local git
   commit, GitHub CI, Vercel deployment readiness, launch evidence, and
   go/no-go remaining gates for repeatable readiness issue updates.
-- Local evidence packet initializer that creates ignored counsel and analytics
-  JSON templates plus redacted receiver/launch/go-no-go commands for the final
-  operator handoff.
+- Local evidence packet initializer that creates ignored counsel, analytics,
+  and managed receiver JSON templates plus redacted receiver/launch/go-no-go
+  commands for the final operator handoff.
 - Vercel webhook cutover planner that validates receiver evidence and prints
   the redacted Production env, redeploy, strict evidence, and required-webhook
   smoke sequence without exposing the signing secret.
@@ -77,6 +77,11 @@ deployments, partner demos, and pilot demand capture.
   traffic.
 - Live analytics evidence validator for checking redacted Vercel Web Analytics
   and Speed Insights proof before final go/no-go.
+- Managed receiver evidence validator for checking CRM, Airtable, Slack, Make,
+  Zapier, or internal webhook proof of signed replay, signature verification,
+  durable storage, consent metadata, `submissionId` idempotency, sanitized
+  attribution, deletion/export process documentation, and redaction before
+  final go/no-go.
 - Prototype Privacy Notice discloses campaign attribution fields, Vercel Web
   Analytics, Speed Insights, and the analytics boundary that excludes emails,
   names, sensitive financial details, and free-text pilot notes.
@@ -176,6 +181,12 @@ deployments, partner demos, and pilot demand capture.
 - Run `PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run webhook:test -- https://your-webhook-url --replay`
   against the receiver and confirm the initial send and replay both return 2xx
   responses before configuring Vercel to require webhook persistence.
+- If a managed CRM, Airtable, Slack, Make, Zapier, or internal webhook is used,
+  copy `launch-evidence/managed-receiver-evidence-template.json` to
+  `launch-evidence/receiver-evidence.json`, fill it after signed replay and
+  storage review, run
+  `npm run receiver:managed:check -- --file launch-evidence/receiver-evidence.json`,
+  and attach the redacted output to the readiness issue.
 - Run
   `PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run vercel:webhook:cutover -- --site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json`
   and follow the printed redacted Vercel Production env, redeploy, strict
@@ -250,14 +261,17 @@ npm run market:evidence:init -- \
 ```
 
 `launch-evidence/` is ignored by git. The command creates
-`counsel-signoff.json`, `analytics-evidence.json`, and `commands.md` with the
-exact redacted receiver, strict launch, final go/no-go, and status snapshot
-commands.
+`counsel-signoff.json`, `analytics-evidence.json`,
+`managed-receiver-evidence-template.json`, and `commands.md` with the exact
+redacted receiver, strict launch, final go/no-go, and status snapshot commands.
 
-`npm run market:go-no-go` reads the JSON output from
-`npm run receiver:evidence` directly. Keep that file outside git, then attach
-only the redacted command output to the readiness issue after the go/no-go
-command passes.
+`npm run market:go-no-go` reads `launch-evidence/receiver-evidence.json`.
+For the lightweight file receiver, write the JSON output from
+`npm run receiver:evidence` to that path. For a managed CRM or internal webhook,
+copy `managed-receiver-evidence-template.json` to that path, fill the redacted
+storage and replay review fields, and run `npm run receiver:managed:check`.
+Keep the evidence file outside git, then attach only the redacted command output
+to the readiness issue after the go/no-go command passes.
 
 Use this counsel sign-off shape after review:
 

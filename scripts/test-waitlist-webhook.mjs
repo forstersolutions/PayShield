@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { signPayShieldWebhook } from "./waitlist-webhook-receiver.mjs";
 
@@ -124,6 +124,36 @@ function responsePreview(body) {
 
   const text = typeof body === "string" ? body : JSON.stringify(body);
   return text.length > 500 ? `${text.slice(0, 500)}...` : text;
+}
+
+export function emailHash(email) {
+  return createHash("sha256")
+    .update(String(email).toLowerCase())
+    .digest("hex")
+    .slice(0, 12);
+}
+
+export function redactedResponseBody(value) {
+  if (!value || typeof value !== "object") {
+    if (
+      typeof value === "string" &&
+      /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(value)
+    ) {
+      return "[redacted]";
+    }
+
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => redactedResponseBody(item));
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !["email", "message", "name"].includes(key))
+      .map(([key, item]) => [key, redactedResponseBody(item)]),
+  );
 }
 
 /**
@@ -256,6 +286,23 @@ export async function sendSignedWebhookTest(options = {}) {
   return result;
 }
 
+export function buildWebhookTestCliOutput(result, url) {
+  const output = {
+    emailHash: emailHash(result.payload.email),
+    ok: true,
+    receiverResponse: redactedResponseBody(result.body),
+    status: result.status,
+    url: parseWebhookUrl(url),
+  };
+
+  if (result.replay) {
+    output.replayReceiverResponse = redactedResponseBody(result.replay.body);
+    output.replayStatus = result.replay.status;
+  }
+
+  return output;
+}
+
 async function main() {
   const parsed = parseCliArgs(process.argv.slice(2));
 
@@ -270,19 +317,7 @@ async function main() {
     timeoutMs: parsed.timeoutMs,
     url: parsed.url,
   });
-
-  const output = {
-    ok: true,
-    receiverResponse: result.body,
-    sentEmail: result.payload.email,
-    status: result.status,
-    url: parseWebhookUrl(parsed.url),
-  };
-
-  if (result.replay) {
-    output.replayReceiverResponse = result.replay.body;
-    output.replayStatus = result.replay.status;
-  }
+  const output = buildWebhookTestCliOutput(result, parsed.url);
 
   console.log(
     JSON.stringify(

@@ -91,6 +91,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "Dockerfile.receiver",
   ".env.receiver.example",
   "scripts/analytics-audit.mjs",
+  "scripts/check-managed-receiver-evidence.mjs",
   "scripts/check-counsel-signoff.mjs",
   "scripts/check-analytics-evidence.mjs",
   "scripts/check-campaign-manifest.mjs",
@@ -214,6 +215,12 @@ requireText("scripts/check-analytics-evidence.mjs", "campaignSource");
 requireText("scripts/check-analytics-evidence.mjs", "campaignMedium");
 requireText("scripts/check-analytics-evidence.mjs", "hasCampaignAttribution");
 requireText("scripts/check-analytics-evidence.mjs", "analyticsEvidenceRedacted");
+requireText(
+  "scripts/check-managed-receiver-evidence.mjs",
+  "evaluateManagedReceiverEvidenceFile",
+);
+requireText("scripts/check-managed-receiver-evidence.mjs", "receiver:managed:check");
+requireText("scripts/check-managed-receiver-evidence.mjs", "Managed receiver");
 requireText("scripts/check-counsel-signoff.mjs", "evaluateCounselSignoffEvidence");
 requireText("scripts/check-counsel-signoff.mjs", "counsel-signoff.json");
 requireText("scripts/check-counsel-signoff.mjs", "Validates the redacted counsel sign-off record");
@@ -234,6 +241,7 @@ requireText("package.json", "\"lead-capture:dry-run\"");
 requireText("package.json", "\"market:evidence:init\"");
 requireText("package.json", "\"market:go-no-go\"");
 requireText("package.json", "\"market:status\"");
+requireText("package.json", "\"receiver:managed:check\"");
 requireText("package.json", "\"receiver:docker:smoke\"");
 requireText("package.json", "\"receiver:compose:config\"");
 requireText("package.json", "npm run campaign:lint:all");
@@ -281,11 +289,16 @@ requireText("scripts/launch-evidence.mjs", "--strict");
 requireText("scripts/market-evidence-init.mjs", "createMarketEvidencePacket");
 requireText("scripts/market-evidence-init.mjs", "counsel-signoff.json");
 requireText("scripts/market-evidence-init.mjs", "analytics-evidence.json");
+requireText("scripts/market-evidence-init.mjs", "managed-receiver-evidence-template.json");
+requireText("scripts/market-evidence-init.mjs", "receiver:managed:check");
 requireText("scripts/market-evidence-init.mjs", "counsel:signoff:check");
 requireText("scripts/market-evidence-init.mjs", "analytics:evidence:check");
 requireText("scripts/market-evidence-init.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET=...");
 requireText("scripts/market-go-no-go.mjs", "summarizeMarketGoNoGo");
 requireText("scripts/market-go-no-go.mjs", "evaluateReceiverEvidence");
+requireText("scripts/market-go-no-go.mjs", "evaluateManagedReceiverEvidence");
+requireText("scripts/market-go-no-go.mjs", "managedReceiverEvidenceRedacted");
+requireText("scripts/market-go-no-go.mjs", "managedSignedWebhookReplay");
 requireText("scripts/market-go-no-go.mjs", "evaluateCounselSignoff");
 requireText("scripts/market-go-no-go.mjs", "evaluateAnalyticsEvidence");
 requireText("scripts/market-go-no-go.mjs", "evaluateLiveAnalyticsEvidence");
@@ -312,6 +325,13 @@ requireText("scripts/test-waitlist-webhook.mjs", "x-payshield-submission-id");
 requireText("scripts/test-waitlist-webhook.mjs", "submissionId");
 requireText("scripts/test-waitlist-webhook.mjs", "--replay");
 requireText("scripts/test-waitlist-webhook.mjs", "replayResult");
+requireText("scripts/test-waitlist-webhook.mjs", "emailHash");
+requireText("scripts/test-waitlist-webhook.mjs", "redactedResponseBody");
+rejectPattern(
+  "scripts/test-waitlist-webhook.mjs",
+  /sentEmail/,
+  "Do not print raw webhook smoke email in CLI output",
+);
 requireText("scripts/lead-capture-dry-run.mjs", "runLeadCaptureDryRun");
 requireText("scripts/lead-capture-dry-run.mjs", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
 requireText("scripts/lead-capture-dry-run.mjs", "auditWaitlistData");
@@ -417,6 +437,10 @@ requireText(
 );
 requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
+  "npm run receiver:managed:check",
+);
+requireText(
+  ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   "npm run legal:lint",
 );
 requireText(
@@ -504,6 +528,7 @@ requireText("docs/vercel-launch.md", "npm run vercel:env:audit");
 requireText("docs/vercel-launch.md", "docker compose --env-file .env.receiver -f compose.receiver.yml up -d --build");
 requireText("docs/vercel-launch.md", "npm run receiver:compose:config");
 requireText("docs/vercel-launch.md", "npm run receiver:evidence");
+requireText("docs/vercel-launch.md", "npm run receiver:managed:check");
 requireText("docs/vercel-launch.md", "npm run market:evidence:init");
 requireText("docs/vercel-launch.md", "npm run counsel:signoff:check");
 requireText("docs/vercel-launch.md", "npm run analytics:evidence:check");
@@ -528,6 +553,7 @@ requireText("docs/market-readiness.md", "docs/campaigns/manifest.json");
 requireText("docs/market-readiness.md", "docker compose --env-file .env.receiver -f compose.receiver.yml up -d --build");
 requireText("docs/market-readiness.md", "npm run receiver:compose:config");
 requireText("docs/market-readiness.md", "npm run receiver:evidence");
+requireText("docs/market-readiness.md", "npm run receiver:managed:check");
 requireText("docs/market-readiness.md", "npm run market:evidence:init");
 requireText("docs/market-readiness.md", "npm run analytics:evidence:check");
 requireText("docs/market-readiness.md", "npm run vercel:webhook:cutover");
@@ -547,6 +573,7 @@ requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run waitli
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run waitlist:data -- verify-backup");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "compose.receiver.yml");
 requireText("docs/legal-review-packet.md", "npm run receiver:evidence");
+requireText("docs/legal-review-packet.md", "npm run receiver:managed:check");
 requireText("docs/legal-review-packet.md", "npm run vercel:webhook:cutover");
 requireText("docs/legal-review-packet.md", "npm run counsel:signoff:check");
 requireText("docs/legal-review-packet.md", "npm run analytics:evidence:check");

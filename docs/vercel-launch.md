@@ -109,11 +109,17 @@ npm run market:evidence:init -- \
 ```
 
 The command creates `launch-evidence/counsel-signoff.json`,
-`launch-evidence/analytics-evidence.json`, and
-`launch-evidence/commands.md`. The directory is ignored by git. Fill the JSON
-files only after counsel review and live analytics observation, then run the
-generated final `npm run market:go-no-go` command without
-`--allow-not-ready`.
+`launch-evidence/analytics-evidence.json`,
+`launch-evidence/managed-receiver-evidence-template.json`, and
+`launch-evidence/commands.md`. The directory is ignored by git. Fill the
+counsel and analytics JSON files only after counsel review and live analytics
+observation. If production capture uses a managed CRM, Airtable, Slack, Make,
+Zapier, or internal webhook, copy the managed receiver template to
+`launch-evidence/receiver-evidence.json`, fill it after signed replay and
+storage review, then validate it with
+`npm run receiver:managed:check -- --file launch-evidence/receiver-evidence.json`.
+Run the generated final `npm run market:go-no-go` command without
+`--allow-not-ready` only after all evidence files pass.
 
 After counsel approves the current Privacy Notice, Terms, public claims, and
 campaign copy, validate the redacted sign-off record:
@@ -348,8 +354,12 @@ PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook npm run webhook
 
 The tester sends one sample lead, expects a 2xx response, sends the exact same
 signed payload again, and prints both receiver responses without printing the
-signing secret. The lightweight receiver returns `duplicate: true` for the
-replay and does not append a second row.
+signing secret, smoke email, lead name, or note fields. The lightweight receiver
+returns `duplicate: true` for the replay and does not append a second row. For
+a managed receiver, use the redacted status values from this command and the
+receiver storage review to fill `launch-evidence/receiver-evidence.json`, then
+run `npm run receiver:managed:check -- --file launch-evidence/receiver-evidence.json`
+before generating the Vercel cutover plan.
 
 ## Post-Deploy Smoke Checks
 
