@@ -38,6 +38,8 @@ deployments, partner demos, and pilot demand capture.
 - Pilot conversion events track non-PII segment, result, and status metadata.
 - `/api/waitlist` emits structured logs for request start, validation outcomes,
   webhook mode, completion, and failures.
+- `/api/health` reports public-safe deployment and waitlist readiness state
+  without exposing the webhook URL or signing secret.
 - Signed webhook receiver utility for validating HMAC headers and writing leads
   to ignored local NDJSON/CSV files when a lightweight receiver is needed.
 - Conservative fintech language that does not claim PayShield is a bank or that
@@ -60,6 +62,9 @@ deployments, partner demos, and pilot demand capture.
 - If no CRM receiver exists yet, deploy or tunnel `npm run webhook:receive` with
   `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` set, then use that endpoint as the
   temporary webhook target.
+- Confirm `https://payshield-lime.vercel.app/api/health` reports
+  `waitlist.paidTrafficReady: true` after the webhook and fail-closed flag are
+  configured.
 - Run `npm run smoke:deploy -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --submit-test --require-webhook`
   and confirm it returns webhook mode before paid traffic.
 - Enable Vercel Web Analytics and Speed Insights in the Vercel dashboard.

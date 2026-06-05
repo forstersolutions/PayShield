@@ -129,10 +129,16 @@ npm run smoke:deploy -- https://your-domain.com --expect-site-url https://your-d
 ```
 
 The default smoke check validates the homepage, legal pages, SEO routes, launch
-assets, browser security headers, and waitlist consent validation without
-creating a persisted lead. Use `--expect-site-url` on the production URL to
-confirm canonical metadata, social image URLs, robots, and sitemap entries match
-`NEXT_PUBLIC_SITE_URL`.
+assets, browser security headers, `/api/health`, and waitlist consent
+validation without creating a persisted lead. Use `--expect-site-url` on the
+production URL to confirm canonical metadata, social image URLs, robots, and
+sitemap entries match `NEXT_PUBLIC_SITE_URL`.
+
+`/api/health` returns public-safe readiness state. In demo mode, it returns
+`waitlist.mode: "demo"` and `waitlist.paidTrafficReady: false`. After the
+webhook URL and `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` are configured, it
+should return `waitlist.mode: "webhook"` and `waitlist.paidTrafficReady: true`.
+The endpoint does not expose the webhook URL or signing secret.
 
 After the webhook is configured, run one explicit submission test:
 

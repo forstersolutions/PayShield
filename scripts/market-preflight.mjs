@@ -66,6 +66,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/manifest.ts",
   "src/app/privacy/page.tsx",
   "src/app/terms/page.tsx",
+  "src/app/api/health/route.ts",
   "src/app/components/site-footer.tsx",
   "src/app/components/waitlist-form.tsx",
   "src/app/components/paycheck-planner.tsx",
@@ -117,6 +118,9 @@ requireText("scripts/smoke-deploy.mjs", "payshield-social-card.jpg");
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-signature");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-timestamp");
+requireText("src/app/api/health/route.ts", "paidTrafficReady");
+requireText("src/app/api/health/route.ts", "webhookConfigured");
+requireText("scripts/smoke-deploy.mjs", "/api/health");
 requireText("scripts/waitlist-webhook-receiver.mjs", "verifyPayShieldSignature");
 requireText("scripts/waitlist-webhook-receiver.mjs", "waitlist.ndjson");
 requireText("scripts/waitlist-webhook-receiver.mjs", "waitlist.csv");

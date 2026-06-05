@@ -134,6 +134,27 @@ async function checkWaitlistValidation() {
   }
 }
 
+async function checkHealth() {
+  const response = await expectStatus("/api/health", 200);
+  const body = await response.json().catch(() => ({}));
+
+  if (body.service !== "payshield-market-site") {
+    failures.push("/api/health returned an unexpected service name");
+  }
+
+  if (body.ok !== true) {
+    failures.push("/api/health did not report ok=true");
+  }
+
+  if (!["demo", "webhook"].includes(String(body.waitlist?.mode))) {
+    failures.push("/api/health returned an unexpected waitlist mode");
+  }
+
+  if (requireWebhook && body.waitlist?.paidTrafficReady !== true) {
+    failures.push("/api/health does not report paid-traffic-ready waitlist capture");
+  }
+}
+
 function expectHeader(response, path, name, expectedValue) {
   const actual = response.headers.get(name);
 
@@ -257,6 +278,7 @@ try {
   await expectAsset("/icon.svg", "image/svg+xml", 5_000);
   await expectAsset("/images/payshield-social-card.jpg", "image/jpeg", 250_000);
   await expectAsset("/images/payshield-product-mockup.avif", "image/avif", 125_000);
+  await checkHealth();
   await checkWaitlistValidation();
   expectConfiguredSiteUrl(home.body, robots.body, sitemap.body);
 

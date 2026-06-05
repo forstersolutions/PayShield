@@ -89,6 +89,10 @@ want a lightweight persistence target before wiring a CRM. It verifies the
 PayShield HMAC headers and appends accepted leads to ignored local
 `data/waitlist/waitlist.ndjson` and `data/waitlist/waitlist.csv` files.
 
+`/api/health` exposes public-safe deployment and waitlist readiness state. It
+does not expose the webhook URL or signing secret, and it reports whether the
+site is still in demo capture mode or paid-traffic-ready webhook mode.
+
 The pilot form requires consent to the prototype Privacy Notice and Terms before
 submission.
 
