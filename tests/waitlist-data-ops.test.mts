@@ -28,6 +28,7 @@ const records = [
     receivedAt: "2026-06-05T00:00:01.000Z",
     segment: "Household",
     source: "payshield-market-site",
+    submissionId: "018f7f62-9878-4aab-9ed3-86368f7f4512",
     termsVersion: "pilot-terms-2026-06-05",
   },
   {
@@ -49,6 +50,7 @@ const records = [
     receivedAt: "2026-06-05T01:00:01.000Z",
     segment: "Investor or partner",
     source: "payshield-market-site",
+    submissionId: "018f7f62-9878-4aab-9ed3-86368f7f4513",
     termsVersion: "pilot-terms-2026-06-05",
   },
 ];
@@ -114,10 +116,11 @@ test("erases matching email records and regenerates receiver files", async () =>
     assert.equal(ndjson.includes("partner@example.com"), true);
     assert.match(
       csv,
-      /^createdAt,email,name,segment,message,consentVersion,privacyVersion,termsVersion,consentedAt,consentText,source,utmSource,utmMedium,utmCampaign,utmContent,utmTerm,landingPath,receivedAt/m,
+      /^submissionId,createdAt,email,name,segment,message,consentVersion,privacyVersion,termsVersion,consentedAt,consentText,source,utmSource,utmMedium,utmCampaign,utmContent,utmTerm,landingPath,receivedAt/m,
     );
     assert.equal(csv.includes("lead@example.com"), false);
     assert.equal(csv.includes("partner@example.com"), true);
+    assert.equal(csv.includes("018f7f62-9878-4aab-9ed3-86368f7f4513"), true);
     assert.equal(csv.includes("Partner Launch"), true);
     assert.equal(csv.includes("pilot-terms-2026-06-05"), true);
   } finally {

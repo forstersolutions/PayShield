@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { signPayShieldWebhook } from "./waitlist-webhook-receiver.mjs";
 
@@ -143,6 +144,7 @@ export function createWaitlistWebhookTestPayload(options = {}) {
     message: "Signed webhook smoke test. Safe to delete.",
     privacyVersion: "pilot-privacy-2026-06-05",
     source: "payshield-webhook-test",
+    submissionId: randomUUID(),
     termsVersion: "pilot-terms-2026-06-05",
   };
 }
@@ -181,6 +183,9 @@ export async function sendSignedWebhookTest(options = {}) {
     headers: {
       "content-type": "application/json",
       "user-agent": "payshield-webhook-test",
+      ...(body.submissionId
+        ? { "x-payshield-submission-id": body.submissionId }
+        : {}),
       "x-payshield-webhook-signature": signPayShieldWebhook({
         rawBody,
         secret,

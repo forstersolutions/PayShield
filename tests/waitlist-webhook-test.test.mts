@@ -42,12 +42,22 @@ test("sends a signed webhook smoke payload to a receiver", async () => {
 
     assert.equal(result.ok, true);
     assert.equal(result.status, 202);
-    assert.deepEqual(result.body, { ok: true, email: "smoke@example.com" });
+    assert.match(
+      payload.submissionId,
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    assert.deepEqual(result.body, {
+      duplicate: false,
+      ok: true,
+      email: "smoke@example.com",
+      submissionId: payload.submissionId,
+    });
 
     const ndjson = await readFile(join(dataDir, "waitlist.ndjson"), "utf8");
     const csv = await readFile(join(dataDir, "waitlist.csv"), "utf8");
 
     assert.match(ndjson, /"email":"smoke@example.com"/);
+    assert.match(ndjson, new RegExp(`"submissionId":"${payload.submissionId}"`));
     assert.match(ndjson, /"source":"payshield-webhook-test"/);
     assert.match(ndjson, /"consentVersion":"pilot-contact-consent-2026-06-05"/);
     assert.match(ndjson, /"termsVersion":"pilot-terms-2026-06-05"/);

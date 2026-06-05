@@ -185,12 +185,15 @@ requireText("scripts/test-waitlist-webhook.mjs", "x-payshield-webhook-signature"
 requireText("scripts/test-waitlist-webhook.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");
 requireText("scripts/test-waitlist-webhook.mjs", "pilot-contact-consent-2026-06-05");
 requireText("scripts/test-waitlist-webhook.mjs", "pilot-terms-2026-06-05");
+requireText("scripts/test-waitlist-webhook.mjs", "x-payshield-submission-id");
+requireText("scripts/test-waitlist-webhook.mjs", "submissionId");
 requireText("scripts/waitlist-data-ops.mjs", "summarizeWaitlistData");
 requireText("scripts/waitlist-data-ops.mjs", "eraseWaitlistEmail");
 requireText("scripts/waitlist-data-ops.mjs", "malformedLines");
 requireText("scripts/waitlist-data-ops.mjs", "privacyVersion");
 requireText("scripts/waitlist-data-ops.mjs", "termsVersion");
 requireText("scripts/waitlist-data-ops.mjs", "consentedAt");
+requireText("scripts/waitlist-data-ops.mjs", "submissionId");
 requireText("package.json", "\"waitlist:data\"");
 requireText("package.json", "\"receiver:docker:build\"");
 requireText(".github/workflows/ci.yml", "npm run receiver:docker:build");
@@ -226,14 +229,20 @@ requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   "privacyVersion",
 );
+requireText(
+  ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
+  "idempotent",
+);
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET is required");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-signature");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-timestamp");
+requireText("src/app/api/waitlist/route.ts", "x-payshield-submission-id");
 requireText("src/app/api/waitlist/route.ts", "pilot-contact-consent-2026-06-05");
 requireText("src/app/api/waitlist/route.ts", "pilot-terms-2026-06-05");
 requireText("src/app/api/waitlist/route.ts", "consentedAt");
 requireText("src/app/api/waitlist/route.ts", "consentText");
+requireText("src/app/api/waitlist/route.ts", "randomUUID");
 requireText(
   "src/app/api/waitlist/route.ts",
   "Prototype request accepted for this walkthrough",
@@ -257,6 +266,8 @@ requireText("scripts/waitlist-webhook-receiver.mjs", "utmCampaign");
 requireText("scripts/waitlist-webhook-receiver.mjs", "privacyVersion");
 requireText("scripts/waitlist-webhook-receiver.mjs", "termsVersion");
 requireText("scripts/waitlist-webhook-receiver.mjs", "consentedAt");
+requireText("scripts/waitlist-webhook-receiver.mjs", "findExistingSubmission");
+requireText("scripts/waitlist-webhook-receiver.mjs", "submissionId");
 requireText("Dockerfile.receiver", "PAYSHIELD_RECEIVER_DATA_DIR=/data/waitlist");
 requireText("Dockerfile.receiver", "PAYSHIELD_RECEIVER_HEALTH_PATH=/health");
 requireText("Dockerfile.receiver", "scripts/waitlist-webhook-receiver.mjs");
@@ -268,8 +279,10 @@ requireText("docs/vercel-launch.md", "utm_source");
 requireText("docs/vercel-launch.md", "consentVersion");
 requireText("docs/vercel-launch.md", "privacyVersion");
 requireText("docs/vercel-launch.md", "termsVersion");
+requireText("docs/vercel-launch.md", "submissionId");
 requireText("docs/market-readiness.md", "sanitized campaign metadata");
 requireText("docs/market-readiness.md", "consent audit fields");
+requireText("docs/market-readiness.md", "idempotent capture");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "sanitized `attribution` fields");
 
 requireMaxSize("src/app/icon.svg", 5_000);

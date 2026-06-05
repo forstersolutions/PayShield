@@ -7,7 +7,7 @@ import { pathToFileURL } from "node:url";
 const defaultDataDir =
   process.env.PAYSHIELD_RECEIVER_DATA_DIR ?? join(process.cwd(), "data", "waitlist");
 const csvHeader =
-  "createdAt,email,name,segment,message,consentVersion,privacyVersion,termsVersion,consentedAt,consentText,source,utmSource,utmMedium,utmCampaign,utmContent,utmTerm,landingPath,receivedAt";
+  "submissionId,createdAt,email,name,segment,message,consentVersion,privacyVersion,termsVersion,consentedAt,consentText,source,utmSource,utmMedium,utmCampaign,utmContent,utmTerm,landingPath,receivedAt";
 const attributionFields = [
   "utmSource",
   "utmMedium",
@@ -169,6 +169,7 @@ function normalizeRecord(value) {
     receivedAt: cleanText(value.receivedAt, 40),
     segment: cleanText(value.segment, 40),
     source: cleanText(value.source, 80),
+    submissionId: cleanText(value.submissionId, 80),
     termsVersion: cleanText(value.termsVersion, 80),
     ...(Object.keys(attribution).length ? { attribution } : {}),
   };
@@ -224,6 +225,7 @@ function csvRow(record) {
   const attribution = record.attribution ?? {};
 
   return [
+    record.submissionId,
     record.createdAt,
     record.email,
     record.name,

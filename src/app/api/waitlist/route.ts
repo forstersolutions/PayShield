@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server.js";
 import { track } from "@vercel/analytics/server";
 
@@ -32,6 +32,7 @@ type WaitlistSubmission = {
   consentVersion: string;
   privacyVersion: string;
   source: string;
+  submissionId: string;
   termsVersion: string;
   createdAt: string;
 };
@@ -256,6 +257,7 @@ async function forwardToWebhook(data: WaitlistSubmission) {
     method: "POST",
     headers: {
       "content-type": "application/json",
+      "x-payshield-submission-id": data.submissionId,
       ...(signature
         ? {
             "x-payshield-webhook-signature": signature,
@@ -415,6 +417,7 @@ export async function POST(request: NextRequest) {
     consentVersion,
     privacyVersion,
     source: "payshield-market-site",
+    submissionId: randomUUID(),
     termsVersion,
     createdAt,
     ...(Object.keys(attribution).length ? { attribution } : {}),

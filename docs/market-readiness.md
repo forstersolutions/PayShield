@@ -59,8 +59,9 @@ deployments, partner demos, and pilot demand capture.
   without exposing the webhook URL or signing secret.
 - Signed webhook receiver utility for validating HMAC headers and writing leads
   to ignored local NDJSON/CSV files when a lightweight receiver is needed.
-- Waitlist webhook payloads include consent text, consent timestamp, Privacy
-  Notice version, and Terms version for pilot outreach auditability.
+- Waitlist webhook payloads include a `submissionId`, consent text, consent
+  timestamp, Privacy Notice version, and Terms version for idempotent capture
+  and pilot outreach auditability.
 - Dedicated `Dockerfile.receiver` for running the signed receiver on a container
   host with a persistent `/data/waitlist` volume and `GET /health` checks.
 - Receiver data-ops command for non-PII lead summaries and email-based deletion
@@ -101,6 +102,8 @@ deployments, partner demos, and pilot demand capture.
   honoring deletion requests.
 - Confirm the receiver stores `consentVersion`, `privacyVersion`,
   `termsVersion`, `consentedAt`, and `consentText` for every accepted test lead.
+- Replay the same signed test payload and confirm the receiver returns success
+  without appending a second row for the same `submissionId`.
 - Run `PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run webhook:test -- https://your-webhook-url`
   against the receiver and confirm it returns a 2xx response before configuring
   Vercel to require webhook persistence.

@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { existsSync } from "node:fs";
-import { appendFile, mkdir } from "node:fs/promises";
+import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -97,6 +97,16 @@ function cleanText(value, maxLength) {
   return value.trim().replace(/\s+/g, " ").slice(0, maxLength);
 }
 
+function cleanSubmissionId(value) {
+  const normalized = cleanText(value, 80);
+
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    normalized,
+  )
+    ? normalized.toLowerCase()
+    : "";
+}
+
 function cleanAttributionValue(value, maxLength = 80) {
   const normalized = cleanText(value, maxLength);
 
@@ -171,6 +181,7 @@ function normalizeSubmission(value) {
     consentVersion: cleanText(value.consentVersion, 80),
     privacyVersion: cleanText(value.privacyVersion, 80),
     source: cleanText(value.source, 80),
+    submissionId: cleanSubmissionId(value.submissionId),
     termsVersion: cleanText(value.termsVersion, 80),
     ...(Object.keys(attribution).length ? { attribution } : {}),
   };
@@ -186,6 +197,7 @@ function normalizeSubmission(value) {
     !submission.consentedAt ||
     !submission.privacyVersion ||
     !submission.source ||
+    !submission.submissionId ||
     !submission.termsVersion
   ) {
     throw new Error("Webhook body is missing required lead metadata.");
@@ -202,6 +214,7 @@ function csvRow(submission, receivedAt) {
   const attribution = submission.attribution ?? {};
 
   return [
+    submission.submissionId,
     submission.createdAt,
     submission.email,
     submission.name,
@@ -225,8 +238,48 @@ function csvRow(submission, receivedAt) {
     .join(",");
 }
 
+async function findExistingSubmission(dataDir, submissionId) {
+  const ndjsonPath = join(dataDir, "waitlist.ndjson");
+
+  if (!existsSync(ndjsonPath)) {
+    return null;
+  }
+
+  const content = await readFile(ndjsonPath, "utf8");
+
+  for (const line of content.split("\n")) {
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+
+      if (cleanSubmissionId(parsed.submissionId) === submissionId) {
+        return {
+          ...normalizeSubmission(parsed),
+          duplicate: true,
+          receivedAt: cleanText(parsed.receivedAt, 40),
+        };
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
 export async function persistSubmission({ dataDir, rawBody, receivedAt }) {
   const submission = normalizeSubmission(JSON.parse(rawBody));
+  const existing = await findExistingSubmission(dataDir, submission.submissionId);
+
+  if (existing) {
+    return existing;
+  }
+
   const record = {
     ...submission,
     receivedAt,
@@ -241,7 +294,7 @@ export async function persistSubmission({ dataDir, rawBody, receivedAt }) {
 
   const csvPath = join(dataDir, "waitlist.csv");
   const header =
-    "createdAt,email,name,segment,message,consentVersion,privacyVersion,termsVersion,consentedAt,consentText,source,utmSource,utmMedium,utmCampaign,utmContent,utmTerm,landingPath,receivedAt\n";
+    "submissionId,createdAt,email,name,segment,message,consentVersion,privacyVersion,termsVersion,consentedAt,consentText,source,utmSource,utmMedium,utmCampaign,utmContent,utmTerm,landingPath,receivedAt\n";
 
   await appendFile(
     csvPath,
@@ -249,7 +302,7 @@ export async function persistSubmission({ dataDir, rawBody, receivedAt }) {
     "utf8",
   );
 
-  return record;
+  return { ...record, duplicate: false };
 }
 
 export function createWaitlistWebhookReceiver({
@@ -312,9 +365,11 @@ export function createWaitlistWebhookReceiver({
         receivedAt: new Date().toISOString(),
       });
 
-      jsonResponse(response, 202, {
+      jsonResponse(response, record.duplicate === true ? 200 : 202, {
+        duplicate: record.duplicate === true,
         ok: true,
         email: record.email,
+        submissionId: record.submissionId,
       });
     } catch (error) {
       jsonResponse(response, 400, {

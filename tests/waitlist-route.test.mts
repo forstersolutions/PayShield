@@ -36,6 +36,7 @@ function startWebhook(status = 200) {
     rawBody: string;
     secret: string | null;
     signature: string | null;
+    submissionId: string | null;
     timestamp: string | null;
   }> = [];
 
@@ -52,6 +53,8 @@ function startWebhook(status = 200) {
         secret: request.headers["x-payshield-webhook-secret"]?.toString() ?? null,
         signature:
           request.headers["x-payshield-webhook-signature"]?.toString() ?? null,
+        submissionId:
+          request.headers["x-payshield-submission-id"]?.toString() ?? null,
         timestamp:
           request.headers["x-payshield-webhook-timestamp"]?.toString() ?? null,
       });
@@ -337,6 +340,14 @@ test("forwards valid submissions to the configured webhook", async () => {
     assert.equal(webhook.requests[0]?.secret, null);
     assert.match(webhook.requests[0]?.timestamp ?? "", /^\d+$/);
     assert.match(webhook.requests[0]?.signature ?? "", /^v1=[a-f0-9]{64}$/);
+    assert.match(
+      String(webhook.requests[0]?.body.submissionId ?? ""),
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    assert.equal(
+      webhook.requests[0]?.submissionId,
+      webhook.requests[0]?.body.submissionId,
+    );
     assert.equal(
       webhook.requests[0]?.signature,
       `v1=${createHmac("sha256", "shared-secret")

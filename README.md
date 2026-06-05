@@ -93,7 +93,9 @@ an optional `attribution` object to the webhook; raw query strings, emails,
 URLs, and long account-like numbers are not forwarded.
 Webhook payloads include audit fields for the accepted contact-consent text,
 Privacy Notice version, Terms version, and consent timestamp so production
-receivers can retain proof of pilot outreach consent.
+receivers can retain proof of pilot outreach consent. Each accepted request also
+gets a `submissionId` UUID so receivers can treat signed replays as idempotent
+and avoid duplicate lead rows.
 If `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` is set, PayShield signs the exact JSON
 body with HMAC-SHA256 and sends `x-payshield-webhook-signature` plus
 `x-payshield-webhook-timestamp`. The raw secret is not forwarded. Webhook
@@ -111,7 +113,9 @@ current prototype state while keeping demo capture as a warning.
 `npm run webhook:receive` starts a small signed webhook receiver for teams that
 want a lightweight persistence target before wiring a CRM. It verifies the
 PayShield HMAC headers and appends accepted leads to ignored local
-`data/waitlist/waitlist.ndjson` and `data/waitlist/waitlist.csv` files.
+`data/waitlist/waitlist.ndjson` and `data/waitlist/waitlist.csv` files. Replayed
+submissions with the same `submissionId` return success without appending a
+duplicate NDJSON or CSV row.
 The receiver also exposes `GET /health` with a public-safe health response for
 platform health checks.
 
