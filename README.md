@@ -39,6 +39,10 @@ audit. GitHub Actions runs the same preflight on pushes to `main` and pull
 requests. Vercel's Git integration will still create preview and production
 deployments; the workflow is a source-level quality gate before deployment.
 
+Dependabot is configured for weekly npm and GitHub Actions update pull requests,
+grouped by runtime, Vercel observability, lint/type tooling, and workflow
+maintenance.
+
 ## Vercel
 
 The app is structured for Vercel's Git integration. Connect the GitHub
