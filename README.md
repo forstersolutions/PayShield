@@ -66,6 +66,7 @@ configure these optional Vercel variables:
 NEXT_PUBLIC_SITE_URL=https://your-domain.com
 PAYSHIELD_WAITLIST_WEBHOOK_URL=https://your-webhook-url
 PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook
+PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true
 ```
 
 `/api/waitlist` validates pilot requests, applies bounded in-memory rate
@@ -76,6 +77,9 @@ used in investor and partner conversations.
 If `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` is set, it is forwarded as
 `x-payshield-webhook-secret`. Webhook delivery times out after eight seconds so
 slow downstream tools do not hold the request open indefinitely.
+Set `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` before paid traffic so valid
+submissions fail closed instead of appearing successful without durable lead
+capture.
 
 The pilot form requires consent to the prototype Privacy Notice and Terms before
 submission.

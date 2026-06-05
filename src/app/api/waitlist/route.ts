@@ -36,6 +36,8 @@ const rateLimitWindowMs = 60_000;
 const webhookTimeoutMs = 8_000;
 const requestLog = new Map<string, number[]>();
 
+class WaitlistConfigurationError extends Error {}
+
 function cleanText(value: unknown, maxLength: number) {
   if (typeof value !== "string") {
     return "";
@@ -97,8 +99,15 @@ function isRateLimited(key: string) {
 
 async function forwardToWebhook(data: WaitlistSubmission) {
   const webhookUrl = process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
+  const requireWebhook = process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK === "true";
 
   if (!webhookUrl) {
+    if (requireWebhook) {
+      throw new WaitlistConfigurationError(
+        "PAYSHIELD_WAITLIST_WEBHOOK_URL is required when PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true",
+      );
+    }
+
     return { mode: "demo" as const };
   }
 
@@ -281,6 +290,35 @@ export async function POST(request: NextRequest) {
           : "Demo request accepted. Configure PAYSHIELD_WAITLIST_WEBHOOK_URL in Vercel to persist submissions.",
     });
   } catch (error) {
+    if (error instanceof WaitlistConfigurationError) {
+      await track(
+        "Pilot Request Failed",
+        {
+          segment,
+          status: "missing_webhook",
+        },
+        {
+          request: {
+            headers: request.headers,
+          },
+        },
+      ).catch(() => undefined);
+
+      logWaitlistEvent("error", "request_not_configured", {
+        requestId,
+        segment,
+        error: error.message,
+        ms: Date.now() - start,
+      });
+      return NextResponse.json(
+        {
+          error:
+            "Pilot request capture is temporarily unavailable. Try again shortly.",
+        },
+        { status: 503 },
+      );
+    }
+
     logWaitlistEvent("error", "request_failed", {
       requestId,
       segment,

@@ -13,7 +13,9 @@ Use this checklist after the repository is pushed to
 - Vercel Web Analytics and Speed Insights are enabled for the project.
 - `PAYSHIELD_WAITLIST_WEBHOOK_URL` is not configured yet. The pilot form returns
   demo-mode success and emits logs/analytics, but real lead persistence still
-  requires a CRM, Airtable, Slack, Make, Zapier, or internal webhook.
+  requires a CRM, Airtable, Slack, Make, Zapier, or internal webhook. Keep
+  `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK` unset or `false` until the webhook is
+  ready, then set it to `true` before paid traffic.
 
 ## Import
 
@@ -38,10 +40,13 @@ Configure these in Vercel for Production and Preview:
 NEXT_PUBLIC_SITE_URL=https://your-domain.com
 PAYSHIELD_WAITLIST_WEBHOOK_URL=https://your-webhook-url
 PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook
+PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true
 ```
 
 `NEXT_PUBLIC_SITE_URL` is exposed to the browser and should contain only the
 public site URL. The webhook URL and shared secret are server-only.
+`PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` makes valid waitlist submissions fail
+closed unless the webhook URL is configured.
 
 If there is no webhook yet, leave `PAYSHIELD_WAITLIST_WEBHOOK_URL` empty. The
 form will still return demo-mode success for prototype walkthroughs, but
@@ -85,7 +90,7 @@ confirm canonical metadata, social image URLs, robots, and sitemap entries match
 After the webhook is configured, run one explicit submission test:
 
 ```bash
-npm run smoke:deploy -- https://your-domain.com --expect-site-url https://your-domain.com --submit-test
+npm run smoke:deploy -- https://your-domain.com --expect-site-url https://your-domain.com --submit-test --require-webhook
 ```
 
 Manual equivalents:

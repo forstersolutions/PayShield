@@ -1,13 +1,19 @@
 const args = process.argv.slice(2);
 const targetUrl = args.find((arg) => !arg.startsWith("--"));
 const submitTestLead = args.includes("--submit-test");
+const requireWebhook = args.includes("--require-webhook");
 const timeoutMs = 10_000;
 const failures = [];
 
 if (!targetUrl) {
   console.error(
-    "Usage: npm run smoke:deploy -- https://your-domain.com [--expect-site-url https://your-domain.com] [--submit-test]",
+    "Usage: npm run smoke:deploy -- https://your-domain.com [--expect-site-url https://your-domain.com] [--submit-test] [--require-webhook]",
   );
+  process.exit(1);
+}
+
+if (requireWebhook && !submitTestLead) {
+  console.error("--require-webhook must be used with --submit-test.");
   process.exit(1);
 }
 
@@ -214,6 +220,14 @@ async function submitLead() {
 
   if (body.ok !== true || !["demo", "webhook"].includes(String(body.mode))) {
     failures.push("/api/waitlist submit test returned an unexpected body");
+  }
+
+  if (requireWebhook && body.mode !== "webhook") {
+    failures.push(
+      `/api/waitlist submit test returned mode ${String(
+        body.mode ?? "missing",
+      )}; expected webhook`,
+    );
   }
 }
 

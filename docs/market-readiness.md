@@ -11,7 +11,8 @@ deployments, partner demos, and pilot demand capture.
 - Pricing and positioning copy for Free, Plus, Pro, and Premium plans.
 - Pilot request form with server-side validation, bounded in-memory rate
   limiting, request-size guardrails, honeypot filtering, required privacy/terms
-  consent, and optional webhook forwarding.
+  consent, optional webhook forwarding, and an opt-in fail-closed mode for paid
+  traffic when webhook persistence is required.
 - Vercel-compatible Next.js app with production build, metadata, sitemap,
   robots, and baseline browser security headers.
 - JPEG social preview card for broad Open Graph and Twitter crawler support,
@@ -51,7 +52,11 @@ deployments, partner demos, and pilot demand capture.
   or internal webhook.
 - Set `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` if the receiving webhook validates a
   shared secret.
+- Set `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` after the webhook is configured
+  so valid public submissions do not return demo-mode success.
 - Confirm the receiving webhook responds in under eight seconds.
+- Run `npm run smoke:deploy -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --submit-test --require-webhook`
+  and confirm it returns webhook mode before paid traffic.
 - Enable Vercel Web Analytics and Speed Insights in the Vercel dashboard.
 - Confirm custom events appear for pilot request attempt, submission, and
   failure after the first production or preview deployment.

@@ -77,6 +77,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "NEXT_PUBLIC_SITE_URL",
   "PAYSHIELD_WAITLIST_WEBHOOK_URL",
   "PAYSHIELD_WAITLIST_WEBHOOK_SECRET",
+  "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK",
 ].forEach((key) => requireText(".env.example", key));
 
 requireText(
@@ -108,9 +109,11 @@ requireText(
   'src="/images/payshield-product-mockup.avif"',
 );
 requireText("scripts/smoke-deploy.mjs", "--expect-site-url");
+requireText("scripts/smoke-deploy.mjs", "--require-webhook");
 requireText("scripts/smoke-deploy.mjs", "x-content-type-options");
 requireText("scripts/smoke-deploy.mjs", "permissions-policy");
 requireText("scripts/smoke-deploy.mjs", "payshield-social-card.jpg");
+requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
 requireText("vercel.json", '"framework": "nextjs"');
 
 requireMaxSize("src/app/icon.svg", 5_000);
