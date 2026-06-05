@@ -30,12 +30,15 @@ test("creates local market evidence templates and redacted commands", async () =
     const managedReceiver = JSON.parse(
       await readFile(join(dir, "managed-receiver-evidence-template.json"), "utf8"),
     );
+    const upstashReceiver = JSON.parse(
+      await readFile(join(dir, "upstash-receiver-evidence-template.json"), "utf8"),
+    );
     const commands = await readFile(join(dir, "commands.md"), "utf8");
     const serialized = JSON.stringify(result) + commands;
 
     assert.equal(result.ok, true);
     assert.equal(result.siteUrl, "https://payshield-lime.vercel.app");
-    assert.equal(result.files.length, 4);
+    assert.equal(result.files.length, 5);
     assert.equal(counsel.ok, false);
     assert.deepEqual(counsel.scope, [
       "privacy",
@@ -62,8 +65,16 @@ test("creates local market evidence templates and redacted commands", async () =
       "https://receiver.example/payshield-waitlist",
     );
     assert.equal(managedReceiver.webhookTest.signedPayloadAccepted, false);
+    assert.equal(upstashReceiver.ok, false);
+    assert.equal(upstashReceiver.receiverType, "upstash");
+    assert.equal(
+      upstashReceiver.target.productionUrl,
+      "https://payshield-lime.vercel.app",
+    );
+    assert.equal(upstashReceiver.health.storageConfigured, false);
     assert.match(commands, /npm run receiver:evidence/);
     assert.match(commands, /npm run receiver:managed:check/);
+    assert.match(commands, /npm run receiver:upstash:check/);
     assert.match(commands, /npm run vercel:webhook:cutover/);
     assert.match(commands, /npm run counsel:signoff:check/);
     assert.match(commands, /npm run analytics:evidence:check/);
@@ -76,6 +87,10 @@ test("creates local market evidence templates and redacted commands", async () =
     assert.match(
       result.managedReceiverEvidenceCommand,
       /receiver:managed:check/,
+    );
+    assert.match(
+      result.upstashReceiverEvidenceCommand,
+      /receiver:upstash:check/,
     );
     assert.match(result.statusCommand, /market:status/);
     assert.equal(serialized.includes("shared-secret"), false);

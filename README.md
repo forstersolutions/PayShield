@@ -39,6 +39,7 @@ npm run receiver:docker:build
 npm run receiver:docker:smoke
 npm run receiver:evidence -- --url https://your-webhook-url --data-dir /path/to/waitlist --backup-dir /secure/path
 npm run receiver:managed:check -- --file launch-evidence/receiver-evidence.json
+npm run receiver:upstash:check -- --file launch-evidence/receiver-evidence.json
 npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com
 npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com --allow-prototype
 npm run smoke:deploy -- https://your-domain.com
@@ -94,16 +95,27 @@ configure these optional Vercel variables:
 
 ```bash
 NEXT_PUBLIC_SITE_URL=https://your-domain.com
+
+# Webhook/CRM capture path:
 PAYSHIELD_WAITLIST_WEBHOOK_URL=https://your-webhook-url
 PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook
+
+# Vercel-native Upstash capture path:
+PAYSHIELD_WAITLIST_STORAGE=upstash
+UPSTASH_REDIS_REST_URL=https://your-upstash-endpoint
+UPSTASH_REDIS_REST_TOKEN=server-side-rest-token
+
+# Set after one capture path is configured:
 PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true
 ```
 
 `/api/waitlist` validates pilot requests, applies bounded in-memory rate
 limiting and request-size guardrails, filters a honeypot field, and forwards
-submissions to `PAYSHIELD_WAITLIST_WEBHOOK_URL` when configured. Without the
-webhook, the form returns a demo-mode success so the Vercel preview can still be
-used in investor and partner conversations.
+submissions to `PAYSHIELD_WAITLIST_WEBHOOK_URL` when configured. If
+`PAYSHIELD_WAITLIST_STORAGE=upstash` is set, it stores validated submissions in
+Vercel Marketplace Upstash Redis instead. Without webhook or Upstash capture,
+the form returns a demo-mode success so the Vercel preview can still be used in
+investor and partner conversations.
 The form also captures allowlisted campaign attribution from `utm_source`,
 `utm_medium`, `utm_campaign`, `utm_content`, and `utm_term`, plus the landing
 path without query parameters. The API re-sanitizes those fields before sending
@@ -121,11 +133,14 @@ delivery times out after eight seconds so slow downstream tools do not hold the
 request open indefinitely.
 Set `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` before paid traffic so valid
 submissions fail closed instead of appearing successful without durable lead
-capture.
+capture. For the Vercel-native path, install Upstash Redis from Vercel
+Marketplace, set `PAYSHIELD_WAITLIST_STORAGE=upstash`, and configure
+`UPSTASH_REDIS_REST_URL` plus `UPSTASH_REDIS_REST_TOKEN` as encrypted
+Production env vars.
 
 `npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com`
 audits the public launch surface and fails unless `/api/health` proves
-paid-traffic-ready webhook capture. Add `--allow-prototype` to document the
+paid-traffic-ready durable lead capture. Add `--allow-prototype` to document the
 current prototype state while keeping demo capture as a warning.
 
 `npm run vercel:env:audit` checks Vercel Production for the site URL, webhook
@@ -219,6 +234,12 @@ storage review, then run
 The validator checks signed replay acceptance, signature verification, durable
 storage, consent metadata, `submissionId` idempotency, sanitized attribution,
 deletion/export process documentation, and redaction before final go/no-go.
+
+If production capture uses Vercel Marketplace Upstash Redis, copy
+`launch-evidence/upstash-receiver-evidence-template.json` to
+`launch-evidence/receiver-evidence.json`, fill it after `/api/health`,
+production submit, storage, export, and deletion review, then run
+`npm run receiver:upstash:check -- --file launch-evidence/receiver-evidence.json`.
 
 `npm run webhook:test -- https://your-webhook-url --replay` sends one signed
 sample payload to any receiver using `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`, then

@@ -277,7 +277,7 @@ test("summarizes current prototype evidence without treating paid traffic as rea
   assert.equal(evidence.ok, true);
   assert.equal(evidence.paidTrafficReady, false);
   assert.deepEqual(evidence.remainingGates, [
-    "vercelProductionWebhookEnv",
+    "vercelProductionCaptureEnv",
     "signedDurableProductionCapture",
   ]);
   assert.equal(evidence.readiness.prototype.ok, true);
@@ -338,6 +338,52 @@ test("marks evidence paid-traffic ready when strict health and env gates pass", 
   assert.equal(evidence.paidTrafficReady, true);
   assert.deepEqual(evidence.remainingGates, []);
   assert.equal(evidence.readiness.strict.ok, true);
+});
+
+test("marks evidence paid-traffic ready with Vercel-native Upstash env gates", () => {
+  const evidence = summarizeLaunchReadiness({
+    analyticsAudit,
+    expectedSiteUrl: targetUrl,
+    gitCommit,
+    leadCaptureDryRun,
+    publicEvidence: publicEvidence({
+      mode: "upstash",
+      paidTrafficReady: true,
+      requireWebhook: true,
+      storageConfigured: true,
+      storageProvider: "upstash",
+      webhookConfigured: false,
+      webhookSigningConfigured: false,
+    }),
+    targetUrl,
+    vercelEnvAudit: {
+      capturePath: "upstash",
+      configured: [
+        "NEXT_PUBLIC_SITE_URL",
+        "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK",
+        "PAYSHIELD_WAITLIST_STORAGE",
+        "UPSTASH_REDIS_REST_URL",
+        "UPSTASH_REDIS_REST_TOKEN",
+      ],
+      environment: "Production",
+      missing: [],
+      ok: true,
+      required: [
+        "NEXT_PUBLIC_SITE_URL",
+        "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK",
+        "PAYSHIELD_WAITLIST_STORAGE",
+        "UPSTASH_REDIS_REST_URL",
+        "UPSTASH_REDIS_REST_TOKEN",
+      ],
+      wrongEnvironment: [],
+    },
+  });
+
+  assert.equal(evidence.ok, true);
+  assert.equal(evidence.paidTrafficReady, true);
+  assert.deepEqual(evidence.remainingGates, []);
+  assert.equal(evidence.readiness.strict.ok, true);
+  assert.equal(evidence.gates[4]?.capturePath, "upstash");
 });
 
 test("flags a production commit mismatch", () => {

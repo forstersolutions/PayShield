@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   evaluateManagedReceiverEvidence,
   evaluateReceiverEvidence,
+  evaluateUpstashReceiverEvidence,
   scanEvidenceForSensitiveValues,
   summarizeMarketGoNoGo,
 } from "../scripts/market-go-no-go.mjs";
@@ -121,6 +122,33 @@ const managedReceiverEvidence = {
   },
 };
 
+const upstashReceiverEvidence = {
+  deletionProcessDocumented: true,
+  durableStorage: true,
+  exportProcessDocumented: true,
+  health: {
+    mode: "upstash",
+    paidTrafficReady: true,
+    storageConfigured: true,
+  },
+  ok: true,
+  productionSubmit: {
+    mode: "upstash",
+    status: 200,
+  },
+  receiverType: "upstash",
+  reviewedAt: "2026-06-05T00:00:00.000Z",
+  reviewer: "Launch operator",
+  storageOwner: "Revenue operations",
+  storesAttribution: true,
+  storesConsentFields: true,
+  storesEmailHashIndex: true,
+  storesSubmissionId: true,
+  target: {
+    productionUrl: targetUrl,
+  },
+};
+
 const counselSignoff = {
   campaignCopyLintOk: true,
   ok: true,
@@ -188,6 +216,25 @@ test("summarizes a complete market go/no-go packet with managed receiver evidenc
   );
 });
 
+test("summarizes a complete market go/no-go packet with Upstash receiver evidence as ready", () => {
+  const result = summarizeMarketGoNoGo({
+    analyticsEvidence,
+    counselSignoff,
+    generatedAt: "2026-06-05T00:00:00.000Z",
+    launchEvidence,
+    receiverEvidence: upstashReceiverEvidence,
+    targetUrl,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.marketReady, true);
+  assert.equal(result.evidence.receiver.ok, true);
+  assert.equal(
+    (result.evidence.receiver.summary as { receiverType: string }).receiverType,
+    "upstash",
+  );
+});
+
 test("keeps the market decision closed when external evidence is missing", () => {
   const result = summarizeMarketGoNoGo({
     analyticsEvidence: undefined,
@@ -196,7 +243,7 @@ test("keeps the market decision closed when external evidence is missing", () =>
     launchEvidence: {
       ...launchEvidence,
       paidTrafficReady: false,
-      remainingGates: ["vercelProductionWebhookEnv"],
+      remainingGates: ["vercelProductionCaptureEnv"],
     },
     receiverEvidence: undefined,
     targetUrl,
@@ -279,6 +326,21 @@ test("rejects managed receiver evidence that leaks PII or unsafe URL parts", () 
     ),
     true,
   );
+});
+
+test("rejects Upstash receiver evidence without storage attestations", () => {
+  const result = evaluateUpstashReceiverEvidence({
+    ...upstashReceiverEvidence,
+    storesEmailHashIndex: false,
+    storesSubmissionId: false,
+  });
+  const failedChecks = result.checks
+    .filter((check: { ok: boolean }) => !check.ok)
+    .map((check: { name: string }) => check.name);
+
+  assert.equal(result.ok, false);
+  assert.equal(failedChecks.includes("upstashEmailHashIndexStored"), true);
+  assert.equal(failedChecks.includes("upstashSubmissionIdStored"), true);
 });
 
 test("scans nested evidence strings for sensitive values", () => {

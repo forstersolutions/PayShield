@@ -153,7 +153,7 @@ async function checkHealth() {
     failures.push("/api/health did not report ok=true");
   }
 
-  if (!["demo", "webhook"].includes(String(body.waitlist?.mode))) {
+  if (!["demo", "upstash", "webhook"].includes(String(body.waitlist?.mode))) {
     failures.push("/api/health returned an unexpected waitlist mode");
   }
 
@@ -163,8 +163,20 @@ async function checkHealth() {
     );
   }
 
-  if (requireWebhook && body.waitlist?.webhookSigningConfigured !== true) {
+  if (
+    requireWebhook &&
+    body.waitlist?.mode === "webhook" &&
+    body.waitlist?.webhookSigningConfigured !== true
+  ) {
     failures.push("/api/health does not report signed webhook configuration");
+  }
+
+  if (
+    requireWebhook &&
+    body.waitlist?.mode === "upstash" &&
+    body.waitlist?.storageConfigured !== true
+  ) {
+    failures.push("/api/health does not report Upstash storage configuration");
   }
 }
 

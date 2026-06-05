@@ -17,9 +17,9 @@ test("reports missing paid-traffic webhook variables in prototype env state", ()
   assert.equal(result.ok, false);
   assert.deepEqual(result.configured, ["NEXT_PUBLIC_SITE_URL"]);
   assert.deepEqual(result.missing, [
+    "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK",
     "PAYSHIELD_WAITLIST_WEBHOOK_URL",
     "PAYSHIELD_WAITLIST_WEBHOOK_SECRET",
-    "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK",
   ]);
   assert.deepEqual(result.wrongEnvironment, []);
 });
@@ -35,6 +35,24 @@ test("passes when required variables exist for production", () => {
   });
 
   assert.equal(result.ok, true);
+  assert.equal((result as { capturePath: string }).capturePath, "webhook");
+  assert.deepEqual(result.missing, []);
+  assert.deepEqual(result.wrongEnvironment, []);
+});
+
+test("passes when Vercel-native Upstash capture variables exist for production", () => {
+  const result = auditVercelEnvList({
+    text: `
+      NEXT_PUBLIC_SITE_URL                 Encrypted           Production          11h ago
+      PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK   Encrypted           Production          1m ago
+      PAYSHIELD_WAITLIST_STORAGE           Encrypted           Production          1m ago
+      UPSTASH_REDIS_REST_URL               Encrypted           Production          1m ago
+      UPSTASH_REDIS_REST_TOKEN             Encrypted           Production          1m ago
+    `,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal((result as { capturePath: string }).capturePath, "upstash");
   assert.deepEqual(result.missing, []);
   assert.deepEqual(result.wrongEnvironment, []);
 });

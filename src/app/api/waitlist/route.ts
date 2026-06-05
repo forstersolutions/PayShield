@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server.js";
 import { track } from "@vercel/analytics/server";
 import {
@@ -67,6 +67,10 @@ const privacyVersion = "pilot-privacy-2026-06-05";
 const termsVersion = "pilot-terms-2026-06-05";
 
 class WaitlistConfigurationError extends Error {}
+
+function waitlistStorageMode() {
+  return process.env.PAYSHIELD_WAITLIST_STORAGE?.trim().toLowerCase() ?? "";
+}
 
 function cleanText(value: unknown, maxLength: number) {
   if (typeof value !== "string") {
@@ -242,6 +246,86 @@ async function forwardToWebhook(data: WaitlistSubmission) {
   return { mode: "webhook" as const };
 }
 
+function cleanRedisPrefix(value: string) {
+  return value
+    .trim()
+    .replace(/[^A-Za-z0-9:_-]/g, "")
+    .replace(/:+/g, ":")
+    .replace(/^:+|:+$/g, "")
+    .slice(0, 80) || "payshield:waitlist";
+}
+
+function leadEmailHash(email: string) {
+  return createHash("sha256")
+    .update(email.toLowerCase())
+    .digest("hex")
+    .slice(0, 24);
+}
+
+async function storeInUpstash(data: WaitlistSubmission) {
+  const restUrl = process.env.UPSTASH_REDIS_REST_URL?.trim() ?? "";
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim() ?? "";
+
+  if (!restUrl || !token) {
+    throw new WaitlistConfigurationError(
+      "UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are required when PAYSHIELD_WAITLIST_STORAGE=upstash",
+    );
+  }
+
+  const endpoint = new URL(restUrl);
+
+  if (endpoint.protocol !== "https:") {
+    throw new WaitlistConfigurationError(
+      "UPSTASH_REDIS_REST_URL must use https.",
+    );
+  }
+
+  endpoint.pathname = `${endpoint.pathname.replace(/\/+$/, "")}/multi-exec`;
+  const prefix = cleanRedisPrefix(
+    process.env.PAYSHIELD_WAITLIST_STORAGE_PREFIX ?? "payshield:waitlist",
+  );
+  const leadKey = `${prefix}:lead:${data.submissionId}`;
+  const submissionsKey = `${prefix}:submissions`;
+  const emailKey = `${prefix}:email:${leadEmailHash(data.email)}`;
+  const commands = [
+    ["SET", leadKey, JSON.stringify(data), "NX"],
+    ["ZADD", submissionsKey, String(Date.parse(data.createdAt)), data.submissionId],
+    ["SADD", emailKey, data.submissionId],
+  ];
+  const response = await fetch(endpoint.toString(), {
+    body: JSON.stringify(commands),
+    headers: {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+    },
+    method: "POST",
+    signal: AbortSignal.timeout(webhookTimeoutMs),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Upstash Redis returned ${response.status}`);
+  }
+
+  const result = (await response.json().catch(() => null)) as
+    | Array<{ error?: string; result?: unknown }>
+    | null;
+  const failedCommand = result?.find((item) => item.error);
+
+  if (!Array.isArray(result) || failedCommand) {
+    throw new Error("Upstash Redis command failed");
+  }
+
+  return { mode: "upstash" as const };
+}
+
+async function captureWaitlistSubmission(data: WaitlistSubmission) {
+  if (waitlistStorageMode() === "upstash") {
+    return storeInUpstash(data);
+  }
+
+  return forwardToWebhook(data);
+}
+
 function logWaitlistEvent(
   level: "info" | "error",
   message: string,
@@ -390,7 +474,7 @@ export async function POST(request: NextRequest) {
   };
 
   try {
-    const result = await forwardToWebhook(submission);
+    const result = await captureWaitlistSubmission(submission);
 
     await track(
       "Pilot Request Received",

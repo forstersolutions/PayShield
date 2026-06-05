@@ -13,10 +13,10 @@ Use this checklist after the repository is pushed to
 - Vercel Web Analytics and Speed Insights are enabled for the project.
 - `PAYSHIELD_WAITLIST_WEBHOOK_URL` is not configured yet. The pilot form returns
   demo-mode success and emits logs/analytics, but real lead persistence still
-  requires a CRM, Airtable, Slack, Make, Zapier, or internal webhook. Keep
-  `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK` unset or `false` until the webhook is
-  ready and signed with `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`, then set it to
-  `true` before paid traffic.
+  requires a CRM, Airtable, Slack, Make, Zapier, internal webhook, or Vercel
+  Marketplace Upstash Redis storage. Keep
+  `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK` unset or `false` until the selected
+  capture path is ready, then set it to `true` before paid traffic.
 
 ## Import
 
@@ -43,15 +43,33 @@ Configure these in Vercel for Production and Preview:
 
 ```bash
 NEXT_PUBLIC_SITE_URL=https://your-domain.com
+
+# Webhook/CRM capture path:
 PAYSHIELD_WAITLIST_WEBHOOK_URL=https://your-webhook-url
 PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook
+
+# Vercel-native Upstash capture path:
+PAYSHIELD_WAITLIST_STORAGE=upstash
+UPSTASH_REDIS_REST_URL=https://your-upstash-endpoint
+UPSTASH_REDIS_REST_TOKEN=server-side-rest-token
+
+# Set after one capture path is configured:
 PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true
 ```
 
 `NEXT_PUBLIC_SITE_URL` is exposed to the browser and should contain only the
-public site URL. The webhook URL and shared signing secret are server-only.
+public site URL. The webhook URL, shared signing secret, Upstash REST URL, and
+Upstash REST token are server-only.
 `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` makes valid waitlist submissions fail
-closed unless the webhook URL and signing secret are configured.
+closed unless a signed webhook path or Upstash storage path is configured.
+
+For Vercel-native durable capture, install Upstash Redis through Vercel
+Marketplace and let Vercel inject the encrypted Redis REST env vars. Then set
+`PAYSHIELD_WAITLIST_STORAGE=upstash` and
+`PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` in Production. The app writes each
+validated lead as a JSON record plus submission and email-hash indexes through
+the Upstash Redis REST transaction API; it does not expose the Upstash endpoint
+or token in public health responses.
 
 If there is no webhook yet, leave `PAYSHIELD_WAITLIST_WEBHOOK_URL` empty. The
 form will still return demo-mode success for prototype walkthroughs, but
@@ -110,7 +128,8 @@ npm run market:evidence:init -- \
 
 The command creates `launch-evidence/counsel-signoff.json`,
 `launch-evidence/analytics-evidence.json`,
-`launch-evidence/managed-receiver-evidence-template.json`, and
+`launch-evidence/managed-receiver-evidence-template.json`,
+`launch-evidence/upstash-receiver-evidence-template.json`, and
 `launch-evidence/commands.md`. The directory is ignored by git. Fill the
 counsel and analytics JSON files only after counsel review and live analytics
 observation. If production capture uses a managed CRM, Airtable, Slack, Make,
@@ -118,6 +137,10 @@ Zapier, or internal webhook, copy the managed receiver template to
 `launch-evidence/receiver-evidence.json`, fill it after signed replay and
 storage review, then validate it with
 `npm run receiver:managed:check -- --file launch-evidence/receiver-evidence.json`.
+If production capture uses Vercel Marketplace Upstash Redis, copy the Upstash
+template to `launch-evidence/receiver-evidence.json`, fill it after health,
+production submit, storage, export, and deletion review, then validate it with
+`npm run receiver:upstash:check -- --file launch-evidence/receiver-evidence.json`.
 Run the generated final `npm run market:go-no-go` command without
 `--allow-not-ready` only after all evidence files pass.
 
@@ -154,6 +177,16 @@ in the local environment, and prints the `npx vercel env add` commands for
 `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` plus the required redeploy, env audit,
 strict launch evidence, and required-webhook smoke commands. It references
 `$PAYSHIELD_WAITLIST_WEBHOOK_SECRET` but does not print the secret value.
+
+For the Upstash path, configure these Vercel Production env vars instead of the
+webhook URL and signing secret:
+
+```bash
+printf '%s' 'upstash' | npx vercel env add PAYSHIELD_WAITLIST_STORAGE production
+printf '%s' "$UPSTASH_REDIS_REST_URL" | npx vercel env add UPSTASH_REDIS_REST_URL production --sensitive
+printf '%s' "$UPSTASH_REDIS_REST_TOKEN" | npx vercel env add UPSTASH_REDIS_REST_TOKEN production --sensitive
+printf '%s' 'true' | npx vercel env add PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK production
+```
 
 Before selecting a hosted receiver or CRM endpoint, prove the repo-owned lead
 capture path locally:
@@ -385,8 +418,10 @@ sensitive financial details, and free-text pilot notes.
 webhook URL, signing secret, and `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` are
 configured, it should return `waitlist.mode: "webhook"`,
 `waitlist.webhookSigningConfigured: true`, and
-`waitlist.paidTrafficReady: true`. The endpoint does not expose the webhook URL
-or signing secret.
+`waitlist.paidTrafficReady: true`. After Upstash capture is configured, it
+should return `waitlist.mode: "upstash"`, `waitlist.storageConfigured: true`, and
+`waitlist.paidTrafficReady: true`. The endpoint does not expose the webhook URL,
+signing secret, Upstash endpoint, or Upstash token.
 
 After the webhook is configured, run one explicit submission test:
 

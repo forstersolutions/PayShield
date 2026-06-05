@@ -1,11 +1,23 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { test } from "node:test";
+import { beforeEach, test } from "node:test";
 import { NextRequest } from "next/server.js";
 import { POST } from "../src/app/api/waitlist/route.ts";
 
 const endpoint = "https://payshield.test/api/waitlist";
+const originalFetch = globalThis.fetch;
+
+beforeEach(() => {
+  delete process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK;
+  delete process.env.PAYSHIELD_WAITLIST_STORAGE;
+  delete process.env.PAYSHIELD_WAITLIST_STORAGE_PREFIX;
+  delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET;
+  delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
+  delete process.env.UPSTASH_REDIS_REST_TOKEN;
+  delete process.env.UPSTASH_REDIS_REST_URL;
+  globalThis.fetch = originalFetch;
+});
 
 function makeRequest(
   payload: unknown,
@@ -82,10 +94,6 @@ function startWebhook(status = 200) {
 }
 
 test("accepts a valid request in demo mode", async () => {
-  delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
-  delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET;
-  delete process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK;
-
   const response = await POST(
     makeRequest(
       {
@@ -112,33 +120,27 @@ test("accepts a valid request in demo mode", async () => {
 });
 
 test("fails closed when webhook persistence is required but missing", async () => {
-  delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
-  delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET;
   process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK = "true";
 
-  try {
-    const response = await POST(
-      makeRequest(
-        {
-          email: "required@example.com",
-          name: "Required Webhook",
-          segment: "Employer",
-          message: "Need durable lead capture.",
-          consent: true,
-        },
-        "198.51.100.19",
-      ),
-    );
-    const body = await parseJson(response);
+  const response = await POST(
+    makeRequest(
+      {
+        email: "required@example.com",
+        name: "Required Webhook",
+        segment: "Employer",
+        message: "Need durable lead capture.",
+        consent: true,
+      },
+      "198.51.100.19",
+    ),
+  );
+  const body = await parseJson(response);
 
-    assert.equal(response.status, 503);
-    assert.equal(
-      body.error,
-      "Pilot request capture is temporarily unavailable. Try again shortly.",
-    );
-  } finally {
-    delete process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK;
-  }
+  assert.equal(response.status, 503);
+  assert.equal(
+    body.error,
+    "Pilot request capture is temporarily unavailable. Try again shortly.",
+  );
 });
 
 test("fails closed when webhook persistence is required but unsigned", async () => {
@@ -169,8 +171,6 @@ test("fails closed when webhook persistence is required but unsigned", async () 
     );
     assert.equal(webhook.requests.length, 0);
   } finally {
-    delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
-    delete process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK;
     await webhook.close();
   }
 });
@@ -267,7 +267,6 @@ test("filters honeypot submissions without forwarding", async () => {
     assert.equal(body.mode, "filtered");
     assert.equal(webhook.requests.length, 0);
   } finally {
-    delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
     await webhook.close();
   }
 });
@@ -389,6 +388,97 @@ test("forwards valid submissions to the configured webhook", async () => {
   }
 });
 
+test("stores valid submissions in Upstash Redis when Vercel-native storage is configured", async () => {
+  const upstashCalls: Array<{
+    body: string;
+    headers: HeadersInit | undefined;
+    url: string;
+  }> = [];
+
+  process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK = "true";
+  process.env.PAYSHIELD_WAITLIST_STORAGE = "upstash";
+  process.env.PAYSHIELD_WAITLIST_STORAGE_PREFIX = "payshield:test";
+  process.env.UPSTASH_REDIS_REST_TOKEN = "upstash-secret";
+  process.env.UPSTASH_REDIS_REST_URL = "https://known-lion.upstash.io";
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+
+    if (url.includes("upstash.io")) {
+      upstashCalls.push({
+        body: String(init?.body ?? ""),
+        headers: init?.headers,
+        url,
+      });
+
+      return new Response(
+        JSON.stringify([{ result: "OK" }, { result: 1 }, { result: 1 }]),
+        {
+          headers: { "content-type": "application/json" },
+          status: 200,
+        },
+      );
+    }
+
+    return new Response("{}", { status: 204 });
+  };
+
+  const response = await POST(
+    makeRequest(
+      {
+        attribution: {
+          landingPath: "/pilot?email=bad@example.com",
+          utmCampaign: "Household Launch",
+          utmMedium: "cpc",
+          utmSource: "Paid Social",
+        },
+        email: "Storage@Example.com",
+        name: "Storage Lead",
+        segment: "Household",
+        message: "Interested in the pilot.",
+        consent: true,
+      },
+      "198.51.100.23",
+    ),
+  );
+  const body = await parseJson(response);
+  const commands = JSON.parse(upstashCalls[0]?.body ?? "[]") as unknown[][];
+  const lead = JSON.parse(String(commands[0]?.[2] ?? "{}")) as Record<
+    string,
+    unknown
+  >;
+  const serializedResponse = JSON.stringify(body);
+
+  assert.equal(response.status, 200);
+  assert.equal(body.ok, true);
+  assert.equal(body.mode, "upstash");
+  assert.equal(upstashCalls.length, 1);
+  assert.equal(upstashCalls[0]?.url, "https://known-lion.upstash.io/multi-exec");
+  assert.equal(
+    (upstashCalls[0]?.headers as Record<string, string>).authorization,
+    "Bearer upstash-secret",
+  );
+  assert.equal(commands[0]?.[0], "SET");
+  assert.match(String(commands[0]?.[1]), /^payshield:test:lead:/);
+  assert.equal(commands[0]?.[3], "NX");
+  assert.equal(commands[1]?.[0], "ZADD");
+  assert.equal(commands[1]?.[1], "payshield:test:submissions");
+  assert.equal(commands[2]?.[0], "SADD");
+  assert.match(String(commands[2]?.[1]), /^payshield:test:email:[a-f0-9]{24}$/);
+  assert.equal(lead.email, "storage@example.com");
+  assert.equal(lead.segment, "Household");
+  assert.deepEqual(lead.attribution, {
+    landingPath: "/pilot",
+    utmCampaign: "Household Launch",
+    utmMedium: "cpc",
+    utmSource: "Paid Social",
+  });
+  assert.equal(
+    lead.consentVersion,
+    "pilot-contact-consent-2026-06-05",
+  );
+  assert.equal(serializedResponse.includes("upstash-secret"), false);
+});
+
 test("returns a 502 when the configured webhook fails", async () => {
   const webhook = await startWebhook(500);
   process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL = webhook.url;
@@ -407,7 +497,6 @@ test("returns a 502 when the configured webhook fails", async () => {
       "Unable to save this request. Try again shortly.",
     );
   } finally {
-    delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
     await webhook.close();
   }
 });

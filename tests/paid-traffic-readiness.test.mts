@@ -65,6 +65,30 @@ test("passes when production webhook capture is paid-traffic ready", () => {
   assert.equal(result.warnings.length, 0);
 });
 
+test("passes when production Upstash capture is paid-traffic ready", () => {
+  const result = evaluatePaidTrafficReadiness(
+    evidence({
+      health: {
+        ok: true,
+        service: "payshield-market-site",
+        siteUrl: expectedSiteUrl,
+        waitlist: {
+          mode: "upstash",
+          paidTrafficReady: true,
+          requireWebhook: true,
+          storageConfigured: true,
+          storageProvider: "upstash",
+          webhookConfigured: false,
+          webhookSigningConfigured: false,
+        },
+      },
+    }),
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.failures.length, 0);
+});
+
 test("fails demo capture in paid-traffic mode", () => {
   const result = evaluatePaidTrafficReadiness(
     evidence({
@@ -85,7 +109,7 @@ test("fails demo capture in paid-traffic mode", () => {
   assert.equal(result.ok, false);
   assert.match(
     result.failures.join("\n"),
-    /paid-traffic-ready signed webhook capture/,
+    /paid-traffic-ready durable lead capture/,
   );
 });
 
@@ -110,7 +134,7 @@ test("fails unsigned webhook capture in paid-traffic mode", () => {
   assert.equal(result.ok, false);
   assert.match(
     result.failures.join("\n"),
-    /paid-traffic-ready signed webhook capture/,
+    /paid-traffic-ready durable lead capture/,
   );
 });
 
@@ -137,7 +161,7 @@ test("allows prototype mode while warning about demo capture", () => {
   assert.equal(result.failures.length, 0);
   assert.match(
     result.warnings.join("\n"),
-    /paid-traffic-ready signed webhook capture/,
+    /paid-traffic-ready durable lead capture/,
   );
 });
 

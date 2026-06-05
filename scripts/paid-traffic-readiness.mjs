@@ -105,17 +105,34 @@ function record(collection, passed, message) {
 function recordPaidTraffic(collection, passed, allowPrototype) {
   if (passed) {
     collection.checks.push(
-      "/api/health reports paid-traffic-ready signed webhook capture",
+      "/api/health reports paid-traffic-ready durable lead capture",
     );
   } else if (allowPrototype) {
     collection.warnings.push(
-      "/api/health does not report paid-traffic-ready signed webhook capture",
+      "/api/health does not report paid-traffic-ready durable lead capture",
     );
   } else {
     collection.failures.push(
-      "/api/health does not report paid-traffic-ready signed webhook capture",
+      "/api/health does not report paid-traffic-ready durable lead capture",
     );
   }
+}
+
+function durableCaptureReady(waitlist) {
+  const webhookReady =
+    waitlist.mode === "webhook" &&
+    waitlist.webhookConfigured === true &&
+    waitlist.webhookSigningConfigured === true;
+  const storageReady =
+    waitlist.mode === "upstash" &&
+    waitlist.storageConfigured === true &&
+    waitlist.storageProvider === "upstash";
+
+  return (
+    (webhookReady || storageReady) &&
+    waitlist.requireWebhook === true &&
+    waitlist.paidTrafficReady === true
+  );
 }
 
 /**
@@ -139,12 +156,7 @@ export function evaluatePaidTrafficReadiness(evidence) {
     warnings: [],
   };
   const waitlist = evidence.health?.waitlist ?? {};
-  const paidTrafficReady =
-    waitlist.mode === "webhook" &&
-    waitlist.webhookConfigured === true &&
-    waitlist.webhookSigningConfigured === true &&
-    waitlist.requireWebhook === true &&
-    waitlist.paidTrafficReady === true;
+  const paidTrafficReady = durableCaptureReady(waitlist);
 
   record(
     result,

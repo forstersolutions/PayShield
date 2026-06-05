@@ -3,11 +3,18 @@ import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
 
 const execFileAsync = promisify(execFile);
-const requiredProductionEnv = [
+const commonProductionEnv = [
   "NEXT_PUBLIC_SITE_URL",
+  "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK",
+];
+const webhookProductionEnv = [
   "PAYSHIELD_WAITLIST_WEBHOOK_URL",
   "PAYSHIELD_WAITLIST_WEBHOOK_SECRET",
-  "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK",
+];
+const upstashProductionEnv = [
+  "PAYSHIELD_WAITLIST_STORAGE",
+  "UPSTASH_REDIS_REST_URL",
+  "UPSTASH_REDIS_REST_TOKEN",
 ];
 
 function usage() {
@@ -16,7 +23,7 @@ function usage() {
     "",
     "Checks whether required Vercel environment variables exist without printing values.",
     "--stdin reads `vercel env ls` output from stdin instead of running `npx vercel env ls`.",
-    "--allow-prototype exits 0 while reporting missing paid-traffic webhook variables.",
+    "--allow-prototype exits 0 while reporting missing paid-traffic capture variables.",
   ].join("\n");
 }
 
@@ -115,12 +122,7 @@ export function parseVercelEnvList(text) {
   return variables;
 }
 
-export function auditVercelEnvList({
-  environment = "Production",
-  required = requiredProductionEnv,
-  text,
-}) {
-  const variables = parseVercelEnvList(text);
+function auditRequiredVariables(variables, required, environment) {
   const configured = [];
   const missing = [];
   const wrongEnvironment = [];
@@ -148,6 +150,59 @@ export function auditVercelEnvList({
     ok: missing.length === 0 && wrongEnvironment.length === 0,
     required,
     wrongEnvironment,
+  };
+}
+
+function mergeUnique(values) {
+  return [...new Set(values)];
+}
+
+export function auditVercelEnvList({
+  environment = "Production",
+  required = undefined,
+  text,
+}) {
+  const variables = parseVercelEnvList(text);
+
+  if (required) {
+    return auditRequiredVariables(variables, required, environment);
+  }
+
+  const webhook = auditRequiredVariables(
+    variables,
+    [...commonProductionEnv, ...webhookProductionEnv],
+    environment,
+  );
+  const upstash = auditRequiredVariables(
+    variables,
+    [...commonProductionEnv, ...upstashProductionEnv],
+    environment,
+  );
+  const ok = webhook.ok || upstash.ok;
+  const selected = webhook.ok ? webhook : upstash.ok ? upstash : webhook;
+
+  return {
+    capturePath: webhook.ok ? "webhook" : upstash.ok ? "upstash" : "",
+    capturePaths: {
+      upstash: {
+        missing: upstash.missing,
+        ok: upstash.ok,
+        required: upstash.required,
+        wrongEnvironment: upstash.wrongEnvironment,
+      },
+      webhook: {
+        missing: webhook.missing,
+        ok: webhook.ok,
+        required: webhook.required,
+        wrongEnvironment: webhook.wrongEnvironment,
+      },
+    },
+    configured: mergeUnique(selected.configured),
+    environment,
+    missing: selected.missing,
+    ok,
+    required: selected.required,
+    wrongEnvironment: selected.wrongEnvironment,
   };
 }
 

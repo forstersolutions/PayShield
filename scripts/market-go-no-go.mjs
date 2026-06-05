@@ -255,6 +255,10 @@ export function evaluateReceiverEvidence(evidence) {
     return evaluateManagedReceiverEvidence(evidence);
   }
 
+  if (evidence.receiverType === "upstash") {
+    return evaluateUpstashReceiverEvidence(evidence);
+  }
+
   const checks = [];
   const findings = scanEvidenceForSensitiveValues(evidence);
   const health = isObject(evidence.health) ? evidence.health : {};
@@ -448,6 +452,112 @@ export function evaluateManagedReceiverEvidence(evidence) {
   };
 }
 
+export function evaluateUpstashReceiverEvidence(evidence) {
+  if (!isObject(evidence)) {
+    return missingEvidence("receiverEvidence", "--receiver-evidence-file");
+  }
+
+  const checks = [];
+  const findings = scanEvidenceForSensitiveValues(evidence);
+  const target = isObject(evidence.target) ? evidence.target : {};
+  const health = isObject(evidence.health) ? evidence.health : {};
+  const productionSubmit = isObject(evidence.productionSubmit)
+    ? evidence.productionSubmit
+    : {};
+  const productionUrl = publicUrl(
+    target.productionUrl,
+    "Upstash production URL",
+    findings,
+  );
+
+  addCheck(checks, "upstashReceiverEvidenceOk", evidence.ok === true);
+  addCheck(checks, "upstashReceiverType", evidence.receiverType === "upstash");
+  addCheck(
+    checks,
+    "upstashStorageOwnerRecorded",
+    typeof evidence.storageOwner === "string" &&
+      evidence.storageOwner.trim().length > 0,
+  );
+  addCheck(checks, "upstashReviewedAt", isValidIsoDate(evidence.reviewedAt));
+  addCheck(
+    checks,
+    "upstashReviewerRecorded",
+    typeof evidence.reviewer === "string" && evidence.reviewer.trim().length > 0,
+  );
+  addCheck(
+    checks,
+    "upstashHealthReady",
+    health.mode === "upstash" &&
+      health.storageConfigured === true &&
+      health.paidTrafficReady === true,
+  );
+  addCheck(
+    checks,
+    "upstashProductionSubmit",
+    isHttpSuccess(productionSubmit.status) &&
+      productionSubmit.mode === "upstash",
+    {
+      mode: productionSubmit.mode ?? "",
+      status: productionSubmit.status ?? null,
+    },
+  );
+  addCheck(checks, "upstashDurableStorage", evidence.durableStorage === true);
+  addCheck(
+    checks,
+    "upstashConsentFieldsStored",
+    evidence.storesConsentFields === true,
+  );
+  addCheck(
+    checks,
+    "upstashSubmissionIdStored",
+    evidence.storesSubmissionId === true,
+  );
+  addCheck(
+    checks,
+    "upstashAttributionStored",
+    evidence.storesAttribution === true,
+  );
+  addCheck(
+    checks,
+    "upstashEmailHashIndexStored",
+    evidence.storesEmailHashIndex === true,
+  );
+  addCheck(
+    checks,
+    "upstashDeletionProcessDocumented",
+    evidence.deletionProcessDocumented === true,
+  );
+  addCheck(
+    checks,
+    "upstashExportProcessDocumented",
+    evidence.exportProcessDocumented === true,
+  );
+  addCheck(
+    checks,
+    "upstashReceiverEvidenceRedacted",
+    findings.length === 0,
+    findings.map((finding) => finding.finding),
+  );
+
+  return {
+    checks,
+    findings,
+    ok: allChecksPass(checks),
+    summary: {
+      provided: true,
+      receiverType: "upstash",
+      reviewedAt: evidence.reviewedAt ?? "",
+      reviewer: evidence.reviewer ?? "",
+      storageOwner: evidence.storageOwner ?? "",
+      storageProvider: "upstash",
+      total: null,
+      urls: {
+        productionUrl,
+      },
+    },
+  };
+}
+
 function normalizedScopeValues(scope) {
   if (!Array.isArray(scope)) {
     return new Set();
@@ -527,7 +637,7 @@ export function evaluateStrictLaunchEvidence(launchEvidence) {
     launchEvidence?.paidTrafficReady === true &&
       launchEvidence?.readiness?.strict?.ok === true,
   );
-  addCheck(checks, "vercelProductionWebhookEnv", launchEvidence?.vercelEnv?.ok === true);
+  addCheck(checks, "vercelProductionCaptureEnv", launchEvidence?.vercelEnv?.ok === true);
   addCheck(
     checks,
     "noLaunchEvidenceRemainingGates",

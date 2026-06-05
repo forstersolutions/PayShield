@@ -92,6 +92,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   ".env.receiver.example",
   "scripts/analytics-audit.mjs",
   "scripts/check-managed-receiver-evidence.mjs",
+  "scripts/check-upstash-receiver-evidence.mjs",
   "scripts/check-counsel-signoff.mjs",
   "scripts/check-analytics-evidence.mjs",
   "scripts/check-campaign-manifest.mjs",
@@ -123,7 +124,11 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "PAYSHIELD_WAITLIST_WEBHOOK_URL",
   "PAYSHIELD_WAITLIST_WEBHOOK_SECRET",
   "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK",
+  "PAYSHIELD_WAITLIST_STORAGE",
+  "PAYSHIELD_WAITLIST_STORAGE_PREFIX",
   "PAYSHIELD_RECEIVER_HEALTH_PATH",
+  "UPSTASH_REDIS_REST_URL",
+  "UPSTASH_REDIS_REST_TOKEN",
 ].forEach((key) => requireText(".env.example", key));
 
 [
@@ -191,6 +196,7 @@ requireText(
 requireText("scripts/smoke-deploy.mjs", "--expect-site-url");
 requireText("scripts/smoke-deploy.mjs", "--require-webhook");
 requireText("scripts/smoke-deploy.mjs", "webhookSigningConfigured");
+requireText("scripts/smoke-deploy.mjs", "storageConfigured");
 requireText("scripts/smoke-deploy.mjs", "x-content-type-options");
 requireText("scripts/smoke-deploy.mjs", "strict-transport-security");
 requireText("scripts/smoke-deploy.mjs", "permissions-policy");
@@ -221,6 +227,12 @@ requireText(
 );
 requireText("scripts/check-managed-receiver-evidence.mjs", "receiver:managed:check");
 requireText("scripts/check-managed-receiver-evidence.mjs", "Managed receiver");
+requireText(
+  "scripts/check-upstash-receiver-evidence.mjs",
+  "evaluateUpstashReceiverEvidenceFile",
+);
+requireText("scripts/check-upstash-receiver-evidence.mjs", "receiver:upstash:check");
+requireText("scripts/check-upstash-receiver-evidence.mjs", "Upstash Redis");
 requireText("scripts/check-counsel-signoff.mjs", "evaluateCounselSignoffEvidence");
 requireText("scripts/check-counsel-signoff.mjs", "counsel-signoff.json");
 requireText("scripts/check-counsel-signoff.mjs", "Validates the redacted counsel sign-off record");
@@ -242,6 +254,7 @@ requireText("package.json", "\"market:evidence:init\"");
 requireText("package.json", "\"market:go-no-go\"");
 requireText("package.json", "\"market:status\"");
 requireText("package.json", "\"receiver:managed:check\"");
+requireText("package.json", "\"receiver:upstash:check\"");
 requireText("package.json", "\"receiver:docker:smoke\"");
 requireText("package.json", "\"receiver:compose:config\"");
 requireText("package.json", "npm run campaign:lint:all");
@@ -279,6 +292,8 @@ requireText("next.config.ts", "max-age=31536000");
 requireText("scripts/paid-traffic-readiness.mjs", "--allow-prototype");
 requireText("scripts/paid-traffic-readiness.mjs", "paidTrafficReady");
 requireText("scripts/paid-traffic-readiness.mjs", "webhookSigningConfigured");
+requireText("scripts/paid-traffic-readiness.mjs", "durable lead capture");
+requireText("scripts/paid-traffic-readiness.mjs", "storageConfigured");
 requireText("scripts/paid-traffic-readiness.mjs", "publicCopyBannedPhrases");
 requireText("scripts/paid-traffic-readiness.mjs", "collectPaidTrafficEvidence");
 requireText("scripts/paid-traffic-readiness.mjs", "/.well-known/security.txt");
@@ -290,14 +305,18 @@ requireText("scripts/market-evidence-init.mjs", "createMarketEvidencePacket");
 requireText("scripts/market-evidence-init.mjs", "counsel-signoff.json");
 requireText("scripts/market-evidence-init.mjs", "analytics-evidence.json");
 requireText("scripts/market-evidence-init.mjs", "managed-receiver-evidence-template.json");
+requireText("scripts/market-evidence-init.mjs", "upstash-receiver-evidence-template.json");
 requireText("scripts/market-evidence-init.mjs", "receiver:managed:check");
+requireText("scripts/market-evidence-init.mjs", "receiver:upstash:check");
 requireText("scripts/market-evidence-init.mjs", "counsel:signoff:check");
 requireText("scripts/market-evidence-init.mjs", "analytics:evidence:check");
 requireText("scripts/market-evidence-init.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET=...");
 requireText("scripts/market-go-no-go.mjs", "summarizeMarketGoNoGo");
 requireText("scripts/market-go-no-go.mjs", "evaluateReceiverEvidence");
 requireText("scripts/market-go-no-go.mjs", "evaluateManagedReceiverEvidence");
+requireText("scripts/market-go-no-go.mjs", "evaluateUpstashReceiverEvidence");
 requireText("scripts/market-go-no-go.mjs", "managedReceiverEvidenceRedacted");
+requireText("scripts/market-go-no-go.mjs", "upstashReceiverEvidenceRedacted");
 requireText("scripts/market-go-no-go.mjs", "managedSignedWebhookReplay");
 requireText("scripts/market-go-no-go.mjs", "evaluateCounselSignoff");
 requireText("scripts/market-go-no-go.mjs", "evaluateAnalyticsEvidence");
@@ -381,6 +400,10 @@ requireText(
 );
 requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
+  "PAYSHIELD_WAITLIST_STORAGE=upstash",
+);
+requireText(
+  ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   "waitlist.paidTrafficReady: true",
 );
 requireText(
@@ -441,6 +464,10 @@ requireText(
 );
 requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
+  "npm run receiver:upstash:check",
+);
+requireText(
+  ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   "npm run legal:lint",
 );
 requireText(
@@ -457,6 +484,9 @@ requireText(
 );
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET is required");
+requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_WAITLIST_STORAGE=upstash");
+requireText("src/app/api/waitlist/route.ts", "UPSTASH_REDIS_REST_URL");
+requireText("src/app/api/waitlist/route.ts", "multi-exec");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-signature");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-timestamp");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-submission-id");
@@ -482,8 +512,14 @@ requireText("src/app/lib/pilot-analytics.ts", "pilotCampaignAnalyticsProperties"
 requireText("src/app/api/health/route.ts", "paidTrafficReady");
 requireText("src/app/api/health/route.ts", "webhookConfigured");
 requireText("src/app/api/health/route.ts", "webhookSigningConfigured");
+requireText("src/app/api/health/route.ts", "storageConfigured");
+requireText("src/app/api/health/route.ts", "storageMisconfigured");
+requireText("src/app/api/health/route.ts", "storageProvider");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_URL");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");
+requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_WAITLIST_STORAGE");
+requireText("scripts/vercel-env-audit.mjs", "UPSTASH_REDIS_REST_URL");
+requireText("scripts/vercel-env-audit.mjs", "UPSTASH_REDIS_REST_TOKEN");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
 requireText("scripts/vercel-env-audit.mjs", "--allow-prototype");
 requireText("scripts/vercel-env-audit.mjs", "--stdin");
@@ -525,10 +561,13 @@ requireText("docs/vercel-launch.md", "termsVersion");
 requireText("docs/vercel-launch.md", "submissionId");
 requireText("docs/vercel-launch.md", "webhook:test -- https://your-webhook-url --replay");
 requireText("docs/vercel-launch.md", "npm run vercel:env:audit");
+requireText("docs/vercel-launch.md", "PAYSHIELD_WAITLIST_STORAGE=upstash");
+requireText("docs/vercel-launch.md", "UPSTASH_REDIS_REST_URL");
 requireText("docs/vercel-launch.md", "docker compose --env-file .env.receiver -f compose.receiver.yml up -d --build");
 requireText("docs/vercel-launch.md", "npm run receiver:compose:config");
 requireText("docs/vercel-launch.md", "npm run receiver:evidence");
 requireText("docs/vercel-launch.md", "npm run receiver:managed:check");
+requireText("docs/vercel-launch.md", "npm run receiver:upstash:check");
 requireText("docs/vercel-launch.md", "npm run market:evidence:init");
 requireText("docs/vercel-launch.md", "npm run counsel:signoff:check");
 requireText("docs/vercel-launch.md", "npm run analytics:evidence:check");
@@ -545,6 +584,8 @@ requireText("docs/market-readiness.md", "consent audit fields");
 requireText("docs/market-readiness.md", "idempotent capture");
 requireText("docs/market-readiness.md", "webhook:test -- https://your-webhook-url --replay");
 requireText("docs/market-readiness.md", "npm run legal:lint");
+requireText("docs/market-readiness.md", "PAYSHIELD_WAITLIST_STORAGE=upstash");
+requireText("docs/market-readiness.md", "UPSTASH_REDIS_REST_URL");
 requireText("docs/market-readiness.md", "npm run counsel:signoff:check");
 requireText("docs/market-readiness.md", "npm run vercel:env:audit");
 requireText("docs/market-readiness.md", "npm run analytics:audit");
@@ -554,6 +595,7 @@ requireText("docs/market-readiness.md", "docker compose --env-file .env.receiver
 requireText("docs/market-readiness.md", "npm run receiver:compose:config");
 requireText("docs/market-readiness.md", "npm run receiver:evidence");
 requireText("docs/market-readiness.md", "npm run receiver:managed:check");
+requireText("docs/market-readiness.md", "npm run receiver:upstash:check");
 requireText("docs/market-readiness.md", "npm run market:evidence:init");
 requireText("docs/market-readiness.md", "npm run analytics:evidence:check");
 requireText("docs/market-readiness.md", "npm run vercel:webhook:cutover");
@@ -574,6 +616,9 @@ requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run waitli
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "compose.receiver.yml");
 requireText("docs/legal-review-packet.md", "npm run receiver:evidence");
 requireText("docs/legal-review-packet.md", "npm run receiver:managed:check");
+requireText("docs/legal-review-packet.md", "npm run receiver:upstash:check");
+requireText("docs/legal-review-packet.md", "PAYSHIELD_WAITLIST_STORAGE=upstash");
+requireText("docs/legal-review-packet.md", "UPSTASH_REDIS_REST_TOKEN");
 requireText("docs/legal-review-packet.md", "npm run vercel:webhook:cutover");
 requireText("docs/legal-review-packet.md", "npm run counsel:signoff:check");
 requireText("docs/legal-review-packet.md", "npm run analytics:evidence:check");

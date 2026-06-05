@@ -179,6 +179,36 @@ function managedReceiverTemplate({ generatedAt, receiverUrl }) {
   };
 }
 
+function upstashReceiverTemplate({ generatedAt, siteUrl }) {
+  return {
+    deletionProcessDocumented: false,
+    durableStorage: false,
+    exportProcessDocumented: false,
+    generatedAt,
+    health: {
+      mode: "upstash",
+      paidTrafficReady: false,
+      storageConfigured: false,
+    },
+    ok: false,
+    productionSubmit: {
+      mode: "",
+      status: null,
+    },
+    receiverType: "upstash",
+    reviewedAt: "",
+    reviewer: "",
+    storageOwner: "",
+    storesAttribution: false,
+    storesConsentFields: false,
+    storesEmailHashIndex: false,
+    storesSubmissionId: false,
+    target: {
+      productionUrl: siteUrl,
+    },
+  };
+}
+
 function commandsMarkdown({
   analyticsFile,
   backupDir,
@@ -188,6 +218,7 @@ function commandsMarkdown({
   receiverEvidenceFile,
   receiverUrl,
   siteUrl,
+  upstashReceiverTemplateFile,
 }) {
   const launchEvidenceCommand = [
     "npm run launch:evidence --",
@@ -210,6 +241,11 @@ function commandsMarkdown({
   ].join(" ");
   const managedReceiverEvidenceCommand = [
     "npm run receiver:managed:check --",
+    "--file",
+    shellQuote(receiverEvidenceFile),
+  ].join(" ");
+  const upstashReceiverEvidenceCommand = [
+    "npm run receiver:upstash:check --",
     "--file",
     shellQuote(receiverEvidenceFile),
   ].join(" ");
@@ -277,6 +313,13 @@ function commandsMarkdown({
     "```bash",
     ["cp", shellQuote(managedReceiverTemplateFile), shellQuote(receiverEvidenceFile)].join(" "),
     managedReceiverEvidenceCommand,
+    "```",
+    "",
+    "For Vercel Marketplace Upstash Redis capture, copy the Upstash template to `receiver-evidence.json`, fill it after `/api/health` and production submit proof, then validate it:",
+    "",
+    "```bash",
+    ["cp", shellQuote(upstashReceiverTemplateFile), shellQuote(receiverEvidenceFile)].join(" "),
+    upstashReceiverEvidenceCommand,
     "```",
     "",
     "2. Generate the redacted Vercel env cutover command sequence:",
@@ -353,6 +396,10 @@ export async function createMarketEvidencePacket({
     evidenceDir,
     "managed-receiver-evidence-template.json",
   );
+  const upstashReceiverTemplateFile = join(
+    evidenceDir,
+    "upstash-receiver-evidence-template.json",
+  );
   const receiverEvidenceFile = join(evidenceDir, "receiver-evidence.json");
   const commandsFile = join(evidenceDir, "commands.md");
   const files = [
@@ -379,6 +426,15 @@ export async function createMarketEvidencePacket({
       path: managedReceiverTemplateFile,
     },
     {
+      content: jsonWithNewline(
+        upstashReceiverTemplate({
+          generatedAt,
+          siteUrl: normalizedSiteUrl,
+        }),
+      ),
+      path: upstashReceiverTemplateFile,
+    },
+    {
       content: commandsMarkdown({
         analyticsFile,
         backupDir: safeBackupDir,
@@ -388,6 +444,7 @@ export async function createMarketEvidencePacket({
         receiverEvidenceFile,
         receiverUrl: safeReceiverUrl,
         siteUrl: normalizedSiteUrl,
+        upstashReceiverTemplateFile,
       }),
       path: commandsFile,
     },
@@ -458,6 +515,12 @@ export async function createMarketEvidencePacket({
       "--analytics-evidence-file",
       shellQuote(analyticsFile),
     ].join(" "),
+    upstashReceiverEvidenceCommand: [
+      "npm run receiver:upstash:check --",
+      "--file",
+      shellQuote(receiverEvidenceFile),
+    ].join(" "),
+    upstashReceiverTemplateFile,
   };
 }
 

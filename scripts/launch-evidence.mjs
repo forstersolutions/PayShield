@@ -115,11 +115,17 @@ function summarizeLeadCaptureDryRun(result) {
 
 function waitlistPaidTrafficReady(health) {
   const waitlist = health?.waitlist ?? {};
-
-  return (
+  const webhookReady =
     waitlist.mode === "webhook" &&
     waitlist.webhookConfigured === true &&
-    waitlist.webhookSigningConfigured === true &&
+    waitlist.webhookSigningConfigured === true;
+  const storageReady =
+    waitlist.mode === "upstash" &&
+    waitlist.storageConfigured === true &&
+    waitlist.storageProvider === "upstash";
+
+  return (
+    (webhookReady || storageReady) &&
     waitlist.requireWebhook === true &&
     waitlist.paidTrafficReady === true
   );
@@ -177,8 +183,9 @@ export function summarizeLaunchReadiness({
     },
     {
       missing: vercelEnvAudit.missing ?? [],
-      name: "vercelProductionWebhookEnv",
+      name: "vercelProductionCaptureEnv",
       ok: vercelEnvAudit.ok === true,
+      capturePath: vercelEnvAudit.capturePath ?? "",
       wrongEnvironment: vercelEnvAudit.wrongEnvironment ?? [],
     },
     {

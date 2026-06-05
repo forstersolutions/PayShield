@@ -31,6 +31,7 @@
     "receiver:docker:smoke": "node scripts/smoke-docker-receiver.mjs",
     "receiver:evidence": "node scripts/receiver-evidence.mjs",
     "receiver:managed:check": "node scripts/check-managed-receiver-evidence.mjs",
+    "receiver:upstash:check": "node scripts/check-upstash-receiver-evidence.mjs",
     "smoke:deploy": "node scripts/smoke-deploy.mjs",
     "vercel:webhook:cutover": "node scripts/vercel-webhook-cutover.mjs",
     "waitlist:data": "node scripts/waitlist-data-ops.mjs",

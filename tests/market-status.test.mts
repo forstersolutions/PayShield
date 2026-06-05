@@ -38,17 +38,17 @@ const launchEvidence = {
       checks: 32,
       failures: [],
       ok: true,
-      warnings: ["/api/health does not report paid-traffic-ready signed webhook capture"],
+      warnings: ["/api/health does not report paid-traffic-ready durable lead capture"],
     },
     strict: {
       checks: 32,
-      failures: ["/api/health does not report paid-traffic-ready signed webhook capture"],
+      failures: ["/api/health does not report paid-traffic-ready durable lead capture"],
       ok: false,
       warnings: [],
     },
   },
   remainingGates: [
-    "vercelProductionWebhookEnv",
+    "vercelProductionCaptureEnv",
     "signedDurableProductionCapture",
   ],
   vercelEnv: {

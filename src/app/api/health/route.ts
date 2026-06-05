@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server.js";
 
-type WaitlistMode = "demo" | "webhook";
+type WaitlistMode = "demo" | "upstash" | "webhook";
 
 function getWaitlistMode(): WaitlistMode {
+  if (process.env.PAYSHIELD_WAITLIST_STORAGE?.trim().toLowerCase() === "upstash") {
+    return "upstash";
+  }
+
   return process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL ? "webhook" : "demo";
 }
 
@@ -13,9 +17,16 @@ export function GET() {
   const webhookSigningConfigured = Boolean(
     process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET?.trim(),
   );
+  const storageConfigured =
+    waitlistMode === "upstash" &&
+    Boolean(process.env.UPSTASH_REDIS_REST_URL?.trim()) &&
+    Boolean(process.env.UPSTASH_REDIS_REST_TOKEN?.trim());
+  const durableCaptureConfigured =
+    (webhookConfigured && webhookSigningConfigured) || storageConfigured;
   const paidTrafficReady =
-    webhookConfigured && webhookSigningConfigured && requireWebhook;
-  const ok = !requireWebhook || paidTrafficReady;
+    durableCaptureConfigured && requireWebhook;
+  const storageMisconfigured = waitlistMode === "upstash" && !storageConfigured;
+  const ok = (!requireWebhook || paidTrafficReady) && !storageMisconfigured;
 
   return NextResponse.json(
     {
@@ -31,6 +42,9 @@ export function GET() {
         mode: waitlistMode,
         paidTrafficReady,
         requireWebhook,
+        storageConfigured,
+        storageMisconfigured,
+        storageProvider: waitlistMode === "upstash" ? "upstash" : null,
         webhookConfigured,
         webhookSigningConfigured,
       },

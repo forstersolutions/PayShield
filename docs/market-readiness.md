@@ -12,9 +12,9 @@ deployments, partner demos, and pilot demand capture.
 - Pilot request form with server-side validation, bounded in-memory rate
   limiting, request-size guardrails, honeypot filtering, required privacy/terms
   consent, sensitive financial-detail rejection, optional webhook forwarding,
-  consent audit fields, allowlisted campaign attribution from UTM fields, and an
-  opt-in fail-closed mode for paid traffic when signed webhook persistence is
-  required.
+  optional Vercel Marketplace Upstash Redis storage, consent audit fields,
+  allowlisted campaign attribution from UTM fields, and an opt-in fail-closed
+  mode for paid traffic when durable persistence is required.
 - Vercel-compatible Next.js app with production build, metadata, sitemap,
   robots, and baseline browser security headers.
 - JPEG social preview card for broad Open Graph and Twitter crawler support,
@@ -46,8 +46,8 @@ deployments, partner demos, and pilot demand capture.
   commit, GitHub CI, Vercel deployment readiness, launch evidence, and
   go/no-go remaining gates for repeatable readiness issue updates.
 - Local evidence packet initializer that creates ignored counsel, analytics,
-  and managed receiver JSON templates plus redacted receiver/launch/go-no-go
-  commands for the final operator handoff.
+  managed receiver, and Upstash receiver JSON templates plus redacted
+  receiver/launch/go-no-go commands for the final operator handoff.
 - Vercel webhook cutover planner that validates receiver evidence and prints
   the redacted Production env, redeploy, strict evidence, and required-webhook
   smoke sequence without exposing the signing secret.
@@ -89,6 +89,9 @@ deployments, partner demos, and pilot demand capture.
   webhook mode, completion, and failures.
 - `/api/health` reports public-safe deployment and waitlist readiness state
   without exposing the webhook URL or signing secret.
+- `/api/health` can prove paid-traffic-ready durable capture through either a
+  signed webhook receiver or Vercel Marketplace Upstash Redis storage without
+  exposing storage URLs or REST tokens.
 - Signed webhook receiver utility for validating HMAC headers and writing leads
   to ignored local NDJSON/CSV files when a lightweight receiver is needed.
 - Waitlist webhook payloads include a `submissionId`, consent text, consent
@@ -132,13 +135,18 @@ deployments, partner demos, and pilot demand capture.
 
 ## Configure Before Traffic
 
-- Set `PAYSHIELD_WAITLIST_WEBHOOK_URL` to a CRM, Airtable, Slack, Make, Zapier,
-  or internal webhook.
-- Set `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` so the receiving webhook can validate
-  the HMAC-SHA256 signature headers before storing leads.
-- Set `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` after the webhook is configured
-  so valid public submissions fail closed unless signed webhook capture is
-  configured.
+- Choose one durable production capture path before traffic.
+- For a webhook path, set `PAYSHIELD_WAITLIST_WEBHOOK_URL` to a CRM, Airtable,
+  Slack, Make, Zapier, or internal webhook.
+- For a webhook path, set `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` so the receiving
+  webhook can validate the HMAC-SHA256 signature headers before storing leads.
+- For the Vercel-native storage path, install Upstash Redis from Vercel
+  Marketplace, set `PAYSHIELD_WAITLIST_STORAGE=upstash`, and configure
+  `UPSTASH_REDIS_REST_URL` plus `UPSTASH_REDIS_REST_TOKEN` in Vercel
+  Production.
+- Set `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` after the selected capture path
+  is configured so valid public submissions fail closed unless durable capture
+  is configured.
 - Confirm the receiving webhook responds in under eight seconds.
 - If no CRM receiver exists yet, deploy or tunnel `npm run webhook:receive` with
   `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` set, then use that endpoint as the
@@ -192,12 +200,11 @@ deployments, partner demos, and pilot demand capture.
   and follow the printed redacted Vercel Production env, redeploy, strict
   launch evidence, and required-webhook smoke sequence.
 - Run `npm run vercel:env:audit` and confirm Vercel Production has
-  `NEXT_PUBLIC_SITE_URL`, `PAYSHIELD_WAITLIST_WEBHOOK_URL`,
-  `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`, and
-  `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK` before paid traffic.
+  `NEXT_PUBLIC_SITE_URL`, `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK`, and either the
+  webhook env vars or the Upstash env vars before paid traffic.
 - Run `npm run launch:evidence -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app`
   and attach the redacted JSON output to the readiness issue. After production
-  webhook capture is configured, rerun the command with `--strict`.
+  durable capture is configured, rerun the command with `--strict`.
 - Run
   `npm run market:go-no-go -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --receiver-evidence-file receiver-evidence.json --counsel-signoff-file counsel-signoff.json --analytics-evidence-file analytics-evidence.json`
   before marking the paid-traffic issue ready. Use `--allow-not-ready` while
@@ -208,8 +215,9 @@ deployments, partner demos, and pilot demand capture.
   after each launch commit or evidence update and attach the redacted snapshot
   to the readiness issue.
 - Confirm `https://payshield-lime.vercel.app/api/health` reports
-  `waitlist.webhookSigningConfigured: true` and
-  `waitlist.paidTrafficReady: true` after the webhook, signing secret, and
+  either `waitlist.webhookSigningConfigured: true` for webhook capture or
+  `waitlist.storageConfigured: true` for Upstash capture, and
+  `waitlist.paidTrafficReady: true` after the selected durable capture path and
   fail-closed flag are configured.
 - Run `npm run readiness:paid-traffic -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app`
   and confirm it passes without `--allow-prototype`.
@@ -262,7 +270,8 @@ npm run market:evidence:init -- \
 
 `launch-evidence/` is ignored by git. The command creates
 `counsel-signoff.json`, `analytics-evidence.json`,
-`managed-receiver-evidence-template.json`, and `commands.md` with the exact
+`managed-receiver-evidence-template.json`,
+`upstash-receiver-evidence-template.json`, and `commands.md` with the exact
 redacted receiver, strict launch, final go/no-go, and status snapshot commands.
 
 `npm run market:go-no-go` reads `launch-evidence/receiver-evidence.json`.
@@ -270,6 +279,10 @@ For the lightweight file receiver, write the JSON output from
 `npm run receiver:evidence` to that path. For a managed CRM or internal webhook,
 copy `managed-receiver-evidence-template.json` to that path, fill the redacted
 storage and replay review fields, and run `npm run receiver:managed:check`.
+For Vercel Marketplace Upstash Redis, copy
+`upstash-receiver-evidence-template.json` to that path, fill the redacted health,
+production submit, storage, export, and deletion review fields, and run
+`npm run receiver:upstash:check`.
 Keep the evidence file outside git, then attach only the redacted command output
 to the readiness issue after the go/no-go command passes.
 
