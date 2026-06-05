@@ -22,7 +22,9 @@ deployments, partner demos, and pilot demand capture.
   waitlist API tests, market copy/asset preflight checks, production builds, and
   production dependency audits before Vercel deployment.
 - Dependabot is configured for weekly npm and GitHub Actions update PRs, with
-  grouped runtime, observability, lint/type, and workflow maintenance.
+  grouped runtime, observability, lint/type, and workflow maintenance. Npm
+  semver-major updates are deferred during launch so major framework and tooling
+  migrations stay intentional.
 - Automated market preflight checks for required prototype disclaimers, consent
   links, launch assets, env examples, and blocked regulated-finance claims.
 - Post-deploy smoke checker for Vercel preview and production URLs, including

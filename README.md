@@ -41,7 +41,9 @@ deployments; the workflow is a source-level quality gate before deployment.
 
 Dependabot is configured for weekly npm and GitHub Actions update pull requests,
 grouped by runtime, Vercel observability, lint/type tooling, and workflow
-maintenance.
+maintenance. During launch, npm semver-major updates are ignored so patch/minor
+maintenance can keep moving without pulling unplanned framework or tooling
+migrations into the release path.
 
 ## Vercel
 

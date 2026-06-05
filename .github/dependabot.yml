@@ -8,6 +8,12 @@ updates:
       time: "09:00"
       timezone: "America/New_York"
     open-pull-requests-limit: 5
+    ignore:
+      # Keep launch maintenance to patch/minor updates. Major upgrades should be
+      # planned intentionally after the market prototype is deployed.
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
     groups:
       next-runtime:
         patterns:
