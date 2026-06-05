@@ -131,6 +131,10 @@ export function parseVercelInspectOutput(text) {
   };
 }
 
+export function parseVercelInspectResult({ stderr = "", stdout = "" } = {}) {
+  return parseVercelInspectOutput([stdout, stderr].filter(Boolean).join("\n"));
+}
+
 function commandError(error) {
   if (error instanceof Error) {
     return error.message.replace(/\s+/g, " ").trim();
@@ -217,13 +221,13 @@ async function getLatestCiRun({ branch, repository, timeoutMs }) {
 
 async function getVercelDeployment({ targetUrl, timeoutMs }) {
   try {
-    const { stdout } = await execFileAsync("npx", ["vercel", "inspect", targetUrl], {
+    const { stderr, stdout } = await execFileAsync("npx", ["vercel", "inspect", targetUrl], {
       encoding: "utf8",
       maxBuffer: 1024 * 1024,
       timeout: timeoutMs,
     });
 
-    return parseVercelInspectOutput(stdout);
+    return parseVercelInspectResult({ stderr, stdout });
   } catch (error) {
     return {
       error: commandError(error),

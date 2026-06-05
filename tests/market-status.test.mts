@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   parseVercelInspectOutput,
+  parseVercelInspectResult,
   summarizeMarketStatus,
 } from "../scripts/market-status.mjs";
 
@@ -174,7 +175,7 @@ test("flags a dirty local worktree", () => {
 });
 
 test("parses Vercel inspect output for status and aliases", () => {
-  const parsed = parseVercelInspectOutput(`
+  const inspectText = `
   General
 
     id\t\tdpl_FyBh5ieGpaJuQtdvFoEuxWzroV1p
@@ -188,7 +189,8 @@ test("parses Vercel inspect output for status and aliases", () => {
 
     ╶ ${targetUrl}
     ╶ https://payshield-git-main-james-projects-397b955f.vercel.app
-`);
+`;
+  const parsed = parseVercelInspectOutput(inspectText);
 
   assert.equal(parsed.id, "dpl_FyBh5ieGpaJuQtdvFoEuxWzroV1p");
   assert.equal(parsed.ready, true);
@@ -199,4 +201,26 @@ test("parses Vercel inspect output for status and aliases", () => {
     targetUrl,
     "https://payshield-git-main-james-projects-397b955f.vercel.app",
   ]);
+});
+
+test("parses Vercel inspect details from stderr when stdout is only a prelude", () => {
+  const parsed = parseVercelInspectResult({
+    stderr: `
+  General
+
+    id\t\tdpl_stderr
+    target\tproduction
+    status\t● Ready
+    url\t\t${deploymentUrl}
+
+  Aliases
+
+    ╶ ${targetUrl}
+`,
+    stdout: "Vercel CLI 54.9.1\n",
+  });
+
+  assert.equal(parsed.id, "dpl_stderr");
+  assert.equal(parsed.ready, true);
+  assert.equal(parsed.aliases.includes(targetUrl), true);
 });
