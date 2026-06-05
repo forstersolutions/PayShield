@@ -39,6 +39,9 @@ deployments, partner demos, and pilot demand capture.
   readiness checks, analytics instrumentation audit status, Vercel env audit
   status, local lead-capture proof, and the remaining hard gates for the
   readiness issue.
+- Market go/no-go command that combines strict production launch evidence,
+  hosted receiver evidence, counsel sign-off, and live analytics evidence into
+  one redacted JSON decision before paid traffic starts.
 - Automated market preflight checks for required prototype disclaimers, consent
   links, launch assets, env examples, and blocked regulated-finance claims.
 - Campaign copy linter and guardrails for checking paid ads, email campaigns,
@@ -164,6 +167,11 @@ deployments, partner demos, and pilot demand capture.
 - Run `npm run launch:evidence -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app`
   and attach the redacted JSON output to the readiness issue. After production
   webhook capture is configured, rerun the command with `--strict`.
+- Run
+  `npm run market:go-no-go -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --receiver-evidence-file receiver-evidence.json --counsel-signoff-file counsel-signoff.json --analytics-evidence-file analytics-evidence.json`
+  before marking the paid-traffic issue ready. Use `--allow-not-ready` while
+  gathering evidence so the command prints the current missing gates without
+  exiting nonzero.
 - Confirm `https://payshield-lime.vercel.app/api/health` reports
   `waitlist.webhookSigningConfigured: true` and
   `waitlist.paidTrafficReady: true` after the webhook, signing secret, and
@@ -192,6 +200,42 @@ deployments, partner demos, and pilot demand capture.
 - Open a Paid Traffic Readiness issue and attach evidence for the webhook test,
   production health response, CI run, Vercel deployment, analytics, and legal
   review before spending on acquisition.
+
+## Go/No-Go Evidence Files
+
+`npm run market:go-no-go` reads the JSON output from
+`npm run receiver:evidence` directly. Keep that file outside git, then attach
+only the redacted command output to the readiness issue after the go/no-go
+command passes.
+
+Use this counsel sign-off shape after review:
+
+```json
+{
+  "ok": true,
+  "reviewedAt": "2026-06-05T00:00:00.000Z",
+  "reviewer": "Counsel or authorized reviewer",
+  "scope": ["privacy", "terms", "publicClaims", "campaignCopy"],
+  "campaignCopyLintOk": true
+}
+```
+
+Use this live analytics evidence shape after a production campaign-attributed
+test:
+
+```json
+{
+  "ok": true,
+  "observedAt": "2026-06-05T00:00:00.000Z",
+  "webAnalyticsPilotConversions": true,
+  "sanitizedCampaignMetadata": true,
+  "speedInsightsProductionData": true
+}
+```
+
+These evidence files must not include lead emails, names, notes, webhook
+secrets, authorization headers, URL credentials, query tokens, or fragments.
+The go/no-go command fails if it detects those values.
 
 ## Do Not Claim Yet
 
