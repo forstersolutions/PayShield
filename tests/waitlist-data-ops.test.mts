@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import {
   auditWaitlistData,
+  backupWaitlistData,
   eraseWaitlistEmail,
   summarizeWaitlistData,
 } from "../scripts/waitlist-data-ops.mjs";
@@ -199,6 +200,82 @@ test("allows an empty receiver audit only when explicitly requested", async () =
     assert.equal(allowed.summary.total, 0);
   } finally {
     await rm(dataDir, { recursive: true });
+  }
+});
+
+test("backs up receiver files with a redacted manifest", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "payshield-data-ops-"));
+  const backupDir = await mkdtemp(join(tmpdir(), "payshield-data-backups-"));
+
+  try {
+    await writeNdjson(
+      dataDir,
+      records.map((record) => JSON.stringify(record)),
+    );
+    await eraseWaitlistEmail({
+      dataDir,
+      email: "missing@example.com",
+    });
+    const result = await backupWaitlistData({
+      backupDir,
+      dataDir,
+      generatedAt: "2026-06-05T00:00:00.000Z",
+    });
+    const manifest = await readFile(result.manifestPath, "utf8");
+    const backupNdjson = await readFile(
+      join(result.backupPath, "waitlist.ndjson"),
+      "utf8",
+    );
+    const backupCsv = await readFile(join(result.backupPath, "waitlist.csv"), "utf8");
+    const serialized = JSON.stringify(result);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.backupId, "waitlist-backup-2026-06-05T00-00-00-000Z");
+    assert.deepEqual(result.copiedFiles.sort(), [
+      "waitlist.csv",
+      "waitlist.ndjson",
+    ]);
+    assert.equal(result.audit.ok, true);
+    assert.equal(result.audit.summary.total, 2);
+    assert.equal(result.audit.files.ndjson.sha256?.length, 64);
+    assert.match(manifest, /"backupId": "waitlist-backup-2026-06-05T00-00-00-000Z"/);
+    assert.match(manifest, /"sha256": "[a-f0-9]{64}"/);
+    assert.equal(serialized.includes("lead@example.com"), false);
+    assert.equal(serialized.includes("Partner pilot."), false);
+    assert.equal(manifest.includes("lead@example.com"), false);
+    assert.equal(manifest.includes("Partner pilot."), false);
+    assert.equal(backupNdjson.includes("lead@example.com"), true);
+    assert.equal(backupCsv.includes("partner@example.com"), true);
+  } finally {
+    await rm(dataDir, { recursive: true });
+    await rm(backupDir, { recursive: true });
+  }
+});
+
+test("refuses backup when receiver audit fails", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "payshield-data-ops-"));
+  const backupDir = await mkdtemp(join(tmpdir(), "payshield-data-backups-"));
+
+  try {
+    await writeNdjson(dataDir, [
+      JSON.stringify({
+        ...records[0],
+        consentText: "",
+      }),
+    ]);
+
+    await assert.rejects(
+      () =>
+        backupWaitlistData({
+          backupDir,
+          dataDir,
+          generatedAt: "2026-06-05T00:00:00.000Z",
+        }),
+      /Refusing to back up receiver files until audit passes/,
+    );
+  } finally {
+    await rm(dataDir, { recursive: true });
+    await rm(backupDir, { recursive: true });
   }
 });
 

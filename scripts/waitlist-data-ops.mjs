@@ -1,11 +1,14 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const defaultDataDir =
   process.env.PAYSHIELD_RECEIVER_DATA_DIR ?? join(process.cwd(), "data", "waitlist");
+const defaultBackupDir =
+  process.env.PAYSHIELD_RECEIVER_BACKUP_DIR ??
+  join(process.cwd(), "data", "waitlist-backups");
 const csvHeader =
   "submissionId,createdAt,email,name,segment,message,consentVersion,privacyVersion,termsVersion,consentedAt,consentText,source,utmSource,utmMedium,utmCampaign,utmContent,utmTerm,landingPath,receivedAt";
 const auditRequiredFields = [
@@ -37,10 +40,12 @@ function usage() {
     "Usage:",
     "  npm run waitlist:data -- summary [--data-dir data/waitlist]",
     "  npm run waitlist:data -- audit [--data-dir data/waitlist] [--allow-empty]",
+    "  npm run waitlist:data -- backup [--data-dir data/waitlist] [--backup-dir data/waitlist-backups] [--allow-empty]",
     "  npm run waitlist:data -- erase --email lead@example.com [--data-dir data/waitlist] [--dry-run]",
     "",
     "summary prints non-PII counts from the lightweight receiver files.",
     "audit checks receiver file integrity, required metadata, idempotency keys, and CSV consistency without printing PII.",
+    "backup copies receiver files into a timestamped directory and prints a redacted manifest.",
     "erase removes matching email records from waitlist.ndjson and regenerates waitlist.csv.",
   ].join("\n");
 }
@@ -69,10 +74,11 @@ function parseCliArgs(args) {
 
   const command = args.find((arg) => !arg.startsWith("--"));
 
-  if (!["summary", "audit", "erase"].includes(command ?? "")) {
-    throw new Error("Command must be summary, audit, or erase.");
+  if (!["summary", "audit", "backup", "erase"].includes(command ?? "")) {
+    throw new Error("Command must be summary, audit, backup, or erase.");
   }
 
+  const backupDir = flagValue(args, "--backup-dir") || defaultBackupDir;
   const dataDir = flagValue(args, "--data-dir") || defaultDataDir;
   const email = flagValue(args, "--email");
 
@@ -83,6 +89,7 @@ function parseCliArgs(args) {
   return {
     command,
     allowEmpty: args.includes("--allow-empty"),
+    backupDir,
     dataDir,
     dryRun: args.includes("--dry-run"),
     email,
@@ -486,6 +493,74 @@ export async function auditWaitlistData({
   };
 }
 
+function backupIdFromDate(date) {
+  return `waitlist-backup-${date
+    .toISOString()
+    .replaceAll(":", "-")
+    .replaceAll(".", "-")}`;
+}
+
+async function copyReceiverFile({ backupPath, dataDir, filename }) {
+  if (!existsSync(join(dataDir, filename))) {
+    return null;
+  }
+
+  await copyFile(join(dataDir, filename), join(backupPath, filename));
+
+  return filename;
+}
+
+/**
+ * @param {{ allowEmpty?: boolean; backupDir?: string; dataDir?: string; generatedAt?: string }} [options]
+ */
+export async function backupWaitlistData({
+  allowEmpty = false,
+  backupDir = defaultBackupDir,
+  dataDir = defaultDataDir,
+  generatedAt = new Date().toISOString(),
+} = {}) {
+  const audit = await auditWaitlistData({ allowEmpty, dataDir });
+
+  if (!audit.ok) {
+    throw new Error(
+      `Refusing to back up receiver files until audit passes: ${audit.findings.join("; ")}`,
+    );
+  }
+
+  const backupId = backupIdFromDate(new Date(generatedAt));
+  const backupPath = join(backupDir, backupId);
+
+  await mkdir(backupPath, { recursive: true });
+
+  const copiedFiles = (
+    await Promise.all(
+      ["waitlist.ndjson", "waitlist.csv"].map((filename) =>
+        copyReceiverFile({ backupPath, dataDir, filename }),
+      ),
+    )
+  ).filter(Boolean);
+  const manifest = {
+    audit,
+    backupId,
+    copiedFiles,
+    generatedAt,
+    ok: true,
+  };
+  const manifestPath = join(backupPath, "manifest.json");
+
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+
+  return {
+    audit,
+    backupId,
+    backupPath,
+    copiedFiles,
+    generatedAt,
+    manifestPath,
+    ok: true,
+  };
+}
+
 /**
  * @param {{ dataDir?: string; dryRun?: boolean; email?: string }} [options]
  */
@@ -538,6 +613,12 @@ async function main() {
   } else if (parsed.command === "audit") {
     result = await auditWaitlistData({
       allowEmpty: parsed.allowEmpty,
+      dataDir: parsed.dataDir,
+    });
+  } else if (parsed.command === "backup") {
+    result = await backupWaitlistData({
+      allowEmpty: parsed.allowEmpty,
+      backupDir: parsed.backupDir,
       dataDir: parsed.dataDir,
     });
   } else {

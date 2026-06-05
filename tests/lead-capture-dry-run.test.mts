@@ -8,10 +8,15 @@ test("proves signed lead capture end to end without exposing PII", async () => {
 
   assert.equal(result.ok, true);
   assert.equal(result.dataDir, undefined);
+  assert.equal(result.backupDir, undefined);
   assert.equal(result.summary.total, 1);
   assert.equal(result.summary.bySegment.Household, 1);
   assert.equal(result.summary.byCampaign["Household Launch"], 1);
   assert.equal(result.summary.byCampaignSource["Paid Social"], 1);
+  assert.equal(result.backup.ok, true);
+  assert.equal(result.backup.copiedFiles.includes("waitlist.ndjson"), true);
+  assert.equal(result.backup.copiedFiles.includes("waitlist.csv"), true);
+  assert.equal(result.backup.audit.ok, true);
   assert.equal(result.dataAudit.ok, true);
   assert.equal(result.dataAudit.summary.total, 1);
   assert.equal(result.dataAudit.csv.rowCountMatches, true);
@@ -36,6 +41,10 @@ test("proves signed lead capture end to end without exposing PII", async () => {
   assert.match(
     result.checks.join("\n"),
     /waitlist data audit verifies receiver files and required metadata/,
+  );
+  assert.match(
+    result.checks.join("\n"),
+    /waitlist data backup creates a redacted manifest for receiver files/,
   );
 });
 

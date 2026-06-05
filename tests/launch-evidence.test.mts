@@ -58,10 +58,23 @@ function publicEvidence(waitlist: Record<string, unknown>) {
 }
 
 const leadCaptureDryRun = {
+  backup: {
+    audit: {
+      ok: true,
+      summary: {
+        total: 1,
+      },
+    },
+    backupId: "waitlist-backup-2026-06-05T00-00-00-000Z",
+    copiedFiles: ["waitlist.ndjson", "waitlist.csv"],
+    generatedAt: "2026-06-05T00:00:00.000Z",
+    ok: true,
+  },
   checks: [
     "/api/waitlist accepts a signed required-webhook submission",
     "receiver treats signed replay with the same submissionId as idempotent",
     "waitlist data audit verifies receiver files and required metadata",
+    "waitlist data backup creates a redacted manifest for receiver files",
   ],
   dataAudit: {
     allowEmpty: false,
@@ -238,6 +251,11 @@ test("summarizes current prototype evidence without treating paid traffic as rea
   ]);
   assert.equal(evidence.readiness.prototype.ok, true);
   assert.equal(evidence.readiness.strict.ok, false);
+  assert.equal(evidence.leadCaptureDryRun.backup.ok, true);
+  assert.equal(
+    evidence.leadCaptureDryRun.backup.copiedFiles.includes("waitlist.csv"),
+    true,
+  );
   assert.equal(evidence.leadCaptureDryRun.summary.total, 1);
   assert.equal(evidence.leadCaptureDryRun.dataAudit.ok, true);
   assert.equal(evidence.leadCaptureDryRun.dataAudit.csv.rowCountMatches, true);

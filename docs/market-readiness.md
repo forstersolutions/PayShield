@@ -82,6 +82,9 @@ deployments, partner demos, and pilot demand capture.
 - Receiver data audit command for redacted proof of required consent metadata,
   `submissionId` idempotency keys, CSV/NDJSON consistency, and receiver-file
   integrity hashes after production test submissions.
+- Receiver backup/export command for copying lightweight receiver lead files
+  and a redacted manifest into an operator-owned secure backup directory before
+  campaign traffic.
 - Signed webhook smoke tester for proving a CRM or lightweight receiver accepts
   PayShield HMAC payloads before paid traffic is enabled.
 - End-to-end lead capture dry run that starts the lightweight receiver locally,
@@ -122,7 +125,9 @@ deployments, partner demos, and pilot demand capture.
   `npm run waitlist:data -- summary --data-dir /path/to/waitlist` after test
   submissions to confirm non-PII counts, run
   `npm run waitlist:data -- audit --data-dir /path/to/waitlist` to confirm
-  receiver-file integrity and required metadata without printing PII, and use
+  receiver-file integrity and required metadata without printing PII, run
+  `npm run waitlist:data -- backup --data-dir /path/to/waitlist --backup-dir /secure/path`
+  to create a protected export with a redacted manifest, and use
   `npm run waitlist:data -- erase --email lead@example.com --dry-run` before
   honoring deletion requests.
 - Confirm the receiver stores `consentVersion`, `privacyVersion`,

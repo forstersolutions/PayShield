@@ -27,10 +27,23 @@ test("rejects unparseable Docker port output", () => {
 
 test("summarizes Docker receiver smoke output without PII or secrets", () => {
   const result = summarizeDockerReceiverSmoke({
+    backup: {
+      audit: {
+        ok: true,
+        summary: {
+          total: 1,
+        },
+      },
+      backupId: "waitlist-backup-2026-06-05T00-00-00-000Z",
+      copiedFiles: ["waitlist.ndjson", "waitlist.csv"],
+      generatedAt: "2026-06-05T00:00:00.000Z",
+      ok: true,
+    },
     checks: [
       "Dockerfile.receiver builds successfully",
       "container accepts signed payload and idempotent replay",
       "mounted receiver data audit verifies file integrity and metadata",
+      "mounted receiver data backup creates a redacted manifest",
     ],
     dataAudit: {
       allowEmpty: false,
@@ -158,6 +171,8 @@ test("summarizes Docker receiver smoke output without PII or secrets", () => {
   assert.equal(result.webhook.firstStatus, 202);
   assert.equal(result.webhook.replayStatus, 200);
   assert.equal(result.webhook.replayDuplicate, true);
+  assert.equal(result.backup.ok, true);
+  assert.equal(result.backup.copiedFiles.includes("waitlist.ndjson"), true);
   assert.equal(result.dataAudit.ok, true);
   assert.equal(result.dataAudit.files.ndjson.sha256.length, 64);
   assert.equal(serialized.includes("docker-smoke@example.com"), false);

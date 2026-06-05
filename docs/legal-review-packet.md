@@ -90,7 +90,9 @@ still be reviewed before paid traffic.
    `consentText`, `consentedAt`, `consentVersion`, `privacyVersion`, and
    `termsVersion`.
 7. Confirm lightweight receiver data handling, including
-   `npm run waitlist:data -- audit --data-dir /path/to/waitlist` and
+   `npm run waitlist:data -- audit --data-dir /path/to/waitlist`,
+   `npm run waitlist:data -- backup --data-dir /path/to/waitlist --backup-dir /secure/path`,
+   and
    `npm run waitlist:data -- erase --email lead@example.com --dry-run`.
 8. Confirm prohibited copy boundaries before any claim involving account
    opening, ACH, debit cards, virtual cards, bill-pay, money movement, FDIC, or

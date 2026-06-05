@@ -11,6 +11,7 @@ import {
 } from "./test-waitlist-webhook.mjs";
 import {
   auditWaitlistData,
+  backupWaitlistData,
   eraseWaitlistEmail,
   summarizeWaitlistData,
 } from "./waitlist-data-ops.mjs";
@@ -26,8 +27,8 @@ function usage() {
     "Usage: npm run receiver:docker:smoke [--image payshield-waitlist-receiver:ci-smoke] [--skip-build] [--keep-data] [--keep-image] [--timeout-ms 30000]",
     "",
     "Builds and runs Dockerfile.receiver, mounts a temporary persistent /data/waitlist volume,",
-    "checks receiver health, sends a signed replay smoke payload, verifies non-PII data summary and audit,",
-    "and dry-runs deletion handling without printing the signing secret.",
+    "checks receiver health, sends a signed replay smoke payload, verifies non-PII data summary, audit, backup manifest,",
+    "and deletion dry-run handling without printing the signing secret.",
   ].join("\n");
 }
 
@@ -158,6 +159,7 @@ function requireCheck(checks, condition, message) {
 }
 
 export function summarizeDockerReceiverSmoke({
+  backup,
   checks,
   dataAudit,
   eraseDryRun,
@@ -167,6 +169,7 @@ export function summarizeDockerReceiverSmoke({
   webhookResult,
 }) {
   return {
+    backup,
     checks,
     dataAudit,
     eraseDryRun: {
@@ -195,6 +198,7 @@ export async function runDockerReceiverSmoke({
   timeoutMs = defaultTimeoutMs,
 } = {}) {
   const dataDir = await mkdtemp(join(tmpdir(), "payshield-docker-receiver-"));
+  const backupDir = await mkdtemp(join(tmpdir(), "payshield-docker-receiver-backup-"));
   const containerName = `payshield-receiver-smoke-${process.pid}-${Date.now()}`;
   const secret = `docker-smoke-${randomBytes(24).toString("hex")}`;
   const checks = [];
@@ -286,6 +290,17 @@ export async function runDockerReceiverSmoke({
       "mounted receiver data audit verifies file integrity and metadata",
     );
 
+    const backup = await backupWaitlistData({ backupDir, dataDir });
+
+    requireCheck(
+      checks,
+      backup.ok === true &&
+        backup.copiedFiles.includes("waitlist.ndjson") &&
+        backup.copiedFiles.includes("waitlist.csv") &&
+        backup.audit?.ok === true,
+      "mounted receiver data backup creates a redacted manifest",
+    );
+
     const eraseDryRun = await eraseWaitlistEmail({
       dataDir,
       dryRun: true,
@@ -301,6 +316,13 @@ export async function runDockerReceiverSmoke({
     );
 
     return summarizeDockerReceiverSmoke({
+      backup: {
+        audit: backup.audit,
+        backupId: backup.backupId,
+        copiedFiles: backup.copiedFiles,
+        generatedAt: backup.generatedAt,
+        ok: backup.ok,
+      },
       checks,
       dataAudit,
       eraseDryRun,
@@ -320,6 +342,7 @@ export async function runDockerReceiverSmoke({
 
     if (!keepData) {
       await rm(dataDir, { force: true, recursive: true });
+      await rm(backupDir, { force: true, recursive: true });
     }
   }
 }

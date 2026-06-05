@@ -40,6 +40,7 @@ npm run smoke:deploy -- https://your-domain.com
 npm run smoke:deploy -- https://your-domain.com --expect-site-url https://your-domain.com
 npm run waitlist:data -- summary
 npm run waitlist:data -- audit
+npm run waitlist:data -- backup
 npm run waitlist:data -- erase --email lead@example.com --dry-run
 npm run vercel:env:audit
 npm run webhook:receive
@@ -178,8 +179,11 @@ If the lightweight receiver is used, `npm run waitlist:data -- summary` prints
 non-PII totals, segment counts, and campaign/source counts from the local
 receiver files. `npm run waitlist:data -- audit` checks required consent
 metadata, `submissionId` idempotency keys, CSV/NDJSON consistency, and file
-integrity hashes without printing emails, names, notes, or paths. To honor a
-pilot deletion request, first run:
+integrity hashes without printing emails, names, notes, or paths.
+`npm run waitlist:data -- backup --backup-dir /secure/path` copies
+`waitlist.ndjson`, `waitlist.csv`, and a redacted manifest into a timestamped
+backup directory. The copied files contain lead data, so keep the backup path
+outside git and restrict access. To honor a pilot deletion request, first run:
 
 ```bash
 npm run waitlist:data -- erase --email lead@example.com --dry-run

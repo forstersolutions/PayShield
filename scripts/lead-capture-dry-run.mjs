@@ -11,6 +11,7 @@ import {
 } from "./waitlist-webhook-receiver.mjs";
 import {
   auditWaitlistData,
+  backupWaitlistData,
   eraseWaitlistEmail,
   summarizeWaitlistData,
 } from "./waitlist-data-ops.mjs";
@@ -24,7 +25,7 @@ function usage() {
     "",
     "Starts the lightweight receiver on localhost, forces /api/waitlist into signed fail-closed webhook mode,",
     "submits one pilot request, verifies stored consent and sanitized attribution, verifies idempotent replay,",
-    "runs the non-PII data summary and audit, and dry-runs an email erasure.",
+    "runs the non-PII data summary, audit, backup manifest, and dry-runs an email erasure.",
     "",
     "The default run uses a temporary receiver data directory and deletes it before exit.",
     "--keep-data preserves the temporary directory for local inspection. It contains test lead data.",
@@ -180,8 +181,19 @@ function publicSafeSummary(summary) {
   };
 }
 
+function publicSafeBackup(backup) {
+  return {
+    audit: backup.audit,
+    backupId: backup.backupId,
+    copiedFiles: backup.copiedFiles,
+    generatedAt: backup.generatedAt,
+    ok: backup.ok,
+  };
+}
+
 export async function runLeadCaptureDryRun({ keepData = false } = {}) {
   const dataDir = await mkdtemp(join(tmpdir(), "payshield-lead-capture-"));
+  const backupDir = await mkdtemp(join(tmpdir(), "payshield-lead-capture-backup-"));
   const secret = `dry-run-${randomBytes(24).toString("hex")}`;
   const server = createWaitlistWebhookReceiver({ dataDir, secret });
   const listener = await listen(server);
@@ -342,6 +354,24 @@ export async function runLeadCaptureDryRun({ keepData = false } = {}) {
       "waitlist data audit does not print pilot email or notes",
     );
 
+    const backup = await backupWaitlistData({ backupDir, dataDir });
+    const backupJson = JSON.stringify(publicSafeBackup(backup));
+
+    requireCheck(
+      checks,
+      backup.ok === true &&
+        backup.copiedFiles.includes("waitlist.ndjson") &&
+        backup.copiedFiles.includes("waitlist.csv") &&
+        backup.audit?.ok === true,
+      "waitlist data backup creates a redacted manifest for receiver files",
+    );
+    requireCheck(
+      checks,
+      !backupJson.includes(testEmail) &&
+        !backupJson.includes("Rent and insurance first."),
+      "waitlist data backup manifest does not print pilot email or notes",
+    );
+
     const eraseDryRun = await eraseWaitlistEmail({
       dataDir,
       dryRun: true,
@@ -358,8 +388,10 @@ export async function runLeadCaptureDryRun({ keepData = false } = {}) {
 
     return {
       checks,
+      backup: publicSafeBackup(backup),
       dataAudit,
       dataDir: keepData ? dataDir : undefined,
+      backupDir: keepData ? backupDir : undefined,
       eraseDryRun: {
         dryRun: eraseDryRun.dryRun,
         emailHash: eraseDryRun.emailHash,
@@ -379,6 +411,7 @@ export async function runLeadCaptureDryRun({ keepData = false } = {}) {
 
     if (!keepData) {
       await rm(dataDir, { recursive: true, force: true });
+      await rm(backupDir, { recursive: true, force: true });
     }
   }
 }

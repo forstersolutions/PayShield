@@ -20,6 +20,7 @@
 # production
 /build
 /data/waitlist/
+/data/waitlist-backups/
 
 # misc
 .DS_Store
