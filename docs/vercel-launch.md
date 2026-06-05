@@ -133,10 +133,12 @@ The command creates `launch-evidence/counsel-signoff.json`,
 `launch-evidence/analytics-evidence.json`,
 `launch-evidence/managed-receiver-evidence-template.json`,
 `launch-evidence/upstash-receiver-evidence-template.json`, and
-`launch-evidence/commands.md`. The directory is ignored by git. Fill the
-counsel and analytics JSON files only after counsel review and live analytics
-observation. If production capture uses a managed CRM, Airtable, Slack, Make,
-Zapier, or internal webhook, copy the managed receiver template to
+`launch-evidence/commands.md`. The generated commands include Vercel env audit,
+required-capture production submit smoke, strict launch evidence, final
+go/no-go validation, and status refresh. The directory is ignored by git. Fill
+the counsel and analytics JSON files only after counsel review and live
+analytics observation. If production capture uses a managed CRM, Airtable,
+Slack, Make, Zapier, or internal webhook, copy the managed receiver template to
 `launch-evidence/receiver-evidence.json`, fill it after signed replay and
 storage review, then validate it with
 `npm run receiver:managed:check -- --file launch-evidence/receiver-evidence.json`.

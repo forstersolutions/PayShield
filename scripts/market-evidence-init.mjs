@@ -88,11 +88,18 @@ function validatePlainPath(value, label) {
   return value.trim();
 }
 
-function safeHttpUrl(value, label) {
-  const url = new URL(value);
+function isLocalhost(url) {
+  return ["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname);
+}
 
-  if (!["http:", "https:"].includes(url.protocol)) {
-    throw new Error(`${label} must use http or https.`);
+function safeHttpUrl(value, label, { allowLocalHttp = false } = {}) {
+  const url = new URL(value);
+  const localHttp = allowLocalHttp && url.protocol === "http:" && isLocalhost(url);
+
+  if (url.protocol !== "https:" && !localHttp) {
+    throw new Error(
+      `${label} must use https. Localhost http is allowed only for local receiver proof.`,
+    );
   }
 
   if (url.username || url.password || url.search || url.hash) {
@@ -214,7 +221,9 @@ function commandsMarkdown({
   backupDir,
   counselFile,
   dataDir,
+  envAuditCommand,
   managedReceiverTemplateFile,
+  requiredCaptureSmokeCommand,
   receiverEvidenceFile,
   receiverUrl,
   siteUrl,
@@ -345,7 +354,21 @@ function commandsMarkdown({
     upstashCutoverPlanCommand,
     "```",
     "",
-    "3. Configure Vercel Production durable capture env vars and prove strict launch evidence:",
+    "3. Configure Vercel Production durable capture env vars, then prove the live capture path.",
+    "",
+    "After redeploying production from the cutover plan, audit env configuration:",
+    "",
+    "```bash",
+    envAuditCommand,
+    "```",
+    "",
+    "Then run a required-capture production submit smoke:",
+    "",
+    "```bash",
+    requiredCaptureSmokeCommand,
+    "```",
+    "",
+    "Finally prove strict launch evidence:",
     "",
     "```bash",
     launchEvidenceCommand,
@@ -404,7 +427,9 @@ export async function createMarketEvidencePacket({
 } = {}) {
   const evidenceDir = validatePlainPath(dir, "--dir");
   const normalizedSiteUrl = normalizeSiteUrl(safeHttpUrl(siteUrl, "--site-url"));
-  const safeReceiverUrl = safeHttpUrl(receiverUrl, "--receiver-url");
+  const safeReceiverUrl = safeHttpUrl(receiverUrl, "--receiver-url", {
+    allowLocalHttp: true,
+  });
   const safeDataDir = validatePlainPath(dataDir, "--data-dir");
   const safeBackupDir = validatePlainPath(backupDir, "--backup-dir");
   const counselFile = join(evidenceDir, "counsel-signoff.json");
@@ -419,6 +444,15 @@ export async function createMarketEvidencePacket({
   );
   const receiverEvidenceFile = join(evidenceDir, "receiver-evidence.json");
   const commandsFile = join(evidenceDir, "commands.md");
+  const envAuditCommand = "npm run vercel:env:audit";
+  const requiredCaptureSmokeCommand = [
+    "npm run smoke:deploy --",
+    shellQuote(normalizedSiteUrl),
+    "--expect-site-url",
+    shellQuote(normalizedSiteUrl),
+    "--submit-test",
+    "--require-webhook",
+  ].join(" ");
   const files = [
     {
       content: jsonWithNewline(counselTemplate(generatedAt)),
@@ -457,7 +491,9 @@ export async function createMarketEvidencePacket({
         backupDir: safeBackupDir,
         counselFile,
         dataDir: safeDataDir,
+        envAuditCommand,
         managedReceiverTemplateFile,
+        requiredCaptureSmokeCommand,
         receiverEvidenceFile,
         receiverUrl: safeReceiverUrl,
         siteUrl: normalizedSiteUrl,
@@ -480,6 +516,7 @@ export async function createMarketEvidencePacket({
       "--receiver-evidence-file",
       shellQuote(receiverEvidenceFile),
     ].join(" "),
+    envAuditCommand,
     counselSignoffCommand: [
       "npm run counsel:signoff:check --",
       "--file",
@@ -519,6 +556,7 @@ export async function createMarketEvidencePacket({
       ">",
       shellQuote(receiverEvidenceFile),
     ].join(" "),
+    requiredCaptureSmokeCommand,
     siteUrl: normalizedSiteUrl,
     statusCommand: [
       "npm run market:status --",

@@ -77,3 +77,22 @@ test("rejects raw webhook test output that still includes the smoke email", () =
     true,
   );
 });
+
+test("rejects managed receiver evidence that uses a non-HTTPS webhook URL", () => {
+  const result = evaluateManagedReceiverEvidenceFile({
+    ...managedReceiverEvidence,
+    target: {
+      webhookUrl: "http://crm.example/payshield-waitlist",
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.findings.some(
+      (finding: { finding: string }) =>
+        finding.finding ===
+        "managed receiver webhook URL must use https for production evidence",
+    ),
+    true,
+  );
+});

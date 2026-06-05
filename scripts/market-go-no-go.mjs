@@ -200,9 +200,9 @@ function publicUrl(value, label, findings) {
   try {
     const url = new URL(value);
 
-    if (!["http:", "https:"].includes(url.protocol)) {
+    if (url.protocol !== "https:") {
       findings.push({
-        finding: `${label} must use http or https`,
+        finding: `${label} must use https for production evidence`,
         path: "$",
       });
     }

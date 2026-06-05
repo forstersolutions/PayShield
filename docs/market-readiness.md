@@ -285,7 +285,8 @@ npm run market:evidence:init -- \
 `counsel-signoff.json`, `analytics-evidence.json`,
 `managed-receiver-evidence-template.json`,
 `upstash-receiver-evidence-template.json`, and `commands.md` with the exact
-redacted receiver, strict launch, final go/no-go, and status snapshot commands.
+redacted receiver, env audit, required-capture smoke, strict launch, final
+go/no-go, and status snapshot commands.
 
 `npm run market:go-no-go` reads `launch-evidence/receiver-evidence.json`.
 For the lightweight file receiver, write the JSON output from
@@ -296,6 +297,9 @@ For Vercel Marketplace Upstash Redis, copy
 `upstash-receiver-evidence-template.json` to that path, fill the redacted health,
 production submit, storage, export, and deletion review fields, and run
 `npm run receiver:upstash:check`.
+Production receiver evidence URLs must use HTTPS and must not include
+credentials, query strings, or fragments. Localhost HTTP is accepted only for
+local proof packets, not final paid-traffic go/no-go evidence.
 Keep the evidence file outside git, then attach only the redacted command output
 to the readiness issue after the go/no-go command passes.
 

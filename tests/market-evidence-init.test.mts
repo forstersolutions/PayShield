@@ -80,6 +80,9 @@ test("creates local market evidence templates and redacted commands", async () =
     assert.match(commands, /npm run counsel:signoff:check/);
     assert.match(commands, /npm run analytics:evidence:check/);
     assert.match(commands, /npm run launch:evidence/);
+    assert.match(commands, /npm run vercel:env:audit/);
+    assert.match(commands, /npm run smoke:deploy/);
+    assert.match(commands, /--submit-test --require-webhook/);
     assert.match(commands, /npm run market:go-no-go/);
     assert.match(commands, /npm run market:status/);
     assert.match(commands, /PAYSHIELD_WAITLIST_WEBHOOK_SECRET=\.\.\./);
@@ -88,10 +91,12 @@ test("creates local market evidence templates and redacted commands", async () =
     assert.match(result.cutoverPlanCommand, /vercel:webhook:cutover/);
     assert.match(result.upstashCutoverPlanCommand, /vercel:upstash:cutover/);
     assert.match(result.counselSignoffCommand, /counsel:signoff:check/);
+    assert.match(result.envAuditCommand, /vercel:env:audit/);
     assert.match(
       result.managedReceiverEvidenceCommand,
       /receiver:managed:check/,
     );
+    assert.match(result.requiredCaptureSmokeCommand, /--require-webhook/);
     assert.match(
       result.upstashReceiverEvidenceCommand,
       /receiver:upstash:check/,
@@ -140,6 +145,44 @@ test("rejects receiver URLs with credentials, query strings, or fragments", asyn
         receiverUrl: "https://user:pass@receiver.example/path?token=secret#frag",
       }),
       /must not include credentials, query strings, or fragments/,
+    );
+  } finally {
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
+test("rejects non-local HTTP receiver URLs", async () => {
+  const dir = await tempEvidenceDir();
+
+  try {
+    await assert.rejects(
+      createMarketEvidencePacket({
+        dir,
+        receiverUrl: "http://receiver.example/path",
+      }),
+      /must use https/,
+    );
+  } finally {
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
+test("allows localhost HTTP receiver URLs for local proof packets", async () => {
+  const dir = await tempEvidenceDir();
+
+  try {
+    const result = await createMarketEvidencePacket({
+      dir,
+      receiverUrl: "http://127.0.0.1:8787/payshield-waitlist",
+    });
+    const managedReceiver = JSON.parse(
+      await readFile(join(dir, "managed-receiver-evidence-template.json"), "utf8"),
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(
+      managedReceiver.target.webhookUrl,
+      "http://127.0.0.1:8787/payshield-waitlist",
     );
   } finally {
     await rm(dir, { force: true, recursive: true });

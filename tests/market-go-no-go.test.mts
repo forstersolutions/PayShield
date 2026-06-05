@@ -291,6 +291,35 @@ test("rejects receiver evidence that leaks PII or sensitive URL parts", () => {
   );
 });
 
+test("rejects final receiver evidence that uses non-HTTPS URLs", () => {
+  const packet = summarizeMarketGoNoGo({
+    analyticsEvidence,
+    counselSignoff,
+    launchEvidence,
+    receiverEvidence: {
+      ...receiverEvidence,
+      target: {
+        healthUrl: "http://receiver.example/health",
+        webhookUrl: "http://receiver.example/payshield-waitlist",
+      },
+    },
+    targetUrl,
+  });
+  const findings = packet.evidence.receiver.findings.map(
+    (finding: { finding: string }) => finding.finding,
+  );
+
+  assert.equal(packet.marketReady, false);
+  assert.equal(
+    findings.includes("receiver webhook URL must use https for production evidence"),
+    true,
+  );
+  assert.equal(
+    findings.includes("receiver health URL must use https for production evidence"),
+    true,
+  );
+});
+
 test("rejects managed receiver evidence without durable storage attestations", () => {
   const result = evaluateManagedReceiverEvidence({
     ...managedReceiverEvidence,
