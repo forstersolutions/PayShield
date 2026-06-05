@@ -98,6 +98,22 @@ current prototype state while keeping demo capture as a warning.
 want a lightweight persistence target before wiring a CRM. It verifies the
 PayShield HMAC headers and appends accepted leads to ignored local
 `data/waitlist/waitlist.ndjson` and `data/waitlist/waitlist.csv` files.
+The receiver also exposes `GET /health` with a public-safe health response for
+platform health checks.
+
+For a container host with a persistent volume:
+
+```bash
+docker build -f Dockerfile.receiver -t payshield-waitlist-receiver .
+docker run --rm \
+  -p 8787:8787 \
+  -e PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook \
+  -v "$PWD/data/waitlist:/data/waitlist" \
+  payshield-waitlist-receiver
+curl http://localhost:8787/health
+PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook npm run webhook:test -- http://localhost:8787/payshield-waitlist
+```
+
 `npm run webhook:test -- https://your-webhook-url` sends one signed sample
 payload to any receiver using `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`, so the
 endpoint can be verified before Vercel is switched into required-webhook mode.

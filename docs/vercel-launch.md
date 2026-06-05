@@ -109,6 +109,7 @@ PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook npm run webhook
 Defaults:
 
 - Path: `/payshield-waitlist`.
+- Health path: `/health`.
 - Port: `8787`, override with `PORT`.
 - Output directory: `data/waitlist`, override with
   `PAYSHIELD_RECEIVER_DATA_DIR`.
@@ -119,6 +120,24 @@ with production traffic, host the receiver behind HTTPS, set
 `PAYSHIELD_WAITLIST_WEBHOOK_URL` to that endpoint, set the same
 `PAYSHIELD_WAITLIST_WEBHOOK_SECRET` in Vercel, then set
 `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true`.
+
+For a container host with a persistent volume, build the dedicated receiver
+image:
+
+```bash
+docker build -f Dockerfile.receiver -t payshield-waitlist-receiver .
+docker run --rm \
+  -p 8787:8787 \
+  -e PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook \
+  -v "$PWD/data/waitlist:/data/waitlist" \
+  payshield-waitlist-receiver
+curl http://localhost:8787/health
+PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook npm run webhook:test -- http://localhost:8787/payshield-waitlist
+```
+
+Do not use a container instance without a persistent volume for paid traffic.
+The receiver writes lead data to files under `/data/waitlist`; ephemeral storage
+will lose accepted leads on restart or redeploy.
 
 Before changing Vercel to required-webhook mode, prove the receiver accepts a
 signed PayShield payload:

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const defaultPath = "/payshield-waitlist";
+const defaultHealthPath = "/health";
 const defaultPort = 8787;
 const defaultMaxBodyBytes = 20_000;
 const defaultToleranceSeconds = 300;
@@ -160,13 +161,24 @@ export async function persistSubmission({ dataDir, rawBody, receivedAt }) {
 
 export function createWaitlistWebhookReceiver({
   dataDir,
+  healthPath = defaultHealthPath,
   maxBodyBytes = defaultMaxBodyBytes,
   path = defaultPath,
   secret,
   toleranceSeconds = defaultToleranceSeconds,
 }) {
   return createServer(async (request, response) => {
-    if (request.method !== "POST" || request.url?.split("?")[0] !== path) {
+    const requestPath = request.url?.split("?")[0];
+
+    if (request.method === "GET" && requestPath === healthPath) {
+      jsonResponse(response, 200, {
+        ok: true,
+        service: "payshield-waitlist-receiver",
+      });
+      return;
+    }
+
+    if (request.method !== "POST" || requestPath !== path) {
       jsonResponse(response, 404, { error: "Not found." });
       return;
     }
@@ -223,6 +235,7 @@ export function createWaitlistWebhookReceiver({
 export function startWaitlistWebhookReceiver({
   dataDir = process.env.PAYSHIELD_RECEIVER_DATA_DIR ??
     join(process.cwd(), "data", "waitlist"),
+  healthPath = process.env.PAYSHIELD_RECEIVER_HEALTH_PATH ?? defaultHealthPath,
   maxBodyBytes = Number(
     process.env.PAYSHIELD_RECEIVER_MAX_BODY_BYTES ?? defaultMaxBodyBytes,
   ),
@@ -236,6 +249,7 @@ export function startWaitlistWebhookReceiver({
 
   const server = createWaitlistWebhookReceiver({
     dataDir,
+    healthPath,
     maxBodyBytes,
     path,
     secret,
@@ -245,6 +259,7 @@ export function startWaitlistWebhookReceiver({
     console.log(
       JSON.stringify({
         dataDir,
+        healthPath,
         message: "waitlist_webhook_receiver_started",
         path,
         port,

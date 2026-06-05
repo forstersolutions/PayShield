@@ -73,6 +73,8 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   "next.config.ts",
   "SECURITY.md",
+  ".dockerignore",
+  "Dockerfile.receiver",
   "scripts/paid-traffic-readiness.mjs",
   "scripts/smoke-deploy.mjs",
   "scripts/test-waitlist-webhook.mjs",
@@ -85,6 +87,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "PAYSHIELD_WAITLIST_WEBHOOK_URL",
   "PAYSHIELD_WAITLIST_WEBHOOK_SECRET",
   "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK",
+  "PAYSHIELD_RECEIVER_HEALTH_PATH",
 ].forEach((key) => requireText(".env.example", key));
 
 requireText(
@@ -164,8 +167,13 @@ requireText("src/app/api/health/route.ts", "webhookConfigured");
 requireText("src/app/api/health/route.ts", "webhookSigningConfigured");
 requireText("scripts/smoke-deploy.mjs", "/api/health");
 requireText("scripts/waitlist-webhook-receiver.mjs", "verifyPayShieldSignature");
+requireText("scripts/waitlist-webhook-receiver.mjs", "payshield-waitlist-receiver");
 requireText("scripts/waitlist-webhook-receiver.mjs", "waitlist.ndjson");
 requireText("scripts/waitlist-webhook-receiver.mjs", "waitlist.csv");
+requireText("Dockerfile.receiver", "PAYSHIELD_RECEIVER_DATA_DIR=/data/waitlist");
+requireText("Dockerfile.receiver", "PAYSHIELD_RECEIVER_HEALTH_PATH=/health");
+requireText("Dockerfile.receiver", "scripts/waitlist-webhook-receiver.mjs");
+requireText(".dockerignore", "data");
 requireText(".gitignore", "/data/waitlist/");
 requireText("vercel.json", '"framework": "nextjs"');
 

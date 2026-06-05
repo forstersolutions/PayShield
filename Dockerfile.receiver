@@ -1,0 +1,20 @@
+FROM node:22-alpine
+
+ENV NODE_ENV=production
+ENV PORT=8787
+ENV PAYSHIELD_RECEIVER_DATA_DIR=/data/waitlist
+ENV PAYSHIELD_RECEIVER_PATH=/payshield-waitlist
+ENV PAYSHIELD_RECEIVER_HEALTH_PATH=/health
+
+WORKDIR /app
+
+RUN mkdir -p /app/scripts /data/waitlist \
+  && chown -R node:node /app /data
+
+COPY --chown=node:node scripts/waitlist-webhook-receiver.mjs ./scripts/waitlist-webhook-receiver.mjs
+
+USER node
+
+EXPOSE 8787
+
+CMD ["node", "scripts/waitlist-webhook-receiver.mjs"]

@@ -10,14 +10,20 @@ import {
 } from "../scripts/waitlist-webhook-receiver.mjs";
 
 function listen(server: ReturnType<typeof createWaitlistWebhookReceiver>) {
-  return new Promise<{ close: () => Promise<void>; url: string }>((resolve) => {
+  return new Promise<{
+    close: () => Promise<void>;
+    healthUrl: string;
+    url: string;
+  }>((resolve) => {
     server.listen(0, "127.0.0.1", () => {
       const address = server.address();
 
       assert(address && typeof address === "object");
+      const origin = `http://127.0.0.1:${address.port}`;
       resolve({
         close: () => new Promise((done) => server.close(() => done())),
-        url: `http://127.0.0.1:${address.port}/payshield-waitlist`,
+        healthUrl: `${origin}/health`,
+        url: `${origin}/payshield-waitlist`,
       });
     });
   });
@@ -105,6 +111,32 @@ test("persists signed waitlist submissions to NDJSON and CSV", async () => {
     assert.match(ndjson, /"segment":"Household"/);
     assert.match(csv, /^createdAt,email,name,segment,message,consentVersion,source,receivedAt/m);
     assert.match(csv, /"lead@example.com"/);
+  } finally {
+    await listener.close();
+    await rm(dataDir, { recursive: true });
+  }
+});
+
+test("reports receiver health without exposing secret or data path", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "payshield-waitlist-"));
+  const server = createWaitlistWebhookReceiver({
+    dataDir,
+    secret: "receiver-secret",
+  });
+  const listener = await listen(server);
+
+  try {
+    const response = await fetch(listener.healthUrl);
+    const body = (await response.json()) as Record<string, unknown>;
+    const serialized = JSON.stringify(body);
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(body, {
+      ok: true,
+      service: "payshield-waitlist-receiver",
+    });
+    assert.equal(serialized.includes("receiver-secret"), false);
+    assert.equal(serialized.includes(dataDir), false);
   } finally {
     await listener.close();
     await rm(dataDir, { recursive: true });
