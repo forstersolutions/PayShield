@@ -6,7 +6,9 @@ Use this checklist after the repository is pushed to
 ## Import
 
 1. In Vercel, import the GitHub repository `forstersolutions/PayShield`.
-2. Keep the framework preset as Next.js.
+2. Keep the framework preset as Next.js. `vercel.json` also pins this preset
+   with `"framework": "nextjs"` so CLI-created projects do not fall back to
+   `Other`.
 3. Keep the build command as `npm run build`.
 4. Use Node.js 22.x. The repository engines and CI are pinned to Node.js 22.
 5. Enable automatic preview deployments for pull requests and production

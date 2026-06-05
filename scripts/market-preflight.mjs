@@ -70,6 +70,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/components/waitlist-form.tsx",
   "src/app/components/paycheck-planner.tsx",
   "scripts/smoke-deploy.mjs",
+  "vercel.json",
 ].forEach((path) => requireFile(path));
 
 [
@@ -110,6 +111,7 @@ requireText("scripts/smoke-deploy.mjs", "--expect-site-url");
 requireText("scripts/smoke-deploy.mjs", "x-content-type-options");
 requireText("scripts/smoke-deploy.mjs", "permissions-policy");
 requireText("scripts/smoke-deploy.mjs", "payshield-social-card.jpg");
+requireText("vercel.json", '"framework": "nextjs"');
 
 requireMaxSize("src/app/icon.svg", 5_000);
 requireMaxSize("public/images/payshield-product-mockup.avif", 125_000);
