@@ -11,6 +11,7 @@
     "dev": "next dev",
     "build": "next build",
     "campaign:lint": "node scripts/check-campaign-copy.mjs",
+    "legal:lint": "npm run campaign:lint -- docs/legal-review-packet.md docs/campaign-copy.md",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
@@ -22,7 +23,7 @@
     "webhook:receive": "node scripts/waitlist-webhook-receiver.mjs",
     "webhook:test": "node scripts/test-waitlist-webhook.mjs",
     "test": "NODE_ENV=test VERCEL_WEB_ANALYTICS_DISABLE_LOGS=1 node --test tests/*.test.mts",
-    "verify": "npm run lint && npm run typecheck && npm test && npm run market-preflight && npm run build && npm audit --omit=dev"
+    "verify": "npm run lint && npm run typecheck && npm test && npm run legal:lint && npm run market-preflight && npm run build && npm audit --omit=dev"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",

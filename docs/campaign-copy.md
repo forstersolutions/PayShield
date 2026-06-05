@@ -15,6 +15,8 @@ financial services.
 3. Attach the command output to the paid-traffic readiness issue.
 4. Have counsel review the final copy before broad public acquisition or any
    regulated financial-service claim.
+5. Attach `docs/legal-review-packet.md` and `npm run legal:lint` output for the
+   launch-surface review.
 
 For pasted copy:
 
@@ -51,6 +53,7 @@ the review step.
 
 - The campaign copy file or final screenshots.
 - `npm run campaign:lint` output.
+- `npm run legal:lint` output and the current legal review packet.
 - The production URL and campaign destination URL.
 - Counsel/legal review note.
 - Analytics event confirmation after the first controlled campaign test.

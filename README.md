@@ -26,6 +26,7 @@ Production is deployed on Vercel at
 npm run dev
 npm run verify
 npm run campaign:lint -- path/to/campaign-copy.md
+npm run legal:lint
 npm test
 npm run market-preflight
 npm run receiver:docker:build
@@ -36,7 +37,7 @@ npm run smoke:deploy -- https://your-domain.com --expect-site-url https://your-d
 npm run waitlist:data -- summary
 npm run waitlist:data -- erase --email lead@example.com --dry-run
 npm run webhook:receive
-PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run webhook:test -- https://your-webhook-url
+PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run webhook:test -- https://your-webhook-url --replay
 npm run build
 npm run start
 npm run lint
@@ -170,13 +171,14 @@ do not send email, name, raw query strings, or free-text notes to analytics.
   model supports precise, approved language.
 - Enable Vercel Web Analytics and Speed Insights before paid traffic so segment,
   conversion, and performance can be measured from the first launch push.
-- Have counsel review the prototype Privacy Notice and Terms before broad public
-  acquisition or regulated financial-service launch.
+- Have counsel review the prototype Privacy Notice, Terms, and legal review
+  packet before broad public acquisition or regulated financial-service launch.
 
 See [docs/market-readiness.md](docs/market-readiness.md) for the current launch
 checklist and regulated-money gates. See [docs/campaign-copy.md](docs/campaign-copy.md)
-for paid campaign and ad-copy guardrails. See
-[docs/vercel-launch.md](docs/vercel-launch.md) for the Vercel import,
+for paid campaign and ad-copy guardrails, and
+[docs/legal-review-packet.md](docs/legal-review-packet.md) for counsel handoff
+questions. See [docs/vercel-launch.md](docs/vercel-launch.md) for the Vercel import,
 environment, webhook, and post-deploy smoke-test runbook. The deploy smoke
 checker validates required pages, launch assets, safe waitlist API validation,
 browser security headers, public `security.txt`, absence of default scaffold

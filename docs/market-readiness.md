@@ -128,6 +128,8 @@ deployments, partner demos, and pilot demand capture.
 - Run `npm run campaign:lint -- path/to/campaign-copy.md` for every paid ad,
   email, social, partner, or alternate landing-page copy draft and attach the
   output to the readiness issue before counsel review.
+- Run `npm run legal:lint` and attach the output with
+  `docs/legal-review-packet.md` before counsel review.
 - Open a Paid Traffic Readiness issue and attach evidence for the webhook test,
   production health response, CI run, Vercel deployment, analytics, and legal
   review before spending on acquisition.

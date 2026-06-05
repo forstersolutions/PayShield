@@ -76,6 +76,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/terms/page.tsx",
   "public/.well-known/security.txt",
   "docs/campaign-copy.md",
+  "docs/legal-review-packet.md",
   "src/app/api/health/route.ts",
   "src/app/components/site-footer.tsx",
   "src/app/components/waitlist-form.tsx",
@@ -171,8 +172,21 @@ requireText("scripts/check-campaign-copy.mjs", "lintCampaignCopy");
 requireText("scripts/check-campaign-copy.mjs", "fdic-insurance");
 requireText("scripts/check-campaign-copy.mjs", "direct-deposit");
 requireText("package.json", "\"campaign:lint\"");
+requireText("package.json", "\"legal:lint\"");
+requireText("package.json", "npm run legal:lint");
 requireText("docs/campaign-copy.md", "npm run campaign:lint");
+requireText("docs/campaign-copy.md", "npm run legal:lint");
 requireText("docs/campaign-copy.md", "PayShield is not a bank.");
+requireText("docs/legal-review-packet.md", "Counsel Questions");
+requireText("docs/legal-review-packet.md", "Sign-Off Record");
+requireText(
+  "docs/legal-review-packet.md",
+  "not legal approval",
+);
+requireText(
+  "docs/legal-review-packet.md",
+  "npm run campaign:lint -- docs/legal-review-packet.md docs/campaign-copy.md",
+);
 requireText("next.config.ts", "Strict-Transport-Security");
 requireText("next.config.ts", "max-age=31536000");
 requireText("scripts/paid-traffic-readiness.mjs", "--allow-prototype");
@@ -239,6 +253,10 @@ requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   "webhook:test -- https://your-webhook-url --replay",
 );
+requireText(
+  ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
+  "npm run legal:lint",
+);
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET is required");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-signature");
@@ -291,6 +309,7 @@ requireText("docs/market-readiness.md", "sanitized campaign metadata");
 requireText("docs/market-readiness.md", "consent audit fields");
 requireText("docs/market-readiness.md", "idempotent capture");
 requireText("docs/market-readiness.md", "webhook:test -- https://your-webhook-url --replay");
+requireText("docs/market-readiness.md", "npm run legal:lint");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "sanitized `attribution` fields");
 
 requireMaxSize("src/app/icon.svg", 5_000);
