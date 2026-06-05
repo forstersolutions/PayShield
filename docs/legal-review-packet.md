@@ -101,7 +101,10 @@ still be reviewed before paid traffic.
    If Vercel Marketplace Upstash Redis is used instead, confirm the Redis data
    handling owner, export process, deletion process, and encrypted server-side
    env vars `PAYSHIELD_WAITLIST_STORAGE=upstash`, `UPSTASH_REDIS_REST_URL`, and
-   `UPSTASH_REDIS_REST_TOKEN`.
+   `UPSTASH_REDIS_REST_TOKEN`; after production cutover, confirm the redacted
+   `npm run receiver:upstash:evidence -- https://payshield-lime.vercel.app --site-url https://payshield-lime.vercel.app --reviewer "Launch operator" --storage-owner "Revenue operations" --deletion-process-documented --export-process-documented --output launch-evidence/receiver-evidence.json`
+   output proves consent metadata, sanitized attribution, `submissionId`, and
+   email-hash index storage without printing lead PII or Upstash secrets.
 8. Confirm prohibited copy boundaries before any claim involving account
    opening, ACH, debit cards, virtual cards, bill-pay, money movement, FDIC, or
    sponsor-bank services.
@@ -124,10 +127,11 @@ After the production receiver or CRM is configured, add:
 ```bash
 PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run webhook:test -- https://your-webhook-url --replay
 npm run receiver:managed:check -- --file launch-evidence/receiver-evidence.json
-npm run receiver:upstash:check -- --file launch-evidence/receiver-evidence.json
 PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run vercel:webhook:cutover -- --site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json
 UPSTASH_REDIS_REST_URL=https://your-upstash-endpoint UPSTASH_REDIS_REST_TOKEN=server-side-rest-token npm run vercel:upstash:cutover -- --site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json
 npm run smoke:deploy -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --submit-test --require-webhook
+UPSTASH_REDIS_REST_URL=https://your-upstash-endpoint UPSTASH_REDIS_REST_TOKEN=server-side-rest-token npm run receiver:upstash:evidence -- https://payshield-lime.vercel.app --site-url https://payshield-lime.vercel.app --reviewer "Launch operator" --storage-owner "Revenue operations" --deletion-process-documented --export-process-documented --output launch-evidence/receiver-evidence.json
+npm run receiver:upstash:check -- --file launch-evidence/receiver-evidence.json
 npm run readiness:paid-traffic -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app
 npm run counsel:signoff:check -- --file launch-evidence/counsel-signoff.json
 npm run analytics:evidence:check -- --file launch-evidence/analytics-evidence.json --site-url https://payshield-lime.vercel.app

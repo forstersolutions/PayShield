@@ -626,6 +626,7 @@ requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "sanitized `att
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run analytics:audit");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run campaign:lint:all");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run market:evidence:init");
+requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run receiver:upstash:evidence");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run vercel:upstash:cutover");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run vercel:webhook:cutover");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run market:go-no-go");
@@ -636,6 +637,7 @@ requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "compose.receiv
 requireText("docs/legal-review-packet.md", "npm run receiver:evidence");
 requireText("docs/legal-review-packet.md", "npm run receiver:managed:check");
 requireText("docs/legal-review-packet.md", "npm run receiver:upstash:check");
+requireText("docs/legal-review-packet.md", "npm run receiver:upstash:evidence");
 requireText("docs/legal-review-packet.md", "PAYSHIELD_WAITLIST_STORAGE=upstash");
 requireText("docs/legal-review-packet.md", "UPSTASH_REDIS_REST_TOKEN");
 requireText("docs/legal-review-packet.md", "npm run vercel:upstash:cutover");
