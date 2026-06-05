@@ -452,6 +452,7 @@ test("stores valid submissions in Upstash Redis when Vercel-native storage is co
   assert.equal(response.status, 200);
   assert.equal(body.ok, true);
   assert.equal(body.mode, "upstash");
+  assert.equal(body.message, "Pilot request received.");
   assert.equal(upstashCalls.length, 1);
   assert.equal(upstashCalls[0]?.url, "https://known-lion.upstash.io/multi-exec");
   assert.equal(

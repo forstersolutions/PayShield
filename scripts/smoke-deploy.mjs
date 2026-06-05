@@ -277,15 +277,18 @@ async function submitLead() {
   });
   const body = await response.json().catch(() => ({}));
 
-  if (body.ok !== true || !["demo", "webhook"].includes(String(body.mode))) {
+  if (
+    body.ok !== true ||
+    !["demo", "upstash", "webhook"].includes(String(body.mode))
+  ) {
     failures.push("/api/waitlist submit test returned an unexpected body");
   }
 
-  if (requireWebhook && body.mode !== "webhook") {
+  if (requireWebhook && !["upstash", "webhook"].includes(String(body.mode))) {
     failures.push(
       `/api/waitlist submit test returned mode ${String(
         body.mode ?? "missing",
-      )}; expected webhook`,
+      )}; expected durable capture`,
     );
   }
 }

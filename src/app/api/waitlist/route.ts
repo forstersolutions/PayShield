@@ -506,7 +506,7 @@ export async function POST(request: NextRequest) {
       ok: true,
       mode: result.mode,
       message:
-        result.mode === "webhook"
+        result.mode === "webhook" || result.mode === "upstash"
           ? "Pilot request received."
           : "Prototype request accepted for this walkthrough. Pilot capture opens when production lead storage is enabled.",
     });
