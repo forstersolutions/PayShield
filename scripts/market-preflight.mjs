@@ -182,6 +182,14 @@ requireText(
   "src/app/components/paycheck-planner.tsx",
   'src="/images/payshield-product-mockup.avif"',
 );
+requireText("src/app/page.tsx", "Paycheck split model");
+requireText("src/app/page.tsx", "spending-control simulations");
+requireText("src/app/page.tsx", "partner-led launch diligence");
+requireText(
+  "src/app/components/paycheck-planner.tsx",
+  "Spending authorization",
+);
+requireText("docs/legal-review-packet.md", "Paycheck split model");
 requireText(
   "public/.well-known/security.txt",
   "Contact: https://github.com/forstersolutions/PayShield/security/advisories/new",
@@ -667,6 +675,10 @@ const publicCopyFiles = [
   "src/app/components/waitlist-form.tsx",
   "src/app/components/paycheck-planner.tsx",
 ];
+const publicMarketingFiles = [
+  "src/app/page.tsx",
+  "src/app/components/paycheck-planner.tsx",
+];
 
 for (const path of publicCopyFiles) {
   rejectPattern(
@@ -714,6 +726,49 @@ for (const path of publicCopyFiles) {
     path,
     /\bCapture households\b/i,
     "Do not phrase public pilot copy like an operator acquisition instruction",
+  );
+}
+
+for (const path of publicMarketingFiles) {
+  rejectPattern(
+    path,
+    /\bdirect[-\s]deposit\b/i,
+    "Do not imply live direct-deposit support in public product marketing",
+  );
+  rejectPattern(
+    path,
+    /\bACH\b/i,
+    "Do not imply live ACH support in public product marketing",
+  );
+  rejectPattern(
+    path,
+    /\bdebit card\b/i,
+    "Do not imply a live debit-card product in public product marketing",
+  );
+  rejectPattern(
+    path,
+    /\bvirtual[-\s]card\b/i,
+    "Do not imply a live virtual-card product in public product marketing",
+  );
+  rejectPattern(
+    path,
+    /\bcard issuing\b/i,
+    "Do not imply live card issuing in public product marketing",
+  );
+  rejectPattern(
+    path,
+    /\bcard authorization\b/i,
+    "Use prototype spending-control language instead of live card authorization claims",
+  );
+  rejectPattern(
+    path,
+    /\bthen connect real money movement\b/i,
+    "Do not imply real money movement is already ready to connect",
+  );
+  rejectPattern(
+    path,
+    /\bbefore live money movement\b/i,
+    "Do not imply live money movement is imminent without regulated launch approval",
   );
 }
 

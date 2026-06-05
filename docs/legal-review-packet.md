@@ -29,8 +29,8 @@ Approved prototype framing currently present in the product:
 - "Prototype only. PayShield is not a bank."
 - "Prototype ready for diligence. Regulated-money launch still needs the partner
   stack."
-- Future-only public phrase: "Start with demand validation, then connect real
-  money movement."
+- Future-only public phrase: "Start with demand validation, then partner-led
+  launch diligence."
 - "The prototype is ready for customer discovery, employer conversations,
   investor review, and banking-partner diligence."
 
@@ -44,15 +44,16 @@ copy. They are intentionally presented as prototype/future mechanics, but should
 still be reviewed before paid traffic.
 
 - "A controlled ledger first. Banking rails when the partner stack is approved."
-- "The front-end presents the real product mechanics: paycheck detection,
-  protected internal buckets, bill-only payment routes, card authorization
-  limits, emergency unlock friction, and recovery plans."
-- Future-only public label: "Direct deposit split" and "A future paycheck event
-  would fund obligations first and send the remainder to safe spending."
-- "Card controls" and "Debit authorization checks safe spending instead of the
-  total account balance."
-- "Bill-only buckets" and "Rent, insurance, and vehicle money can route only to
-  approved payees and expected rails."
+- "The front-end presents prototype mechanics: paycheck planning, protected
+  internal buckets, future bill-routing rules, spending-control simulations,
+  emergency unlock friction, and recovery plans."
+- Future-only public label: "Paycheck split model" and "A future
+  partner-approved paycheck event would fund obligations first and send the
+  remainder to safe spending."
+- "Card controls" and "Future card-control logic would check safe spending
+  instead of a total account-style balance."
+- "Bill-only buckets" and "Rent, insurance, and vehicle reserves can be modeled
+  for approved payees before payment rails are live."
 - "The bank balance is not the truth. Safe to spend is."
 - "Rent money cannot disappear into ordinary card purchases."
 - "Emergency access creates a recovery plan instead of a penalty spiral."
@@ -80,7 +81,7 @@ still be reviewed before paid traffic.
    guarantee, UDAAP, or reliance risk.
 3. Confirm whether pricing examples can remain public before real service terms,
    partner-bank contracts, and fee disclosures exist.
-4. Confirm whether future-only phrases such as "direct deposit split", "card
+4. Confirm whether future-only phrases such as "paycheck split model", "card
    controls", "bill-only buckets", and similar future mechanics need stronger
    qualification or removal from paid landing pages.
 5. Confirm whether the Privacy Notice and Terms are sufficient for collecting

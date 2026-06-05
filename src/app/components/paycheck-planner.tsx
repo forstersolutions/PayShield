@@ -50,7 +50,7 @@ const buckets: Bucket[] = [
     amount: 500,
     due: "1st",
     protection: "Bill-only",
-    rail: "ACH to approved landlord",
+    rail: "Modeled landlord payee",
     color: "#0f766e",
     icon: Home,
   },
@@ -231,7 +231,7 @@ export function PaycheckPlanner() {
       title: "1. Bucket rules run",
     },
     {
-      body: `${formatMoney(plan.safeSpend)} is visible to card authorization.`,
+      body: `${formatMoney(plan.safeSpend)} is visible to the spending-control simulation.`,
       icon: WalletCards,
       title: "2. Safe-spend check",
     },
@@ -506,7 +506,7 @@ export function PaycheckPlanner() {
                 </span>
               </div>
               <Image
-                alt="PayShield mobile dashboard and debit card concept"
+                alt="PayShield mobile dashboard and spending-control card concept"
                 className="aspect-[16/11] w-full object-cover"
                 height={1024}
                 priority
@@ -516,7 +516,7 @@ export function PaycheckPlanner() {
               <div className="border-t border-white/10 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-semibold text-[#f4f1e8]">
-                    Card authorization
+                    Spending authorization
                   </p>
                   <WalletCards
                     className="size-5 text-[#9c9588]"
@@ -539,7 +539,7 @@ export function PaycheckPlanner() {
                   </label>
 
                   <label className="text-sm font-medium text-[#d6cfbf]">
-                    Card amount
+                    Purchase amount
                     <div className="mt-2 flex h-11 items-center rounded-[8px] border border-white/10 bg-[#070807] px-3">
                       <span className="text-[#9c9588]">$</span>
                       <input
@@ -628,7 +628,7 @@ export function PaycheckPlanner() {
                         {cardApproved ? "Approved" : "Declined"} at {merchant}
                       </p>
                       <p className="mt-1 text-sm leading-6 text-[#b9b2a3]">
-                        The debit card can only see{" "}
+                        The spending-control simulation can only see{" "}
                         {formatMoney(plan.safeSpend)} safe-spending funds.
                       </p>
                     </div>

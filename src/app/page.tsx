@@ -30,10 +30,10 @@ export default function Home() {
               approved.
             </h2>
             <p className="mt-4 text-lg leading-8 text-[#b9b2a3]">
-              The front-end presents the real product mechanics: paycheck
-              detection, protected internal buckets, bill-only payment routes,
-              card authorization limits, emergency unlock friction, and recovery
-              plans.
+              The front-end presents prototype mechanics: paycheck planning,
+              protected internal buckets, future bill-routing rules,
+              spending-control simulations, emergency unlock friction, and
+              recovery plans.
             </p>
           </div>
 
@@ -192,7 +192,7 @@ export default function Home() {
               Pilot path
             </p>
             <h2 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
-              Start with demand validation, then connect real money movement.
+              Start with demand validation, then partner-led launch diligence.
             </h2>
             <p className="mt-4 max-w-3xl text-lg leading-8 text-[#b9b2a3]">
               The prototype is ready for customer discovery, employer
@@ -202,8 +202,8 @@ export default function Home() {
             </p>
             <div className="mt-8 grid gap-3 text-sm leading-6 text-[#c8c0af] sm:grid-cols-3">
               <p className="rounded-[8px] border border-white/10 bg-white/[0.03] p-3">
-                Validate the safe-spend message with households before live
-                money movement.
+                Validate the safe-spend message with households before
+                regulated financial services.
               </p>
               <p className="rounded-[8px] border border-white/10 bg-white/[0.03] p-3">
                 Segment pilots by household, employer, partner, and investor
@@ -225,8 +225,8 @@ export default function Home() {
 
 const railItems = [
   {
-    title: "Direct deposit split",
-    body: "A future paycheck event would fund obligations first and send the remainder to safe spending.",
+    title: "Paycheck split model",
+    body: "A future partner-approved paycheck event would fund obligations first and send the remainder to safe spending.",
     icon: Landmark,
   },
   {
@@ -236,19 +236,19 @@ const railItems = [
   },
   {
     title: "Card controls",
-    body: "Debit authorization checks safe spending instead of the total account balance.",
+    body: "Future card-control logic would check safe spending instead of a total account-style balance.",
     icon: WalletCards,
   },
   {
     title: "Bill-only buckets",
-    body: "Rent, insurance, and vehicle money can route only to approved payees and expected rails.",
+    body: "Rent, insurance, and vehicle reserves can be modeled for approved payees before payment rails are live.",
     icon: ReceiptText,
   },
 ];
 
 const positioning = [
-  "Every paycheck gets a job before the debit card can touch it.",
-  "Rent money cannot disappear into ordinary card purchases.",
+  "Every paycheck gets a job before everyday spending can touch it.",
+  "Rent money cannot disappear into ordinary purchase decisions.",
   "Short paychecks fund high-priority obligations before flexible goals.",
   "Emergency access creates a recovery plan instead of a penalty spiral.",
 ];
@@ -268,7 +268,7 @@ const plans = [
   {
     name: "Pro",
     price: "$12.99",
-    body: "Direct-deposit account, protected bill buckets, virtual-card routes, and shared household views.",
+    body: "Partner-led pilot planning, protected bill buckets, card-control concepts, and shared household views.",
   },
   {
     name: "Premium",
@@ -286,7 +286,7 @@ const launchItems = [
   },
   {
     title: "BaaS partner decision",
-    body: "Evaluate sponsor bank, ledgering, ACH, card issuing, KYC, fraud tooling, disputes, and program oversight.",
+    body: "Evaluate sponsor bank, ledgering, approved payment rails, card-program controls, KYC, fraud tooling, disputes, and program oversight.",
     status: "Next",
     icon: Building2,
   },
