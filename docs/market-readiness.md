@@ -49,6 +49,9 @@ deployments, partner demos, and pilot demand capture.
 - Vercel Web Analytics and Speed Insights are installed and mounted.
 - Pilot conversion events track non-PII segment, result, status, and sanitized
   campaign metadata.
+- Prototype Privacy Notice discloses campaign attribution fields, Vercel Web
+  Analytics, Speed Insights, and the analytics boundary that excludes emails,
+  names, sensitive financial details, and free-text pilot notes.
 - `/api/waitlist` emits structured logs for request start, validation outcomes,
   webhook mode, completion, and failures.
 - `/api/health` reports public-safe deployment and waitlist readiness state
@@ -110,6 +113,8 @@ deployments, partner demos, and pilot demand capture.
 - Submit at least one test URL with `utm_source`, `utm_medium`, and
   `utm_campaign`, then confirm analytics and the receiver show only sanitized
   campaign fields, not raw query strings or free-text notes.
+- Confirm the Privacy Notice still discloses campaign attribution, analytics,
+  performance metadata, and the analytics PII boundary before campaign traffic.
 - Confirm privacy policy and terms links before collecting personal data beyond
   pilot emails and optional notes.
 - Run `npm run campaign:lint -- path/to/campaign-copy.md` for every paid ad,

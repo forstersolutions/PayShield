@@ -199,6 +199,9 @@ scaffold assets, `/api/health`, and waitlist consent validation without creating
 a persisted lead. Use `--expect-site-url` on the production URL to confirm
 canonical metadata, social image URLs, robots, sitemap entries, and
 `security.txt` match `NEXT_PUBLIC_SITE_URL`.
+It also confirms the Privacy Notice discloses campaign attribution, Vercel Web
+Analytics, Speed Insights, and that analytics events exclude emails, names,
+sensitive financial details, and free-text pilot notes.
 
 `/api/health` returns public-safe readiness state. In demo mode, it returns
 `waitlist.mode: "demo"` and `waitlist.paidTrafficReady: false`. After the
@@ -244,6 +247,8 @@ Submit one pilot request from the site and confirm:
 
 - Confirm custom domain and `NEXT_PUBLIC_SITE_URL` match.
 - Confirm Privacy Notice and Terms links work from the pilot form and footer.
+- Confirm the Privacy Notice discloses UTM attribution, analytics, performance
+  metadata, and the analytics PII boundary before campaign traffic.
 - Confirm `/.well-known/security.txt` links to private GitHub vulnerability
   reporting and the repository security policy.
 - Confirm social previews use `payshield-social-card.jpg`.

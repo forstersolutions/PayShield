@@ -34,6 +34,7 @@ body:
       options:
         - label: Prototype Privacy Notice reviewed for the current campaign.
         - label: Prototype Terms reviewed for the current campaign.
+        - label: Privacy Notice discloses UTM attribution, Vercel Web Analytics, Speed Insights, and the analytics PII boundary.
         - label: Public copy does not claim PayShield is a bank.
         - label: Public copy does not claim FDIC insurance or sponsor-bank coverage.
         - label: No live money movement, account opening, ACH, card issuing, or bill-pay promises are used in campaign copy.

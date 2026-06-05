@@ -54,6 +54,9 @@ export default function PrivacyPage() {
                 and optional notes about what you want PayShield to protect. The
                 website may also process basic technical information such as IP
                 address, browser metadata, timestamps, and anti-abuse signals.
+                Campaign links may add allowlisted attribution fields such as
+                utm_source, utm_medium, utm_campaign, utm_content, utm_term, and
+                the landing path without query parameters.
               </p>
             </section>
 
@@ -64,7 +67,15 @@ export default function PrivacyPage() {
               <p className="mt-3">
                 We use pilot request information to respond to inquiries,
                 prioritize product research, evaluate market demand, improve the
-                prototype, and prepare partner or customer discovery.
+                prototype, and prepare partner or customer discovery. Vercel Web
+                Analytics and Speed Insights may process non-PII event,
+                campaign, and performance metadata so the prototype can measure
+                conversion and page experience.
+              </p>
+              <p className="mt-3">
+                PayShield does not send email addresses, names, bank details,
+                card details, Social Security numbers, or free-text pilot notes
+                to analytics events.
               </p>
             </section>
 
@@ -75,6 +86,8 @@ export default function PrivacyPage() {
               <p className="mt-3">
                 Pilot requests may be forwarded to configured tools such as a
                 CRM, Airtable, Slack, Make, Zapier, or another internal webhook.
+                That forwarded pilot request may include sanitized campaign
+                attribution so campaign performance can be matched to the lead.
                 We do not sell pilot request information. Do not submit bank
                 account numbers, Social Security numbers, card numbers, or other
                 sensitive financial information through the prototype form.

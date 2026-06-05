@@ -172,8 +172,9 @@ for paid campaign and ad-copy guardrails. See
 environment, webhook, and post-deploy smoke-test runbook. The deploy smoke
 checker validates required pages, launch assets, safe waitlist API validation,
 browser security headers, public `security.txt`, absence of default scaffold
-assets, and, when `--expect-site-url` is provided, production canonical,
-sitemap, robots, security, and social image URLs.
+assets, Privacy Notice attribution and analytics disclosures, and, when
+`--expect-site-url` is provided, production canonical, sitemap, robots,
+security, and social image URLs.
 See [SECURITY.md](SECURITY.md) for vulnerability reporting and production
 security baseline notes.
 

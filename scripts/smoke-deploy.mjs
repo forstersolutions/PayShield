@@ -85,9 +85,12 @@ async function expectStatus(path, expectedStatus, init = {}) {
 async function expectText(path, requiredText) {
   const response = await expectStatus(path, 200);
   const body = await response.text();
+  const normalizedBody = body.replace(/\s+/g, " ");
 
   for (const text of requiredText) {
-    if (!body.includes(text)) {
+    const normalizedText = text.replace(/\s+/g, " ");
+
+    if (!normalizedBody.includes(normalizedText)) {
       failures.push(`${path} is missing required text: ${text}`);
     }
   }
@@ -290,6 +293,10 @@ try {
   await expectText("/privacy", [
     "Privacy Notice",
     "does not currently open deposit accounts",
+    "utm_source",
+    "Vercel Web Analytics",
+    "does not send email addresses, names, bank details",
+    "free-text pilot notes to analytics",
   ]);
   await expectText("/terms", [
     "Terms",

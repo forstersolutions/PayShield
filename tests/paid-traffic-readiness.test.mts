@@ -39,7 +39,12 @@ function evidence(overrides: Record<string, unknown> = {}) {
     },
     homeBody,
     homeHeaders,
-    privacyBody: "PayShield does not currently open deposit accounts.",
+    privacyBody: [
+      "PayShield does not currently open deposit accounts.",
+      "Campaign links may add allowlisted attribution fields such as utm_source and utm_campaign.",
+      "Vercel Web Analytics and Speed Insights may process non-PII event metadata.",
+      "PayShield does not send email addresses, names, bank details, or free-text pilot notes to analytics.",
+    ].join(" "),
     securityBody: [
       "Contact: https://github.com/forstersolutions/PayShield/security/advisories/new",
       "Policy: https://github.com/forstersolutions/PayShield/security/policy",
@@ -156,4 +161,16 @@ test("requires public security disclosure metadata", () => {
 
   assert.equal(result.ok, false);
   assert.match(result.failures.join("\n"), /security\.txt/);
+});
+
+test("requires privacy disclosure for attribution and analytics", () => {
+  const result = evaluatePaidTrafficReadiness(
+    evidence({
+      privacyBody: "PayShield does not currently open deposit accounts.",
+    }),
+  );
+
+  assert.equal(result.ok, false);
+  assert.match(result.failures.join("\n"), /privacy/);
+  assert.match(result.failures.join("\n"), /analytics|attribution/i);
 });

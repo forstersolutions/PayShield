@@ -223,10 +223,31 @@ export function evaluatePaidTrafficReadiness(evidence) {
     );
   }
 
+  const normalizedPrivacyBody = evidence.privacyBody.replace(/\s+/g, " ");
+
   record(
     result,
-    evidence.privacyBody.includes("does not currently open deposit accounts"),
+    normalizedPrivacyBody.includes("does not currently open deposit accounts"),
     "/privacy states the prototype does not open deposit accounts",
+  );
+  record(
+    result,
+    normalizedPrivacyBody.includes("utm_source") &&
+      normalizedPrivacyBody.includes("utm_campaign"),
+    "/privacy discloses campaign attribution fields",
+  );
+  record(
+    result,
+    normalizedPrivacyBody.includes("Vercel Web Analytics") &&
+      normalizedPrivacyBody.includes("Speed Insights"),
+    "/privacy discloses analytics and performance processing",
+  );
+  record(
+    result,
+    normalizedPrivacyBody.includes(
+      "does not send email addresses, names, bank details",
+    ) && normalizedPrivacyBody.includes("free-text pilot notes to analytics"),
+    "/privacy states analytics events exclude PII and free-text notes",
   );
   record(
     result,

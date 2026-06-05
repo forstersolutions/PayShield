@@ -116,6 +116,15 @@ requireText(
   "src/app/privacy/page.tsx",
   "does not currently open deposit accounts, move money, issue cards, or collect bank credentials",
 );
+requireText("src/app/privacy/page.tsx", "utm_source");
+requireText("src/app/privacy/page.tsx", "utm_campaign");
+requireText("src/app/privacy/page.tsx", "Vercel Web Analytics");
+requireText("src/app/privacy/page.tsx", "Speed Insights");
+requireText(
+  "src/app/privacy/page.tsx",
+  "does not send email addresses, names, bank details",
+);
+requireText("src/app/privacy/page.tsx", "free-text pilot notes");
 requireText("src/app/components/waitlist-form.tsx", "Privacy Notice");
 requireText("src/app/components/waitlist-form.tsx", "Terms");
 requireText("src/app/components/waitlist-form.tsx", "consent");
@@ -199,6 +208,10 @@ requireText(
 requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   "Default scaffold assets",
+);
+requireText(
+  ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
+  "Privacy Notice discloses UTM attribution",
 );
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET is required");
