@@ -27,6 +27,7 @@ npm run dev
 npm run verify
 npm run campaign:lint -- path/to/campaign-copy.md
 npm run legal:lint
+npm run launch:evidence -- https://your-domain.com --expect-site-url https://your-domain.com
 npm run lead-capture:dry-run
 npm test
 npm run market-preflight
@@ -117,6 +118,13 @@ current prototype state while keeping demo capture as a warning.
 URL, webhook signing secret, and fail-closed flag without printing encrypted
 values. Use `npx vercel env ls | npm run vercel:env:audit -- --stdin --allow-prototype`
 to document the current prototype state before the webhook variables exist.
+
+`npm run launch:evidence -- https://your-domain.com --expect-site-url https://your-domain.com`
+prints a redacted JSON packet for the readiness issue. It combines production
+health, public paid-traffic readiness checks, Vercel env audit status, and the
+local lead-capture dry run. Default mode is prototype evidence mode; add
+`--strict` after the webhook env variables are configured to fail unless
+production health and Vercel env prove paid-traffic-ready capture.
 
 `npm run lead-capture:dry-run` starts the lightweight receiver on localhost,
 forces `/api/waitlist` into signed required-webhook mode, submits one pilot

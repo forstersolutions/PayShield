@@ -303,7 +303,7 @@ async function fetchText(baseUrl, path, timeoutMs, init = {}) {
   };
 }
 
-async function collectEvidence({ targetUrl, timeoutMs }) {
+export async function collectPaidTrafficEvidence({ targetUrl, timeoutMs }) {
   const baseUrl = normalizeSiteUrl(targetUrl);
   const home = await fetchText(baseUrl, "/", timeoutMs);
   const privacy = await fetchText(baseUrl, "/privacy", timeoutMs);
@@ -360,7 +360,7 @@ async function main() {
     return;
   }
 
-  const evidence = await collectEvidence(args);
+  const evidence = await collectPaidTrafficEvidence(args);
   const expectedSiteUrl = args.expectedSiteUrl
     ? normalizeSiteUrl(args.expectedSiteUrl)
     : "";

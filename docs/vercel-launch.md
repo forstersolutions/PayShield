@@ -69,6 +69,18 @@ npx vercel env ls | npm run vercel:env:audit -- --stdin --allow-prototype
 
 The audit must pass without `--allow-prototype` before paid traffic.
 
+Generate a redacted readiness evidence packet for the launch issue:
+
+```bash
+npm run launch:evidence -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app
+```
+
+The packet includes production health, public paid-traffic readiness checks,
+Vercel env audit status, the local lead-capture dry run, and the remaining hard
+gates. In the current prototype state, it should report `paidTrafficReady:
+false`. After the webhook env variables are configured, rerun it with `--strict`
+and attach the output only if it passes.
+
 Before selecting a hosted receiver or CRM endpoint, prove the repo-owned lead
 capture path locally:
 

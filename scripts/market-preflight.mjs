@@ -88,6 +88,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   ".dockerignore",
   "Dockerfile.receiver",
   "scripts/check-campaign-copy.mjs",
+  "scripts/launch-evidence.mjs",
   "scripts/lead-capture-dry-run.mjs",
   "scripts/paid-traffic-readiness.mjs",
   "scripts/smoke-deploy.mjs",
@@ -175,6 +176,7 @@ requireText("scripts/check-campaign-copy.mjs", "fdic-insurance");
 requireText("scripts/check-campaign-copy.mjs", "direct-deposit");
 requireText("package.json", "\"campaign:lint\"");
 requireText("package.json", "\"legal:lint\"");
+requireText("package.json", "\"launch:evidence\"");
 requireText("package.json", "\"lead-capture:dry-run\"");
 requireText("package.json", "npm run legal:lint");
 requireText("docs/campaign-copy.md", "npm run campaign:lint");
@@ -196,7 +198,12 @@ requireText("scripts/paid-traffic-readiness.mjs", "--allow-prototype");
 requireText("scripts/paid-traffic-readiness.mjs", "paidTrafficReady");
 requireText("scripts/paid-traffic-readiness.mjs", "webhookSigningConfigured");
 requireText("scripts/paid-traffic-readiness.mjs", "publicCopyBannedPhrases");
+requireText("scripts/paid-traffic-readiness.mjs", "collectPaidTrafficEvidence");
 requireText("scripts/paid-traffic-readiness.mjs", "/.well-known/security.txt");
+requireText("scripts/launch-evidence.mjs", "summarizeLaunchReadiness");
+requireText("scripts/launch-evidence.mjs", "runLeadCaptureDryRun");
+requireText("scripts/launch-evidence.mjs", "auditVercelEnvList");
+requireText("scripts/launch-evidence.mjs", "--strict");
 requireText("scripts/test-waitlist-webhook.mjs", "sendSignedWebhookTest");
 requireText("scripts/test-waitlist-webhook.mjs", "x-payshield-webhook-signature");
 requireText("scripts/test-waitlist-webhook.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");
@@ -264,6 +271,10 @@ requireText(
 requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   "npm run vercel:env:audit",
+);
+requireText(
+  ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
+  "npm run launch:evidence",
 );
 requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",

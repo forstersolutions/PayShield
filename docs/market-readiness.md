@@ -35,6 +35,9 @@ deployments, partner demos, and pilot demand capture.
   boundary.
 - Paid-traffic readiness issue form for tracking launch evidence and the
   remaining lead-capture, legal, analytics, and production-ops gates.
+- Redacted launch evidence command that combines production health, public
+  readiness checks, Vercel env audit status, local lead-capture proof, and the
+  remaining hard gates for the readiness issue.
 - Automated market preflight checks for required prototype disclaimers, consent
   links, launch assets, env examples, and blocked regulated-finance claims.
 - Campaign copy linter and guardrails for checking paid ads, email campaigns,
@@ -117,6 +120,9 @@ deployments, partner demos, and pilot demand capture.
   `NEXT_PUBLIC_SITE_URL`, `PAYSHIELD_WAITLIST_WEBHOOK_URL`,
   `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`, and
   `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK` before paid traffic.
+- Run `npm run launch:evidence -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app`
+  and attach the redacted JSON output to the readiness issue. After production
+  webhook capture is configured, rerun the command with `--strict`.
 - Confirm `https://payshield-lime.vercel.app/api/health` reports
   `waitlist.webhookSigningConfigured: true` and
   `waitlist.paidTrafficReady: true` after the webhook, signing secret, and

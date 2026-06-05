@@ -25,6 +25,7 @@ body:
         - label: "`PAYSHIELD_WAITLIST_WEBHOOK_SECRET` is configured in Vercel Production."
         - label: "`PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` is configured in Vercel Production."
         - label: "`npm run vercel:env:audit` passes for Production."
+        - label: "`npm run launch:evidence -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --strict` passes."
         - label: "`/api/health` reports `waitlist.webhookSigningConfigured: true`."
         - label: "`/api/health` reports `waitlist.paidTrafficReady: true`."
         - label: "`npm run smoke:deploy -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --submit-test --require-webhook` passes."
