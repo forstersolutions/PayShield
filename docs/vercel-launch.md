@@ -32,8 +32,10 @@ Use this checklist after the repository is pushed to
 GitHub Actions runs `npm run verify` before Vercel deploys from the GitHub
 integration. This includes linting, TypeScript checks, route tests, market
 copy/asset preflight checks, production build, and production dependency audit.
-The same workflow also runs `npm run receiver:docker:build` so the lightweight
-receiver image remains buildable when that fallback capture path is needed.
+The same workflow also runs `npm run receiver:docker:smoke` so the lightweight
+receiver image is buildable, starts with a mounted data volume, reports health,
+accepts signed idempotent submissions, and supports non-PII summary plus
+deletion dry-run handling when that fallback capture path is needed.
 
 ## Environment Variables
 
@@ -195,6 +197,7 @@ For a container host with a persistent volume, build the dedicated receiver
 image:
 
 ```bash
+npm run receiver:docker:smoke
 docker build -f Dockerfile.receiver -t payshield-waitlist-receiver .
 docker run --rm \
   -p 8787:8787 \
@@ -204,6 +207,10 @@ docker run --rm \
 curl http://localhost:8787/health
 PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook npm run webhook:test -- http://localhost:8787/payshield-waitlist
 ```
+
+The Docker smoke command uses a temporary host-mounted `/data/waitlist` volume
+and prints redacted JSON. It should pass before the lightweight receiver is used
+for production capture. GitHub Actions also runs it on every launch commit.
 
 Do not use a container instance without a persistent volume for paid traffic.
 The receiver writes lead data to files under `/data/waitlist`; ephemeral storage

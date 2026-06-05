@@ -19,6 +19,7 @@ body:
       label: Lead Capture Gates
       options:
         - label: "`npm run lead-capture:dry-run` passes locally and the non-PII output is attached."
+        - label: "`npm run receiver:docker:smoke` passes in CI or locally if the lightweight receiver will be used."
         - label: Receiver selected and owned by the launch operator.
         - label: "Receiver accepts `npm run webhook:test -- https://your-webhook-url --replay`."
         - label: "`PAYSHIELD_WAITLIST_WEBHOOK_URL` is configured in Vercel Production."

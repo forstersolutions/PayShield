@@ -31,5 +31,5 @@ jobs:
       - name: Verify market site
         run: npm run verify
 
-      - name: Build waitlist receiver image
-        run: npm run receiver:docker:build
+      - name: Smoke waitlist receiver image
+        run: npm run receiver:docker:smoke

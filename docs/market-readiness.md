@@ -23,8 +23,8 @@ deployments, partner demos, and pilot demand capture.
   and install surfaces.
 - `npm run verify` and GitHub Actions CI for linting, TypeScript checks,
   waitlist API tests, market copy/asset preflight checks, production builds,
-  production dependency audits, and receiver Docker image builds before Vercel
-  deployment.
+  production dependency audits, and receiver Docker image smoke checks before
+  Vercel deployment.
 - Dependabot is configured for weekly npm and GitHub Actions update PRs, with
   grouped runtime, observability, lint/type, and workflow maintenance. npm
   semver-major updates are deferred during launch so major framework and tooling
@@ -67,6 +67,10 @@ deployments, partner demos, and pilot demand capture.
   and pilot outreach auditability.
 - Dedicated `Dockerfile.receiver` for running the signed receiver on a container
   host with a persistent `/data/waitlist` volume and `GET /health` checks.
+- Docker receiver smoke command for proving the container image starts with a
+  mounted `/data/waitlist` volume, reports health, accepts signed replayed
+  submissions, writes summary-ready data, and supports deletion dry-run
+  handling.
 - Receiver data-ops command for non-PII lead summaries and email-based deletion
   requests against the lightweight receiver files, including campaign/source
   counts for paid tests.
@@ -104,6 +108,8 @@ deployments, partner demos, and pilot demand capture.
   `/data/waitlist`, confirm `GET /health` returns
   `service: "payshield-waitlist-receiver"`, and include the volume backup/export
   owner in the launch evidence.
+- Run `npm run receiver:docker:smoke` before deploying the lightweight receiver
+  path and attach the redacted output to the readiness issue.
 - If the lightweight receiver is used, run
   `npm run waitlist:data -- summary --data-dir /path/to/waitlist` after test
   submissions to confirm non-PII counts, and use

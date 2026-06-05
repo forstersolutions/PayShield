@@ -92,6 +92,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "scripts/lead-capture-dry-run.mjs",
   "scripts/paid-traffic-readiness.mjs",
   "scripts/smoke-deploy.mjs",
+  "scripts/smoke-docker-receiver.mjs",
   "scripts/test-waitlist-webhook.mjs",
   "scripts/vercel-env-audit.mjs",
   "scripts/waitlist-data-ops.mjs",
@@ -171,6 +172,11 @@ requireText("scripts/smoke-deploy.mjs", "permissions-policy");
 requireText("scripts/smoke-deploy.mjs", "/.well-known/security.txt");
 requireText("scripts/smoke-deploy.mjs", "expectMissingAsset");
 requireText("scripts/smoke-deploy.mjs", "payshield-social-card.jpg");
+requireText("scripts/smoke-docker-receiver.mjs", "runDockerReceiverSmoke");
+requireText("scripts/smoke-docker-receiver.mjs", "Dockerfile.receiver");
+requireText("scripts/smoke-docker-receiver.mjs", "sendSignedWebhookTest");
+requireText("scripts/smoke-docker-receiver.mjs", "summarizeWaitlistData");
+requireText("scripts/smoke-docker-receiver.mjs", "eraseWaitlistEmail");
 requireText("scripts/check-campaign-copy.mjs", "lintCampaignCopy");
 requireText("scripts/check-campaign-copy.mjs", "fdic-insurance");
 requireText("scripts/check-campaign-copy.mjs", "direct-deposit");
@@ -178,6 +184,7 @@ requireText("package.json", "\"campaign:lint\"");
 requireText("package.json", "\"legal:lint\"");
 requireText("package.json", "\"launch:evidence\"");
 requireText("package.json", "\"lead-capture:dry-run\"");
+requireText("package.json", "\"receiver:docker:smoke\"");
 requireText("package.json", "npm run legal:lint");
 requireText("docs/campaign-copy.md", "npm run campaign:lint");
 requireText("docs/campaign-copy.md", "npm run legal:lint");
@@ -227,7 +234,7 @@ requireText("scripts/waitlist-data-ops.mjs", "submissionId");
 requireText("package.json", "\"waitlist:data\"");
 requireText("package.json", "\"vercel:env:audit\"");
 requireText("package.json", "\"receiver:docker:build\"");
-requireText(".github/workflows/ci.yml", "npm run receiver:docker:build");
+requireText(".github/workflows/ci.yml", "npm run receiver:docker:smoke");
 requireText("SECURITY.md", "GitHub Dependabot security updates are enabled");
 requireText("SECURITY.md", "GitHub private vulnerability reporting is enabled");
 requireText("SECURITY.md", "Do not open a public issue for security vulnerabilities");
@@ -279,6 +286,10 @@ requireText(
 requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   "npm run lead-capture:dry-run",
+);
+requireText(
+  ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
+  "npm run receiver:docker:smoke",
 );
 requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",

@@ -32,6 +32,7 @@ npm run lead-capture:dry-run
 npm test
 npm run market-preflight
 npm run receiver:docker:build
+npm run receiver:docker:smoke
 npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com
 npm run readiness:paid-traffic -- https://your-domain.com --expect-site-url https://your-domain.com --allow-prototype
 npm run smoke:deploy -- https://your-domain.com
@@ -52,10 +53,11 @@ npm run typecheck
 `npm run verify` runs linting, TypeScript checks, waitlist API tests, market
 copy/asset preflight checks, a production build, and a production dependency
 audit. GitHub Actions runs the same preflight on pushes to `main` and pull
-requests, then builds `Dockerfile.receiver` with
-`npm run receiver:docker:build`. Vercel's Git integration will still create
-preview and production deployments; the workflow is a source-level quality gate
-before deployment.
+requests, then runs `npm run receiver:docker:smoke` to build
+`Dockerfile.receiver`, start it with a mounted data volume, verify health,
+signed replay capture, non-PII summary output, and deletion dry-run handling.
+Vercel's Git integration will still create preview and production deployments;
+the workflow is a source-level quality gate before deployment.
 
 Dependabot is configured for weekly npm and GitHub Actions update pull requests,
 grouped by runtime, Vercel observability, lint/type tooling, and workflow
@@ -145,6 +147,7 @@ platform health checks.
 For a container host with a persistent volume:
 
 ```bash
+npm run receiver:docker:smoke
 docker build -f Dockerfile.receiver -t payshield-waitlist-receiver .
 docker run --rm \
   -p 8787:8787 \
@@ -154,6 +157,12 @@ docker run --rm \
 curl http://localhost:8787/health
 PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook npm run webhook:test -- http://localhost:8787/payshield-waitlist --replay
 ```
+
+`npm run receiver:docker:smoke` builds `Dockerfile.receiver`, runs the image with
+a temporary host-mounted `/data/waitlist` volume, checks `/health`, sends a
+signed replay smoke payload, verifies non-PII data summary output, and dry-runs
+email deletion handling. GitHub Actions runs this smoke check on each launch
+commit so the lightweight receiver fallback is more than build-only.
 
 `npm run webhook:test -- https://your-webhook-url --replay` sends one signed
 sample payload to any receiver using `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`, then

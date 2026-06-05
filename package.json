@@ -20,6 +20,7 @@
     "market-preflight": "node scripts/market-preflight.mjs",
     "readiness:paid-traffic": "node scripts/paid-traffic-readiness.mjs",
     "receiver:docker:build": "docker build -f Dockerfile.receiver -t payshield-waitlist-receiver:ci .",
+    "receiver:docker:smoke": "node scripts/smoke-docker-receiver.mjs",
     "smoke:deploy": "node scripts/smoke-deploy.mjs",
     "waitlist:data": "node scripts/waitlist-data-ops.mjs",
     "vercel:env:audit": "node scripts/vercel-env-audit.mjs",
