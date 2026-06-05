@@ -105,8 +105,8 @@ export function WaitlistForm() {
       <div className="mb-4">
         <p className="text-sm font-semibold">Request pilot access</p>
         <p className="mt-1 text-sm leading-6 text-stone-600">
-          Capture households, employers, partners, and investors from the first
-          Vercel preview.
+          Join the pilot list or start a partner conversation about
+          protected-paycheck controls.
         </p>
       </div>
 

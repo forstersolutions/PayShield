@@ -150,8 +150,8 @@ export default function Home() {
               Launch readiness
             </p>
             <h2 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
-              Market-ready front end. Regulated-money launch still needs the
-              partner stack.
+              Prototype ready for diligence. Regulated-money launch still
+              needs the partner stack.
             </h2>
             <p className="mt-4 text-lg leading-8 text-stone-700">
               The public surface avoids saying PayShield is a bank and avoids
@@ -195,10 +195,10 @@ export default function Home() {
               Start with demand validation, then connect real money movement.
             </h2>
             <p className="mt-4 max-w-3xl text-lg leading-8 text-stone-300">
-              The current build is ready for Vercel preview links, investor
-              demos, partner conversations, and customer discovery. The next
-              build should connect the waitlist webhook, analytics, and partner
-              onboarding artifacts.
+              The prototype is ready for customer discovery, employer
+              conversations, investor review, and banking-partner diligence.
+              The next phase should prove durable lead capture, campaign
+              analytics, and partner onboarding readiness.
             </p>
             <div className="mt-8 grid gap-3 text-sm leading-6 text-stone-300 sm:grid-cols-3">
               <p className="rounded-[8px] border border-white/10 p-3">
@@ -210,8 +210,8 @@ export default function Home() {
                 interest.
               </p>
               <p className="rounded-[8px] border border-white/10 p-3">
-                Forward submissions to CRM, Airtable, Slack, or Make from
-                Vercel.
+                Collect pilot requests only after durable lead storage is
+                verified and privacy expectations are clear.
               </p>
             </div>
           </div>
@@ -292,7 +292,7 @@ const launchItems = [
   },
   {
     title: "Prototype funnel",
-    body: "Ship this frontend to Vercel, add analytics, collect pilot demand, and validate the safe-spend message.",
+    body: "Use the live prototype for customer discovery, investor review, and partner diligence while validating the safe-spend message.",
     status: "Ready",
     icon: Gauge,
   },

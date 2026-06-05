@@ -162,6 +162,7 @@ const publicCopyFiles = [
   "src/app/privacy/page.tsx",
   "src/app/terms/page.tsx",
   "src/app/components/site-footer.tsx",
+  "src/app/components/waitlist-form.tsx",
   "src/app/components/paycheck-planner.tsx",
 ];
 
@@ -186,6 +187,31 @@ for (const path of publicCopyFiles) {
     path,
     /\bFDIC[-\s]insured\b/i,
     "Do not claim FDIC insurance before the final sponsor and recordkeeping model",
+  );
+  rejectPattern(
+    path,
+    /\bVercel preview\b/i,
+    "Do not expose deployment-preview language in public marketing copy",
+  );
+  rejectPattern(
+    path,
+    /\bwaitlist webhook\b/i,
+    "Do not expose backend lead-capture setup language in public marketing copy",
+  );
+  rejectPattern(
+    path,
+    /\bShip this frontend to Vercel\b/i,
+    "Do not expose deployment instructions in public marketing copy",
+  );
+  rejectPattern(
+    path,
+    /\bForward submissions to CRM\b/i,
+    "Do not expose internal lead-routing instructions in public marketing copy",
+  );
+  rejectPattern(
+    path,
+    /\bCapture households\b/i,
+    "Do not phrase public pilot copy like an operator acquisition instruction",
   );
 }
 
