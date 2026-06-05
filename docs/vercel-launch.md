@@ -59,20 +59,26 @@ Run the smoke checker against the preview URL and then the production URL:
 
 ```bash
 npm run smoke:deploy -- https://your-domain.com
+npm run smoke:deploy -- https://your-domain.com --expect-site-url https://your-domain.com
 ```
 
 The default smoke check validates the homepage, legal pages, SEO routes, launch
-assets, and waitlist consent validation without creating a persisted lead.
+assets, browser security headers, and waitlist consent validation without
+creating a persisted lead. Use `--expect-site-url` on the production URL to
+confirm canonical metadata, social image URLs, robots, and sitemap entries match
+`NEXT_PUBLIC_SITE_URL`.
+
 After the webhook is configured, run one explicit submission test:
 
 ```bash
-npm run smoke:deploy -- https://your-domain.com --submit-test
+npm run smoke:deploy -- https://your-domain.com --expect-site-url https://your-domain.com --submit-test
 ```
 
 Manual equivalents:
 
 ```bash
 curl -I https://your-domain.com/
+curl -I https://your-domain.com/ | rg 'x-content-type-options|referrer-policy|x-frame-options|permissions-policy'
 curl -I https://your-domain.com/images/payshield-social-card.jpg
 curl https://your-domain.com/robots.txt
 curl https://your-domain.com/sitemap.xml

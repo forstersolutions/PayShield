@@ -25,6 +25,7 @@ npm run verify
 npm test
 npm run market-preflight
 npm run smoke:deploy -- https://your-domain.com
+npm run smoke:deploy -- https://your-domain.com --expect-site-url https://your-domain.com
 npm run build
 npm run start
 npm run lint
@@ -97,7 +98,10 @@ name, or free-text notes to analytics.
 See [docs/market-readiness.md](docs/market-readiness.md) for the current launch
 checklist and regulated-money gates. See
 [docs/vercel-launch.md](docs/vercel-launch.md) for the Vercel import,
-environment, webhook, and post-deploy smoke-test runbook.
+environment, webhook, and post-deploy smoke-test runbook. The deploy smoke
+checker validates required pages, launch assets, safe waitlist API validation,
+browser security headers, and, when `--expect-site-url` is provided, production
+canonical, sitemap, robots, and social image URLs.
 
 ## Source Asset
 
