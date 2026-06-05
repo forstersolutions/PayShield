@@ -1,6 +1,11 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server.js";
 import { track } from "@vercel/analytics/server";
+import {
+  hasPilotCampaignAttribution,
+  pilotCampaignAnalyticsProperties,
+  type CampaignAttribution,
+} from "../../lib/pilot-analytics.ts";
 
 type WaitlistPayload = {
   attribution?: unknown;
@@ -10,15 +15,6 @@ type WaitlistPayload = {
   company?: unknown;
   message?: unknown;
   consent?: unknown;
-};
-
-type CampaignAttribution = {
-  landingPath?: string;
-  utmCampaign?: string;
-  utmContent?: string;
-  utmMedium?: string;
-  utmSource?: string;
-  utmTerm?: string;
 };
 
 type WaitlistSubmission = {
@@ -145,36 +141,6 @@ function cleanCampaignAttribution(value: unknown) {
   }
 
   return attribution;
-}
-
-function hasCampaignAttribution(attribution: CampaignAttribution) {
-  return Boolean(
-    attribution.utmSource ||
-      attribution.utmMedium ||
-      attribution.utmCampaign ||
-      attribution.utmContent ||
-      attribution.utmTerm,
-  );
-}
-
-function campaignAnalyticsProperties(attribution: CampaignAttribution) {
-  const properties: Record<string, string | boolean> = {
-    hasCampaignAttribution: hasCampaignAttribution(attribution),
-  };
-
-  if (attribution.utmSource) {
-    properties.campaignSource = attribution.utmSource;
-  }
-
-  if (attribution.utmMedium) {
-    properties.campaignMedium = attribution.utmMedium;
-  }
-
-  if (attribution.utmCampaign) {
-    properties.campaignName = attribution.utmCampaign;
-  }
-
-  return properties;
 }
 
 function getClientKey(request: NextRequest) {
@@ -355,7 +321,7 @@ export async function POST(request: NextRequest) {
   const message = cleanText(payload.message, 800);
   const consent = payload.consent === true;
   const attribution = cleanCampaignAttribution(payload.attribution);
-  const analyticsAttribution = campaignAnalyticsProperties(attribution);
+  const analyticsAttribution = pilotCampaignAnalyticsProperties(attribution);
 
   if (!isValidEmail(email)) {
     logWaitlistEvent("info", "request_invalid_email", {
@@ -445,7 +411,7 @@ export async function POST(request: NextRequest) {
     logWaitlistEvent("info", "request_completed", {
       requestId,
       segment,
-      hasCampaignAttribution: hasCampaignAttribution(attribution),
+      hasCampaignAttribution: hasPilotCampaignAttribution(attribution),
       mode: result.mode,
       ms: Date.now() - start,
     });

@@ -78,10 +78,11 @@ npm run launch:evidence -- https://payshield-lime.vercel.app --expect-site-url h
 ```
 
 The packet includes production health, public paid-traffic readiness checks,
-Vercel env audit status, the local lead-capture dry run, and the remaining hard
-gates. In the current prototype state, it should report `paidTrafficReady:
-false`. After the webhook env variables are configured, rerun it with `--strict`
-and attach the output only if it passes.
+analytics instrumentation audit status, Vercel env audit status, the local
+lead-capture dry run, and the remaining hard gates. In the current prototype
+state, it should report `paidTrafficReady: false`. After the webhook env
+variables are configured, rerun it with `--strict` and attach the output only if
+it passes.
 
 Before selecting a hosted receiver or CRM endpoint, prove the repo-owned lead
 capture path locally:
@@ -284,6 +285,19 @@ npm run smoke:deploy -- https://your-domain.com --expect-site-url https://your-d
 Before the webhook is configured, the same readiness command may be run with
 `--allow-prototype`; it should pass the public launch-surface checks while
 warning that waitlist capture is still in demo mode.
+
+Before campaign traffic, audit analytics instrumentation:
+
+```bash
+npm run analytics:audit
+```
+
+The audit checks that Vercel Analytics and Speed Insights are mounted, pilot
+analytics event names are approved, analytics property keys are approved,
+campaign metadata is limited to non-PII source/medium/campaign fields, and
+track calls do not send email, names, free-text notes, consent text,
+submission IDs, or sensitive UTM fields. This does not replace dashboard
+confirmation after real test traffic.
 
 Manual equivalents:
 

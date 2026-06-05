@@ -53,6 +53,7 @@ body:
       label: Production Operations Gates
       options:
         - label: Production deployment is on the intended `main` commit.
+        - label: "`npm run analytics:audit` passes and the redacted output is attached."
         - label: Vercel Web Analytics is enabled and receiving non-PII conversion events with sanitized campaign metadata.
         - label: Vercel Speed Insights is enabled and receiving page data.
         - label: "`/.well-known/security.txt` links to private GitHub vulnerability reporting and the repository security policy."

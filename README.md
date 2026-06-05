@@ -25,6 +25,7 @@ Production is deployed on Vercel at
 ```bash
 npm run dev
 npm run verify
+npm run analytics:audit
 npm run campaign:lint -- path/to/campaign-copy.md
 npm run legal:lint
 npm run launch:evidence -- https://your-domain.com --expect-site-url https://your-domain.com
@@ -50,10 +51,10 @@ npm run typecheck
 
 ## Continuous Integration
 
-`npm run verify` runs linting, TypeScript checks, waitlist API tests, market
-copy/asset preflight checks, a production build, and a production dependency
-audit. GitHub Actions runs the same preflight on pushes to `main` and pull
-requests, then runs `npm run receiver:docker:smoke` to build
+`npm run verify` runs linting, TypeScript checks, waitlist API tests, analytics
+instrumentation audit, market copy/asset preflight checks, a production build,
+and a production dependency audit. GitHub Actions runs the same preflight on
+pushes to `main` and pull requests, then runs `npm run receiver:docker:smoke` to build
 `Dockerfile.receiver`, start it with a mounted data volume, verify health,
 signed replay capture, non-PII summary output, and deletion dry-run handling.
 Vercel's Git integration will still create preview and production deployments;
@@ -123,10 +124,11 @@ to document the current prototype state before the webhook variables exist.
 
 `npm run launch:evidence -- https://your-domain.com --expect-site-url https://your-domain.com`
 prints a redacted JSON packet for the readiness issue. It combines production
-health, public paid-traffic readiness checks, Vercel env audit status, and the
-local lead-capture dry run. Default mode is prototype evidence mode; add
-`--strict` after the webhook env variables are configured to fail unless
-production health and Vercel env prove paid-traffic-ready capture.
+health, public paid-traffic readiness checks, analytics instrumentation audit,
+Vercel env audit status, and the local lead-capture dry run. Default mode is
+prototype evidence mode; add `--strict` after the webhook env variables are
+configured to fail unless production health and Vercel env prove
+paid-traffic-ready capture.
 
 `npm run lead-capture:dry-run` starts the lightweight receiver on localhost,
 forces `/api/waitlist` into signed required-webhook mode, submits one pilot
@@ -191,6 +193,9 @@ Vercel Web Analytics and Speed Insights are wired in `src/app/layout.tsx`. Enabl
 both products in the Vercel project dashboard after import. Pilot conversion
 events track segment, result, status, and sanitized campaign metadata only; they
 do not send email, name, raw query strings, or free-text notes to analytics.
+`npm run analytics:audit` checks the mounted analytics components, approved
+pilot event names, approved analytics property keys, campaign metadata mapping,
+and banned PII fields.
 
 ## Launch Notes
 

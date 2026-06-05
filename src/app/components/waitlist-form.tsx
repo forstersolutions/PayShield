@@ -4,6 +4,10 @@ import { track } from "@vercel/analytics";
 import { CheckCircle2, Loader2, Send, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import {
+  pilotCampaignAnalyticsProperties,
+  type CampaignAttribution,
+} from "../lib/pilot-analytics.ts";
 
 const segments = [
   "Household",
@@ -19,15 +23,6 @@ type FormState =
   | { status: "loading"; message: string }
   | { status: "success"; message: string }
   | { status: "error"; message: string };
-
-type CampaignAttribution = {
-  landingPath?: string;
-  utmCampaign?: string;
-  utmContent?: string;
-  utmMedium?: string;
-  utmSource?: string;
-  utmTerm?: string;
-};
 
 const attributionParamMap = [
   ["utm_source", "utmSource"],
@@ -96,32 +91,6 @@ function getCampaignAttribution() {
   return attribution;
 }
 
-function campaignAnalyticsProperties(attribution: CampaignAttribution) {
-  const properties: Record<string, string | boolean> = {
-    hasCampaignAttribution: Boolean(
-      attribution.utmSource ||
-        attribution.utmMedium ||
-        attribution.utmCampaign ||
-        attribution.utmContent ||
-        attribution.utmTerm,
-    ),
-  };
-
-  if (attribution.utmSource) {
-    properties.campaignSource = attribution.utmSource;
-  }
-
-  if (attribution.utmMedium) {
-    properties.campaignMedium = attribution.utmMedium;
-  }
-
-  if (attribution.utmCampaign) {
-    properties.campaignName = attribution.utmCampaign;
-  }
-
-  return properties;
-}
-
 export function WaitlistForm() {
   const [state, setState] = useState<FormState>({
     status: "idle",
@@ -135,7 +104,7 @@ export function WaitlistForm() {
     const segment = String(formData.get("segment") ?? "Unknown");
     const hasMessage = Boolean(String(formData.get("message") ?? "").trim());
     const attribution = getCampaignAttribution();
-    const campaignProperties = campaignAnalyticsProperties(attribution);
+    const campaignProperties = pilotCampaignAnalyticsProperties(attribution);
 
     setState({
       status: "loading",

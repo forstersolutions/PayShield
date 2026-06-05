@@ -36,8 +36,9 @@ deployments, partner demos, and pilot demand capture.
 - Paid-traffic readiness issue form for tracking launch evidence and the
   remaining lead-capture, legal, analytics, and production-ops gates.
 - Redacted launch evidence command that combines production health, public
-  readiness checks, Vercel env audit status, local lead-capture proof, and the
-  remaining hard gates for the readiness issue.
+  readiness checks, analytics instrumentation audit status, Vercel env audit
+  status, local lead-capture proof, and the remaining hard gates for the
+  readiness issue.
 - Automated market preflight checks for required prototype disclaimers, consent
   links, launch assets, env examples, and blocked regulated-finance claims.
 - Campaign copy linter and guardrails for checking paid ads, email campaigns,
@@ -53,6 +54,10 @@ deployments, partner demos, and pilot demand capture.
 - Vercel Web Analytics and Speed Insights are installed and mounted.
 - Pilot conversion events track non-PII segment, result, status, and sanitized
   campaign metadata.
+- Analytics audit command for verifying mounted Vercel Analytics and Speed
+  Insights, approved pilot event names, approved analytics property keys,
+  sanitized campaign metadata mapping, and banned PII fields before campaign
+  traffic.
 - Prototype Privacy Notice discloses campaign attribution fields, Vercel Web
   Analytics, Speed Insights, and the analytics boundary that excludes emails,
   names, sensitive financial details, and free-text pilot notes.
@@ -138,6 +143,8 @@ deployments, partner demos, and pilot demand capture.
 - Run `npm run smoke:deploy -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --submit-test --require-webhook`
   and confirm it returns webhook mode before paid traffic.
 - Enable Vercel Web Analytics and Speed Insights in the Vercel dashboard.
+- Run `npm run analytics:audit` and attach the redacted output before campaign
+  traffic.
 - Confirm custom events appear for pilot request attempt, submission, and
   failure after the first production or preview deployment.
 - Submit at least one test URL with `utm_source`, `utm_medium`, and

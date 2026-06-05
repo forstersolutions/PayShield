@@ -6,6 +6,7 @@ import {
   evaluatePaidTrafficReadiness,
   normalizeSiteUrl,
 } from "./paid-traffic-readiness.mjs";
+import { auditAnalyticsInstrumentation } from "./analytics-audit.mjs";
 import { auditVercelEnvList } from "./vercel-env-audit.mjs";
 import { runLeadCaptureDryRun } from "./lead-capture-dry-run.mjs";
 
@@ -122,6 +123,7 @@ function waitlistPaidTrafficReady(health) {
 }
 
 export function summarizeLaunchReadiness({
+  analyticsAudit = { ok: false },
   expectedSiteUrl = "",
   generatedAt = new Date().toISOString(),
   gitCommit = "",
@@ -160,6 +162,10 @@ export function summarizeLaunchReadiness({
     {
       name: "localLeadCaptureDryRun",
       ok: leadCaptureDryRun.ok === true,
+    },
+    {
+      name: "analyticsInstrumentationAudit",
+      ok: analyticsAudit.ok === true,
     },
     {
       name: "productionCommitMatchesLocalGit",
@@ -210,6 +216,7 @@ export function summarizeLaunchReadiness({
     },
     remainingGates,
     gates,
+    analyticsAudit,
     vercelEnv: vercelEnvAudit,
     leadCaptureDryRun: summarizeLeadCaptureDryRun(leadCaptureDryRun),
   };
@@ -220,8 +227,15 @@ export async function buildLaunchEvidence({
   targetUrl,
   timeoutMs = defaultTimeoutMs,
 } = {}) {
-  const [gitCommit, publicEvidence, vercelEnvAudit, leadCaptureDryRun] =
+  const [
+    analyticsAudit,
+    gitCommit,
+    publicEvidence,
+    vercelEnvAudit,
+    leadCaptureDryRun,
+  ] =
     await Promise.all([
+      auditAnalyticsInstrumentation(),
       getGitCommit(),
       collectPaidTrafficEvidence({ targetUrl, timeoutMs }),
       getVercelEnvAudit(),
@@ -229,6 +243,7 @@ export async function buildLaunchEvidence({
     ]);
 
   return summarizeLaunchReadiness({
+    analyticsAudit,
     expectedSiteUrl,
     gitCommit,
     leadCaptureDryRun,

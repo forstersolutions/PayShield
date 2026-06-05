@@ -81,12 +81,14 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/components/site-footer.tsx",
   "src/app/components/waitlist-form.tsx",
   "src/app/components/paycheck-planner.tsx",
+  "src/app/lib/pilot-analytics.ts",
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   ".github/workflows/ci.yml",
   "next.config.ts",
   "SECURITY.md",
   ".dockerignore",
   "Dockerfile.receiver",
+  "scripts/analytics-audit.mjs",
   "scripts/check-campaign-copy.mjs",
   "scripts/launch-evidence.mjs",
   "scripts/lead-capture-dry-run.mjs",
@@ -138,7 +140,7 @@ requireText(
   "Do not include bank, card, SSN, account, or routing numbers.",
 );
 requireText("src/app/components/waitlist-form.tsx", "utm_source");
-requireText("src/app/components/waitlist-form.tsx", "hasCampaignAttribution");
+requireText("src/app/components/waitlist-form.tsx", "pilotCampaignAnalyticsProperties");
 requireText(
   "src/app/layout.tsx",
   'const socialImageUrl = "/images/payshield-social-card.jpg";',
@@ -177,11 +179,18 @@ requireText("scripts/smoke-docker-receiver.mjs", "Dockerfile.receiver");
 requireText("scripts/smoke-docker-receiver.mjs", "sendSignedWebhookTest");
 requireText("scripts/smoke-docker-receiver.mjs", "summarizeWaitlistData");
 requireText("scripts/smoke-docker-receiver.mjs", "eraseWaitlistEmail");
+requireText("scripts/analytics-audit.mjs", "auditAnalyticsInstrumentation");
+requireText("scripts/analytics-audit.mjs", "Pilot Request Attempted");
+requireText("scripts/analytics-audit.mjs", "Pilot Request Submitted");
+requireText("scripts/analytics-audit.mjs", "approvedTrackPropertySpreads");
+requireText("scripts/analytics-audit.mjs", "bannedTrackPropertyPatterns");
+requireText("scripts/analytics-audit.mjs", "sends unapproved analytics property");
 requireText("scripts/check-campaign-copy.mjs", "lintCampaignCopy");
 requireText("scripts/check-campaign-copy.mjs", "fdic-insurance");
 requireText("scripts/check-campaign-copy.mjs", "direct-deposit");
 requireText("package.json", "\"campaign:lint\"");
 requireText("package.json", "\"legal:lint\"");
+requireText("package.json", "\"analytics:audit\"");
 requireText("package.json", "\"launch:evidence\"");
 requireText("package.json", "\"lead-capture:dry-run\"");
 requireText("package.json", "\"receiver:docker:smoke\"");
@@ -315,7 +324,10 @@ requireText(
   "Do not include bank, card, SSN, or other sensitive financial details.",
 );
 requireText("src/app/api/waitlist/route.ts", "cleanCampaignAttribution");
-requireText("src/app/api/waitlist/route.ts", "hasCampaignAttribution");
+requireText("src/app/api/waitlist/route.ts", "pilotCampaignAnalyticsProperties");
+requireText("src/app/lib/pilot-analytics.ts", "pilotAnalyticsEventNames");
+requireText("src/app/lib/pilot-analytics.ts", "pilotAnalyticsPropertyKeys");
+requireText("src/app/lib/pilot-analytics.ts", "pilotCampaignAnalyticsProperties");
 requireText("src/app/api/health/route.ts", "paidTrafficReady");
 requireText("src/app/api/health/route.ts", "webhookConfigured");
 requireText("src/app/api/health/route.ts", "webhookSigningConfigured");
@@ -355,7 +367,9 @@ requireText("docs/market-readiness.md", "idempotent capture");
 requireText("docs/market-readiness.md", "webhook:test -- https://your-webhook-url --replay");
 requireText("docs/market-readiness.md", "npm run legal:lint");
 requireText("docs/market-readiness.md", "npm run vercel:env:audit");
+requireText("docs/market-readiness.md", "npm run analytics:audit");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "sanitized `attribution` fields");
+requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run analytics:audit");
 
 requireMaxSize("src/app/icon.svg", 5_000);
 requireMaxSize("public/images/payshield-product-mockup.avif", 125_000);

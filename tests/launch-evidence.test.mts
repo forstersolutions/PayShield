@@ -94,9 +94,42 @@ const leadCaptureDryRun = {
     total: 1,
   },
 };
+const analyticsAudit = {
+  allowedEventNames: [
+    "Pilot Request Attempted",
+    "Pilot Request Failed",
+    "Pilot Request Received",
+    "Pilot Request Submitted",
+  ],
+  allowedPropertyKeys: [
+    "campaignMedium",
+    "campaignName",
+    "campaignSource",
+    "hasCampaignAttribution",
+    "hasMessage",
+    "hasName",
+    "mode",
+    "segment",
+    "status",
+  ],
+  analyticsMounted: true,
+  eventNames: [
+    "Pilot Request Attempted",
+    "Pilot Request Failed",
+    "Pilot Request Received",
+    "Pilot Request Submitted",
+  ],
+  findings: [],
+  ok: true,
+  propertyKeys: ["hasMessage", "hasName", "mode", "segment", "status"],
+  speedInsightsMounted: true,
+  spreadProperties: ["analyticsAttribution", "campaignProperties"],
+  trackCallCount: 6,
+};
 
 test("summarizes current prototype evidence without treating paid traffic as ready", () => {
   const evidence = summarizeLaunchReadiness({
+    analyticsAudit,
     expectedSiteUrl: targetUrl,
     generatedAt: "2026-06-05T00:00:00.000Z",
     gitCommit,
@@ -144,6 +177,7 @@ test("summarizes current prototype evidence without treating paid traffic as rea
 
 test("marks evidence paid-traffic ready when strict health and env gates pass", () => {
   const evidence = summarizeLaunchReadiness({
+    analyticsAudit,
     expectedSiteUrl: targetUrl,
     gitCommit,
     leadCaptureDryRun,
@@ -193,6 +227,7 @@ test("flags a production commit mismatch", () => {
   staleEvidence.health.vercel.gitCommitSha = "different";
 
   const evidence = summarizeLaunchReadiness({
+    analyticsAudit,
     gitCommit,
     leadCaptureDryRun,
     publicEvidence: staleEvidence,
