@@ -1,0 +1,5 @@
+Contact: https://github.com/forstersolutions/PayShield/security/advisories/new
+Policy: https://github.com/forstersolutions/PayShield/security/policy
+Preferred-Languages: en
+Canonical: https://payshield-lime.vercel.app/.well-known/security.txt
+Expires: 2027-06-05T00:00:00Z

@@ -40,6 +40,11 @@ function evidence(overrides: Record<string, unknown> = {}) {
     homeBody,
     homeHeaders,
     privacyBody: "PayShield does not currently open deposit accounts.",
+    securityBody: [
+      "Contact: https://github.com/forstersolutions/PayShield/security/advisories/new",
+      "Policy: https://github.com/forstersolutions/PayShield/security/policy",
+      "Canonical: https://payshield-lime.vercel.app/.well-known/security.txt",
+    ].join("\n"),
     termsBody: "PayShield is not a bank.",
     validationBody: { error: "Accept the pilot privacy and terms notice." },
     validationStatus: 400,
@@ -140,4 +145,15 @@ test("rejects operator-facing copy on the public page", () => {
 
   assert.equal(result.ok, false);
   assert.match(result.failures.join("\n"), /waitlist webhook/);
+});
+
+test("requires public security disclosure metadata", () => {
+  const result = evaluatePaidTrafficReadiness(
+    evidence({
+      securityBody: "Contact: https://example.com/security",
+    }),
+  );
+
+  assert.equal(result.ok, false);
+  assert.match(result.failures.join("\n"), /security\.txt/);
 });

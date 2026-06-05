@@ -12,6 +12,8 @@ concerns.
 Use GitHub private vulnerability reporting for this repository. If that flow is
 temporarily unavailable, contact a repository maintainer through a private
 channel first and wait for a secure place to share details.
+The production site also publishes `/.well-known/security.txt` with the private
+advisory link and this policy URL.
 
 Include:
 
@@ -33,7 +35,8 @@ Do not include:
 - GitHub Dependabot security updates are enabled.
 - GitHub private vulnerability reporting is enabled.
 - `npm run verify` includes a production dependency audit.
-- Vercel deployment smoke checks verify browser security headers.
+- Vercel deployment smoke checks verify browser security headers and
+  `/.well-known/security.txt`.
 - Waitlist webhook payloads support HMAC-SHA256 signatures and timestamp replay
   checks.
 

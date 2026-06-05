@@ -30,7 +30,8 @@ deployments, partner demos, and pilot demand capture.
   migrations stay intentional. Dependabot security updates, secret scanning,
   push protection, and private vulnerability reporting are enabled on GitHub.
 - Security policy for private vulnerability reporting, sensitive data handling,
-  and the current prototype/live-money boundary.
+  public `/.well-known/security.txt`, and the current prototype/live-money
+  boundary.
 - Paid-traffic readiness issue form for tracking launch evidence and the
   remaining lead-capture, legal, analytics, and production-ops gates.
 - Automated market preflight checks for required prototype disclaimers, consent
@@ -40,7 +41,8 @@ deployments, partner demos, and pilot demand capture.
   counsel review.
 - Post-deploy smoke checker for Vercel preview and production URLs, including
   homepage metadata, legal pages, SEO routes, assets, browser security headers,
-  production site URL alignment, and safe waitlist API validation.
+  public security disclosure, absence of default scaffold assets, production
+  site URL alignment, and safe waitlist API validation.
 - Route-level waitlist API tests covering demo mode, validation, honeypot
   filtering, rate limiting, oversized requests, webhook forwarding, and webhook
   failure handling.

@@ -19,6 +19,14 @@ function requireFile(path) {
   return fullPath;
 }
 
+function requireMissingFile(path) {
+  const fullPath = join(root, path);
+
+  if (existsSync(fullPath)) {
+    failures.push(`Remove scaffold asset before launch: ${path}`);
+  }
+}
+
 function requireText(path, text) {
   const content = readProjectFile(path);
   const normalizedContent = content.replace(/\s+/g, " ");
@@ -66,6 +74,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/manifest.ts",
   "src/app/privacy/page.tsx",
   "src/app/terms/page.tsx",
+  "public/.well-known/security.txt",
   "docs/campaign-copy.md",
   "src/app/api/health/route.ts",
   "src/app/components/site-footer.tsx",
@@ -128,12 +137,26 @@ requireText(
   "src/app/components/paycheck-planner.tsx",
   'src="/images/payshield-product-mockup.avif"',
 );
+requireText(
+  "public/.well-known/security.txt",
+  "Contact: https://github.com/forstersolutions/PayShield/security/advisories/new",
+);
+requireText(
+  "public/.well-known/security.txt",
+  "Policy: https://github.com/forstersolutions/PayShield/security/policy",
+);
+requireText(
+  "public/.well-known/security.txt",
+  "Canonical: https://payshield-lime.vercel.app/.well-known/security.txt",
+);
 requireText("scripts/smoke-deploy.mjs", "--expect-site-url");
 requireText("scripts/smoke-deploy.mjs", "--require-webhook");
 requireText("scripts/smoke-deploy.mjs", "webhookSigningConfigured");
 requireText("scripts/smoke-deploy.mjs", "x-content-type-options");
 requireText("scripts/smoke-deploy.mjs", "strict-transport-security");
 requireText("scripts/smoke-deploy.mjs", "permissions-policy");
+requireText("scripts/smoke-deploy.mjs", "/.well-known/security.txt");
+requireText("scripts/smoke-deploy.mjs", "expectMissingAsset");
 requireText("scripts/smoke-deploy.mjs", "payshield-social-card.jpg");
 requireText("scripts/check-campaign-copy.mjs", "lintCampaignCopy");
 requireText("scripts/check-campaign-copy.mjs", "fdic-insurance");
@@ -147,6 +170,7 @@ requireText("scripts/paid-traffic-readiness.mjs", "--allow-prototype");
 requireText("scripts/paid-traffic-readiness.mjs", "paidTrafficReady");
 requireText("scripts/paid-traffic-readiness.mjs", "webhookSigningConfigured");
 requireText("scripts/paid-traffic-readiness.mjs", "publicCopyBannedPhrases");
+requireText("scripts/paid-traffic-readiness.mjs", "/.well-known/security.txt");
 requireText("scripts/test-waitlist-webhook.mjs", "sendSignedWebhookTest");
 requireText("scripts/test-waitlist-webhook.mjs", "x-payshield-webhook-signature");
 requireText("scripts/test-waitlist-webhook.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");
@@ -159,6 +183,7 @@ requireText(".github/workflows/ci.yml", "npm run receiver:docker:build");
 requireText("SECURITY.md", "GitHub Dependabot security updates are enabled");
 requireText("SECURITY.md", "GitHub private vulnerability reporting is enabled");
 requireText("SECURITY.md", "Do not open a public issue for security vulnerabilities");
+requireText("SECURITY.md", "/.well-known/security.txt");
 requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true",
@@ -166,6 +191,14 @@ requireText(
 requireText(
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   "waitlist.paidTrafficReady: true",
+);
+requireText(
+  ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
+  "/.well-known/security.txt",
+);
+requireText(
+  ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
+  "Default scaffold assets",
 );
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
 requireText("src/app/api/waitlist/route.ts", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET is required");
@@ -205,6 +238,14 @@ requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "sanitized `att
 requireMaxSize("src/app/icon.svg", 5_000);
 requireMaxSize("public/images/payshield-product-mockup.avif", 125_000);
 requireMaxSize("public/images/payshield-social-card.jpg", 250_000);
+
+[
+  "public/file.svg",
+  "public/globe.svg",
+  "public/next.svg",
+  "public/vercel.svg",
+  "public/window.svg",
+].forEach((path) => requireMissingFile(path));
 
 const publicCopyFiles = [
   "src/app/page.tsx",

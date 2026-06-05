@@ -171,8 +171,9 @@ for paid campaign and ad-copy guardrails. See
 [docs/vercel-launch.md](docs/vercel-launch.md) for the Vercel import,
 environment, webhook, and post-deploy smoke-test runbook. The deploy smoke
 checker validates required pages, launch assets, safe waitlist API validation,
-browser security headers, and, when `--expect-site-url` is provided, production
-canonical, sitemap, robots, and social image URLs.
+browser security headers, public `security.txt`, absence of default scaffold
+assets, and, when `--expect-site-url` is provided, production canonical,
+sitemap, robots, security, and social image URLs.
 See [SECURITY.md](SECURITY.md) for vulnerability reporting and production
 security baseline notes.
 

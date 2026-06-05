@@ -117,6 +117,10 @@ async function expectAsset(path, expectedType, maxBytes) {
   }
 }
 
+async function expectMissingAsset(path) {
+  await expectStatus(path, 404, { method: "HEAD" });
+}
+
 async function checkWaitlistValidation() {
   const response = await expectStatus("/api/waitlist", 400, {
     method: "POST",
@@ -194,7 +198,7 @@ function expectSecurityHeaders(response, path) {
   ]);
 }
 
-function expectConfiguredSiteUrl(homeBody, robotsBody, sitemapBody) {
+function expectConfiguredSiteUrl(homeBody, robotsBody, sitemapBody, securityBody) {
   if (!expectedSiteUrl) {
     return;
   }
@@ -229,6 +233,12 @@ function expectConfiguredSiteUrl(homeBody, robotsBody, sitemapBody) {
 
   if (!robotsBody.includes(`Sitemap: ${expectedSiteUrl}/sitemap.xml`)) {
     failures.push(`/robots.txt sitemap does not use ${expectedSiteUrl}`);
+  }
+
+  if (!securityBody.includes(`Canonical: ${expectedSiteUrl}/.well-known/security.txt`)) {
+    failures.push(
+      `/.well-known/security.txt canonical does not use ${expectedSiteUrl}`,
+    );
   }
 }
 
@@ -287,13 +297,25 @@ try {
   ]);
   const robots = await expectText("/robots.txt", ["User-Agent: *", "Sitemap:"]);
   const sitemap = await expectText("/sitemap.xml", ["/privacy", "/terms"]);
+  const security = await expectText("/.well-known/security.txt", [
+    "Contact: https://github.com/forstersolutions/PayShield/security/advisories/new",
+    "Policy: https://github.com/forstersolutions/PayShield/security/policy",
+    "Preferred-Languages: en",
+    "Canonical:",
+    "Expires:",
+  ]);
   await expectText("/manifest.webmanifest", ["PayShield", "/icon.svg"]);
   await expectAsset("/icon.svg", "image/svg+xml", 5_000);
   await expectAsset("/images/payshield-social-card.jpg", "image/jpeg", 250_000);
   await expectAsset("/images/payshield-product-mockup.avif", "image/avif", 125_000);
+  await expectMissingAsset("/file.svg");
+  await expectMissingAsset("/globe.svg");
+  await expectMissingAsset("/next.svg");
+  await expectMissingAsset("/vercel.svg");
+  await expectMissingAsset("/window.svg");
   await checkHealth();
   await checkWaitlistValidation();
-  expectConfiguredSiteUrl(home.body, robots.body, sitemap.body);
+  expectConfiguredSiteUrl(home.body, robots.body, sitemap.body, security.body);
 
   if (submitTestLead) {
     await submitLead();

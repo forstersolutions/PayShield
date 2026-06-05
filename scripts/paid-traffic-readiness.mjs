@@ -126,6 +126,7 @@ function recordPaidTraffic(collection, passed, allowPrototype) {
  *   homeBody: string;
  *   homeHeaders: Headers | Record<string, string>;
  *   privacyBody: string;
+ *   securityBody: string;
  *   termsBody: string;
  *   validationBody: Record<string, any>;
  *   validationStatus: number;
@@ -234,6 +235,29 @@ export function evaluatePaidTrafficReadiness(evidence) {
   );
   record(
     result,
+    evidence.securityBody.includes(
+      "Contact: https://github.com/forstersolutions/PayShield/security/advisories/new",
+    ),
+    "/.well-known/security.txt publishes private vulnerability contact",
+  );
+  record(
+    result,
+    evidence.securityBody.includes(
+      "Policy: https://github.com/forstersolutions/PayShield/security/policy",
+    ),
+    "/.well-known/security.txt links the security policy",
+  );
+  if (evidence.expectedSiteUrl) {
+    record(
+      result,
+      evidence.securityBody.includes(
+        `Canonical: ${evidence.expectedSiteUrl}/.well-known/security.txt`,
+      ),
+      "/.well-known/security.txt canonical uses the expected site URL",
+    );
+  }
+  record(
+    result,
     evidence.validationStatus === 400 &&
       evidence.validationBody?.error === "Accept the pilot privacy and terms notice.",
     "/api/waitlist rejects missing consent without creating a persisted lead",
@@ -262,6 +286,7 @@ async function collectEvidence({ targetUrl, timeoutMs }) {
   const baseUrl = normalizeSiteUrl(targetUrl);
   const home = await fetchText(baseUrl, "/", timeoutMs);
   const privacy = await fetchText(baseUrl, "/privacy", timeoutMs);
+  const security = await fetchText(baseUrl, "/.well-known/security.txt", timeoutMs);
   const terms = await fetchText(baseUrl, "/terms", timeoutMs);
   const health = await fetchText(baseUrl, "/api/health", timeoutMs);
   const validation = await fetchText(baseUrl, "/api/waitlist", timeoutMs, {
@@ -280,6 +305,7 @@ async function collectEvidence({ targetUrl, timeoutMs }) {
     homeBody: home.body,
     homeHeaders: home.headers,
     privacyBody: privacy.body,
+    securityBody: security.body,
     termsBody: terms.body,
     validationBody: JSON.parse(validation.body),
     validationStatus: validation.status,
