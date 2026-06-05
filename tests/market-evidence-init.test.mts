@@ -41,9 +41,11 @@ test("creates local market evidence templates and redacted commands", async () =
     ]);
     assert.equal(analytics.webAnalyticsPilotConversions, false);
     assert.match(commands, /npm run receiver:evidence/);
+    assert.match(commands, /npm run vercel:webhook:cutover/);
     assert.match(commands, /npm run launch:evidence/);
     assert.match(commands, /npm run market:go-no-go/);
     assert.match(commands, /PAYSHIELD_WAITLIST_WEBHOOK_SECRET=\.\.\./);
+    assert.match(result.cutoverPlanCommand, /vercel:webhook:cutover/);
     assert.equal(serialized.includes("shared-secret"), false);
     assert.equal(serialized.includes("@"), false);
   } finally {

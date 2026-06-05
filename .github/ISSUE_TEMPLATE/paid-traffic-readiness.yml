@@ -29,6 +29,7 @@ body:
         - label: "`PAYSHIELD_WAITLIST_WEBHOOK_URL` is configured in Vercel Production."
         - label: "`PAYSHIELD_WAITLIST_WEBHOOK_SECRET` is configured in Vercel Production."
         - label: "`PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` is configured in Vercel Production."
+        - label: "`PAYSHIELD_WAITLIST_WEBHOOK_SECRET=... npm run vercel:webhook:cutover -- --site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json` prints the redacted Production env, redeploy, strict evidence, and required-webhook smoke sequence."
         - label: "`npm run vercel:env:audit` passes for Production."
         - label: "`npm run launch:evidence -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --strict` passes."
         - label: "`npm run market:go-no-go -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json --counsel-signoff-file launch-evidence/counsel-signoff.json --analytics-evidence-file launch-evidence/analytics-evidence.json` passes and the redacted output is attached."
@@ -77,6 +78,7 @@ body:
       placeholder: |
         /api/health:
         smoke:deploy:
+        vercel:webhook:cutover:
         market:go-no-go:
         Vercel deployment:
         CI run:

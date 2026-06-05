@@ -45,6 +45,9 @@ deployments, partner demos, and pilot demand capture.
 - Local evidence packet initializer that creates ignored counsel and analytics
   JSON templates plus redacted receiver/launch/go-no-go commands for the final
   operator handoff.
+- Vercel webhook cutover planner that validates receiver evidence and prints
+  the redacted Production env, redeploy, strict evidence, and required-webhook
+  smoke sequence without exposing the signing secret.
 - Automated market preflight checks for required prototype disclaimers, consent
   links, launch assets, env examples, and blocked regulated-finance claims.
 - Campaign copy linter and guardrails for checking paid ads, email campaigns,
@@ -163,6 +166,10 @@ deployments, partner demos, and pilot demand capture.
 - Run `PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run webhook:test -- https://your-webhook-url --replay`
   against the receiver and confirm the initial send and replay both return 2xx
   responses before configuring Vercel to require webhook persistence.
+- Run
+  `PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret npm run vercel:webhook:cutover -- --site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json`
+  and follow the printed redacted Vercel Production env, redeploy, strict
+  launch evidence, and required-webhook smoke sequence.
 - Run `npm run vercel:env:audit` and confirm Vercel Production has
   `NEXT_PUBLIC_SITE_URL`, `PAYSHIELD_WAITLIST_WEBHOOK_URL`,
   `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`, and

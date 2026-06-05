@@ -102,6 +102,23 @@ files only after counsel review and live analytics observation, then run the
 generated final `npm run market:go-no-go` command without
 `--allow-not-ready`.
 
+After `launch-evidence/receiver-evidence.json` exists, generate the Vercel
+Production cutover plan without printing the signing secret:
+
+```bash
+PAYSHIELD_WAITLIST_WEBHOOK_SECRET=shared-secret-for-your-webhook \
+  npm run vercel:webhook:cutover -- \
+  --site-url https://payshield-lime.vercel.app \
+  --receiver-evidence-file launch-evidence/receiver-evidence.json
+```
+
+The command validates the receiver evidence, confirms the signing secret exists
+in the local environment, and prints the `npx vercel env add` commands for
+`PAYSHIELD_WAITLIST_WEBHOOK_URL`, `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`, and
+`PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK=true` plus the required redeploy, env audit,
+strict launch evidence, and required-webhook smoke commands. It references
+`$PAYSHIELD_WAITLIST_WEBHOOK_SECRET` but does not print the secret value.
+
 Before selecting a hosted receiver or CRM endpoint, prove the repo-owned lead
 capture path locally:
 

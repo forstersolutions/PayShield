@@ -167,6 +167,14 @@ function commandsMarkdown({
     ">",
     shellQuote(receiverEvidenceFile),
   ].join(" ");
+  const cutoverPlanCommand = [
+    "PAYSHIELD_WAITLIST_WEBHOOK_SECRET=...",
+    "npm run vercel:webhook:cutover --",
+    "--site-url",
+    shellQuote(siteUrl),
+    "--receiver-evidence-file",
+    shellQuote(receiverEvidenceFile),
+  ].join(" ");
   const goNoGoCommand = [
     "npm run market:go-no-go --",
     shellQuote(siteUrl),
@@ -192,17 +200,23 @@ function commandsMarkdown({
     receiverEvidenceCommand,
     "```",
     "",
-    "2. Configure Vercel Production webhook env vars and prove strict launch evidence:",
+    "2. Generate the redacted Vercel env cutover command sequence:",
+    "",
+    "```bash",
+    cutoverPlanCommand,
+    "```",
+    "",
+    "3. Configure Vercel Production webhook env vars and prove strict launch evidence:",
     "",
     "```bash",
     launchEvidenceCommand,
     "```",
     "",
-    "3. Fill `counsel-signoff.json` only after counsel approves the current Privacy Notice, Terms, public claims, and campaign copy.",
+    "4. Fill `counsel-signoff.json` only after counsel approves the current Privacy Notice, Terms, public claims, and campaign copy.",
     "",
-    "4. Fill `analytics-evidence.json` only after Vercel Web Analytics and Speed Insights show production data from a campaign-attributed pilot test.",
+    "5. Fill `analytics-evidence.json` only after Vercel Web Analytics and Speed Insights show production data from a campaign-attributed pilot test.",
     "",
-    "5. Run the final go/no-go gate without `--allow-not-ready`:",
+    "6. Run the final go/no-go gate without `--allow-not-ready`:",
     "",
     "```bash",
     goNoGoCommand,
@@ -272,6 +286,14 @@ export async function createMarketEvidencePacket({
   }
 
   return {
+    cutoverPlanCommand: [
+      "PAYSHIELD_WAITLIST_WEBHOOK_SECRET=...",
+      "npm run vercel:webhook:cutover --",
+      "--site-url",
+      shellQuote(normalizedSiteUrl),
+      "--receiver-evidence-file",
+      shellQuote(receiverEvidenceFile),
+    ].join(" "),
     files: files.map((file) => file.path),
     generatedAt,
     goNoGoCommand: [

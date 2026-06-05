@@ -102,6 +102,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "scripts/smoke-docker-receiver.mjs",
   "scripts/test-waitlist-webhook.mjs",
   "scripts/vercel-env-audit.mjs",
+  "scripts/vercel-webhook-cutover.mjs",
   "scripts/waitlist-data-ops.mjs",
   "scripts/waitlist-webhook-receiver.mjs",
   "vercel.json",
@@ -247,6 +248,12 @@ requireText("scripts/market-go-no-go.mjs", "evaluateReceiverEvidence");
 requireText("scripts/market-go-no-go.mjs", "evaluateCounselSignoff");
 requireText("scripts/market-go-no-go.mjs", "evaluateAnalyticsEvidence");
 requireText("scripts/market-go-no-go.mjs", "strictProductionLaunchEvidence");
+requireText("scripts/market-evidence-init.mjs", "vercel:webhook:cutover");
+requireText("scripts/vercel-webhook-cutover.mjs", "buildVercelWebhookCutoverPlan");
+requireText("scripts/vercel-webhook-cutover.mjs", "evaluateReceiverEvidence");
+requireText("scripts/vercel-webhook-cutover.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");
+requireText("scripts/vercel-webhook-cutover.mjs", "npx vercel env add PAYSHIELD_WAITLIST_WEBHOOK_SECRET ${environment} --sensitive");
+requireText("scripts/vercel-webhook-cutover.mjs", "secretNotPrinted");
 requireText("scripts/test-waitlist-webhook.mjs", "sendSignedWebhookTest");
 requireText("scripts/test-waitlist-webhook.mjs", "x-payshield-webhook-signature");
 requireText("scripts/test-waitlist-webhook.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");
@@ -290,6 +297,7 @@ requireText("scripts/waitlist-data-ops.mjs", "consentedAt");
 requireText("scripts/waitlist-data-ops.mjs", "submissionId");
 requireText("package.json", "\"waitlist:data\"");
 requireText("package.json", "\"vercel:env:audit\"");
+requireText("package.json", "\"vercel:webhook:cutover\"");
 requireText("package.json", "\"receiver:docker:build\"");
 requireText("package.json", "\"receiver:evidence\"");
 requireText(".github/workflows/ci.yml", "npm run receiver:docker:smoke");
@@ -436,6 +444,7 @@ requireText("docs/vercel-launch.md", "docker compose --env-file .env.receiver -f
 requireText("docs/vercel-launch.md", "npm run receiver:compose:config");
 requireText("docs/vercel-launch.md", "npm run receiver:evidence");
 requireText("docs/vercel-launch.md", "npm run market:evidence:init");
+requireText("docs/vercel-launch.md", "npm run vercel:webhook:cutover");
 requireText("docs/vercel-launch.md", "npm run market:go-no-go");
 requireText("docs/vercel-launch.md", "npm run waitlist:data -- audit --data-dir /path/to/waitlist");
 requireText("docs/vercel-launch.md", "npm run waitlist:data -- backup --data-dir /path/to/waitlist --backup-dir /secure/path");
@@ -451,6 +460,7 @@ requireText("docs/market-readiness.md", "docker compose --env-file .env.receiver
 requireText("docs/market-readiness.md", "npm run receiver:compose:config");
 requireText("docs/market-readiness.md", "npm run receiver:evidence");
 requireText("docs/market-readiness.md", "npm run market:evidence:init");
+requireText("docs/market-readiness.md", "npm run vercel:webhook:cutover");
 requireText("docs/market-readiness.md", "npm run market:go-no-go");
 requireText("docs/market-readiness.md", "npm run waitlist:data -- audit --data-dir /path/to/waitlist");
 requireText("docs/market-readiness.md", "npm run waitlist:data -- backup --data-dir /path/to/waitlist --backup-dir /secure/path");
@@ -458,12 +468,14 @@ requireText("docs/market-readiness.md", "npm run waitlist:data -- verify-backup 
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "sanitized `attribution` fields");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run analytics:audit");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run market:evidence:init");
+requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run vercel:webhook:cutover");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run market:go-no-go");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run waitlist:data -- audit");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run waitlist:data -- backup");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run waitlist:data -- verify-backup");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "compose.receiver.yml");
 requireText("docs/legal-review-packet.md", "npm run receiver:evidence");
+requireText("docs/legal-review-packet.md", "npm run vercel:webhook:cutover");
 
 requireMaxSize("src/app/icon.svg", 5_000);
 requireMaxSize("public/images/payshield-product-mockup.avif", 125_000);
