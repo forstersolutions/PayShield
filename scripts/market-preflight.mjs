@@ -145,7 +145,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
 
 requireText(
   "src/app/components/site-footer.tsx",
-  "Manual planning MVP. PayShield is not a bank.",
+  "Spend from the money left after life is covered.",
 );
 requireText("src/app/terms/page.tsx", "PayShield is not a bank.");
 requireText(
@@ -164,7 +164,7 @@ requireText(
   "src/app/privacy/page.tsx",
   "does not send email addresses, names, bank details",
 );
-requireText("src/app/privacy/page.tsx", "free-text access notes");
+requireText("src/app/privacy/page.tsx", "free-text financial notes");
 requireText("src/app/components/waitlist-form.tsx", "Privacy Notice");
 requireText("src/app/components/waitlist-form.tsx", "Terms");
 requireText("src/app/components/waitlist-form.tsx", "consent");
@@ -181,14 +181,15 @@ requireText(
 requireText("src/app/layout.tsx", 'manifest: "/manifest.webmanifest"');
 requireText("src/app/layout.tsx", 'url: "/icon.svg"');
 requireText("src/app/manifest.ts", 'name: "PayShield"');
-requireText("src/app/manifest.ts", 'theme_color: "#0b1017"');
+requireText("src/app/manifest.ts", 'theme_color: "#0d0b09"');
 requireText(
   "src/app/components/paycheck-planner.tsx",
   'src="/images/payshield-product-mockup.avif"',
 );
-requireText("src/app/page.tsx", "A calmer paycheck routine in four steps.");
-requireText("src/app/page.tsx", "Friendly enough for Sunday night.");
-requireText("src/app/components/waitlist-form.tsx", "Request early access");
+requireText("src/app/page.tsx", "Your balance is not your budget. It is the raw material.");
+requireText("src/app/page.tsx", "Balances lie. PayShield tells you what is actually safe to spend.");
+requireText("src/app/page.tsx", "Open the planner. Build the plan. Export the truth.");
+requireText("src/app/components/waitlist-form.tsx", "Contact PayShield");
 requireText(
   "src/app/components/paycheck-planner.tsx",
   "Purchase check",
@@ -222,14 +223,14 @@ requireText("scripts/smoke-docker-receiver.mjs", "sendSignedWebhookTest");
 requireText("scripts/smoke-docker-receiver.mjs", "summarizeWaitlistData");
 requireText("scripts/smoke-docker-receiver.mjs", "eraseWaitlistEmail");
 requireText("scripts/analytics-audit.mjs", "auditAnalyticsInstrumentation");
-requireText("scripts/analytics-audit.mjs", "Early Access Request Attempted");
-requireText("scripts/analytics-audit.mjs", "Early Access Request Submitted");
+requireText("scripts/analytics-audit.mjs", "Product Inquiry Attempted");
+requireText("scripts/analytics-audit.mjs", "Product Inquiry Submitted");
 requireText("scripts/analytics-audit.mjs", "approvedTrackPropertySpreads");
 requireText("scripts/analytics-audit.mjs", "bannedTrackPropertyPatterns");
 requireText("scripts/analytics-audit.mjs", "sends unapproved analytics property");
 requireText("scripts/check-analytics-evidence.mjs", "evaluateLiveAnalyticsEvidence");
-requireText("scripts/check-analytics-evidence.mjs", "Early Access Request Attempted");
-requireText("scripts/check-analytics-evidence.mjs", "Early Access Request Submitted");
+requireText("scripts/check-analytics-evidence.mjs", "Product Inquiry Attempted");
+requireText("scripts/check-analytics-evidence.mjs", "Product Inquiry Submitted");
 requireText("scripts/check-analytics-evidence.mjs", "campaignSource");
 requireText("scripts/check-analytics-evidence.mjs", "campaignMedium");
 requireText("scripts/check-analytics-evidence.mjs", "hasCampaignAttribution");
@@ -266,7 +267,7 @@ requireText("scripts/check-campaign-copy.mjs", "fdic-insurance");
 requireText("scripts/check-campaign-copy.mjs", "direct-deposit");
 requireText("scripts/check-campaign-manifest.mjs", "lintCampaignManifest");
 requireText("scripts/check-campaign-manifest.mjs", "docs/campaigns/manifest.json");
-requireText("scripts/check-campaign-manifest.mjs", "draft-prototype-framing");
+requireText("scripts/check-campaign-manifest.mjs", "draft-planning-only-framing");
 requireText("package.json", "\"campaign:lint\"");
 requireText("package.json", "\"campaign:lint:all\"");
 requireText("package.json", "\"counsel:signoff:check\"");
@@ -295,7 +296,7 @@ requireText("docs/campaigns/manifest.json", "paid-search-safe-spending.md");
 requireText("docs/campaigns/manifest.json", "employer-pilot-email.md");
 requireText("docs/campaigns/manifest.json", "partner-one-pager.md");
 requireText("docs/campaigns/paid-social-household-pilot.md", "PayShield is not a bank.");
-requireText("docs/campaigns/paid-social-household-pilot.md", "prototype");
+requireText("docs/campaigns/paid-social-household-pilot.md", "planning-only");
 requireText("docs/campaigns/paid-search-safe-spending.md", "PayShield is not a bank.");
 requireText("docs/campaigns/employer-pilot-email.md", "PayShield is not a bank.");
 requireText("docs/campaigns/partner-one-pager.md", "PayShield is not a bank.");
@@ -315,7 +316,7 @@ requireText(
 );
 requireText("next.config.ts", "Strict-Transport-Security");
 requireText("next.config.ts", "max-age=31536000");
-requireText("scripts/paid-traffic-readiness.mjs", "--allow-prototype");
+requireText("scripts/paid-traffic-readiness.mjs", "--allow-demo-capture");
 requireText("scripts/paid-traffic-readiness.mjs", "paidTrafficReady");
 requireText("scripts/paid-traffic-readiness.mjs", "webhookSigningConfigured");
 requireText("scripts/paid-traffic-readiness.mjs", "durable lead capture");
@@ -380,8 +381,8 @@ requireText("scripts/vercel-webhook-cutover.mjs", "secretNotPrinted");
 requireText("scripts/test-waitlist-webhook.mjs", "sendSignedWebhookTest");
 requireText("scripts/test-waitlist-webhook.mjs", "x-payshield-webhook-signature");
 requireText("scripts/test-waitlist-webhook.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");
-requireText("scripts/test-waitlist-webhook.mjs", "early-access-contact-consent-2026-06-05");
-requireText("scripts/test-waitlist-webhook.mjs", "early-access-terms-2026-06-05");
+requireText("scripts/test-waitlist-webhook.mjs", "product-onboarding-contact-consent-2026-06-06");
+requireText("scripts/test-waitlist-webhook.mjs", "paycheck-planning-terms-2026-06-06");
 requireText("scripts/test-waitlist-webhook.mjs", "x-payshield-submission-id");
 requireText("scripts/test-waitlist-webhook.mjs", "submissionId");
 requireText("scripts/test-waitlist-webhook.mjs", "--replay");
@@ -545,14 +546,14 @@ requireText("src/app/api/waitlist/route.ts", "multi-exec");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-signature");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-timestamp");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-submission-id");
-requireText("src/app/api/waitlist/route.ts", "early-access-contact-consent-2026-06-05");
-requireText("src/app/api/waitlist/route.ts", "early-access-terms-2026-06-05");
+requireText("src/app/api/waitlist/route.ts", "product-onboarding-contact-consent-2026-06-06");
+requireText("src/app/api/waitlist/route.ts", "paycheck-planning-terms-2026-06-06");
 requireText("src/app/api/waitlist/route.ts", "consentedAt");
 requireText("src/app/api/waitlist/route.ts", "consentText");
 requireText("src/app/api/waitlist/route.ts", "randomUUID");
 requireText(
   "src/app/api/waitlist/route.ts",
-  "Request accepted for this walkthrough",
+  "Request received in local capture mode.",
 );
 requireText("src/app/api/waitlist/route.ts", "request_sensitive_financial_info");
 requireText(
@@ -577,7 +578,7 @@ requireText("scripts/vercel-env-audit.mjs", "UPSTASH_REDIS_REST_URL");
 requireText("scripts/vercel-env-audit.mjs", "UPSTASH_REDIS_REST_TOKEN");
 requireText("scripts/vercel-env-audit.mjs", "BLOB_READ_WRITE_TOKEN");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK");
-requireText("scripts/vercel-env-audit.mjs", "--allow-prototype");
+requireText("scripts/vercel-env-audit.mjs", "--allow-demo-capture");
 requireText("scripts/vercel-env-audit.mjs", "--stdin");
 requireText("scripts/smoke-deploy.mjs", "/api/health");
 requireText("scripts/waitlist-webhook-receiver.mjs", "verifyPayShieldSignature");
@@ -809,7 +810,7 @@ for (const path of publicMarketingFiles) {
   rejectPattern(
     path,
     /\bcard authorization\b/i,
-    "Use prototype spending-control language instead of live card authorization claims",
+    "Use planning-only spending-control language instead of live card authorization claims",
   );
   rejectPattern(
     path,

@@ -14,9 +14,9 @@ async function writeJson(path: string, value: unknown) {
 }
 
 const safeCopy = [
-  "PayShield is a protected-paycheck prototype for customer discovery.",
+  "PayShield is a planning-only paycheck app for household clarity.",
   "PayShield is not a bank.",
-  "Join the pilot list to share feedback.",
+  "The current app does not provide financial services.",
 ].join("\n");
 
 test("passes a non-empty manifest when every campaign draft is safe", async () => {
@@ -82,7 +82,7 @@ test("fails an empty campaign manifest", async () => {
   }
 });
 
-test("flags missing prototype framing and regulated copy findings", async () => {
+test("flags missing planning-only framing and regulated copy findings", async () => {
   const root = await tempRepo();
 
   try {
@@ -110,7 +110,7 @@ test("flags missing prototype framing and regulated copy findings", async () => 
     const ids = result.findings.map((finding: { id: string }) => finding.id);
 
     assert.equal(result.ok, false);
-    assert.equal(ids.includes("draft-prototype-framing"), true);
+    assert.equal(ids.includes("draft-planning-only-framing"), true);
     assert.equal(ids.includes("deposit-account"), true);
     assert.equal(ids.includes("direct-deposit"), true);
     assert.equal(ids.includes("ach"), true);

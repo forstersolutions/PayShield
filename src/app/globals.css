@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #05070a;
-  --foreground: #f8f1e4;
+  --background: #070604;
+  --foreground: #f5efe4;
 }
 
 @theme inline {
@@ -14,14 +14,14 @@
 
 body {
   background:
-    linear-gradient(180deg, #05070a 0%, #0a0f16 48%, #05070a 100%);
+    linear-gradient(180deg, #070604 0%, #0f0d0a 48%, #070604 100%);
   color: var(--foreground);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 ::selection {
-  background: #7cf8d4;
-  color: #04100d;
+  background: #d89b57;
+  color: #120d07;
 }
 
 button,
@@ -38,9 +38,9 @@ html {
 
 .pay-app-shell {
   background:
-    linear-gradient(116deg, rgba(124, 248, 212, 0.14), transparent 30%),
-    linear-gradient(244deg, rgba(255, 209, 102, 0.1), transparent 26%),
-    linear-gradient(180deg, #05070a 0%, #0b1017 48%, #05070a 100%);
+    linear-gradient(120deg, rgba(216, 155, 87, 0.16), transparent 34%),
+    linear-gradient(238deg, rgba(126, 224, 163, 0.1), transparent 30%),
+    linear-gradient(180deg, #070604 0%, #11100d 50%, #070604 100%);
 }
 
 .pay-app-shell::before {
@@ -49,14 +49,11 @@ html {
   pointer-events: none;
   content: "";
   background-image:
-    linear-gradient(110deg, transparent 0 18%, rgba(124, 248, 212, 0.08) 18% 18.2%, transparent 18.2% 100%),
-    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+    repeating-linear-gradient(132deg, transparent 0 38px, rgba(216, 155, 87, 0.045) 38px 39px, transparent 39px 86px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045), transparent 36%, transparent 68%, rgba(126, 224, 163, 0.035));
   background-size:
-    520px 520px,
-    80px 80px,
-    80px 80px;
-  animation: payshield-scan 16s linear infinite;
+    640px 640px,
+    100% 100%;
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.62), transparent 72%);
 }
 
@@ -66,23 +63,7 @@ html {
   height: 32%;
   pointer-events: none;
   content: "";
-  background: linear-gradient(180deg, transparent, rgba(5, 7, 10, 0.94));
-}
-
-@keyframes payshield-scan {
-  from {
-    background-position:
-      0 0,
-      0 0,
-      0 0;
-  }
-
-  to {
-    background-position:
-      520px 0,
-      80px 80px,
-      80px 80px;
-  }
+  background: linear-gradient(180deg, transparent, rgba(7, 6, 4, 0.94));
 }
 
 @media (prefers-reduced-motion: reduce) {

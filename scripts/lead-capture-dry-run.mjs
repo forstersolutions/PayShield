@@ -234,7 +234,7 @@ export async function runLeadCaptureDryRun({ keepData = false } = {}) {
 
     const payload = {
       attribution: {
-        landingPath: "/early-access?email=bad@example.com",
+        landingPath: "/?email=bad@example.com",
         utmCampaign: "Household Launch",
         utmContent: "safe-card<a>",
         utmMedium: "cpc",
@@ -271,9 +271,9 @@ export async function runLeadCaptureDryRun({ keepData = false } = {}) {
     );
     requireCheck(
       checks,
-      record.consentVersion === "early-access-contact-consent-2026-06-05" &&
-        record.privacyVersion === "early-access-privacy-2026-06-05" &&
-        record.termsVersion === "early-access-terms-2026-06-05" &&
+      record.consentVersion === "product-onboarding-contact-consent-2026-06-06" &&
+        record.privacyVersion === "paycheck-planning-privacy-2026-06-06" &&
+        record.termsVersion === "paycheck-planning-terms-2026-06-06" &&
         Boolean(record.consentedAt) &&
         Boolean(record.consentText),
       "receiver persists consent, privacy, and terms audit fields",
@@ -287,7 +287,7 @@ export async function runLeadCaptureDryRun({ keepData = false } = {}) {
     );
     requireCheck(
       checks,
-      record.attribution?.landingPath === "/early-access" &&
+      record.attribution?.landingPath === "/" &&
         record.attribution?.utmCampaign === "Household Launch" &&
         record.attribution?.utmContent === "safe-carda" &&
         record.attribution?.utmMedium === "cpc" &&

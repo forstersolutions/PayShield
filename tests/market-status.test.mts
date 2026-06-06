@@ -34,7 +34,7 @@ const launchEvidence = {
     targetUrl,
   },
   readiness: {
-    prototype: {
+    launchSurface: {
       checks: 32,
       failures: [],
       ok: true,

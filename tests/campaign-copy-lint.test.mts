@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { lintCampaignCopy } from "../scripts/check-campaign-copy.mjs";
 
-test("allows prototype-safe campaign copy and disclaimers", () => {
+test("allows planning-only campaign copy and disclaimers", () => {
   const result = lintCampaignCopy({
     text: [
-      "PayShield is a protected-paycheck prototype for customer discovery.",
+      "PayShield is a planning-only paycheck app for household clarity.",
       "PayShield is not a bank.",
-      "The prototype does not open accounts, move money, issue cards, or offer FDIC insurance.",
-      "Use it to evaluate whether one safe-to-spend balance resonates with households.",
+      "The current app does not open accounts, move money, issue cards, or offer FDIC insurance.",
+      "Use it to see the safe-to-spend number after obligations are covered.",
     ].join("\n"),
   });
 

@@ -11,7 +11,7 @@ Retrieving project...
  NEXT_PUBLIC_SITE_URL       Encrypted           Production          11h ago
 `;
 
-test("reports missing paid-traffic webhook variables in prototype env state", () => {
+test("reports missing paid-traffic webhook variables in demo-capture env state", () => {
   const result = auditVercelEnvList({ text: productionOnly });
 
   assert.equal(result.ok, false);

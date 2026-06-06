@@ -4,9 +4,9 @@ const defaultTimeoutMs = 10_000;
 const serviceName = "payshield-web-app";
 const requiredHomeText = [
   "PayShield | Paycheck Planning App",
-  "Know what is safe to spend before the week gets loud.",
-  "Request early access",
-  "Manual planning MVP. PayShield is not a bank.",
+  "Spend after the paycheck keeps its promises.",
+  "Export plan",
+  "Open the planner. Build the plan. Export the truth.",
 ];
 const publicCopyBannedPhrases = [
   "Vercel preview",
@@ -19,10 +19,10 @@ const publicCopyBannedPhrases = [
 
 function usage() {
   return [
-    "Usage: npm run readiness:paid-traffic -- https://your-domain.com [--expect-site-url https://your-domain.com] [--allow-prototype] [--timeout-ms 10000]",
+    "Usage: npm run readiness:paid-traffic -- https://your-domain.com [--expect-site-url https://your-domain.com] [--allow-demo-capture] [--timeout-ms 10000]",
     "",
     "Default mode fails unless production lead capture is paid-traffic ready.",
-    "--allow-prototype keeps the current prototype deploy auditable while warning about demo capture.",
+    "--allow-demo-capture keeps a non-durable capture deploy auditable while warning about demo capture.",
   ].join("\n");
 }
 
@@ -60,7 +60,7 @@ function parseCliArgs(args) {
   }
 
   return {
-    allowPrototype: args.includes("--allow-prototype"),
+    allowDemoCapture: args.includes("--allow-demo-capture"),
     expectedSiteUrl: flagValue(args, "--expect-site-url"),
     help: false,
     targetUrl,
@@ -102,12 +102,12 @@ function record(collection, passed, message) {
   }
 }
 
-function recordPaidTraffic(collection, passed, allowPrototype) {
+function recordPaidTraffic(collection, passed, allowDemoCapture) {
   if (passed) {
     collection.checks.push(
       "/api/health reports paid-traffic-ready durable lead capture",
     );
-  } else if (allowPrototype) {
+  } else if (allowDemoCapture) {
     collection.warnings.push(
       "/api/health does not report paid-traffic-ready durable lead capture",
     );
@@ -139,7 +139,7 @@ function durableCaptureReady(waitlist) {
 
 /**
  * @param {{
- *   allowPrototype?: boolean;
+ *   allowDemoCapture?: boolean;
  *   expectedSiteUrl?: string;
  *   health: Record<string, any>;
  *   homeBody: string;
@@ -190,7 +190,7 @@ export function evaluatePaidTrafficReadiness(evidence) {
   recordPaidTraffic(
     result,
     paidTrafficReady,
-    evidence.allowPrototype,
+    evidence.allowDemoCapture,
   );
 
   for (const text of requiredHomeText) {
@@ -260,7 +260,7 @@ export function evaluatePaidTrafficReadiness(evidence) {
     result,
     normalizedPrivacyBody.includes(
       "does not send email addresses, names, bank details",
-    ) && normalizedPrivacyBody.includes("free-text access notes to analytics"),
+    ) && normalizedPrivacyBody.includes("free-text financial notes to analytics"),
     "/privacy states analytics events exclude PII and free-text notes",
   );
   record(
@@ -380,7 +380,7 @@ async function main() {
     : "";
   const result = evaluatePaidTrafficReadiness({
     ...evidence,
-    allowPrototype: args.allowPrototype,
+    allowDemoCapture: args.allowDemoCapture,
     expectedSiteUrl,
   });
 

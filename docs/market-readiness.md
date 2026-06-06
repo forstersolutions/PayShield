@@ -1,7 +1,7 @@
 # Market Readiness
 
-This repository is ready to support a public prototype launch, Vercel preview
-deployments, partner demos, and pilot demand capture.
+This repository is ready to support a public commercial planning-app launch, Vercel preview
+deployments, partner demos, and product demand capture.
 
 ## Ready Now
 
@@ -9,7 +9,7 @@ deployments, partner demos, and pilot demand capture.
 - Safe-to-spend balance, protected bucket funding, shortfall handling, card
   authorization preview, and emergency unlock preview.
 - Pricing and positioning copy for Free, Plus, Pro, and Premium plans.
-- Pilot request form with server-side validation, bounded in-memory rate
+- Product inquiry form with server-side validation, bounded in-memory rate
   limiting, request-size guardrails, honeypot filtering, required privacy/terms
   consent, sensitive financial-detail rejection, optional webhook forwarding,
   optional private Vercel Blob storage, optional Vercel Marketplace Upstash
@@ -32,7 +32,7 @@ deployments, partner demos, and pilot demand capture.
   migrations stay intentional. Dependabot security updates, secret scanning,
   push protection, and private vulnerability reporting are enabled on GitHub.
 - Security policy for private vulnerability reporting, sensitive data handling,
-  public `/.well-known/security.txt`, and the current prototype/live-money
+  public `/.well-known/security.txt`, and the current planning-app/live-money
   boundary.
 - Paid-traffic readiness issue form for tracking launch evidence and the
   remaining lead-capture, legal, analytics, and production-ops gates.
@@ -60,7 +60,7 @@ deployments, partner demos, and pilot demand capture.
   and prints the redacted Production env, redeploy, strict evidence,
   required-capture smoke, and Upstash evidence commands without exposing the
   REST URL or token.
-- Automated market preflight checks for required prototype disclaimers, consent
+- Automated market preflight checks for required planning-only disclaimers, consent
   links, launch assets, env examples, and blocked regulated-finance claims.
 - Campaign copy linter and guardrails for checking paid ads, email campaigns,
   social posts, partner one-pagers, and alternate landing-page copy before
@@ -68,7 +68,7 @@ deployments, partner demos, and pilot demand capture.
 - Counsel sign-off validator for checking the redacted legal/compliance
   approval record before final go/no-go.
 - Manifest-backed campaign lint command that checks every listed paid social,
-  paid search, email, partner, and alternate landing-page draft for prototype
+  paid search, email, partner, and alternate landing-page draft for planning-only
   framing and prohibited regulated-finance claims.
 - Post-deploy smoke checker for Vercel preview and production URLs, including
   homepage metadata, legal pages, SEO routes, assets, browser security headers,
@@ -78,7 +78,7 @@ deployments, partner demos, and pilot demand capture.
   filtering, rate limiting, oversized requests, webhook forwarding, and webhook
   failure handling.
 - Vercel Web Analytics and Speed Insights are installed and mounted.
-- Pilot conversion events track non-PII segment, result, status, and sanitized
+- Product inquiry conversion events track non-PII segment, result, status, and sanitized
   campaign metadata.
 - Analytics audit command for verifying mounted Vercel Analytics and Speed
   Insights, approved pilot event names, approved analytics property keys,
@@ -91,9 +91,9 @@ deployments, partner demos, and pilot demand capture.
   durable storage, consent metadata, `submissionId` idempotency, sanitized
   attribution, deletion/export process documentation, and redaction before
   final go/no-go.
-- Prototype Privacy Notice discloses campaign attribution fields, Vercel Web
+- Privacy Notice discloses campaign attribution fields, Vercel Web
   Analytics, Speed Insights, and the analytics boundary that excludes emails,
-  names, sensitive financial details, and free-text pilot notes.
+  names, sensitive financial details, and free-text product inquiry notes.
 - `/api/waitlist` emits structured logs for request start, validation outcomes,
   webhook mode, completion, and failures.
 - `/api/health` reports public-safe deployment and waitlist readiness state
@@ -106,7 +106,7 @@ deployments, partner demos, and pilot demand capture.
   to ignored local NDJSON/CSV files when a lightweight receiver is needed.
 - Waitlist webhook payloads include a `submissionId`, consent text, consent
   timestamp, Privacy Notice version, and Terms version for idempotent capture
-  and pilot outreach auditability.
+  and product onboarding auditability.
 - Dedicated `Dockerfile.receiver` for running the signed receiver on a container
   host with a persistent `/data/waitlist` volume and `GET /health` checks.
 - Dedicated `compose.receiver.yml` handoff manifest that builds the receiver
@@ -137,7 +137,7 @@ deployments, partner demos, and pilot demand capture.
   output, and deletion dry-run handling before a hosted receiver is selected.
 - Conservative fintech language that does not claim PayShield is a bank or that
   funds are FDIC insured.
-- Prototype Privacy Notice and Terms pages linked from the pilot form and
+- Privacy Notice and Terms pages linked from the contact form and
   footer.
 - Production Vercel deployment at `https://payshield-lime.vercel.app`, with the
   Vercel project connected to `forstersolutions/PayShield`, Web Analytics and
@@ -261,13 +261,13 @@ deployments, partner demos, and pilot demand capture.
   `waitlist.paidTrafficReady: true` after the selected durable capture path and
   fail-closed flag are configured.
 - Run `npm run readiness:paid-traffic -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app`
-  and confirm it passes without `--allow-prototype`.
+  and confirm it passes without `--allow-demo-capture`.
 - Run `npm run smoke:deploy -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --submit-test --require-webhook`
   and confirm it returns webhook mode before paid traffic.
 - Enable Vercel Web Analytics and Speed Insights in the Vercel dashboard.
 - Run `npm run analytics:audit` and attach the redacted output before campaign
   traffic.
-- Confirm custom events appear for pilot request attempt, submission, and
+- Confirm custom events appear for product inquiry attempt, submission, and
   failure after the first production or preview deployment.
 - Submit at least one test URL with `utm_source`, `utm_medium`, and
   `utm_campaign`, then confirm analytics and the receiver show only sanitized

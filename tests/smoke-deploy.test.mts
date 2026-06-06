@@ -27,8 +27,9 @@ function html(siteUrl: string) {
     "/icon.svg",
     "payshield-social-card.jpg",
     "payshield-product-mockup.avif",
-    "Request early access",
-    "Manual planning MVP. PayShield is not a bank.",
+    "Export plan",
+    "Open the planner. Build the plan. Export the truth.",
+    "Spend from the money left after life is covered.",
     "</body></html>",
   ].join("");
 }
@@ -77,7 +78,7 @@ async function startSmokeTarget() {
           "utm_source",
           "Vercel Web Analytics",
           "does not send email addresses, names, bank details",
-          "free-text access notes to analytics",
+          "free-text financial notes to analytics",
         ].join("\n"),
         { "content-type": "text/html" },
       );

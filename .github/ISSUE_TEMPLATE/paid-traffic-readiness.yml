@@ -56,8 +56,8 @@ body:
     attributes:
       label: Market And Compliance Gates
       options:
-        - label: Prototype Privacy Notice reviewed for the current campaign.
-        - label: Prototype Terms reviewed for the current campaign.
+        - label: Privacy Notice reviewed for the current campaign.
+        - label: Terms reviewed for the current campaign.
         - label: Privacy Notice discloses UTM attribution, Vercel Web Analytics, Speed Insights, and the analytics PII boundary.
         - label: Public copy does not claim PayShield is a bank.
         - label: Public copy does not claim FDIC insurance or sponsor-bank coverage.

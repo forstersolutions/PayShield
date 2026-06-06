@@ -3,17 +3,17 @@
 Status: ready for counsel review, not approved for launch.
 Channel: partner.
 
-PayShield is a protected-paycheck prototype for exploring whether households,
-employers, and partners want a clearer safe-to-spend experience.
+PayShield is a planning-only paycheck app for households, employers, and
+partners that want a clearer safe-to-spend experience.
 
-The current product surface demonstrates planning concepts, protected-bucket
-messaging, shortfall awareness, and emergency access tradeoffs for customer
-discovery.
+The current product surface delivers paycheck buckets, protected-bucket
+messaging, shortfall awareness, and reserve recovery tradeoffs without bank
+credentials or money movement.
 
-PayShield is not a bank. This prototype does not provide financial services,
-hold funds, or offer insured coverage.
+PayShield is not a bank. The current app does not provide financial services,
+hold funds, move money, issue cards, or offer insured coverage.
 
 Partner discussion goal:
 
-Evaluate pilot demand, user language, employer interest, and future partner
+Evaluate household demand, user language, employer interest, and future partner
 requirements before any regulated financial-service launch.

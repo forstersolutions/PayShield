@@ -63,10 +63,10 @@ const attributionFields = [
   "utmTerm",
 ] as const;
 const consentText =
-  "I agree that PayShield can contact me about early access and handle my information under the Privacy Notice and Terms.";
-const consentVersion = "early-access-contact-consent-2026-06-05";
-const privacyVersion = "early-access-privacy-2026-06-05";
-const termsVersion = "early-access-terms-2026-06-05";
+  "I agree that PayShield can contact me about product onboarding and handle my information under the Privacy Notice and Terms.";
+const consentVersion = "product-onboarding-contact-consent-2026-06-06";
+const privacyVersion = "paycheck-planning-privacy-2026-06-06";
+const termsVersion = "paycheck-planning-terms-2026-06-06";
 
 class WaitlistConfigurationError extends Error {}
 
@@ -451,7 +451,7 @@ export async function POST(request: NextRequest) {
       ms: Date.now() - start,
     });
     return NextResponse.json(
-      { error: "Choose an access segment." },
+      { error: "Choose a contact segment." },
       { status: 400 },
     );
   }
@@ -504,7 +504,7 @@ export async function POST(request: NextRequest) {
     const result = await captureWaitlistSubmission(submission);
 
     await track(
-      "Early Access Request Received",
+      "Product Inquiry Received",
       {
         segment,
         hasName: Boolean(name),
@@ -540,13 +540,13 @@ export async function POST(request: NextRequest) {
         result.mode === "blob" ||
         result.mode === "upstash" ||
         result.mode === "webhook"
-          ? "Early access request received."
-          : "Request accepted for this walkthrough. Early access capture opens when production lead storage is enabled.",
+          ? "Product inquiry received."
+          : "Request received in local capture mode.",
     });
   } catch (error) {
     if (error instanceof WaitlistConfigurationError) {
       await track(
-        "Early Access Request Failed",
+        "Product Inquiry Failed",
         {
           segment,
           status: "missing_webhook",
@@ -568,7 +568,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Early access capture is temporarily unavailable. Try again shortly.",
+            "Contact capture is temporarily unavailable. Try again shortly.",
         },
         { status: 503 },
       );

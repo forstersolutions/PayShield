@@ -5,14 +5,14 @@ Last updated: June 5, 2026.
 
 Use this packet before broad public acquisition, paid ads, partner one-pagers, or
 any regulated financial-service claim. It summarizes the current public
-prototype surface and the specific legal/compliance questions that still need a
+planning-app surface and the specific legal/compliance questions that still need a
 qualified review.
 
 ## Review Scope
 
 - Production URL: `https://payshield-lime.vercel.app`
 - Main public page: `src/app/page.tsx`
-- Pilot request form: `src/app/components/waitlist-form.tsx`
+- Product inquiry form: `src/app/components/waitlist-form.tsx`
 - Privacy Notice: `src/app/privacy/page.tsx`
 - Terms: `src/app/terms/page.tsx`
 - Campaign copy guardrails: `docs/campaign-copy.md`
@@ -20,18 +20,18 @@ qualified review.
 
 ## Current Positioning
 
-The current public surface positions PayShield as a market prototype for
+The current public surface positions PayShield as a commercial planning app for
 customer discovery, employer conversations, investor review, and banking-partner
 diligence.
 
-Approved prototype framing currently present in the product:
+Approved planning-only framing currently present in the product:
 
-- "Prototype only. PayShield is not a bank."
-- "Prototype ready for diligence. Regulated-money launch still needs the partner
+- "Planning app only. PayShield is not a bank."
+- "Planning app ready for diligence. Regulated-money launch still needs the partner
   stack."
 - Future-only public phrase: "Start with demand validation, then partner-led
   launch diligence."
-- "The prototype is ready for customer discovery, employer conversations,
+- "The current app is ready for customer discovery, employer conversations,
   investor review, and banking-partner diligence."
 
 Counsel should confirm this framing is sufficient for the intended campaign
@@ -40,11 +40,11 @@ audience and channel.
 ## Public Claims To Review
 
 These are the highest-risk claims or near-claims currently visible in public
-copy. They are intentionally presented as prototype/future mechanics, but should
+copy. They are intentionally presented as planning-only mechanics, but should
 still be reviewed before paid traffic.
 
 - "A controlled ledger first. Banking rails when the partner stack is approved."
-- "The front-end presents prototype mechanics: paycheck planning, protected
+- "The front-end presents planning mechanics: paycheck planning, protected
   internal buckets, future bill-routing rules, spending-control simulations,
   emergency unlock friction, and recovery plans."
 - Future-only public label: "Paycheck split model" and "A future
@@ -65,16 +65,16 @@ still be reviewed before paid traffic.
 - Terms state PayShield is not a bank.
 - Terms state the site does not provide banking, deposit, payment, debit card,
   bill-pay, or money movement services.
-- Terms state the prototype does not represent that funds are held, insured,
+- Terms state the current app does not represent that funds are held, insured,
   protected by FDIC insurance, or eligible for pass-through deposit insurance.
 - Privacy Notice states the site does not currently open deposit accounts, move
   money, issue cards, or collect bank credentials.
-- Pilot form tells users not to include bank, card, SSN, account, or routing
+- Contact form tells users not to include bank, card, SSN, account, or routing
   numbers.
 
 ## Counsel Questions
 
-1. Confirm whether the prototype/future framing is enough for paid search,
+1. Confirm whether the planning-only framing is enough for paid search,
    social, email, and partner referral campaigns.
 2. Confirm whether terms such as "Protected Paycheck OS", "protected internal
    buckets", "safe spending", and "rent money cannot disappear" create
@@ -85,7 +85,7 @@ still be reviewed before paid traffic.
    controls", "bill-only buckets", and similar future mechanics need stronger
    qualification or removal from paid landing pages.
 5. Confirm whether the Privacy Notice and Terms are sufficient for collecting
-   pilot interest, sanitized UTM attribution, Vercel Web Analytics events, and
+   product inquiry, sanitized UTM attribution, Vercel Web Analytics events, and
    Speed Insights metadata.
 6. Confirm the consent language and retained audit fields:
    `consentText`, `consentedAt`, `consentVersion`, `privacyVersion`, and
@@ -127,7 +127,7 @@ npm run market:evidence:init -- --dir launch-evidence --site-url https://payshie
 npm run campaign:lint:all
 npm run campaign:lint -- docs/legal-review-packet.md docs/campaign-copy.md
 npm run smoke:deploy -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app
-npm run readiness:paid-traffic -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --allow-prototype
+npm run readiness:paid-traffic -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --allow-demo-capture
 ```
 
 After the production receiver or CRM is configured, add:

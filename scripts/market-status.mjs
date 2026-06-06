@@ -430,7 +430,7 @@ export function summarizeMarketStatus({
     targetUrl: normalizedTargetUrl,
     url: resolvedVercelDeployment.url ?? "",
   });
-  addCheck(checks, "prototypeLaunchEvidenceOk", launchEvidence?.ok === true);
+  addCheck(checks, "publicLaunchEvidenceOk", launchEvidence?.ok === true);
 
   const failedStatusChecks = checks
     .filter((check) => check.ok !== true)

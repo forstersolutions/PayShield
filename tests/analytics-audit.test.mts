@@ -31,10 +31,10 @@ test("audits current analytics instrumentation without PII findings", () => {
     "campaignProperties",
   ]);
   assert.deepEqual(result.eventNames, [
-    "Early Access Request Attempted",
-    "Early Access Request Failed",
-    "Early Access Request Received",
-    "Early Access Request Submitted",
+    "Product Inquiry Attempted",
+    "Product Inquiry Failed",
+    "Product Inquiry Received",
+    "Product Inquiry Submitted",
   ]);
 });
 
@@ -42,17 +42,17 @@ test("extracts track call event names and line numbers", () => {
   const calls = extractTrackCalls({
     file: "sample.ts",
     text: [
-      "track('Early Access Request Attempted', { segment: 'Household' });",
+      "track('Product Inquiry Attempted', { segment: 'Household' });",
       "",
-      "track(\"Early Access Request Submitted\", { mode: 'demo' });",
+      "track(\"Product Inquiry Submitted\", { mode: 'demo' });",
     ].join("\n"),
   });
 
   assert.deepEqual(
     calls.map((call) => [call.eventName, call.line]),
     [
-      ["Early Access Request Attempted", 1],
-      ["Early Access Request Submitted", 3],
+      ["Product Inquiry Attempted", 1],
+      ["Product Inquiry Submitted", 3],
     ],
   );
 });
@@ -60,7 +60,7 @@ test("extracts track call event names and line numbers", () => {
 test("extracts explicit and shared analytics property entries", () => {
   const entries = extractTrackPropertyEntries(
     [
-      "track('Early Access Request Submitted', {",
+      "track('Product Inquiry Submitted', {",
       "  segment,",
       "  hasName: Boolean(name),",
       "  mode: String(result.mode ?? 'unknown'),",
@@ -77,7 +77,7 @@ test("flags banned analytics properties", () => {
   const result = auditAnalyticsInstrumentation({
     files: {
       "sample.ts": [
-        "track('Early Access Request Submitted', {",
+        "track('Product Inquiry Submitted', {",
         "  email: 'lead@example.com',",
         "  message: 'Rent first',",
         "});",
@@ -88,10 +88,10 @@ test("flags banned analytics properties", () => {
       "Vercel Web Analytics Speed Insights utm_source utm_campaign does not send email addresses, names, bank details",
     sharedText: [
       "export const pilotAnalyticsEventNames = [",
-      "'Early Access Request Attempted',",
-      "'Early Access Request Failed',",
-      "'Early Access Request Received',",
-      "'Early Access Request Submitted',",
+      "'Product Inquiry Attempted',",
+      "'Product Inquiry Failed',",
+      "'Product Inquiry Received',",
+      "'Product Inquiry Submitted',",
       "] as const;",
       "export const pilotAnalyticsPropertyKeys = [",
       "'campaignMedium',",
@@ -122,7 +122,7 @@ test("flags unapproved non-PII analytics properties", () => {
   const result = auditAnalyticsInstrumentation({
     files: {
       "sample.ts": [
-        "track('Early Access Request Submitted', {",
+        "track('Product Inquiry Submitted', {",
         "  segment: 'Household',",
         "  unexpectedMetric: true,",
         "});",
@@ -133,10 +133,10 @@ test("flags unapproved non-PII analytics properties", () => {
       "Vercel Web Analytics Speed Insights utm_source utm_campaign does not send email addresses, names, bank details",
     sharedText: [
       "export const pilotAnalyticsEventNames = [",
-      "'Early Access Request Attempted',",
-      "'Early Access Request Failed',",
-      "'Early Access Request Received',",
-      "'Early Access Request Submitted',",
+      "'Product Inquiry Attempted',",
+      "'Product Inquiry Failed',",
+      "'Product Inquiry Received',",
+      "'Product Inquiry Submitted',",
       "] as const;",
       "export const pilotAnalyticsPropertyKeys = [",
       "'campaignMedium',",
@@ -163,7 +163,7 @@ test("flags unapproved non-PII analytics properties", () => {
 
 test("campaign analytics properties expose only approved non-PII keys", () => {
   const properties = pilotCampaignAnalyticsProperties({
-    landingPath: "/early-access",
+    landingPath: "/",
     utmCampaign: "Household Launch",
     utmContent: "button-a",
     utmMedium: "cpc",
@@ -183,10 +183,10 @@ test("campaign analytics properties expose only approved non-PII keys", () => {
   assert.deepEqual(
     [...pilotAnalyticsEventNames].sort(),
     [
-      "Early Access Request Attempted",
-      "Early Access Request Failed",
-      "Early Access Request Received",
-      "Early Access Request Submitted",
+      "Product Inquiry Attempted",
+      "Product Inquiry Failed",
+      "Product Inquiry Received",
+      "Product Inquiry Submitted",
     ],
   );
   assert.equal(pilotAnalyticsPropertyKeys.includes("email" as never), false);

@@ -167,8 +167,8 @@ const analyticsEvidence = {
     "hasCampaignAttribution",
   ],
   observedEventNames: [
-    "Early Access Request Attempted",
-    "Early Access Request Submitted",
+    "Product Inquiry Attempted",
+    "Product Inquiry Submitted",
   ],
   productionUrl: targetUrl,
   sanitizedCampaignMetadata: true,

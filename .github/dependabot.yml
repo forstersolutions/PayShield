@@ -10,7 +10,7 @@ updates:
     open-pull-requests-limit: 5
     ignore:
       # Keep launch maintenance to patch/minor updates. Major upgrades should be
-      # planned intentionally after the market prototype is deployed.
+      # planned intentionally after the commercial planning app is deployed.
       - dependency-name: "*"
         update-types:
           - "version-update:semver-major"

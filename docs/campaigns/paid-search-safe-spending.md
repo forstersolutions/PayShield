@@ -1,21 +1,21 @@
 # Safe Spending Paid Search
 
-Status: ready for counsel review, not approved for launch.
+Status: ready for counsel review, not approved for paid launch.
 Channel: paid search.
 
 Headline options:
 
-- Protected-paycheck prototype
-- Know what is safe to spend
-- PayShield pilot interest
+- Planning-only paycheck app
+- Spend after life is covered
+- PayShield paycheck planner
 
 Description options:
 
-- PayShield is a prototype for testing a clearer paycheck plan before real
-  services are offered.
-- Join the pilot list and help shape a safer spending experience.
+- PayShield helps households test a clearer paycheck plan before the week gets
+  loud.
+- Open the planner and see what is safe to spend.
 
 Required disclosure:
 
-PayShield is not a bank. This prototype does not provide financial services.
-
+PayShield is not a bank. The current app is planning-only and does not provide
+financial services.

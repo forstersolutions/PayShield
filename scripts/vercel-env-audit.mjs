@@ -23,11 +23,11 @@ const upstashProductionEnv = [
 
 function usage() {
   return [
-    "Usage: npm run vercel:env:audit -- [--stdin] [--allow-prototype] [--environment Production]",
+    "Usage: npm run vercel:env:audit -- [--stdin] [--allow-demo-capture] [--environment Production]",
     "",
     "Checks whether required Vercel environment variables exist without printing values.",
     "--stdin reads `vercel env ls` output from stdin instead of running `npx vercel env ls`.",
-    "--allow-prototype exits 0 while reporting missing paid-traffic capture variables.",
+    "--allow-demo-capture exits 0 while reporting missing paid-traffic capture variables.",
   ].join("\n");
 }
 
@@ -63,7 +63,7 @@ function parseCliArgs(args) {
     (arg) =>
       arg.startsWith("--") &&
       ![
-        "--allow-prototype",
+        "--allow-demo-capture",
         "--environment",
         "--help",
         "--stdin",
@@ -77,7 +77,7 @@ function parseCliArgs(args) {
   }
 
   return {
-    allowPrototype: args.includes("--allow-prototype"),
+    allowDemoCapture: args.includes("--allow-demo-capture"),
     environment,
     help: false,
     stdin: args.includes("--stdin"),
@@ -237,7 +237,7 @@ async function main() {
 
   console.log(JSON.stringify(result, null, 2));
 
-  if (!result.ok && !parsed.allowPrototype) {
+  if (!result.ok && !parsed.allowDemoCapture) {
     process.exit(1);
   }
 }

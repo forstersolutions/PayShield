@@ -6,9 +6,9 @@ const targetUrl = "https://payshield-lime.vercel.app";
 const gitCommit = "abc123";
 const requiredHome = [
   "PayShield | Paycheck Planning App",
-  "Know what is safe to spend before the week gets loud.",
-  "Request early access",
-  "Manual planning MVP. PayShield is not a bank.",
+  "Spend after the paycheck keeps its promises.",
+  "Export plan",
+  "Open the planner. Build the plan. Export the truth.",
 ].join(" ");
 
 function publicEvidence(waitlist: Record<string, unknown>) {
@@ -42,7 +42,7 @@ function publicEvidence(waitlist: Record<string, unknown>) {
       "Vercel Web Analytics",
       "Speed Insights",
       "does not send email addresses, names, bank details",
-      "free-text access notes to analytics",
+      "free-text financial notes to analytics",
     ].join(" "),
     securityBody: [
       "Contact: https://github.com/forstersolutions/PayShield/security/advisories/new",
@@ -208,10 +208,10 @@ const leadCaptureDryRun = {
 };
 const analyticsAudit = {
   allowedEventNames: [
-    "Early Access Request Attempted",
-    "Early Access Request Failed",
-    "Early Access Request Received",
-    "Early Access Request Submitted",
+    "Product Inquiry Attempted",
+    "Product Inquiry Failed",
+    "Product Inquiry Received",
+    "Product Inquiry Submitted",
   ],
   allowedPropertyKeys: [
     "campaignMedium",
@@ -226,10 +226,10 @@ const analyticsAudit = {
   ],
   analyticsMounted: true,
   eventNames: [
-    "Early Access Request Attempted",
-    "Early Access Request Failed",
-    "Early Access Request Received",
-    "Early Access Request Submitted",
+    "Product Inquiry Attempted",
+    "Product Inquiry Failed",
+    "Product Inquiry Received",
+    "Product Inquiry Submitted",
   ],
   findings: [],
   ok: true,
@@ -239,7 +239,7 @@ const analyticsAudit = {
   trackCallCount: 6,
 };
 
-test("summarizes current prototype evidence without treating paid traffic as ready", () => {
+test("summarizes current launch-surface evidence without treating paid traffic as ready", () => {
   const evidence = summarizeLaunchReadiness({
     analyticsAudit,
     expectedSiteUrl: targetUrl,
@@ -280,7 +280,7 @@ test("summarizes current prototype evidence without treating paid traffic as rea
     "vercelProductionCaptureEnv",
     "signedDurableProductionCapture",
   ]);
-  assert.equal(evidence.readiness.prototype.ok, true);
+  assert.equal(evidence.readiness.launchSurface.ok, true);
   assert.equal(evidence.readiness.strict.ok, false);
   assert.equal(evidence.leadCaptureDryRun.backup.ok, true);
   assert.equal(evidence.leadCaptureDryRun.backupVerification.ok, true);

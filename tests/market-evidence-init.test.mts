@@ -52,8 +52,8 @@ test("creates local market evidence templates and redacted commands", async () =
     assert.equal(analytics.webAnalyticsPilotConversions, false);
     assert.equal(analytics.productionUrl, "https://payshield-lime.vercel.app");
     assert.deepEqual(analytics.observedEventNames, [
-      "Early Access Request Attempted",
-      "Early Access Request Submitted",
+      "Product Inquiry Attempted",
+      "Product Inquiry Submitted",
     ]);
     assert.deepEqual(analytics.observedCampaignProperties, [
       "campaignMedium",

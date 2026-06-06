@@ -1,6 +1,6 @@
 # Security Policy
 
-PayShield is currently a market prototype. It does not process live funds,
+PayShield is currently a commercial planning app. It does not process live funds,
 open deposit accounts, issue cards, move money, or collect bank credentials.
 
 ## Reporting a Vulnerability

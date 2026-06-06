@@ -20,19 +20,19 @@ const records = [
       utmSource: "Paid Social",
     },
     consentText:
-      "I agree that PayShield can contact me about early access and handle my information under the Privacy Notice and Terms.",
+      "I agree that PayShield can contact me about product onboarding and handle my information under the Privacy Notice and Terms.",
     consentedAt: "2026-06-05T00:00:00.000Z",
-    consentVersion: "early-access-contact-consent-2026-06-05",
+    consentVersion: "product-onboarding-contact-consent-2026-06-06",
     createdAt: "2026-06-05T00:00:00.000Z",
     email: "lead@example.com",
     message: "Rent first.",
     name: "Pilot Lead",
-    privacyVersion: "early-access-privacy-2026-06-05",
+    privacyVersion: "paycheck-planning-privacy-2026-06-06",
     receivedAt: "2026-06-05T00:00:01.000Z",
     segment: "Household",
     source: "payshield-web-app",
     submissionId: "018f7f62-9878-4aab-9ed3-86368f7f4512",
-    termsVersion: "early-access-terms-2026-06-05",
+    termsVersion: "paycheck-planning-terms-2026-06-06",
   },
   {
     attribution: {
@@ -42,19 +42,19 @@ const records = [
       utmSource: "Partner Newsletter",
     },
     consentText:
-      "I agree that PayShield can contact me about early access and handle my information under the Privacy Notice and Terms.",
+      "I agree that PayShield can contact me about product onboarding and handle my information under the Privacy Notice and Terms.",
     consentedAt: "2026-06-05T01:00:00.000Z",
-    consentVersion: "early-access-contact-consent-2026-06-05",
+    consentVersion: "product-onboarding-contact-consent-2026-06-06",
     createdAt: "2026-06-05T01:00:00.000Z",
     email: "partner@example.com",
     message: "Partner access.",
     name: "Partner Lead",
-    privacyVersion: "early-access-privacy-2026-06-05",
+    privacyVersion: "paycheck-planning-privacy-2026-06-06",
     receivedAt: "2026-06-05T01:00:01.000Z",
     segment: "Investor or partner",
     source: "payshield-web-app",
     submissionId: "018f7f62-9878-4aab-9ed3-86368f7f4513",
-    termsVersion: "early-access-terms-2026-06-05",
+    termsVersion: "paycheck-planning-terms-2026-06-06",
   },
 ];
 
@@ -419,7 +419,7 @@ test("erases matching email records and regenerates receiver files", async () =>
     assert.equal(csv.includes("partner@example.com"), true);
     assert.equal(csv.includes("018f7f62-9878-4aab-9ed3-86368f7f4513"), true);
     assert.equal(csv.includes("Partner Launch"), true);
-    assert.equal(csv.includes("early-access-terms-2026-06-05"), true);
+    assert.equal(csv.includes("paycheck-planning-terms-2026-06-06"), true);
   } finally {
     await rm(dataDir, { recursive: true });
   }

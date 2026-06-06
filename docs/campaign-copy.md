@@ -3,10 +3,9 @@
 Use this guide before paid ads, email campaigns, social posts, partner one-pagers,
 or alternate landing-page copy go live.
 
-PayShield is currently a market prototype. Campaign copy can test the
-safe-to-spend message, pilot interest, employer conversations, investor review,
-and partner diligence. It must not imply that PayShield already offers regulated
-financial services.
+PayShield is currently a planning-only paycheck app. Campaign copy can promote
+the safe-to-spend planner while staying clear that PayShield does not offer
+regulated financial services.
 
 ## Required Review Flow
 
@@ -30,16 +29,16 @@ pbpaste | npm run campaign:lint -- --stdin
 The linter is not legal approval. It catches obvious prohibited claims before
 the review step.
 
-## Approved Prototype Positioning
+## Approved Commercial Positioning
 
-- PayShield is a protected-paycheck prototype.
-- PayShield helps test whether one safe-to-spend balance resonates with
-  households.
-- PayShield is collecting pilot interest for customer discovery, employer
-  conversations, investor review, and partner diligence.
+- PayShield is a planning-only paycheck app.
+- PayShield helps households model one safe-to-spend balance before the week
+  gets loud.
+- PayShield can support household, employer, investor, and partner
+  conversations without bank credentials or money movement.
 - PayShield is not a bank.
-- The prototype does not open accounts, move money, issue cards, or offer FDIC
-  insurance.
+- The current app does not open accounts, hold funds, move money, issue cards,
+  or offer FDIC insurance.
 
 ## Do Not Claim
 

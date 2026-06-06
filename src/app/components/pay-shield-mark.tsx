@@ -10,28 +10,32 @@ export function PayShieldMark({ className = "size-11" }: PayShieldMarkProps) {
       viewBox="0 0 64 64"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <rect width="64" height="64" rx="18" fill="#05070A" />
+      <rect width="64" height="64" rx="16" fill="#0B0A08" />
       <path
-        d="M15 18.5A6.5 6.5 0 0 1 21.5 12H48a4 4 0 0 1 4 4v14.5c0 9.4-6.8 17.1-20 23.5-13.2-6.4-20-14.1-20-23.5v-12Z"
-        fill="#7CF8D4"
+        d="M14 32h17"
+        fill="none"
+        stroke="#F5EFE4"
+        strokeLinecap="round"
+        strokeWidth="7"
       />
       <path
-        d="M24 21h18.5a3.5 3.5 0 1 1 0 7H24z"
-        fill="#05070A"
+        d="M31 32c8 0 8.8-10.5 18-13"
+        fill="none"
+        stroke="#7EE0A3"
+        strokeLinecap="round"
+        strokeWidth="7"
       />
       <path
-        d="M20 33h17a3.5 3.5 0 1 1 0 7H20z"
-        fill="#E7FFF7"
+        d="M31 32c8 0 8.8 10.5 18 13"
+        fill="none"
+        stroke="#D89B57"
+        strokeLinecap="round"
+        strokeWidth="7"
       />
-      <path
-        d="M32 43.5 50 34v9.5c-3.2 4.2-9 7.9-18 11.9z"
-        fill="#FFD166"
-      />
-      <path
-        d="M32 43.5 50 34v4.6L32 48z"
-        fill="#05070A"
-        opacity=".9"
-      />
+      <circle cx="14" cy="32" r="4.2" fill="#F5EFE4" />
+      <circle cx="31" cy="32" r="4.8" fill="#0B0A08" />
+      <circle cx="49" cy="19" r="5" fill="#7EE0A3" />
+      <circle cx="49" cy="45" r="5" fill="#D89B57" />
     </svg>
   );
 }

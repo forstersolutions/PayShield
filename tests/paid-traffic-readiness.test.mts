@@ -15,15 +15,15 @@ const homeBody = `
   <link rel="canonical" href="https://payshield-lime.vercel.app" />
   <meta property="og:image" content="https://payshield-lime.vercel.app/images/payshield-social-card.jpg" />
   <main>
-    <h1>Know what is safe to spend before the week gets loud.</h1>
-    <p>Request early access.</p>
-    <p>Manual planning MVP. PayShield is not a bank.</p>
+    <h1>Spend after the paycheck keeps its promises.</h1>
+    <p>Export plan.</p>
+    <p>Open the planner. Build the plan. Export the truth.</p>
   </main>
 `;
 
 function evidence(overrides: Record<string, unknown> = {}) {
   return {
-    allowPrototype: false,
+    allowDemoCapture: false,
     expectedSiteUrl,
     health: {
       ok: true,
@@ -43,7 +43,7 @@ function evidence(overrides: Record<string, unknown> = {}) {
       "PayShield does not currently open deposit accounts.",
       "Campaign links may add allowlisted attribution fields such as utm_source and utm_campaign.",
       "Vercel Web Analytics and Speed Insights may process non-PII event metadata.",
-      "PayShield does not send email addresses, names, bank details, or free-text access notes to analytics.",
+      "PayShield does not send email addresses, names, bank details, or free-text financial notes to analytics.",
     ].join(" "),
     securityBody: [
       "Contact: https://github.com/forstersolutions/PayShield/security/advisories/new",
@@ -189,10 +189,10 @@ test("fails misconfigured webhook capture in paid-traffic mode", () => {
   );
 });
 
-test("allows prototype mode while warning about demo capture", () => {
+test("allows demo-capture mode while warning about demo capture", () => {
   const result = evaluatePaidTrafficReadiness(
     evidence({
-      allowPrototype: true,
+      allowDemoCapture: true,
       health: {
         ok: true,
         service: "payshield-web-app",

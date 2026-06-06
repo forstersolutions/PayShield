@@ -18,7 +18,7 @@ function usage() {
     "Usage: npm run launch:evidence -- https://your-domain.com --expect-site-url https://your-domain.com [--strict] [--timeout-ms 10000]",
     "",
     "Prints a redacted JSON launch evidence packet for the paid-traffic readiness issue.",
-    "Default mode is prototype evidence mode: it passes when the public surface and local capture proof pass,",
+    "Default mode is launch-surface evidence mode: it passes when the public surface and local capture proof pass,",
     "while still reporting paidTrafficReady=false until signed durable production capture is configured.",
     "--strict exits nonzero unless production health and Vercel env prove paid-traffic-ready capture.",
   ].join("\n");
@@ -147,14 +147,14 @@ export function summarizeLaunchReadiness({
   const normalizedExpectedSiteUrl = expectedSiteUrl
     ? normalizeSiteUrl(expectedSiteUrl)
     : "";
-  const prototypeReadiness = evaluatePaidTrafficReadiness({
+  const launchSurfaceReadiness = evaluatePaidTrafficReadiness({
     ...publicEvidence,
-    allowPrototype: true,
+    allowDemoCapture: true,
     expectedSiteUrl: normalizedExpectedSiteUrl,
   });
   const strictReadiness = evaluatePaidTrafficReadiness({
     ...publicEvidence,
-    allowPrototype: false,
+    allowDemoCapture: false,
     expectedSiteUrl: normalizedExpectedSiteUrl,
   });
   const health = publicEvidence.health ?? {};
@@ -167,8 +167,8 @@ export function summarizeLaunchReadiness({
     waitlistPaidTrafficReady(health);
   const gates = [
     {
-      name: "prototypeLaunchSurface",
-      ok: prototypeReadiness.ok,
+      name: "publicLaunchSurface",
+      ok: launchSurfaceReadiness.ok,
     },
     {
       name: "localLeadCaptureDryRun",
@@ -204,7 +204,7 @@ export function summarizeLaunchReadiness({
     generatedAt,
     gitCommit,
     ok:
-      prototypeReadiness.ok &&
+      launchSurfaceReadiness.ok &&
       leadCaptureDryRun.ok === true &&
       commitMatches,
     paidTrafficReady,
@@ -213,11 +213,11 @@ export function summarizeLaunchReadiness({
       targetUrl: normalizedTargetUrl,
     },
     readiness: {
-      prototype: {
-        checks: prototypeReadiness.checks.length,
-        failures: prototypeReadiness.failures,
-        ok: prototypeReadiness.ok,
-        warnings: prototypeReadiness.warnings,
+      launchSurface: {
+        checks: launchSurfaceReadiness.checks.length,
+        failures: launchSurfaceReadiness.failures,
+        ok: launchSurfaceReadiness.ok,
+        warnings: launchSurfaceReadiness.warnings,
       },
       strict: {
         checks: strictReadiness.checks.length,

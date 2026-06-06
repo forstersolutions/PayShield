@@ -3,8 +3,8 @@ import { pathToFileURL } from "node:url";
 import { normalizeSiteUrl } from "./paid-traffic-readiness.mjs";
 
 export const requiredLiveAnalyticsEventNames = [
-  "Early Access Request Attempted",
-  "Early Access Request Submitted",
+  "Product Inquiry Attempted",
+  "Product Inquiry Submitted",
 ];
 
 export const requiredLiveAnalyticsCampaignProperties = [

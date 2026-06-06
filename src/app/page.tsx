@@ -1,49 +1,139 @@
 import {
+  AlertTriangle,
   CheckCircle2,
-  Home,
+  Lock,
+  RefreshCcw,
   ShieldCheck,
-  TimerReset,
+  SlidersHorizontal,
   WalletCards,
 } from "lucide-react";
 import { PaycheckPlanner } from "@/app/components/paycheck-planner";
 import { SiteFooter } from "@/app/components/site-footer";
-import { WaitlistForm } from "@/app/components/waitlist-form";
 
 export default function HomePage() {
   return (
-    <main className="bg-[#05070a] text-[#f8f1e4]">
+    <main className="bg-[#070604] text-[#f5efe4]">
       <PaycheckPlanner />
 
-      <section className="border-b border-white/10 bg-[#070b10]">
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+      <section className="border-b border-[#2d281f] bg-[#0d0b09]">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-18 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
           <div className="max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#7cf8d4]">
-              MVP workflow
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#d89b57]">
+              What others miss
             </p>
-            <h2 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
-              A calmer paycheck routine in four steps.
+            <h2 className="mt-3 text-3xl font-semibold leading-tight text-[#fff6e8] sm:text-4xl">
+              Your balance is not your budget. It is the raw material.
             </h2>
-            <p className="mt-4 text-lg leading-8 text-[#d4d9e2]">
-              PayShield starts as a manual planning app: add the paycheck, fund
-              the bills first, see what is truly safe to spend, and create a
-              recovery plan when money has to move.
+            <p className="mt-4 text-lg leading-8 text-[#d7d0c1]">
+              Banks show what arrived. Budget apps explain what already
+              happened. PayShield does the missing job: it protects the paycheck
+              first, then shows the money that can actually be used.
             </p>
           </div>
 
-          <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {workflow.map((item) => {
+          <div className="grid gap-3">
+            {positioning.map((item) => {
               const Icon = item.icon;
 
               return (
                 <article
-                  className="rounded-[8px] border border-white/10 bg-[#0b1017] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.26)] ring-1 ring-white/[0.03]"
+                  className="grid gap-4 border border-[#2d281f] bg-[#14120e] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.24)] sm:grid-cols-[44px_1fr]"
                   key={item.title}
                 >
-                  <Icon className="size-6 text-[#7cf8d4]" aria-hidden="true" />
-                  <h3 className="mt-5 text-lg font-semibold text-[#fff8eb]">
+                  <span className="grid size-11 place-items-center bg-[#211b13] text-[#7ee0a3]">
+                    <Icon className="size-5" aria-hidden="true" />
+                  </span>
+                  <div>
+                    <h3 className="text-lg font-semibold text-[#fff6e8]">
+                      {item.title}
+                    </h3>
+                    <p className="mt-2 text-sm leading-6 text-[#b9ad99]">
+                      {item.body}
+                    </p>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-[#2d281f] bg-[#070604]">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-18 sm:px-6 lg:grid-cols-[0.86fr_1.14fr] lg:px-8">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#7ee0a3]">
+              Market message
+            </p>
+            <h2 className="mt-3 text-3xl font-semibold leading-tight text-[#fff6e8] sm:text-4xl">
+              Clever lines for a product that earns the claim.
+            </h2>
+            <p className="mt-4 text-lg leading-8 text-[#d7d0c1]">
+              The brand should sound useful, direct, and a little sharp. The
+              product does what ordinary balances do not: it subtracts life
+              before spending begins.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {taglines.map((line) => (
+              <article
+                className="border border-[#2d281f] bg-[#11100d] p-5 shadow-[0_16px_60px_rgba(0,0,0,0.22)]"
+                key={line}
+              >
+                <p className="text-xl font-semibold leading-7 text-[#fff6e8]">
+                  {line}
+                </p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="ready" className="bg-[#0d0b09] text-[#f5efe4]">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
+          <div className="max-w-3xl">
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#d89b57]">
+              Commercial surface
+            </p>
+            <h2 className="mt-3 text-3xl font-semibold leading-tight text-[#fff6e8] sm:text-4xl">
+              Open the planner. Build the plan. Export the truth.
+            </h2>
+            <p className="mt-4 max-w-3xl text-lg leading-8 text-[#d7d0c1]">
+              The planner is available on the first screen. It stores the plan
+              locally, keeps sensitive bank credentials out of the workflow, and
+              lets a household export the current plan when it is time to share
+              or review it.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <a
+                className="inline-flex items-center justify-center bg-[#d89b57] px-5 py-3 text-sm font-semibold text-[#120d07] shadow-[0_16px_40px_rgba(216,155,87,0.22)] hover:bg-[#f0b86f]"
+                href="#product"
+              >
+                Open planner
+              </a>
+              <a
+                className="inline-flex items-center justify-center border border-[#3a3328] bg-[#171510] px-5 py-3 text-sm font-semibold text-[#fff6e8] hover:border-[#7ee0a3]/60"
+                href="#buckets"
+              >
+                Tune buckets
+              </a>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+            {commercialReadiness.map((item) => {
+              const Icon = item.icon;
+
+              return (
+                <article
+                  className="border border-[#2d281f] bg-[#14120e] p-4 shadow-[0_16px_60px_rgba(0,0,0,0.22)]"
+                  key={item.title}
+                >
+                  <Icon className="size-5 text-[#d89b57]" aria-hidden="true" />
+                  <h3 className="mt-3 text-base font-semibold text-[#fff6e8]">
                     {item.title}
                   </h3>
-                  <p className="mt-3 text-sm leading-6 text-[#b9c3d0]">
+                  <p className="mt-2 text-sm leading-6 text-[#d7d0c1]">
                     {item.body}
                   </p>
                 </article>
@@ -53,100 +143,62 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="border-b border-white/10 bg-[#05070a]">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#ffd166]">
-              Built for real households
-            </p>
-            <h2 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
-              Friendly enough for Sunday night. Clear enough for payday.
-            </h2>
-            <p className="mt-4 text-lg leading-8 text-[#d4d9e2]">
-              The app avoids bank-speak and spreadsheet chores. It shows the
-              practical answers people need before spending starts.
-            </p>
-          </div>
-
-          <div className="grid gap-3">
-            {outcomes.map((line) => (
-              <div
-                className="flex items-start gap-3 rounded-[8px] border border-white/10 bg-[#0b1017] p-4 shadow-[0_16px_60px_rgba(0,0,0,0.22)]"
-                key={line}
-              >
-                <CheckCircle2
-                  className="mt-0.5 size-5 shrink-0 text-[#7cf8d4]"
-                  aria-hidden="true"
-                />
-                <p className="text-base leading-7 text-[#e8edf4]">{line}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="early-access" className="bg-[#070b10] text-[#f8f1e4]">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-14 sm:px-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-8">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#7cf8d4]">
-              Early access
-            </p>
-            <h2 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
-              Help shape the first shipped version.
-            </h2>
-            <p className="mt-4 max-w-3xl text-lg leading-8 text-[#d4d9e2]">
-              We are collecting real household, worker, employer, and partner
-              feedback around the MVP workflow: bills first, safe-to-spend
-              clarity, shared planning, and recovery after an unlock.
-            </p>
-            <div className="mt-8 grid gap-3 text-sm leading-6 text-[#d4d9e2] sm:grid-cols-3">
-              <p className="rounded-[8px] border border-white/10 bg-white/[0.055] p-3">
-                Bring one real paycheck week and see where the plan helps.
-              </p>
-              <p className="rounded-[8px] border border-white/10 bg-white/[0.055] p-3">
-                Tell us which bills need the clearest protection.
-              </p>
-              <p className="rounded-[8px] border border-white/10 bg-white/[0.055] p-3">
-                Join the first feedback group before broader release.
-              </p>
-            </div>
-          </div>
-          <WaitlistForm />
-        </div>
-      </section>
-
       <SiteFooter />
     </main>
   );
 }
 
-const workflow = [
+const positioning = [
   {
-    title: "Add the paycheck",
-    body: "Enter the check amount and pick a scenario that matches the week: normal, tight, or variable income.",
-    icon: Home,
+    title: "Balances show everything. PayShield shows the usable truth.",
+    body: "The headline number is not the spendable number until rent, vehicles, insurance, family needs, and goals are already handled.",
+    icon: SlidersHorizontal,
   },
   {
-    title: "Reserve bills first",
-    body: "Rent, vehicle, insurance, family needs, goals, and flexible money get funded in order.",
+    title: "Budgets explain the past. PayShield shapes the next swipe.",
+    body: "The purchase check happens before spending, so the household sees whether a decision fits the protected paycheck plan.",
     icon: ShieldCheck,
   },
   {
-    title: "Check spending",
-    body: "The app compares a purchase against the safe-to-spend number so the decision is obvious.",
-    icon: WalletCards,
+    title: "Spreadsheets need maintenance. PayShield creates a shareable plan.",
+    body: "The current paycheck, bucket coverage, shortfalls, purchase decision, and recovery path can be exported in one structured file.",
+    icon: RefreshCcw,
   },
   {
-    title: "Plan recovery",
-    body: "Emergency unlocks show the refill amount before a household commits to moving money.",
-    icon: TimerReset,
+    title: "No bank login required. No sensitive account details needed.",
+    body: "The app works as a private planning surface first, so households can get clarity without handing over credentials.",
+    icon: Lock,
   },
 ];
 
-const outcomes = [
-  "The big number is not the total balance. It is what can be spent after the important stuff is covered.",
-  "Short paychecks become visible early, with the first underfunded bill called out before the week gets messy.",
-  "A shared household view can focus on coverage, shortfalls, and recovery instead of blaming individual purchases.",
-  "The MVP works as a planning layer first, with no bank login or sensitive account numbers required.",
-  "Reminders, safe-to-spend checks, and unlock plans are built around how people already think about payday.",
+const taglines = [
+  "Balances lie. PayShield tells you what is actually safe to spend.",
+  "Spend from the money left after life is covered.",
+  "Payday, protected before the first swipe.",
+  "The paycheck planner that subtracts obligations before temptation.",
+  "Know the usable number, not just the account number.",
+  "A calmer week starts with the part of the check you can really use.",
+];
+
+const commercialReadiness = [
+  {
+    title: "Available immediately",
+    body: "The product experience starts on the homepage; there is no invite form or sales gate.",
+    icon: CheckCircle2,
+  },
+  {
+    title: "Saved locally",
+    body: "Paycheck, bucket, purchase, and recovery settings persist on the device between visits.",
+    icon: ShieldCheck,
+  },
+  {
+    title: "Exportable plan",
+    body: "The current plan can be downloaded as a structured JSON file for household review.",
+    icon: WalletCards,
+  },
+  {
+    title: "Boundaries are clear",
+    body: "PayShield is planning software, not a bank account, card, or money-movement product.",
+    icon: AlertTriangle,
+  },
 ];
