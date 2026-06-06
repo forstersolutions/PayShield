@@ -19,7 +19,7 @@ deployments, partner demos, and product demand capture.
 - Vercel-compatible Next.js app with production build, metadata, sitemap,
   robots, and baseline browser security headers.
 - JPEG social preview card for broad Open Graph and Twitter crawler support,
-  while the in-page product mockup uses AVIF for faster delivery.
+  while the homepage opens directly into the live planner.
 - Branded PayShield icon and web app manifest for deploy previews, saved links,
   and install surfaces.
 - `npm run verify` and GitHub Actions CI for linting, TypeScript checks,

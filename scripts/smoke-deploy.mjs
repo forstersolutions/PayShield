@@ -299,10 +299,9 @@ try {
     "/manifest.webmanifest",
     "/icon.svg",
     "payshield-social-card.jpg",
-    "payshield-product-mockup.avif",
     "Export plan",
-    "Open PayShield. Build the usable number. Export the household plan.",
-    "The usable-number layer for every paycheck.",
+    "Open PayShield. Set the check. See what is safe to spend.",
+    "Know what is safe to spend before the week gets busy.",
   ]);
   expectSecurityHeaders(home.response, "/");
 
@@ -330,7 +329,6 @@ try {
   await expectText("/manifest.webmanifest", ["PayShield", "/icon.svg"]);
   await expectAsset("/icon.svg", "image/svg+xml", 5_000);
   await expectAsset("/images/payshield-social-card.jpg", "image/jpeg", 250_000);
-  await expectAsset("/images/payshield-product-mockup.avif", "image/avif", 125_000);
   await expectMissingAsset("/file.svg");
   await expectMissingAsset("/globe.svg");
   await expectMissingAsset("/next.svg");

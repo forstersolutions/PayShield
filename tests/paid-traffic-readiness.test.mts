@@ -15,9 +15,9 @@ const homeBody = `
   <link rel="canonical" href="https://payshield-lime.vercel.app" />
   <meta property="og:image" content="https://payshield-lime.vercel.app/images/payshield-social-card.jpg" />
   <main>
-    <h1>Your paycheck gets an airlock before spending gets a vote.</h1>
+    <h1>Know what is safe to spend before the week gets busy.</h1>
     <p>Export plan.</p>
-    <p>Open PayShield. Build the usable number. Export the household plan.</p>
+    <p>Open PayShield. Set the check. See what is safe to spend.</p>
   </main>
 `;
 

@@ -26,10 +26,9 @@ function html(siteUrl: string) {
     "/manifest.webmanifest",
     "/icon.svg",
     "payshield-social-card.jpg",
-    "payshield-product-mockup.avif",
     "Export plan",
-    "Open PayShield. Build the usable number. Export the household plan.",
-    "The usable-number layer for every paycheck.",
+    "Open PayShield. Set the check. See what is safe to spend.",
+    "Know what is safe to spend before the week gets busy.",
     "</body></html>",
   ].join("");
 }
@@ -139,11 +138,6 @@ async function startSmokeTarget() {
 
     if (url.pathname === "/images/payshield-social-card.jpg") {
       send(response, 200, "jpg", { "content-type": "image/jpeg" });
-      return;
-    }
-
-    if (url.pathname === "/images/payshield-product-mockup.avif") {
-      send(response, 200, "avif", { "content-type": "image/avif" });
       return;
     }
 

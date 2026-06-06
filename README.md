@@ -356,11 +356,9 @@ security, and social image URLs.
 See [SECURITY.md](SECURITY.md) for vulnerability reporting and production
 security baseline notes.
 
-## Source Asset
+## Source Assets
 
-The product mockup in `public/images/payshield-product-mockup.avif` was
-generated for this project, optimized for web delivery, and intentionally avoids
-readable third-party financial branding. `public/images/payshield-social-card.jpg`
-is a lightweight social preview fallback for Open Graph and Twitter crawlers.
-`src/app/icon.svg` is the branded PayShield icon used by metadata and the web
-app manifest.
+`public/images/payshield-social-card.jpg` is the lightweight social preview
+fallback for Open Graph and Twitter crawlers. `src/app/icon.svg` is the branded
+PayShield icon used by metadata and the web app manifest. The homepage product
+surface is the live planner rather than a static mockup.

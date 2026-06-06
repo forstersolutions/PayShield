@@ -145,7 +145,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
 
 requireText(
   "src/app/components/site-footer.tsx",
-  "The usable-number layer for every paycheck.",
+  "Know what is safe to spend before the week gets busy.",
 );
 requireText("src/app/terms/page.tsx", "PayShield is not a bank.");
 requireText(
@@ -181,18 +181,18 @@ requireText(
 requireText("src/app/layout.tsx", 'manifest: "/manifest.webmanifest"');
 requireText("src/app/layout.tsx", 'url: "/icon.svg"');
 requireText("src/app/manifest.ts", 'name: "PayShield"');
-requireText("src/app/manifest.ts", 'theme_color: "#10110f"');
+requireText("src/app/manifest.ts", 'theme_color: "#211b16"');
 requireText(
   "src/app/components/paycheck-planner.tsx",
-  'src="/images/payshield-product-mockup.avif"',
+  "Know what is safe to spend before the week gets busy.",
 );
-requireText("src/app/page.tsx", "A balance tells you what exists. PayShield tells you what survives.");
-requireText("src/app/page.tsx", "The balance is bait. The usable number is the truth.");
-requireText("src/app/page.tsx", "Open PayShield. Build the usable number. Export the household plan.");
+requireText("src/app/page.tsx", "A balance shows the total. PayShield shows what is safe to use.");
+requireText("src/app/page.tsx", "Bills covered. Spending clear.");
+requireText("src/app/page.tsx", "Open PayShield. Set the check. See what is safe to spend.");
 requireText("src/app/components/waitlist-form.tsx", "Contact PayShield");
 requireText(
   "src/app/components/paycheck-planner.tsx",
-  "Purchase check",
+  "Check a purchase",
 );
 requireText("docs/legal-review-packet.md", "Paycheck split model");
 requireText(
@@ -707,7 +707,6 @@ requireText("docs/legal-review-packet.md", "npm run analytics:evidence:check");
 requireText("docs/legal-review-packet.md", "npm run market:status");
 
 requireMaxSize("src/app/icon.svg", 5_000);
-requireMaxSize("public/images/payshield-product-mockup.avif", 125_000);
 requireMaxSize("public/images/payshield-social-card.jpg", 250_000);
 
 [
