@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: "PayShield | Paycheck Planning App",
   description:
-    "PayShield subtracts obligations before spending starts, so households can see what is actually safe to spend.",
+    "PayShield turns every paycheck into one usable number after obligations, goals, and recovery are already covered.",
   alternates: {
     canonical: "/",
   },
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "PayShield",
     description:
-      "Spend from the money left after life is covered.",
+      "The usable-number layer for every paycheck.",
     images: [
       {
         url: socialImageUrl,
@@ -51,7 +51,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "PayShield",
     description:
-      "Spend from the money left after life is covered.",
+      "The usable-number layer for every paycheck.",
     images: [socialImageUrl],
   },
 };

@@ -8,8 +8,8 @@ export default function manifest(): MetadataRoute.Manifest {
       "Paycheck planning app that subtracts obligations before spending starts.",
     start_url: "/",
     display: "standalone",
-    background_color: "#070604",
-    theme_color: "#0d0b09",
+    background_color: "#050605",
+    theme_color: "#10110f",
     icons: [
       {
         src: "/icon.svg",

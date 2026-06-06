@@ -12,29 +12,29 @@ const lastUpdated = "June 6, 2026";
 
 export default function PrivacyPage() {
   return (
-    <main className="bg-[#070604] text-[#f5efe4]">
+    <main className="bg-[#050605] text-[#f8f1e3]">
       <section className="mx-auto min-h-screen max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
         <Link
-          className="text-sm font-semibold text-[#7ee0a3] hover:text-[#a8f0bd]"
+          className="text-sm font-semibold text-[#9dffb3] hover:text-[#c6ffd2]"
           href="/"
         >
           Back to PayShield
         </Link>
 
-        <div className="mt-8 rounded-[8px] border border-white/10 bg-[#11100d] p-6 shadow-[0_24px_90px_rgba(0,0,0,0.42)] ring-1 ring-[#7ee0a3]/10 sm:p-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#7ee0a3]">
+        <div className="mt-8 border border-white/10 bg-[#0b0f0b] p-6 shadow-[0_24px_90px_rgba(0,0,0,0.42)] ring-1 ring-[#9dffb3]/10 sm:p-8">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#9dffb3]">
             PayShield planning app
           </p>
           <h1 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
             Privacy Notice
           </h1>
-          <p className="mt-3 text-sm text-[#9f9483]">
+          <p className="mt-3 text-sm text-[#9aa79c]">
             Last updated: {lastUpdated}
           </p>
 
-          <div className="mt-8 grid gap-8 text-base leading-7 text-[#d7d0c1]">
+          <div className="mt-8 grid gap-8 text-base leading-7 text-[#cdd8ce]">
             <section>
-              <h2 className="text-xl font-semibold text-[#fff6e8]">
+              <h2 className="text-xl font-semibold text-[#fff9ed]">
                 What this notice covers
               </h2>
               <p className="mt-3">
@@ -47,7 +47,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-[#fff6e8]">
+              <h2 className="text-xl font-semibold text-[#fff9ed]">
                 Information we collect
               </h2>
               <p className="mt-3">
@@ -64,7 +64,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-[#fff6e8]">
+              <h2 className="text-xl font-semibold text-[#fff9ed]">
                 How we use information
               </h2>
               <p className="mt-3">
@@ -82,7 +82,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-[#fff6e8]">
+              <h2 className="text-xl font-semibold text-[#fff9ed]">
                 Sharing and storage
               </h2>
               <p className="mt-3">
@@ -95,7 +95,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-[#fff6e8]">
+              <h2 className="text-xl font-semibold text-[#fff9ed]">
                 Your choices
               </h2>
               <p className="mt-3">
@@ -106,7 +106,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-[#fff6e8]">
+              <h2 className="text-xl font-semibold text-[#fff9ed]">
                 Future financial services
               </h2>
               <p className="mt-3">

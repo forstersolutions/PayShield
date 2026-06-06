@@ -12,22 +12,22 @@ import { SiteFooter } from "@/app/components/site-footer";
 
 export default function HomePage() {
   return (
-    <main className="bg-[#070604] text-[#f5efe4]">
+    <main className="bg-[#050605] text-[#f8f1e3]">
       <PaycheckPlanner />
 
-      <section className="border-b border-[#2d281f] bg-[#0d0b09]">
+      <section id="difference" className="border-b border-[#263026] bg-[#080a08]">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-18 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
           <div className="max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#d89b57]">
-              What others miss
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#f2a65a]">
+              What PayShield does that others do not
             </p>
-            <h2 className="mt-3 text-3xl font-semibold leading-tight text-[#fff6e8] sm:text-4xl">
-              Your balance is not your budget. It is the raw material.
+            <h2 className="mt-3 text-3xl font-semibold leading-tight text-[#fff9ed] sm:text-4xl">
+              A balance tells you what exists. PayShield tells you what survives.
             </h2>
-            <p className="mt-4 text-lg leading-8 text-[#d7d0c1]">
-              Banks show what arrived. Budget apps explain what already
-              happened. PayShield does the missing job: it protects the paycheck
-              first, then shows the money that can actually be used.
+            <p className="mt-4 text-lg leading-8 text-[#cdd8ce]">
+              Banks show the raw number. Budget apps explain the aftermath.
+              PayShield sits before the decision and turns a paycheck into one
+              usable number after life has already been covered.
             </p>
           </div>
 
@@ -37,17 +37,17 @@ export default function HomePage() {
 
               return (
                 <article
-                  className="grid gap-4 border border-[#2d281f] bg-[#14120e] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.24)] sm:grid-cols-[44px_1fr]"
+                  className="grid gap-4 border border-[#263026] bg-[#101410] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.24)] sm:grid-cols-[44px_1fr]"
                   key={item.title}
                 >
-                  <span className="grid size-11 place-items-center bg-[#211b13] text-[#7ee0a3]">
+                  <span className="grid size-11 place-items-center bg-[#050605] text-[#9dffb3]">
                     <Icon className="size-5" aria-hidden="true" />
                   </span>
                   <div>
-                    <h3 className="text-lg font-semibold text-[#fff6e8]">
+                    <h3 className="text-lg font-semibold text-[#fff9ed]">
                       {item.title}
                     </h3>
-                    <p className="mt-2 text-sm leading-6 text-[#b9ad99]">
+                    <p className="mt-2 text-sm leading-6 text-[#aeb8ad]">
                       {item.body}
                     </p>
                   </div>
@@ -58,29 +58,29 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="border-b border-[#2d281f] bg-[#070604]">
+      <section className="border-b border-[#263026] bg-[#050605]">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-18 sm:px-6 lg:grid-cols-[0.86fr_1.14fr] lg:px-8">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#7ee0a3]">
-              Market message
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#9dffb3]">
+              Market language
             </p>
-            <h2 className="mt-3 text-3xl font-semibold leading-tight text-[#fff6e8] sm:text-4xl">
-              Clever lines for a product that earns the claim.
+            <h2 className="mt-3 text-3xl font-semibold leading-tight text-[#fff9ed] sm:text-4xl">
+              Lines that sell the missing layer, not another budgeting chore.
             </h2>
-            <p className="mt-4 text-lg leading-8 text-[#d7d0c1]">
-              The brand should sound useful, direct, and a little sharp. The
-              product does what ordinary balances do not: it subtracts life
-              before spending begins.
+            <p className="mt-4 text-lg leading-8 text-[#cdd8ce]">
+              The promise is simple: before a household spends, PayShield shows
+              what is left after obligations, goals, and recovery have already
+              taken their share.
             </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             {taglines.map((line) => (
               <article
-                className="border border-[#2d281f] bg-[#11100d] p-5 shadow-[0_16px_60px_rgba(0,0,0,0.22)]"
+                className="border border-[#263026] bg-[#0b0f0b] p-5 shadow-[0_16px_60px_rgba(0,0,0,0.22)] transition hover:border-[#9dffb3]/40 hover:bg-[#101610]"
                 key={line}
               >
-                <p className="text-xl font-semibold leading-7 text-[#fff6e8]">
+                <p className="text-xl font-semibold leading-7 text-[#fff9ed]">
                   {line}
                 </p>
               </article>
@@ -89,30 +89,29 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="ready" className="bg-[#0d0b09] text-[#f5efe4]">
+      <section id="ready" className="bg-[#080a08] text-[#f8f1e3]">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
           <div className="max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#d89b57]">
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#f2a65a]">
               Commercial surface
             </p>
-            <h2 className="mt-3 text-3xl font-semibold leading-tight text-[#fff6e8] sm:text-4xl">
-              Open the planner. Build the plan. Export the truth.
+            <h2 className="mt-3 text-3xl font-semibold leading-tight text-[#fff9ed] sm:text-4xl">
+              Open PayShield. Build the usable number. Export the household plan.
             </h2>
-            <p className="mt-4 max-w-3xl text-lg leading-8 text-[#d7d0c1]">
-              The planner is available on the first screen. It stores the plan
-              locally, keeps sensitive bank credentials out of the workflow, and
-              lets a household export the current plan when it is time to share
-              or review it.
+            <p className="mt-4 max-w-3xl text-lg leading-8 text-[#cdd8ce]">
+              The product experience starts immediately. Plans persist on the
+              device, the workflow avoids bank credentials, and the current
+              paycheck model exports as structured data for review.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <a
-                className="inline-flex items-center justify-center bg-[#d89b57] px-5 py-3 text-sm font-semibold text-[#120d07] shadow-[0_16px_40px_rgba(216,155,87,0.22)] hover:bg-[#f0b86f]"
+                className="inline-flex items-center justify-center bg-[#9dffb3] px-5 py-3 text-sm font-semibold text-[#06120a] shadow-[0_16px_40px_rgba(157,255,179,0.18)] hover:bg-[#c6ffd2]"
                 href="#product"
               >
                 Open planner
               </a>
               <a
-                className="inline-flex items-center justify-center border border-[#3a3328] bg-[#171510] px-5 py-3 text-sm font-semibold text-[#fff6e8] hover:border-[#7ee0a3]/60"
+                className="inline-flex items-center justify-center border border-[#263026] bg-[#101410] px-5 py-3 text-sm font-semibold text-[#fff9ed] hover:border-[#9dffb3]/60"
                 href="#buckets"
               >
                 Tune buckets
@@ -126,14 +125,14 @@ export default function HomePage() {
 
               return (
                 <article
-                  className="border border-[#2d281f] bg-[#14120e] p-4 shadow-[0_16px_60px_rgba(0,0,0,0.22)]"
+                  className="border border-[#263026] bg-[#101410] p-4 shadow-[0_16px_60px_rgba(0,0,0,0.22)]"
                   key={item.title}
                 >
-                  <Icon className="size-5 text-[#d89b57]" aria-hidden="true" />
-                  <h3 className="mt-3 text-base font-semibold text-[#fff6e8]">
+                  <Icon className="size-5 text-[#f2a65a]" aria-hidden="true" />
+                  <h3 className="mt-3 text-base font-semibold text-[#fff9ed]">
                     {item.title}
                   </h3>
-                  <p className="mt-2 text-sm leading-6 text-[#d7d0c1]">
+                  <p className="mt-2 text-sm leading-6 text-[#cdd8ce]">
                     {item.body}
                   </p>
                 </article>
@@ -150,34 +149,34 @@ export default function HomePage() {
 
 const positioning = [
   {
-    title: "Balances show everything. PayShield shows the usable truth.",
-    body: "The headline number is not the spendable number until rent, vehicles, insurance, family needs, and goals are already handled.",
+    title: "Balances show the pile. PayShield shows the usable slice.",
+    body: "The headline number is not spendable until rent, vehicles, insurance, family needs, and goals have already taken their place.",
     icon: SlidersHorizontal,
   },
   {
-    title: "Budgets explain the past. PayShield shapes the next swipe.",
+    title: "Budget apps document the past. PayShield controls the next swipe.",
     body: "The purchase check happens before spending, so the household sees whether a decision fits the protected paycheck plan.",
     icon: ShieldCheck,
   },
   {
-    title: "Spreadsheets need maintenance. PayShield creates a shareable plan.",
-    body: "The current paycheck, bucket coverage, shortfalls, purchase decision, and recovery path can be exported in one structured file.",
+    title: "Spreadsheets need upkeep. PayShield gives the week one answer.",
+    body: "The current paycheck, bucket coverage, shortfalls, purchase decision, and recovery path export as one structured plan.",
     icon: RefreshCcw,
   },
   {
-    title: "No bank login required. No sensitive account details needed.",
-    body: "The app works as a private planning surface first, so households can get clarity without handing over credentials.",
+    title: "Private by default. No bank login required.",
+    body: "The app works as a private planning surface, so households can get clarity without handing over credentials or account numbers.",
     icon: Lock,
   },
 ];
 
 const taglines = [
-  "Balances lie. PayShield tells you what is actually safe to spend.",
-  "Spend from the money left after life is covered.",
-  "Payday, protected before the first swipe.",
-  "The paycheck planner that subtracts obligations before temptation.",
-  "Know the usable number, not just the account number.",
-  "A calmer week starts with the part of the check you can really use.",
+  "The balance is bait. The usable number is the truth.",
+  "Payday gets organized before spending gets a vote.",
+  "Bills first. Swipe second. Peace all week.",
+  "A banking balance says what exists. PayShield says what survives.",
+  "Every dollar gets a job before impulse gets a chance.",
+  "Stop asking what is left. Know what is usable.",
 ];
 
 const commercialReadiness = [
@@ -193,7 +192,7 @@ const commercialReadiness = [
   },
   {
     title: "Exportable plan",
-    body: "The current plan can be downloaded as a structured JSON file for household review.",
+    body: "The current paycheck model can be downloaded as a structured JSON file for household review.",
     icon: WalletCards,
   },
   {

@@ -87,7 +87,7 @@ const buckets: Bucket[] = [
     due: "1st",
     protection: "Bill-only",
     rail: "Modeled landlord payee",
-    color: "#7ee0a3",
+    color: "#9dffb3",
     icon: Home,
   },
   {
@@ -97,7 +97,7 @@ const buckets: Bucket[] = [
     due: "15th",
     protection: "Bill-only",
     rail: "Auto loan payee",
-    color: "#8fb8ff",
+    color: "#7db7ff",
     icon: Car,
   },
   {
@@ -107,7 +107,7 @@ const buckets: Bucket[] = [
     due: "22nd",
     protection: "Bill-only",
     rail: "Carrier autopay",
-    color: "#d89b57",
+    color: "#f2a65a",
     icon: Umbrella,
   },
   {
@@ -117,7 +117,7 @@ const buckets: Bucket[] = [
     due: "Every check",
     protection: "Hard lock",
     rail: "Savings transfer",
-    color: "#c7a6ff",
+    color: "#ff8a7a",
     icon: Baby,
   },
   {
@@ -127,7 +127,7 @@ const buckets: Bucket[] = [
     due: "Every check",
     protection: "Soft lock",
     rail: "Goal reserve",
-    color: "#6bc6c9",
+    color: "#9ce7e1",
     icon: Plane,
   },
   {
@@ -137,7 +137,7 @@ const buckets: Bucket[] = [
     due: "Every check",
     protection: "Flexible",
     rail: "Flexible reserve",
-    color: "#b9ad99",
+    color: "#f8f1e3",
     icon: CircleDollarSign,
   },
 ];
@@ -679,32 +679,57 @@ export function PaycheckPlanner() {
     : "Every priority bucket is covered";
   const safeSpendTone = plan.safeSpend > 0 ? "Ready to use" : "Hold spending";
   const purchaseTone = cardApproved ? "Cleared" : "Needs a pause";
+  const flowStops = [
+    {
+      accent: "#f2a65a",
+      body: activeScenarioLabel,
+      icon: Landmark,
+      label: "Paycheck lands",
+      value: formatMoney(paycheck),
+    },
+    {
+      accent: "#f8f1e3",
+      body: `${coveredBuckets.length}/${plan.allocations.length} buckets covered`,
+      icon: Lock,
+      label: "Promises lock",
+      value: formatMoney(plan.protectedFunded),
+    },
+    {
+      accent: "#9dffb3",
+      body: safeSpendTone,
+      icon: WalletCards,
+      label: "Usable money opens",
+      value: formatMoney(plan.safeSpend),
+    },
+  ];
+  const protectedVisualWidth = `${clamp(protectedProgress, 2, 100)}%`;
+  const safeSpendVisualWidth = `${clamp(safeSpendProgress, 0, 100)}%`;
 
   return (
     <section
       id="product"
-      className="pay-app-shell relative min-h-screen overflow-x-hidden border-b border-[#2d281f] text-[#f5efe4]"
+      className="pay-app-shell relative min-h-screen overflow-x-hidden border-b border-[#263026] text-[#f8f1e3]"
     >
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#d89b57] to-transparent opacity-70" />
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1480px] flex-col px-4 py-5 sm:px-6 lg:px-8">
-        <header className="flex flex-wrap items-center justify-between gap-3 border border-[#2d281f] bg-[#0b0a08]/86 px-3 py-3 shadow-[0_22px_90px_rgba(0,0,0,0.42)] backdrop-blur-xl">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#9dffb3] to-transparent opacity-80" />
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1560px] flex-col px-4 py-4 sm:px-6 lg:px-8">
+        <header className="flex flex-wrap items-center justify-between gap-3 border border-[#263026] bg-[#080a08]/88 px-3 py-3 shadow-[0_28px_100px_rgba(0,0,0,0.48)] backdrop-blur-xl">
           <a className="flex items-center gap-3" href="#product">
-            <PayShieldMark className="size-11 drop-shadow-[0_0_24px_rgba(216,155,87,0.2)]" />
+            <PayShieldMark className="size-12 drop-shadow-[0_0_26px_rgba(157,255,179,0.16)]" />
             <span>
-              <span className="block text-base font-semibold leading-5 text-[#fff6e8]">
+              <span className="block text-base font-semibold leading-5 text-[#f8f1e3]">
                 PayShield
               </span>
-              <span className="block text-xs font-medium uppercase leading-4 tracking-[0.18em] text-[#9f9483]">
-                Paycheck planning app
+              <span className="block text-xs font-medium uppercase leading-4 tracking-[0.18em] text-[#9aa79c]">
+                Usable-number engine
               </span>
             </span>
           </a>
           <nav
             aria-label="Primary"
-            className="flex flex-wrap items-center gap-1 border border-[#2d281f] bg-[#171510]/80 p-1 text-sm font-medium text-[#ece2d3]"
+            className="flex flex-wrap items-center gap-1 border border-[#263026] bg-[#101410]/82 p-1 text-sm font-medium text-[#e9eee6]"
           >
             <a className="px-3 py-2 hover:bg-white/10" href="#product">
-              Today
+              Flow
             </a>
             <a
               className="px-3 py-2 hover:bg-white/10"
@@ -725,408 +750,398 @@ export function PaycheckPlanner() {
               Recovery
             </a>
             <button
-              className="inline-flex items-center gap-2 bg-[#d89b57] px-4 py-2 font-semibold text-[#120d07] shadow-[0_16px_36px_rgba(216,155,87,0.2)] hover:bg-[#f0b86f]"
+              className="inline-flex items-center gap-2 bg-[#9dffb3] px-4 py-2 font-semibold text-[#06120a] shadow-[0_18px_42px_rgba(157,255,179,0.18)] hover:bg-[#c6ffd2]"
               type="button"
               onClick={exportPlan}
             >
-              Export plan
               <Download className="size-4" aria-hidden="true" />
+              Export plan
             </button>
           </nav>
         </header>
 
-        <div className="grid flex-1 items-start gap-5 py-6 lg:grid-cols-[minmax(0,1fr)_410px] 2xl:grid-cols-[minmax(0,1fr)_460px]">
-          <div className="min-w-0">
-            <div className="mb-4 grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-              <div>
-                <p className="mb-3 inline-flex items-center gap-2 border border-[#7ee0a3]/25 bg-[#7ee0a3]/10 px-3 py-2 text-sm font-semibold text-[#e6ffe9] shadow-[0_0_36px_rgba(126,224,163,0.12)]">
-                <Lock className="size-4" aria-hidden="true" />
-                Balances lie. Buckets tell the truth.
-                </p>
-                <h1 className="max-w-4xl text-4xl font-semibold leading-[1.02] text-[#fff6e8] sm:text-5xl xl:text-6xl">
-                  Spend after the paycheck keeps its promises.
-                </h1>
-                <p className="mt-4 max-w-2xl text-lg leading-8 text-[#d7d0c1]">
-                  PayShield subtracts rent, car notes, insurance, family needs,
-                  goals, and recovery before it shows the number the household
-                  can actually use.
-                </p>
-              </div>
+        <div className="grid flex-1 items-start gap-4 py-5 lg:grid-cols-[minmax(280px,0.82fr)_minmax(520px,1.36fr)_minmax(320px,0.86fr)] xl:gap-5">
+          <section className="border border-[#263026] bg-[#0a0d0a]/90 p-4 shadow-[0_28px_110px_rgba(0,0,0,0.42)] ring-1 ring-white/[0.04] backdrop-blur-xl lg:min-h-[calc(100vh-116px)]">
+            <p className="inline-flex items-center gap-2 border border-[#9dffb3]/30 bg-[#9dffb3]/10 px-3 py-2 text-sm font-semibold text-[#ddffe4] shadow-[0_0_38px_rgba(157,255,179,0.12)]">
+              <Lock className="size-4" aria-hidden="true" />
+              Balances are the decoy. The usable number is the truth.
+            </p>
+            <h1 className="mt-5 max-w-xl text-4xl font-semibold leading-[1.02] text-[#fff9ed] sm:text-5xl lg:text-[2.9rem] xl:text-[3.1rem]">
+              Your paycheck gets an airlock before spending gets a vote.
+            </h1>
+            <p className="mt-4 text-base leading-7 text-[#cdd8ce] sm:text-lg">
+              PayShield does what balances and budget apps do not: it subtracts
+              rent, car notes, insurance, family needs, goals, and recovery
+              before showing the money that can actually be touched.
+            </p>
 
-              <div className="h-fit border border-[#2d281f] bg-[#14120e]/86 p-4 shadow-[0_22px_90px_rgba(0,0,0,0.34)] ring-1 ring-[#d89b57]/10 backdrop-blur">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#d89b57]">
-                      Paycheck truth layer
+            <div className="mt-5 grid grid-cols-3 gap-2">
+              {heroSignals.map((signal) => {
+                const Icon = signal.icon;
+
+                return (
+                  <div
+                    className="border border-white/10 bg-white/[0.045] p-3"
+                    key={signal.label}
+                  >
+                    <Icon className="mb-3 size-4 text-[#9dffb3]" aria-hidden="true" />
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-[#9aa79c]">
+                      {signal.label}
                     </p>
-                    <p className="mt-1 text-sm text-[#b7ad9f]">
-                      {activeScenarioLabel} - {storageStatusCopy[storageStatus]}
+                    <p className="mt-1 text-sm font-semibold text-[#fff9ed]">
+                      {signal.value}
                     </p>
                   </div>
-                  <span className="grid size-11 place-items-center border border-[#2d281f] bg-[#211b13] text-[#d89b57]">
-                    <Zap className="size-5" aria-hidden="true" />
-                  </span>
-                </div>
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  {heroSignals.map((signal) => {
-                    const Icon = signal.icon;
+                );
+              })}
+            </div>
 
-                    return (
-                      <div
-                        className="rounded-[8px] border border-white/10 bg-white/[0.045] p-3"
-                        key={signal.label}
-                      >
-                        <Icon className="mb-3 size-4 text-[#7ee0a3]" aria-hidden="true" />
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-[#9f9483]">
-                          {signal.label}
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-[#fff6e8]">
-                          {signal.value}
-                        </p>
-                      </div>
-                    );
-                  })}
+            <div className="mt-6 border border-[#263026] bg-[#111610] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-[#fff9ed]">
+                    Paycheck control
+                  </p>
+                  <p className="text-xs leading-5 text-[#9aa79c]">
+                    {activeScenarioLabel} - {storageStatusCopy[storageStatus]}
+                  </p>
                 </div>
+                <button
+                  className="grid size-10 place-items-center border border-white/10 bg-[#050605] text-[#9dffb3] hover:border-[#9dffb3]/55"
+                  type="button"
+                  onClick={() => applyScenario(plannerScenarios[0])}
+                  aria-label="Reset planner"
+                >
+                  <RefreshCcw className="size-4" aria-hidden="true" />
+                </button>
+              </div>
+
+              <label className="mt-4 block text-sm font-medium text-[#e9eee6]">
+                Paycheck amount
+              </label>
+              <div className="mt-2 flex items-center border border-white/10 bg-[#050605] px-3 focus-within:border-[#9dffb3]/70">
+                <span className="text-[#9aa79c]">$</span>
+                <input
+                  aria-label="Paycheck deposit amount"
+                  className="h-12 min-w-0 flex-1 bg-transparent px-2 text-xl font-semibold text-[#fff9ed] outline-none"
+                  inputMode="numeric"
+                  max={8000}
+                  min={500}
+                  step={50}
+                  type="number"
+                  value={paycheck}
+                  onInput={(event) =>
+                    updatePaycheck(toNumber(event.currentTarget.value, paycheck))
+                  }
+                  onChange={(event) =>
+                    updatePaycheck(toNumber(event.target.value, paycheck))
+                  }
+                />
+              </div>
+              <input
+                aria-label="Adjust paycheck deposit amount"
+                className="mt-4 w-full accent-[#9dffb3]"
+                max={8000}
+                min={500}
+                step={50}
+                type="range"
+                value={paycheck}
+                onChange={(event) => updatePaycheck(Number(event.target.value))}
+              />
+
+              <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                <Metric label="Reserved" value={formatMoney(plan.protectedFunded)} />
+                <Metric label="Spendable" value={safeSpendTone} />
+                <Metric label="Short" value={formatMoney(plan.shortfall)} warning />
               </div>
             </div>
 
-            <div className="grid gap-5 xl:grid-cols-[390px_minmax(0,1fr)]">
-              <section className="overflow-hidden rounded-[8px] border border-white/10 bg-[#11100d]/92 shadow-[0_28px_120px_rgba(0,0,0,0.46)] ring-1 ring-white/[0.04] backdrop-blur-xl">
-                <div className="border-b border-white/10 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-[#fff6e8]">
-                        Paycheck splitter
-                      </p>
-                      <p className="text-sm text-[#b7ad9f]">
-                        Obligations first, usable money second
-                      </p>
-                    </div>
-                    <Landmark className="size-5 text-[#7ee0a3]" aria-hidden="true" />
-                  </div>
+            <div className="mt-5">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-[#fff9ed]">
+                    Scenarios
+                  </p>
+                  <p className="text-xs leading-5 text-[#9aa79c]">
+                    Start fast, then tune every dollar.
+                  </p>
+                </div>
+                <SlidersHorizontal className="size-4 text-[#7db7ff]" aria-hidden="true" />
+              </div>
+              <div className="grid gap-2">
+                {plannerScenarios.map((scenario) => (
+                  <button
+                    aria-pressed={activeScenario === scenario.id}
+                    className={`border px-3 py-3 text-left transition ${
+                      activeScenario === scenario.id
+                        ? "border-[#9dffb3]/70 bg-[#9dffb3]/14 text-[#f3fff2] shadow-[0_0_34px_rgba(157,255,179,0.14)]"
+                        : "border-white/10 bg-white/[0.04] text-[#e9eee6] hover:border-white/25 hover:bg-white/[0.075]"
+                    }`}
+                    key={scenario.id}
+                    type="button"
+                    onClick={() => applyScenario(scenario)}
+                  >
+                    <span className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-semibold">
+                        {scenario.name}
+                      </span>
+                      <span className="text-xs text-[#9dffb3]">
+                        {formatMoney(scenario.paycheck)}
+                      </span>
+                    </span>
+                    <span className="mt-1 block text-xs leading-5 text-[#aeb8ad]">
+                      {scenario.body}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
 
-                  <div className="mt-5 grid place-items-center">
+          <section className="min-w-0 overflow-hidden border border-[#263026] bg-[#0b0f0b]/92 shadow-[0_32px_130px_rgba(0,0,0,0.5)] ring-1 ring-[#9dffb3]/10 backdrop-blur-xl lg:min-h-[calc(100vh-116px)]">
+            <div className="border-b border-white/10 bg-white/[0.035] p-4 sm:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#9dffb3]">
+                    Paycheck truth engine
+                  </p>
+                  <h2 className="mt-2 text-2xl font-semibold text-[#fff9ed] sm:text-3xl">
+                    Money moves through promises before it becomes spendable.
+                  </h2>
+                </div>
+                <span className="border border-[#f2a65a]/35 bg-[#f2a65a]/12 px-3 py-2 text-sm font-semibold text-[#ffd2a1]">
+                  {planStatus}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid gap-5 p-4 sm:p-5">
+              <div className="grid gap-3 md:grid-cols-3">
+                {flowStops.map((stop) => {
+                  const Icon = stop.icon;
+
+                  return (
                     <div
-                      className="relative grid size-56 place-items-center rounded-full"
-                      style={{
-                        background: `conic-gradient(#7ee0a3 0 ${safeSpendProgress}%, #d89b57 ${safeSpendProgress}% ${clamp(safeSpendProgress + protectedProgress, 0, 100)}%, rgba(255,255,255,0.09) 0)`,
-                      }}
+                      className="relative overflow-hidden border border-white/10 bg-[#111610] p-4"
+                      key={stop.label}
                     >
-                      <div className="absolute inset-3 rounded-full bg-[#070604]" />
-                      <div className="relative text-center">
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9f9483]">
-                          Actually usable
-                        </p>
-                        <p className="mt-2 text-4xl font-semibold text-[#fff6e8]">
-                          {formatMoney(plan.safeSpend)}
-                        </p>
-                        <p className="mt-2 text-sm text-[#7ee0a3]">
-                          {Math.round(safeSpendProgress)}% of this check
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <label className="mt-5 block text-sm font-medium text-[#e7dccb]">
-                    Paycheck amount
-                  </label>
-                  <div className="mt-2 flex items-center rounded-[8px] border border-white/10 bg-white/[0.055] px-3 focus-within:border-[#7ee0a3]/70">
-                    <span className="text-[#9f9483]">$</span>
-                    <input
-                      aria-label="Paycheck deposit amount"
-                      className="h-12 min-w-0 flex-1 bg-transparent px-2 text-xl font-semibold text-[#fff6e8] outline-none"
-                      inputMode="numeric"
-                      max={8000}
-                      min={500}
-                      step={50}
-                      type="number"
-                      value={paycheck}
-                      onInput={(event) =>
-                        updatePaycheck(
-                          toNumber(event.currentTarget.value, paycheck),
-                        )
-                      }
-                      onChange={(event) =>
-                        updatePaycheck(toNumber(event.target.value, paycheck))
-                      }
-                    />
-                  </div>
-                  <input
-                    aria-label="Adjust paycheck deposit amount"
-                    className="mt-4 w-full accent-[#7ee0a3]"
-                    max={8000}
-                    min={500}
-                    step={50}
-                    type="range"
-                    value={paycheck}
-                    onChange={(event) => updatePaycheck(Number(event.target.value))}
-                  />
-
-                  <div className="mt-5 grid grid-cols-3 gap-2 text-center">
-                    <Metric label="Reserved" value={formatMoney(plan.protectedFunded)} />
-                    <Metric label="Spendable" value={safeSpendTone} />
-                    <Metric label="Short" value={formatMoney(plan.shortfall)} warning />
-                  </div>
-                </div>
-
-                <div className="p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-[#fff6e8]">
-                        Scenarios
-                      </p>
-                      <p className="text-xs leading-5 text-[#b7ad9f]">
-                        Tap one, then tune the numbers.
-                      </p>
-                    </div>
-                    <button
-                      className="inline-flex items-center gap-2 rounded-[8px] border border-white/10 bg-white/[0.055] px-3 py-2 text-sm font-semibold text-[#f5efe4] hover:border-[#7ee0a3]/50 hover:bg-[#7ee0a3]/10"
-                      type="button"
-                      onClick={() => applyScenario(plannerScenarios[0])}
-                    >
-                      <RefreshCcw className="size-4" aria-hidden="true" />
-                      Reset
-                    </button>
-                  </div>
-                  <div className="mt-3 grid gap-2">
-                    {plannerScenarios.map((scenario) => (
-                      <button
-                        aria-pressed={activeScenario === scenario.id}
-                        className={`rounded-[8px] border px-3 py-3 text-left transition ${
-                          activeScenario === scenario.id
-                            ? "border-[#7ee0a3]/70 bg-[#7ee0a3]/14 text-[#f3fff2] shadow-[0_0_32px_rgba(126,224,163,0.12)]"
-                            : "border-white/10 bg-white/[0.04] text-[#ece2d3] hover:border-white/25 hover:bg-white/[0.075]"
-                        }`}
-                        key={scenario.id}
-                        type="button"
-                        onClick={() => applyScenario(scenario)}
-                      >
-                        <span className="flex items-center justify-between gap-3">
-                          <span className="text-sm font-semibold">
-                            {scenario.name}
-                          </span>
-                          <span className="text-xs text-[#7ee0a3]">
-                            {formatMoney(scenario.paycheck)}
-                          </span>
-                        </span>
-                        <span className="mt-1 block text-xs leading-5 text-[#b7ad9f]">
-                          {scenario.body}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </section>
-
-              <section className="overflow-hidden rounded-[8px] border border-white/10 bg-[#11100d]/92 shadow-[0_28px_120px_rgba(0,0,0,0.46)] ring-1 ring-[#7ee0a3]/10 backdrop-blur-xl">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-white/[0.045] px-4 py-3">
-                  <div>
-                      <p className="text-sm font-semibold text-[#fff6e8]">
-                        Paycheck promises
-                      </p>
-                      <p className="text-xs leading-5 text-[#b7ad9f]">
-                      The order your balance never explains.
-                    </p>
-                  </div>
-                  <span className="rounded-[8px] border border-[#d89b57]/30 bg-[#d89b57]/10 px-3 py-2 text-sm font-semibold text-[#f6d89b]">
-                    {planStatus}
-                  </span>
-                </div>
-                <div id="buckets" className="grid gap-4 p-4">
-                  <div className="grid gap-3 md:grid-cols-4">
-                    {operatingVitals.map((vital) => {
-                      const Icon = vital.icon;
-
-                      return (
-                        <div
-                          className="rounded-[8px] border border-white/10 bg-white/[0.045] p-3"
-                          key={vital.label}
-                        >
-                          <Icon className="mb-3 size-4 text-[#8fb8ff]" aria-hidden="true" />
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-[#9f9483]">
-                            {vital.label}
+                      <div
+                        className="absolute inset-x-0 top-0 h-1"
+                        style={{ backgroundColor: stop.accent }}
+                      />
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9aa79c]">
+                            {stop.label}
                           </p>
-                          <p className="mt-1 text-sm font-semibold text-[#fff6e8]">
-                            {vital.value}
+                          <p className="mt-2 text-2xl font-semibold text-[#fff9ed]">
+                            {stop.value}
+                          </p>
+                          <p className="mt-1 text-sm text-[#aeb8ad]">
+                            {stop.body}
                           </p>
                         </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="grid gap-3">
-                    {plan.allocations.map((bucket) => (
-                      <BucketRow
-                        bucket={bucket}
-                        key={bucket.id}
-                        onChange={(nextAmount) =>
-                          updateBucketAmount(bucket.id, nextAmount)
-                        }
-                      />
-                    ))}
-                  </div>
-
-                  <div className="grid gap-3 lg:grid-cols-2">
-                    <div className="rounded-[8px] border border-white/10 bg-white/[0.045] p-4">
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <p className="text-sm font-semibold text-[#fff6e8]">
-                          Promise order
-                        </p>
-                        <TrendingUp className="size-4 text-[#8fb8ff]" aria-hidden="true" />
-                      </div>
-                      <div className="grid gap-2">
-                        {priorityQueue.map((bucket, index) => (
-                          <div
-                            className="flex items-center justify-between gap-3 rounded-[8px] border border-white/10 bg-[#070604]/56 px-3 py-2"
-                            key={bucket.id}
-                          >
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-[#fff6e8]">
-                                {index + 1}. {bucket.name}
-                              </p>
-                              <p className="text-xs text-[#9f9483]">
-                                {bucket.protection} - {bucket.due}
-                              </p>
-                            </div>
-                            <p
-                              className={`text-sm font-semibold ${
-                                bucket.short > 0
-                                  ? "text-[#ff8f70]"
-                                  : "text-[#7ee0a3]"
-                              }`}
-                            >
-                              {bucket.short > 0
-                                ? `${formatMoney(bucket.short)} short`
-                                : "Locked"}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="rounded-[8px] border border-white/10 bg-white/[0.045] p-4">
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <p className="text-sm font-semibold text-[#fff6e8]">
-                          Household truth mode
-                        </p>
-                        <Users className="size-4 text-[#7ee0a3]" aria-hidden="true" />
-                      </div>
-                      <div className="grid gap-2 text-sm leading-6 text-[#d7d0c1]">
-                        <p className="rounded-[8px] border border-white/10 bg-[#070604]/48 px-3 py-2">
-                          Shared view focuses on what is covered, what is short, and how the plan recovers.
-                        </p>
-                        <p className="rounded-[8px] border border-white/10 bg-[#070604]/48 px-3 py-2">
-                          No bank credentials, account numbers, or sensitive notes required.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-            </div>
-          </div>
-
-          <aside className="grid gap-5 lg:sticky lg:top-5">
-            <div
-              id="card-guard"
-              className="overflow-hidden rounded-[8px] border border-white/10 bg-[#11100d]/92 shadow-[0_24px_100px_rgba(0,0,0,0.44)] ring-1 ring-white/[0.04] backdrop-blur-xl"
-            >
-              <div className="relative min-h-[320px] overflow-hidden">
-                <Image
-                  alt="PayShield mobile dashboard and safe-to-spend view"
-                  className="absolute inset-0 h-full w-full object-cover opacity-45"
-                  height={1024}
-                  priority
-                  src="/images/payshield-product-mockup.avif"
-                  width={1536}
-                />
-                <div className="absolute inset-0 bg-gradient-to-b from-[#0b0a08]/20 via-[#0b0a08]/48 to-[#0b0a08]" />
-                <div className="relative p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-[#fff6e8]">
-                        Phone view
-                      </p>
-                      <p className="text-sm text-[#d7d0c1]">
-                        Daily safe-to-spend snapshot
-                      </p>
-                    </div>
-                    <span className="rounded-[8px] border border-[#d89b57]/35 bg-[#d89b57]/12 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#f6d89b]">
-                      Live plan
-                    </span>
-                  </div>
-                  <div className="mx-auto mt-7 max-w-[270px] rounded-[30px] border border-white/20 bg-[#070604] p-3 shadow-[0_30px_90px_rgba(0,0,0,0.58)]">
-                    <div className="rounded-[22px] border border-white/10 bg-[#171a22] p-4">
-                      <div className="mb-4 flex items-center justify-between">
-                        <span className="text-xs font-semibold text-[#b7ad9f]">
-                          Today
-                        </span>
                         <span
-                          className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${
-                            cardApproved
-                              ? "bg-[#7ee0a3]/15 text-[#7ee0a3]"
-                              : "bg-[#ff8f70]/15 text-[#ffb39e]"
-                          }`}
+                          className="grid size-10 shrink-0 place-items-center border border-white/10 bg-[#050605]"
+                          style={{ color: stop.accent }}
                         >
-                          {purchaseTone}
+                          <Icon className="size-4" aria-hidden="true" />
                         </span>
                       </div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#7ee0a3]">
-                        Spendable
-                      </p>
-                      <p className="mt-1 text-4xl font-semibold text-[#fff6e8]">
-                        {formatMoney(plan.safeSpend)}
-                      </p>
-                      <div className="mt-5 grid gap-2">
-                        {plan.allocations.slice(0, 4).map((bucket) => (
-                          <div
-                            className="flex items-center gap-2 rounded-[8px] bg-white/[0.055] p-2"
-                            key={bucket.id}
-                          >
-                            <span
-                              className="size-2.5 rounded-full"
-                              style={{ backgroundColor: bucket.color }}
-                            />
-                            <span className="min-w-0 flex-1 truncate text-xs text-[#d7d0c1]">
-                              {bucket.name}
-                            </span>
-                            <span className="text-xs font-semibold text-[#fff6e8]">
-                              {bucket.short > 0 ? "Short" : "Set"}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-5 rounded-[8px] bg-[#7ee0a3] p-3 text-[#06120a]">
-                        <p className="text-xs font-semibold uppercase tracking-[0.12em]">
-                          Next decision
-                        </p>
-                        <p className="mt-1 text-sm font-semibold">
-                          {merchant} {cardApproved ? "fits" : "should wait"}
-                        </p>
-                      </div>
                     </div>
+                  );
+                })}
+              </div>
+
+              <div className="relative overflow-hidden border border-[#263026] bg-[#050605] p-4">
+                <div className="absolute inset-y-0 left-0 w-1/2 opacity-30 pay-scanline" />
+                <div className="relative">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-[#fff9ed]">
+                      Live split
+                    </p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9aa79c]">
+                      Protected first / spendable second
+                    </p>
+                  </div>
+                  <div className="h-14 overflow-hidden border border-white/10 bg-[#0f130f]">
+                    <div className="flex h-full">
+                      <div
+                        className="grid min-w-0 place-items-center bg-[#f2a65a]/78 text-[#160d04]"
+                        style={{ width: protectedVisualWidth }}
+                      >
+                        <span className="truncate px-3 text-xs font-bold uppercase tracking-[0.12em]">
+                          Protected
+                        </span>
+                      </div>
+                      <div
+                        className="grid min-w-0 place-items-center bg-[#9dffb3] text-[#06120a]"
+                        style={{ width: safeSpendVisualWidth }}
+                      >
+                        {safeSpendProgress >= 8 ? (
+                          <span className="truncate px-3 text-xs font-bold uppercase tracking-[0.12em]">
+                            Usable
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="min-w-[6px] flex-1 bg-white/[0.035]" />
+                    </div>
+                  </div>
+                  <div className="mt-3 h-1 overflow-hidden bg-white/10">
+                    <div className="pay-flow-line h-full bg-gradient-to-r from-[#f2a65a] via-[#9dffb3] to-[#7db7ff]" />
                   </div>
                 </div>
               </div>
 
-              <div className="border-t border-white/10 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-[#fff6e8]">
-                      Purchase check
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                {operatingVitals.map((vital) => {
+                  const Icon = vital.icon;
+
+                  return (
+                    <div
+                      className="border border-white/10 bg-white/[0.04] p-3"
+                      key={vital.label}
+                    >
+                      <Icon className="mb-3 size-4 text-[#7db7ff]" aria-hidden="true" />
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-[#9aa79c]">
+                        {vital.label}
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-[#fff9ed]">
+                        {vital.value}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div id="buckets" className="grid gap-3">
+                {plan.allocations.map((bucket) => (
+                  <BucketRow
+                    bucket={bucket}
+                    key={bucket.id}
+                    onChange={(nextAmount) =>
+                      updateBucketAmount(bucket.id, nextAmount)
+                    }
+                  />
+                ))}
+              </div>
+
+              <div className="grid gap-3 xl:grid-cols-[0.92fr_1.08fr]">
+                <div className="border border-white/10 bg-white/[0.045] p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-[#fff9ed]">
+                      Promise order
                     </p>
-                    <p className="text-sm text-[#b7ad9f]">
-                      Test a real-world swipe before it happens.
+                    <TrendingUp className="size-4 text-[#7db7ff]" aria-hidden="true" />
+                  </div>
+                  <div className="grid gap-2">
+                    {priorityQueue.map((bucket, index) => (
+                      <div
+                        className="flex items-center justify-between gap-3 border border-white/10 bg-[#050605]/62 px-3 py-2"
+                        key={bucket.id}
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-[#fff9ed]">
+                            {index + 1}. {bucket.name}
+                          </p>
+                          <p className="text-xs text-[#9aa79c]">
+                            {bucket.protection} - {bucket.due}
+                          </p>
+                        </div>
+                        <p
+                          className={`text-sm font-semibold ${
+                            bucket.short > 0
+                              ? "text-[#ff8a7a]"
+                              : "text-[#9dffb3]"
+                          }`}
+                        >
+                          {bucket.short > 0
+                            ? `${formatMoney(bucket.short)} short`
+                            : "Locked"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="border border-white/10 bg-white/[0.045] p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-[#fff9ed]">
+                      Household mode
+                    </p>
+                    <Users className="size-4 text-[#9dffb3]" aria-hidden="true" />
+                  </div>
+                  <div className="grid gap-2 text-sm leading-6 text-[#cdd8ce]">
+                    <p className="border border-white/10 bg-[#050605]/54 px-3 py-2">
+                      Every person sees what is covered, what is short, and how
+                      the week recovers before money leaves the plan.
+                    </p>
+                    <p className="border border-white/10 bg-[#050605]/54 px-3 py-2">
+                      No bank credentials, account numbers, or sensitive notes
+                      are required to build the usable number.
                     </p>
                   </div>
-                  <WalletCards className="size-5 text-[#d89b57]" aria-hidden="true" />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <aside className="grid gap-4 lg:sticky lg:top-4">
+            <div
+              id="card-guard"
+              className="overflow-hidden border border-[#263026] bg-[#0b0f0b]/92 shadow-[0_28px_100px_rgba(0,0,0,0.48)] ring-1 ring-white/[0.04] backdrop-blur-xl"
+            >
+              <div className="p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[#f2a65a]">
+                      Decision lens
+                    </p>
+                    <p className="mt-1 text-sm text-[#aeb8ad]">
+                      Test the swipe before the account regrets it.
+                    </p>
+                  </div>
+                  <WalletCards className="size-5 text-[#f2a65a]" aria-hidden="true" />
+                </div>
+
+                <div
+                  className={`mt-5 border p-4 ${
+                    cardApproved
+                      ? "border-[#9dffb3]/35 bg-[#9dffb3]/11"
+                      : "border-[#ff8a7a]/40 bg-[#ff8a7a]/11"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9aa79c]">
+                        Purchase check
+                      </p>
+                      <p
+                        className={`mt-2 text-3xl font-semibold ${
+                          cardApproved ? "text-[#9dffb3]" : "text-[#ffb2a8]"
+                        }`}
+                      >
+                        {purchaseTone}
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-[#cdd8ce]">
+                        {merchant} at {formatMoney(cardAmount)}{" "}
+                        {cardApproved ? "fits inside" : "runs past"} the{" "}
+                        {formatMoney(plan.safeSpend)} usable number.
+                      </p>
+                    </div>
+                    {cardApproved ? (
+                      <CheckCircle2 className="size-7 text-[#9dffb3]" aria-hidden="true" />
+                    ) : (
+                      <XCircle className="size-7 text-[#ff8a7a]" aria-hidden="true" />
+                    )}
+                  </div>
                 </div>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                  <label className="text-sm font-medium text-[#e7dccb]">
+                  <label className="text-sm font-medium text-[#e9eee6]">
                     Merchant
                     <select
-                      className="mt-2 h-11 w-full rounded-[8px] border border-white/10 bg-[#070604] px-3 text-[#fff6e8] outline-none focus:border-[#7ee0a3]"
+                      className="mt-2 h-11 w-full border border-white/10 bg-[#050605] px-3 text-[#fff9ed] outline-none focus:border-[#9dffb3]"
                       value={merchant}
                       onChange={(event) => updateMerchant(event.target.value)}
                     >
@@ -1136,13 +1151,13 @@ export function PaycheckPlanner() {
                     </select>
                   </label>
 
-                  <label className="text-sm font-medium text-[#e7dccb]">
+                  <label className="text-sm font-medium text-[#e9eee6]">
                     Purchase amount
-                    <div className="mt-2 flex h-11 items-center rounded-[8px] border border-white/10 bg-[#070604] px-3 focus-within:border-[#7ee0a3]">
-                      <span className="text-[#9f9483]">$</span>
+                    <div className="mt-2 flex h-11 items-center border border-white/10 bg-[#050605] px-3 focus-within:border-[#9dffb3]">
+                      <span className="text-[#9aa79c]">$</span>
                       <input
                         aria-label="Card transaction amount"
-                        className="min-w-0 flex-1 bg-transparent px-2 text-[#fff6e8] outline-none"
+                        className="min-w-0 flex-1 bg-transparent px-2 text-[#fff9ed] outline-none"
                         inputMode="numeric"
                         max={5000}
                         min={1}
@@ -1168,22 +1183,22 @@ export function PaycheckPlanner() {
 
                     return (
                       <div
-                        className="flex items-start gap-3 rounded-[8px] border border-white/10 bg-white/[0.045] p-3"
+                        className="flex items-start gap-3 border border-white/10 bg-white/[0.045] p-3"
                         key={step.title}
                       >
                         <Icon
                           className={`mt-0.5 size-4 shrink-0 ${
                             step.title.includes("paused")
-                              ? "text-[#ff8f70]"
-                              : "text-[#7ee0a3]"
+                              ? "text-[#ff8a7a]"
+                              : "text-[#9dffb3]"
                           }`}
                           aria-hidden="true"
                         />
                         <div>
-                          <p className="text-sm font-semibold text-[#fff6e8]">
+                          <p className="text-sm font-semibold text-[#fff9ed]">
                             {step.title}
                           </p>
-                          <p className="mt-1 text-xs leading-5 text-[#d7d0c1]">
+                          <p className="mt-1 text-xs leading-5 text-[#cdd8ce]">
                             {step.body}
                           </p>
                         </div>
@@ -1191,97 +1206,30 @@ export function PaycheckPlanner() {
                     );
                   })}
                 </div>
-
-                <div
-                  className={`mt-4 rounded-[8px] border p-3 ${
-                    cardApproved
-                      ? "border-[#7ee0a3]/30 bg-[#7ee0a3]/10"
-                      : "border-[#ff8f70]/35 bg-[#ff8f70]/10"
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    {cardApproved ? (
-                      <CheckCircle2
-                        className="mt-0.5 size-5 text-[#7ee0a3]"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <XCircle
-                        className="mt-0.5 size-5 text-[#ff8f70]"
-                        aria-hidden="true"
-                      />
-                    )}
-                    <div>
-                      <p className="font-semibold text-[#fff6e8]">
-                        {cardApproved ? "Fits" : "Pause"} at {merchant}
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-[#d7d0c1]">
-                        The household has {formatMoney(plan.safeSpend)} safe to
-                        spend after protected buckets.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-[8px] border border-white/10 bg-[#11100d]/92 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.34)] ring-1 ring-[#8fb8ff]/10 backdrop-blur-xl">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-[#fff6e8]">
-                    What changed
-                  </p>
-                  <p className="text-sm text-[#b7ad9f]">
-                    The plan explains each money decision.
-                  </p>
-                </div>
-                <ListChecks className="size-5 text-[#8fb8ff]" aria-hidden="true" />
-              </div>
-              <div className="grid gap-2">
-                {activity.map((event) => {
-                  const Icon = event.icon;
-
-                  return (
-                    <div
-                      className="flex items-start gap-3 rounded-[8px] border border-white/10 bg-white/[0.045] p-3"
-                      key={event.title}
-                    >
-                      <Icon className="mt-0.5 size-4 shrink-0 text-[#8fb8ff]" aria-hidden="true" />
-                      <div>
-                        <p className="text-sm font-semibold text-[#fff6e8]">
-                          {event.title}
-                        </p>
-                        <p className="mt-1 text-xs leading-5 text-[#d7d0c1]">
-                          {event.body}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             </div>
 
             <div
               id="recovery"
-              className="rounded-[8px] border border-white/10 bg-[#11100d]/92 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.34)] ring-1 ring-[#d89b57]/10 backdrop-blur-xl"
+              className="border border-[#263026] bg-[#0b0f0b]/92 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.38)] ring-1 ring-[#f2a65a]/10 backdrop-blur-xl"
             >
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-[#fff6e8]">
-                    Recovery plan
+                  <p className="text-sm font-semibold text-[#fff9ed]">
+                    Recovery rule
                   </p>
-                  <p className="text-sm text-[#b7ad9f]">
-                    Model a reserve draw before the household commits.
+                  <p className="text-sm text-[#aeb8ad]">
+                    A reserve draw has a refill path before it happens.
                   </p>
                 </div>
-                <KeyRound className="size-5 text-[#d89b57]" aria-hidden="true" />
+                <KeyRound className="size-5 text-[#f2a65a]" aria-hidden="true" />
               </div>
 
               <div className="grid gap-3">
-                <label className="text-sm font-medium text-[#e7dccb]">
+                <label className="text-sm font-medium text-[#e9eee6]">
                   Reserve bucket
                   <select
-                    className="mt-2 h-11 w-full rounded-[8px] border border-white/10 bg-[#070604] px-3 text-[#fff6e8] outline-none focus:border-[#7ee0a3]"
+                    className="mt-2 h-11 w-full border border-white/10 bg-[#050605] px-3 text-[#fff9ed] outline-none focus:border-[#9dffb3]"
                     value={unlockBucket}
                     onChange={(event) =>
                       updateUnlockBucket(event.target.value as BucketId)
@@ -1295,11 +1243,11 @@ export function PaycheckPlanner() {
                   </select>
                 </label>
 
-                <label className="text-sm font-medium text-[#e7dccb]">
+                <label className="text-sm font-medium text-[#e9eee6]">
                   Reserve draw amount
                   <input
                     aria-label="Reserve draw amount"
-                    className="mt-2 h-11 w-full rounded-[8px] border border-white/10 bg-[#070604] px-3 text-[#fff6e8] outline-none focus:border-[#7ee0a3]"
+                    className="mt-2 h-11 w-full border border-white/10 bg-[#050605] px-3 text-[#fff9ed] outline-none focus:border-[#9dffb3]"
                     inputMode="numeric"
                     max={2000}
                     min={25}
@@ -1321,14 +1269,14 @@ export function PaycheckPlanner() {
 
                 <div
                   aria-label="Recovery pace"
-                  className="grid grid-cols-2 gap-2 rounded-[8px] bg-[#070604] p-1"
+                  className="grid grid-cols-2 gap-2 bg-[#050605] p-1"
                   role="group"
                 >
                   <button
-                    className={`rounded-[8px] px-3 py-2 text-sm font-semibold ${
+                    className={`px-3 py-2 text-sm font-semibold ${
                       unlockMode === "slow"
-                        ? "bg-[#7ee0a3] text-[#06120a] shadow-sm"
-                        : "text-[#d7d0c1]"
+                        ? "bg-[#9dffb3] text-[#06120a] shadow-sm"
+                        : "text-[#cdd8ce]"
                     }`}
                     type="button"
                     onClick={() => updateUnlockMode("slow")}
@@ -1336,10 +1284,10 @@ export function PaycheckPlanner() {
                     Two checks
                   </button>
                   <button
-                    className={`inline-flex items-center justify-center gap-2 rounded-[8px] px-3 py-2 text-sm font-semibold ${
+                    className={`inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-semibold ${
                       unlockMode === "instant"
-                        ? "bg-[#7ee0a3] text-[#06120a] shadow-sm"
-                        : "text-[#d7d0c1]"
+                        ? "bg-[#9dffb3] text-[#06120a] shadow-sm"
+                        : "text-[#cdd8ce]"
                     }`}
                     type="button"
                     onClick={() => updateUnlockMode("instant")}
@@ -1350,19 +1298,73 @@ export function PaycheckPlanner() {
                 </div>
               </div>
 
-              <div className="mt-4 rounded-[8px] border border-[#d89b57]/30 bg-[#d89b57]/10 p-3">
+              <div className="mt-4 border border-[#f2a65a]/35 bg-[#f2a65a]/10 p-3">
                 <div className="flex items-start gap-3">
                   <AlertTriangle
-                    className="mt-0.5 size-5 text-[#d89b57]"
+                    className="mt-0.5 size-5 text-[#f2a65a]"
                     aria-hidden="true"
                   />
-                  <p className="text-sm leading-6 text-[#f5efe4]">
+                  <p className="text-sm leading-6 text-[#f8f1e3]">
                     Drawing {formatMoney(actualUnlock)} from{" "}
                     {selectedUnlockBucket?.name} creates a refill rule of{" "}
                     {formatMoney(recoveryAmount)} from the next{" "}
                     {recoveryChecks} paycheck
                     {recoveryChecks === 1 ? "" : "s"}.
                   </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-hidden border border-[#263026] bg-[#0b0f0b]/92 shadow-[0_24px_80px_rgba(0,0,0,0.34)] ring-1 ring-[#7db7ff]/10 backdrop-blur-xl">
+              <div className="relative min-h-[270px]">
+                <Image
+                  alt="PayShield mobile dashboard and safe-to-spend view"
+                  className="absolute inset-0 h-full w-full object-cover opacity-38"
+                  height={1024}
+                  priority
+                  src="/images/payshield-product-mockup.avif"
+                  width={1536}
+                />
+                <div className="absolute inset-0 bg-gradient-to-b from-[#050605]/20 via-[#050605]/68 to-[#050605]" />
+                <div className="relative p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-[#fff9ed]">
+                        Daily pocket view
+                      </p>
+                      <p className="text-sm text-[#cdd8ce]">
+                        The same truth, compressed for the next decision.
+                      </p>
+                    </div>
+                    <span className="border border-[#7db7ff]/35 bg-[#7db7ff]/12 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#bfd7ff]">
+                      Live
+                    </span>
+                  </div>
+                  <div className="mt-6 border border-white/15 bg-[#050605]/90 p-4 shadow-[0_30px_90px_rgba(0,0,0,0.58)]">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9dffb3]">
+                      Spendable now
+                    </p>
+                    <p className="mt-1 text-4xl font-semibold text-[#fff9ed]">
+                      {formatMoney(plan.safeSpend)}
+                    </p>
+                    <div className="mt-4 grid gap-2">
+                      {activity.slice(0, 3).map((event) => {
+                        const Icon = event.icon;
+
+                        return (
+                          <div
+                            className="flex items-start gap-2 border border-white/10 bg-white/[0.045] p-2"
+                            key={event.title}
+                          >
+                            <Icon className="mt-0.5 size-3.5 shrink-0 text-[#7db7ff]" aria-hidden="true" />
+                            <p className="text-xs leading-5 text-[#dfe7de]">
+                              {event.title}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1383,13 +1385,13 @@ function Metric({
   warning?: boolean;
 }) {
   return (
-    <div className="rounded-[8px] border border-white/10 bg-white/[0.055] p-2">
-      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[#9f9483]">
+    <div className="border border-white/10 bg-white/[0.05] p-2">
+      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-[#9aa79c]">
         {label}
       </p>
       <p
         className={`mt-1 text-sm font-semibold ${
-          warning ? "text-[#ff8f70]" : "text-[#fff6e8]"
+          warning ? "text-[#ff8a7a]" : "text-[#fff9ed]"
         }`}
       >
         {value}
@@ -1410,23 +1412,23 @@ function BucketRow({
     bucket.target > 0 ? (bucket.funded / bucket.target) * 100 : 100;
 
   return (
-    <div className="group rounded-[8px] border border-white/10 bg-white/[0.045] p-3 transition hover:border-white/20 hover:bg-white/[0.07]">
+    <div className="group border border-white/10 bg-white/[0.045] p-3 transition hover:border-[#9dffb3]/35 hover:bg-white/[0.07]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <span
-            className="grid size-10 shrink-0 place-items-center rounded-[8px] text-[#070604] shadow-[0_14px_36px_rgba(0,0,0,0.32)]"
+            className="grid size-10 shrink-0 place-items-center text-[#050605] shadow-[0_14px_36px_rgba(0,0,0,0.32)]"
             style={{ backgroundColor: bucket.color }}
           >
             <Icon className="size-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="font-semibold text-[#fff6e8]">{bucket.name}</p>
-              <span className="rounded-[8px] border border-white/10 bg-[#070604] px-2 py-1 text-xs font-semibold text-[#d7d0c1]">
+              <p className="font-semibold text-[#fff9ed]">{bucket.name}</p>
+              <span className="border border-white/10 bg-[#050605] px-2 py-1 text-xs font-semibold text-[#cdd8ce]">
                 {bucket.protection}
               </span>
             </div>
-            <p className="mt-1 text-sm leading-6 text-[#b7ad9f]">
+            <p className="mt-1 text-sm leading-6 text-[#aeb8ad]">
               {bucket.rail} - Due {bucket.due}
             </p>
           </div>
@@ -1435,7 +1437,7 @@ function BucketRow({
         <div className="flex items-center gap-2">
           <button
             aria-label={`Decrease ${bucket.name} target`}
-            className="grid size-9 place-items-center rounded-[8px] border border-white/10 bg-[#070604] text-[#fff6e8] hover:border-[#7ee0a3]/60"
+            className="grid size-9 place-items-center border border-white/10 bg-[#050605] text-[#fff9ed] hover:border-[#9dffb3]/60"
             type="button"
             onClick={() => onChange(bucket.target - 25)}
           >
@@ -1445,7 +1447,7 @@ function BucketRow({
             {bucket.name} target amount
           </label>
           <input
-            className="h-9 w-24 rounded-[8px] border border-white/10 bg-[#070604] px-2 text-right text-sm font-semibold text-[#fff6e8] outline-none focus:border-[#7ee0a3]"
+            className="h-9 w-24 border border-white/10 bg-[#050605] px-2 text-right text-sm font-semibold text-[#fff9ed] outline-none focus:border-[#9dffb3]"
             id={`${bucket.id}-amount`}
             inputMode="numeric"
             max={2000}
@@ -1458,7 +1460,7 @@ function BucketRow({
           />
           <button
             aria-label={`Increase ${bucket.name} target`}
-            className="grid size-9 place-items-center rounded-[8px] border border-white/10 bg-[#070604] text-[#fff6e8] hover:border-[#7ee0a3]/60"
+            className="grid size-9 place-items-center border border-white/10 bg-[#050605] text-[#fff9ed] hover:border-[#9dffb3]/60"
             type="button"
             onClick={() => onChange(bucket.target + 25)}
           >
@@ -1469,20 +1471,20 @@ function BucketRow({
 
       <div className="mt-3">
         <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-          <span className="font-medium text-[#d7d0c1]">
+          <span className="font-medium text-[#cdd8ce]">
             Funded {formatMoney(bucket.funded)} of {formatMoney(bucket.target)}
           </span>
           {bucket.short > 0 ? (
-            <span className="font-semibold text-[#ff8f70]">
+            <span className="font-semibold text-[#ff8a7a]">
               Short {formatMoney(bucket.short)}
             </span>
           ) : (
-            <span className="font-semibold text-[#7ee0a3]">Covered</span>
+            <span className="font-semibold text-[#9dffb3]">Covered</span>
           )}
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-[#070604]">
+        <div className="h-2 overflow-hidden bg-[#050605]">
           <div
-            className="h-full rounded-full"
+            className="h-full"
             style={{
               width: `${clamp(fundedPercent, 0, 100)}%`,
               backgroundColor: bucket.color,

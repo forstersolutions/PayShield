@@ -28,8 +28,8 @@ function html(siteUrl: string) {
     "payshield-social-card.jpg",
     "payshield-product-mockup.avif",
     "Export plan",
-    "Open the planner. Build the plan. Export the truth.",
-    "Spend from the money left after life is covered.",
+    "Open PayShield. Build the usable number. Export the household plan.",
+    "The usable-number layer for every paycheck.",
     "</body></html>",
   ].join("");
 }

@@ -4,9 +4,9 @@ const defaultTimeoutMs = 10_000;
 const serviceName = "payshield-web-app";
 const requiredHomeText = [
   "PayShield | Paycheck Planning App",
-  "Spend after the paycheck keeps its promises.",
+  "Your paycheck gets an airlock before spending gets a vote.",
   "Export plan",
-  "Open the planner. Build the plan. Export the truth.",
+  "Open PayShield. Build the usable number. Export the household plan.",
 ];
 const publicCopyBannedPhrases = [
   "Vercel preview",

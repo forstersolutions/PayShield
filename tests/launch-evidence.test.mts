@@ -6,9 +6,9 @@ const targetUrl = "https://payshield-lime.vercel.app";
 const gitCommit = "abc123";
 const requiredHome = [
   "PayShield | Paycheck Planning App",
-  "Spend after the paycheck keeps its promises.",
+  "Your paycheck gets an airlock before spending gets a vote.",
   "Export plan",
-  "Open the planner. Build the plan. Export the truth.",
+  "Open PayShield. Build the usable number. Export the household plan.",
 ].join(" ");
 
 function publicEvidence(waitlist: Record<string, unknown>) {

@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1536" height="1024" viewBox="0 0 1536 1024">
+  <defs>
+    <pattern id="grid" width="54" height="54" patternUnits="userSpaceOnUse">
+      <path d="M54 0H0v54" fill="none" stroke="#f8f1e3" stroke-opacity="0.055" stroke-width="1" />
+    </pattern>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#19110b" />
+      <stop offset="0.44" stop-color="#080a08" />
+      <stop offset="1" stop-color="#091423" />
+    </linearGradient>
+    <linearGradient id="flow" x1="0" x2="1">
+      <stop offset="0" stop-color="#f2a65a" />
+      <stop offset="0.52" stop-color="#f8f1e3" />
+      <stop offset="1" stop-color="#9dffb3" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="28" stdDeviation="34" flood-color="#000000" flood-opacity="0.46" />
+    </filter>
+  </defs>
+
+  <rect width="1536" height="1024" fill="url(#bg)" />
+  <rect width="1536" height="1024" fill="url(#grid)" opacity="0.8" />
+  <path d="M0 200H1536" stroke="#9dffb3" stroke-opacity="0.22" />
+  <path d="M0 824H1536" stroke="#f2a65a" stroke-opacity="0.20" />
+  <path d="M124 112h1288v800H124z" fill="#050605" fill-opacity="0.72" stroke="#263026" />
+
+  <g transform="translate(176 166)">
+    <rect width="126" height="126" rx="28" fill="#050605" />
+    <path d="M96.5 27.5H55.1c-16.7 0-30.3 11.2-30.3 25.4s13.6 25.4 30.3 25.4h17.3c5.5 0 9.8 3.3 9.8 7.7s-4.3 7.7-9.8 7.7H29.5v16h42.9c16.7 0 30.3-11.2 30.3-25.4S89.1 58.9 72.4 58.9H55.1c-5.5 0-9.8-3.3-9.8-7.7s4.3-7.7 9.8-7.7h41.4v-16Z" fill="#f8f1e3" />
+    <path d="M96.5 27.5H55.1c-9.4 0-17.9 3.5-23.4 9.1l13 12c2.2-3.1 5.9-5.1 10.4-5.1h41.4v-16Z" fill="#f2a65a" />
+    <path d="M29.5 109.7h42.9c9.4 0 17.9-3.5 23.4-9.1l-13-12c-2.2 3.1-5.9 5.1-10.4 5.1H29.5v16Z" fill="#9dffb3" />
+    <path d="M54 58.9h20.3v19.4H54z" fill="#050605" opacity="0.92" />
+  </g>
+
+  <text x="330" y="214" fill="#f8f1e3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="44" font-weight="700">PayShield</text>
+  <text x="332" y="258" fill="#9aa79c" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="700" letter-spacing="7">USABLE-NUMBER ENGINE</text>
+
+  <text x="176" y="408" fill="#fff9ed" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="70" font-weight="760">The balance is bait.</text>
+  <text x="176" y="492" fill="#fff9ed" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="70" font-weight="760">The usable number</text>
+  <text x="176" y="576" fill="#fff9ed" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="70" font-weight="760">is the truth.</text>
+  <text x="180" y="690" fill="#cdd8ce" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="28" font-weight="500">Bills first. Swipe second.</text>
+  <text x="180" y="732" fill="#cdd8ce" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="28" font-weight="500">Know what survives after obligations, goals,</text>
+  <text x="180" y="774" fill="#cdd8ce" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="28" font-weight="500">and recovery are covered.</text>
+
+  <g filter="url(#shadow)" transform="translate(1020 214)">
+    <rect width="458" height="590" fill="#0b0f0b" stroke="#263026" />
+    <text x="38" y="68" fill="#9dffb3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="800" letter-spacing="6">PAYCHECK FLOW</text>
+    <text x="38" y="126" fill="#fff9ed" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="46" font-weight="750">$3,000 lands</text>
+
+    <rect x="38" y="170" width="382" height="76" fill="#111610" stroke="#263026" />
+    <rect x="38" y="170" width="242" height="76" fill="#f2a65a" fill-opacity="0.82" />
+    <rect x="280" y="170" width="140" height="76" fill="#9dffb3" />
+    <text x="60" y="219" fill="#160d04" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="17" font-weight="850" letter-spacing="3">PROTECTED</text>
+    <text x="306" y="219" fill="#06120a" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="17" font-weight="850" letter-spacing="3">USABLE</text>
+
+    <path d="M38 286H420" stroke="url(#flow)" stroke-width="8" />
+
+    <g transform="translate(38 334)">
+      <rect width="112" height="128" fill="#111610" stroke="#263026" />
+      <text x="18" y="36" fill="#9aa79c" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="800" letter-spacing="3">BILLS</text>
+      <text x="18" y="78" fill="#fff9ed" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="28" font-weight="750">$1,300</text>
+      <rect x="18" y="98" width="76" height="8" fill="#f2a65a" />
+    </g>
+    <g transform="translate(173 334)">
+      <rect width="112" height="128" fill="#111610" stroke="#263026" />
+      <text x="18" y="36" fill="#9aa79c" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="800" letter-spacing="3">GOALS</text>
+      <text x="18" y="78" fill="#fff9ed" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="28" font-weight="750">$250</text>
+      <rect x="18" y="98" width="54" height="8" fill="#7db7ff" />
+    </g>
+    <g transform="translate(308 334)">
+      <rect width="112" height="128" fill="#111610" stroke="#263026" />
+      <text x="18" y="36" fill="#9aa79c" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="800" letter-spacing="3">SAFE</text>
+      <text x="18" y="78" fill="#9dffb3" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="28" font-weight="750">$1,450</text>
+      <rect x="18" y="98" width="76" height="8" fill="#9dffb3" />
+    </g>
+
+    <rect x="38" y="502" width="382" height="52" fill="#9dffb3" />
+    <text x="68" y="536" fill="#06120a" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="850" letter-spacing="3">SPEND FROM WHAT SURVIVES</text>
+  </g>
+</svg>

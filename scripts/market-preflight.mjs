@@ -145,7 +145,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
 
 requireText(
   "src/app/components/site-footer.tsx",
-  "Spend from the money left after life is covered.",
+  "The usable-number layer for every paycheck.",
 );
 requireText("src/app/terms/page.tsx", "PayShield is not a bank.");
 requireText(
@@ -181,14 +181,14 @@ requireText(
 requireText("src/app/layout.tsx", 'manifest: "/manifest.webmanifest"');
 requireText("src/app/layout.tsx", 'url: "/icon.svg"');
 requireText("src/app/manifest.ts", 'name: "PayShield"');
-requireText("src/app/manifest.ts", 'theme_color: "#0d0b09"');
+requireText("src/app/manifest.ts", 'theme_color: "#10110f"');
 requireText(
   "src/app/components/paycheck-planner.tsx",
   'src="/images/payshield-product-mockup.avif"',
 );
-requireText("src/app/page.tsx", "Your balance is not your budget. It is the raw material.");
-requireText("src/app/page.tsx", "Balances lie. PayShield tells you what is actually safe to spend.");
-requireText("src/app/page.tsx", "Open the planner. Build the plan. Export the truth.");
+requireText("src/app/page.tsx", "A balance tells you what exists. PayShield tells you what survives.");
+requireText("src/app/page.tsx", "The balance is bait. The usable number is the truth.");
+requireText("src/app/page.tsx", "Open PayShield. Build the usable number. Export the household plan.");
 requireText("src/app/components/waitlist-form.tsx", "Contact PayShield");
 requireText(
   "src/app/components/paycheck-planner.tsx",
