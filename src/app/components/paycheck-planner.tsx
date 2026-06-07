@@ -46,6 +46,7 @@ type Bucket = {
 type UnlockMode = "slow" | "instant";
 type StorageStatus = "loading" | "saved" | "unavailable";
 type ScenarioId = "household" | "tight-check" | "gig-worker" | "custom";
+type PlannerStepId = "paycheck" | "buckets" | "spending";
 
 type PlannerSnapshot = {
   activeScenario: ScenarioId;
@@ -152,6 +153,39 @@ const storageStatusCopy: Record<StorageStatus, string> = {
   saved: "Saved on this device",
   unavailable: "Local save unavailable",
 };
+const plannerSteps: Array<{
+  body: string;
+  hash: string;
+  icon: LucideIcon;
+  id: PlannerStepId;
+  label: string;
+  title: string;
+}> = [
+  {
+    body: "Start with the money that landed.",
+    hash: "paycheck",
+    icon: CircleDollarSign,
+    id: "paycheck",
+    label: "Paycheck",
+    title: "Enter the paycheck",
+  },
+  {
+    body: "Set aside what has to be paid.",
+    hash: "buckets",
+    icon: ShieldCheck,
+    id: "buckets",
+    label: "Protect",
+    title: "Protect what has to be paid",
+  },
+  {
+    body: "Check the purchase before it happens.",
+    hash: "card-guard",
+    icon: WalletCards,
+    id: "spending",
+    label: "Spend",
+    title: "Check a purchase",
+  },
+];
 const plannerScenarios: PlannerScenario[] = [
   {
     body: "A steady check with core bills, family needs, and room to breathe.",
@@ -319,6 +353,8 @@ function readPlannerSnapshot(value: string): PlannerSnapshot | null {
 export function PaycheckPlanner() {
   const [activeScenario, setActiveScenario] =
     useState<ScenarioId>(defaultScenarioId);
+  const [activeStep, setActiveStep] = useState<PlannerStepId>("paycheck");
+  const [scrollTargetId, setScrollTargetId] = useState<string | null>(null);
   const [storageReady, setStorageReady] = useState(false);
   const [storageStatus, setStorageStatus] =
     useState<StorageStatus>("loading");
@@ -335,6 +371,39 @@ export function PaycheckPlanner() {
   );
   const [unlockMode, setUnlockMode] =
     useState<UnlockMode>(defaultUnlockMode);
+
+  useEffect(() => {
+    function syncStepFromHash() {
+      const hash = window.location.hash.replace("#", "");
+      const step = plannerSteps.find((candidate) => candidate.hash === hash);
+
+      if (step) {
+        setActiveStep(step.id);
+      }
+    }
+
+    syncStepFromHash();
+    window.addEventListener("hashchange", syncStepFromHash);
+
+    return () => {
+      window.removeEventListener("hashchange", syncStepFromHash);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!scrollTargetId) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      document.getElementById(scrollTargetId)?.scrollIntoView({ block: "start" });
+      setScrollTargetId(null);
+    }, 25);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [activeStep, scrollTargetId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -522,6 +591,20 @@ export function PaycheckPlanner() {
     setUnlockMode(nextMode);
   }
 
+  function showStep(nextStep: PlannerStepId, targetId?: string) {
+    const step = plannerSteps.find((candidate) => candidate.id === nextStep);
+    const scrollTarget = targetId ?? step?.hash ?? "product";
+
+    setActiveStep(nextStep);
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.history.replaceState(null, "", `#${scrollTarget}`);
+    setScrollTargetId(scrollTarget);
+  }
+
   function exportPlan() {
     if (typeof window === "undefined") {
       return;
@@ -586,6 +669,11 @@ export function PaycheckPlanner() {
   const safeSpendMessage = firstShortBucket
     ? `${firstShortBucket.name} is short by ${formatMoney(firstShortBucket.short)}. Lower a target or increase the check before spending.`
     : `${coveredBuckets.length} buckets are covered. This is the amount left for normal spending.`;
+  const dailyPace = Math.floor(plan.safeSpend / 7);
+  const activeStepIndex = plannerSteps.findIndex((step) => step.id === activeStep);
+  const activeStepConfig = plannerSteps[activeStepIndex] ?? plannerSteps[0];
+  const previousStep = plannerSteps[activeStepIndex - 1];
+  const nextStep = plannerSteps[activeStepIndex + 1];
 
   return (
     <section
@@ -610,24 +698,43 @@ export function PaycheckPlanner() {
             aria-label="Primary"
             className="flex flex-wrap items-center gap-1 rounded-[8px] border border-[#3a3027] bg-[#211b16]/82 p-1 text-sm font-medium text-[#eadccc]"
           >
-            <a className="px-3 py-2 hover:bg-white/10" href="#product">
+            <a
+              className="rounded-[8px] px-3 py-2 hover:bg-white/10"
+              href="#product"
+              onClick={(event) => {
+                event.preventDefault();
+                showStep("paycheck", "product");
+              }}
+            >
               Plan
             </a>
             <a
-              className="px-3 py-2 hover:bg-white/10"
+              className="rounded-[8px] px-3 py-2 hover:bg-white/10"
               href="#buckets"
+              onClick={(event) => {
+                event.preventDefault();
+                showStep("buckets");
+              }}
             >
               Buckets
             </a>
             <a
-              className="px-3 py-2 hover:bg-white/10"
+              className="rounded-[8px] px-3 py-2 hover:bg-white/10"
               href="#card-guard"
+              onClick={(event) => {
+                event.preventDefault();
+                showStep("spending");
+              }}
             >
               Spending
             </a>
             <a
-              className="px-3 py-2 hover:bg-white/10"
+              className="rounded-[8px] px-3 py-2 hover:bg-white/10"
               href="#recovery"
+              onClick={(event) => {
+                event.preventDefault();
+                showStep("spending", "recovery");
+              }}
             >
               Recovery
             </a>
@@ -711,44 +818,33 @@ export function PaycheckPlanner() {
               </div>
             </div>
 
-            <div className="mt-5 rounded-[8px] border border-[#3a3027] bg-[#211b16] p-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-[#fff4e8]">
-                    Start with a common setup
-                  </p>
-                  <p className="text-xs leading-5 text-[#b7aa9b]">
-                    Pick one, then adjust the numbers.
-                  </p>
-                </div>
-                <SlidersHorizontal className="size-4 text-[#9fbfdd]" aria-hidden="true" />
+            <div className="mt-5 grid gap-2 sm:grid-cols-3">
+              <div className="rounded-[8px] border border-[#3a3027] bg-[#211b16]/82 p-3">
+                <CheckCircle2 className="size-4 text-[#b8e7c5]" aria-hidden="true" />
+                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#b7aa9b]">
+                  Save
+                </p>
+                <p className="mt-1 text-sm font-semibold text-[#fff4e8]">
+                  {storageStatusCopy[storageStatus]}
+                </p>
               </div>
-              <div className="grid gap-2 sm:grid-cols-3">
-                {plannerScenarios.map((scenario) => (
-                  <button
-                    aria-pressed={activeScenario === scenario.id}
-                    className={`rounded-[8px] border px-3 py-3 text-left transition ${
-                      activeScenario === scenario.id
-                        ? "border-[#b8e7c5]/70 bg-[#b8e7c5]/14 text-[#f4fff6]"
-                        : "border-white/10 bg-[#17130f]/60 text-[#eadccc] hover:border-white/25 hover:bg-white/[0.06]"
-                    }`}
-                    key={scenario.id}
-                    type="button"
-                    onClick={() => applyScenario(scenario)}
-                  >
-                    <span className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-semibold">
-                        {scenario.name}
-                      </span>
-                      <span className="text-xs text-[#b8e7c5]">
-                        {formatMoney(scenario.paycheck)}
-                      </span>
-                    </span>
-                    <span className="mt-1 block text-xs leading-5 text-[#c8b9aa]">
-                      {scenario.body}
-                    </span>
-                  </button>
-                ))}
+              <div className="rounded-[8px] border border-[#3a3027] bg-[#211b16]/82 p-3">
+                <SlidersHorizontal className="size-4 text-[#9fbfdd]" aria-hidden="true" />
+                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#b7aa9b]">
+                  Setup
+                </p>
+                <p className="mt-1 text-sm font-semibold text-[#fff4e8]">
+                  {activeScenarioLabel}
+                </p>
+              </div>
+              <div className="rounded-[8px] border border-[#3a3027] bg-[#211b16]/82 p-3">
+                <WalletCards className="size-4 text-[#edb981]" aria-hidden="true" />
+                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#b7aa9b]">
+                  7-day pace
+                </p>
+                <p className="mt-1 text-sm font-semibold text-[#fff4e8]">
+                  {formatMoney(dailyPace)}/day
+                </p>
               </div>
             </div>
           </section>
@@ -779,282 +875,406 @@ export function PaycheckPlanner() {
               </div>
             </div>
 
-            <div className="mt-4 grid gap-5">
-              <section className="rounded-[8px] border border-[#3a3027] bg-[#211b16] p-4">
-                <div className="mb-3 flex items-start gap-3">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-[#edb981] text-sm font-bold text-[#211205]">
-                    1
-                  </span>
-                  <div>
-                    <h2 className="text-base font-semibold text-[#fff4e8]">
-                      Enter the paycheck
-                    </h2>
-                    <p className="text-sm leading-6 text-[#b7aa9b]">
-                      This is the money PayShield will divide.
-                    </p>
-                  </div>
-                </div>
-                <label className="block text-sm font-medium text-[#eadccc]">
-                  Paycheck amount
-                </label>
-                <div className="mt-2 flex items-center rounded-[8px] border border-[#3a3027] bg-[#17130f] px-3 focus-within:border-[#b8e7c5]/70">
-                  <span className="text-[#b7aa9b]">$</span>
-                  <input
-                    aria-label="Paycheck deposit amount"
-                    className="h-12 min-w-0 flex-1 bg-transparent px-2 text-xl font-semibold text-[#fff4e8] outline-none"
-                    inputMode="numeric"
-                    max={8000}
-                    min={500}
-                    step={50}
-                    type="number"
-                    value={paycheck}
-                    onInput={(event) =>
-                      updatePaycheck(toNumber(event.currentTarget.value, paycheck))
-                    }
-                    onChange={(event) =>
-                      updatePaycheck(toNumber(event.target.value, paycheck))
-                    }
-                  />
-                </div>
-                <input
-                  aria-label="Adjust paycheck deposit amount"
-                  className="mt-4 w-full accent-[#b8e7c5]"
-                  max={8000}
-                  min={500}
-                  step={50}
-                  type="range"
-                  value={paycheck}
-                  onChange={(event) => updatePaycheck(Number(event.target.value))}
-                />
-              </section>
+            <div className="mt-4 grid gap-4">
+              <div
+                aria-label="Paycheck setup steps"
+                className="grid gap-2 sm:grid-cols-3"
+                role="tablist"
+              >
+                {plannerSteps.map((step, index) => {
+                  const Icon = step.icon;
+                  const selected = activeStep === step.id;
+
+                  return (
+                    <button
+                      aria-selected={selected}
+                      className={`flex items-center gap-3 rounded-[8px] border p-3 text-left transition ${
+                        selected
+                          ? "border-[#b8e7c5]/55 bg-[#b8e7c5]/12 text-[#f4fff6]"
+                          : "border-[#3a3027] bg-[#211b16] text-[#d6c8b8] hover:border-[#b8e7c5]/35"
+                      }`}
+                      key={step.id}
+                      role="tab"
+                      type="button"
+                      onClick={() => showStep(step.id)}
+                    >
+                      <span
+                        className={`grid size-9 shrink-0 place-items-center rounded-[8px] text-sm font-bold ${
+                          selected
+                            ? "bg-[#b8e7c5] text-[#17301f]"
+                            : "bg-[#17130f] text-[#b7aa9b]"
+                        }`}
+                      >
+                        {index + 1}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-2 text-sm font-semibold">
+                          <Icon className="size-4 shrink-0" aria-hidden="true" />
+                          {step.label}
+                        </span>
+                        <span className="mt-1 block text-xs leading-5 text-[#b7aa9b]">
+                          {step.body}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
 
               <section
-                id="buckets"
+                aria-labelledby={`${activeStepConfig.id}-title`}
                 className="rounded-[8px] border border-[#3a3027] bg-[#211b16] p-4"
+                id={activeStepConfig.hash}
               >
-                <div className="mb-3 flex items-start gap-3">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-[#b8e7c5] text-sm font-bold text-[#17301f]">
-                    2
-                  </span>
-                  <div>
-                    <h2 className="text-base font-semibold text-[#fff4e8]">
-                      Protect what has to be paid
-                    </h2>
-                    <p className="text-sm leading-6 text-[#b7aa9b]">
-                      Rent, car, insurance, family needs, goals. Adjust only
-                      what matters for this check.
-                    </p>
-                  </div>
-                </div>
-                <div className="grid gap-2">
-                  {plan.allocations.map((bucket) => (
-                    <BucketRow
-                      bucket={bucket}
-                      key={bucket.id}
-                      onChange={(nextAmount) =>
-                        updateBucketAmount(bucket.id, nextAmount)
-                      }
-                    />
-                  ))}
-                </div>
-              </section>
-
-              <section
-                id="card-guard"
-                className="rounded-[8px] border border-[#3a3027] bg-[#211b16] p-4"
-              >
-                <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="mb-4 flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3">
-                    <span className="grid size-8 shrink-0 place-items-center rounded-[8px] bg-[#9fbfdd] text-sm font-bold text-[#102235]">
-                      3
+                    <span className="grid size-10 shrink-0 place-items-center rounded-[8px] bg-[#edb981] text-sm font-bold text-[#211205]">
+                      {activeStepIndex + 1}
                     </span>
                     <div>
-                      <h2 className="text-base font-semibold text-[#fff4e8]">
-                        Check a purchase
+                      <h2
+                        className="text-lg font-semibold text-[#fff4e8]"
+                        id={`${activeStepConfig.id}-title`}
+                      >
+                        {activeStepConfig.title}
                       </h2>
                       <p className="text-sm leading-6 text-[#b7aa9b]">
-                        Try a swipe before you make it.
+                        {activeStepConfig.body}
                       </p>
                     </div>
                   </div>
-                  <WalletCards className="size-5 text-[#9fbfdd]" aria-hidden="true" />
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="text-sm font-medium text-[#eadccc]">
-                    Merchant
-                    <select
-                      className="mt-2 h-11 w-full rounded-[8px] border border-[#3a3027] bg-[#17130f] px-3 text-[#fff4e8] outline-none focus:border-[#b8e7c5]"
-                      value={merchant}
-                      onChange={(event) => updateMerchant(event.target.value)}
-                    >
-                      {merchants.map((option) => (
-                        <option key={option}>{option}</option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="text-sm font-medium text-[#eadccc]">
-                    Purchase amount
-                    <div className="mt-2 flex h-11 items-center rounded-[8px] border border-[#3a3027] bg-[#17130f] px-3 focus-within:border-[#b8e7c5]">
-                      <span className="text-[#b7aa9b]">$</span>
-                      <input
-                        aria-label="Card transaction amount"
-                        className="min-w-0 flex-1 bg-transparent px-2 text-[#fff4e8] outline-none"
-                        inputMode="numeric"
-                        max={5000}
-                        min={1}
-                        step={5}
-                        type="number"
-                        value={cardAmount}
-                        onInput={(event) =>
-                          updateCardAmount(
-                            toNumber(event.currentTarget.value, cardAmount),
-                          )
-                        }
-                        onChange={(event) =>
-                          updateCardAmount(toNumber(event.target.value, cardAmount))
-                        }
-                      />
-                    </div>
-                  </label>
-                </div>
-
-                <div
-                  className={`mt-4 rounded-[8px] border p-3 ${
-                    cardApproved
-                      ? "border-[#b8e7c5]/40 bg-[#b8e7c5]/12"
-                      : "border-[#eaa199]/45 bg-[#eaa199]/12"
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    {cardApproved ? (
-                      <CheckCircle2
-                        className="mt-0.5 size-5 text-[#b8e7c5]"
-                        aria-hidden="true"
-                      />
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                    {previousStep ? (
+                      <button
+                        className="rounded-[8px] border border-[#3a3027] bg-[#17130f] px-3 py-2 text-xs font-semibold text-[#eadccc] hover:border-[#b8e7c5]/45"
+                        type="button"
+                        onClick={() => showStep(previousStep.id)}
+                      >
+                        Back
+                      </button>
+                    ) : null}
+                    {nextStep ? (
+                      <button
+                        className="rounded-[8px] bg-[#b8e7c5] px-3 py-2 text-xs font-semibold text-[#17301f] shadow-[0_14px_34px_rgba(184,231,197,0.16)] hover:bg-[#cff1d7]"
+                        type="button"
+                        onClick={() => showStep(nextStep.id)}
+                      >
+                        Next: {nextStep.label}
+                      </button>
                     ) : (
-                      <XCircle
-                        className="mt-0.5 size-5 text-[#eaa199]"
-                        aria-hidden="true"
-                      />
+                      <button
+                        className="rounded-[8px] bg-[#b8e7c5] px-3 py-2 text-xs font-semibold text-[#17301f] shadow-[0_14px_34px_rgba(184,231,197,0.16)] hover:bg-[#cff1d7]"
+                        type="button"
+                        onClick={exportPlan}
+                      >
+                        Export
+                      </button>
                     )}
-                    <div>
-                      <p className="font-semibold text-[#fff4e8]">
-                        {purchaseTone}: {merchant} for {formatMoney(cardAmount)}
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-[#d6c8b8]">
-                        Safe to spend is {formatMoney(plan.safeSpend)} after
-                        the protected money is set aside.
-                      </p>
-                    </div>
                   </div>
                 </div>
+
+                {activeStep === "paycheck" ? (
+                  <div className="grid gap-4">
+                    <div className="rounded-[8px] border border-[#3a3027] bg-[#17130f]/70 p-4">
+                      <label className="block text-sm font-medium text-[#eadccc]">
+                        Paycheck amount
+                      </label>
+                      <div className="mt-2 flex items-center rounded-[8px] border border-[#3a3027] bg-[#120f0c] px-3 focus-within:border-[#b8e7c5]/70">
+                        <span className="text-[#b7aa9b]">$</span>
+                        <input
+                          aria-label="Paycheck deposit amount"
+                          className="h-12 min-w-0 flex-1 bg-transparent px-2 text-xl font-semibold text-[#fff4e8] outline-none"
+                          inputMode="numeric"
+                          max={8000}
+                          min={500}
+                          step={50}
+                          type="number"
+                          value={paycheck}
+                          onInput={(event) =>
+                            updatePaycheck(
+                              toNumber(event.currentTarget.value, paycheck),
+                            )
+                          }
+                          onChange={(event) =>
+                            updatePaycheck(toNumber(event.target.value, paycheck))
+                          }
+                        />
+                      </div>
+                      <input
+                        aria-label="Adjust paycheck deposit amount"
+                        className="mt-4 w-full accent-[#b8e7c5]"
+                        max={8000}
+                        min={500}
+                        step={50}
+                        type="range"
+                        value={paycheck}
+                        onChange={(event) =>
+                          updatePaycheck(Number(event.target.value))
+                        }
+                      />
+                    </div>
+
+                    <div>
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-[#fff4e8]">
+                          Start with a common setup
+                        </p>
+                        <SlidersHorizontal
+                          className="size-4 text-[#9fbfdd]"
+                          aria-hidden="true"
+                        />
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {plannerScenarios.map((scenario) => (
+                          <button
+                            aria-pressed={activeScenario === scenario.id}
+                            className={`rounded-[8px] border px-3 py-3 text-left transition ${
+                              activeScenario === scenario.id
+                                ? "border-[#b8e7c5]/70 bg-[#b8e7c5]/14 text-[#f4fff6]"
+                                : "border-[#3a3027] bg-[#17130f]/70 text-[#eadccc] hover:border-white/25 hover:bg-white/[0.06]"
+                            }`}
+                            key={scenario.id}
+                            type="button"
+                            onClick={() => applyScenario(scenario)}
+                          >
+                            <span className="flex items-center justify-between gap-3">
+                              <span className="text-sm font-semibold">
+                                {scenario.name}
+                              </span>
+                              <span className="text-xs text-[#b8e7c5]">
+                                {formatMoney(scenario.paycheck)}
+                              </span>
+                            </span>
+                            <span className="mt-1 block text-xs leading-5 text-[#c8b9aa]">
+                              {scenario.body}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {activeStep === "buckets" ? (
+                  <div className="grid gap-3">
+                    <div className="grid gap-2 rounded-[8px] border border-[#3a3027] bg-[#17130f]/70 p-3 sm:grid-cols-3">
+                      <Metric
+                        label="Target"
+                        value={formatMoney(plan.protectedTarget)}
+                      />
+                      <Metric
+                        label="Covered"
+                        value={formatMoney(plan.protectedFunded)}
+                      />
+                      <Metric
+                        label="Short"
+                        value={formatMoney(plan.shortfall)}
+                        warning
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      {plan.allocations.map((bucket) => (
+                        <BucketRow
+                          bucket={bucket}
+                          key={bucket.id}
+                          onChange={(nextAmount) =>
+                            updateBucketAmount(bucket.id, nextAmount)
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {activeStep === "spending" ? (
+                  <div className="grid gap-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="text-sm font-medium text-[#eadccc]">
+                        Merchant
+                        <select
+                          className="mt-2 h-11 w-full rounded-[8px] border border-[#3a3027] bg-[#17130f] px-3 text-[#fff4e8] outline-none focus:border-[#b8e7c5]"
+                          value={merchant}
+                          onChange={(event) => updateMerchant(event.target.value)}
+                        >
+                          {merchants.map((option) => (
+                            <option key={option}>{option}</option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="text-sm font-medium text-[#eadccc]">
+                        Purchase amount
+                        <div className="mt-2 flex h-11 items-center rounded-[8px] border border-[#3a3027] bg-[#17130f] px-3 focus-within:border-[#b8e7c5]">
+                          <span className="text-[#b7aa9b]">$</span>
+                          <input
+                            aria-label="Card transaction amount"
+                            className="min-w-0 flex-1 bg-transparent px-2 text-[#fff4e8] outline-none"
+                            inputMode="numeric"
+                            max={5000}
+                            min={1}
+                            step={5}
+                            type="number"
+                            value={cardAmount}
+                            onInput={(event) =>
+                              updateCardAmount(
+                                toNumber(event.currentTarget.value, cardAmount),
+                              )
+                            }
+                            onChange={(event) =>
+                              updateCardAmount(
+                                toNumber(event.target.value, cardAmount),
+                              )
+                            }
+                          />
+                        </div>
+                      </label>
+                    </div>
+
+                    <div
+                      className={`rounded-[8px] border p-3 ${
+                        cardApproved
+                          ? "border-[#b8e7c5]/40 bg-[#b8e7c5]/12"
+                          : "border-[#eaa199]/45 bg-[#eaa199]/12"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        {cardApproved ? (
+                          <CheckCircle2
+                            className="mt-0.5 size-5 text-[#b8e7c5]"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <XCircle
+                            className="mt-0.5 size-5 text-[#eaa199]"
+                            aria-hidden="true"
+                          />
+                        )}
+                        <div>
+                          <p className="font-semibold text-[#fff4e8]">
+                            {purchaseTone}: {merchant} for{" "}
+                            {formatMoney(cardAmount)}
+                          </p>
+                          <p className="mt-1 text-sm leading-6 text-[#d6c8b8]">
+                            Safe to spend is {formatMoney(plan.safeSpend)} after
+                            the protected money is set aside.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <details
+                      id="recovery"
+                      className="rounded-[8px] border border-[#3a3027] bg-[#17130f]/70 p-4"
+                    >
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-[#fff4e8]">
+                        <span className="inline-flex items-center gap-2">
+                          <KeyRound
+                            className="size-4 text-[#edb981]"
+                            aria-hidden="true"
+                          />
+                          Optional reserve recovery
+                        </span>
+                        <span className="text-xs font-medium text-[#b7aa9b]">
+                          {formatMoney(recoveryAmount)}/check
+                        </span>
+                      </summary>
+
+                      <div className="mt-4 grid gap-3">
+                        <label className="text-sm font-medium text-[#eadccc]">
+                          Reserve bucket
+                          <select
+                            className="mt-2 h-11 w-full rounded-[8px] border border-[#3a3027] bg-[#17130f] px-3 text-[#fff4e8] outline-none focus:border-[#b8e7c5]"
+                            value={unlockBucket}
+                            onChange={(event) =>
+                              updateUnlockBucket(event.target.value as BucketId)
+                            }
+                          >
+                            {plan.allocations.map((bucket) => (
+                              <option key={bucket.id} value={bucket.id}>
+                                {bucket.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label className="text-sm font-medium text-[#eadccc]">
+                          Reserve draw amount
+                          <input
+                            aria-label="Reserve draw amount"
+                            className="mt-2 h-11 w-full rounded-[8px] border border-[#3a3027] bg-[#17130f] px-3 text-[#fff4e8] outline-none focus:border-[#b8e7c5]"
+                            inputMode="numeric"
+                            max={2000}
+                            min={25}
+                            step={25}
+                            type="number"
+                            value={unlockAmount}
+                            onInput={(event) =>
+                              updateUnlockAmount(
+                                toNumber(
+                                  event.currentTarget.value,
+                                  unlockAmount,
+                                ),
+                              )
+                            }
+                            onChange={(event) =>
+                              updateUnlockAmount(
+                                toNumber(event.target.value, unlockAmount),
+                              )
+                            }
+                          />
+                        </label>
+
+                        <div
+                          aria-label="Recovery pace"
+                          className="grid grid-cols-2 gap-2 rounded-[8px] bg-[#120f0c] p-1"
+                          role="group"
+                        >
+                          <button
+                            className={`rounded-[8px] px-3 py-2 text-sm font-semibold ${
+                              unlockMode === "slow"
+                                ? "bg-[#b8e7c5] text-[#17301f] shadow-sm"
+                                : "text-[#d6c8b8]"
+                            }`}
+                            type="button"
+                            onClick={() => updateUnlockMode("slow")}
+                          >
+                            Two checks
+                          </button>
+                          <button
+                            className={`inline-flex items-center justify-center gap-2 rounded-[8px] px-3 py-2 text-sm font-semibold ${
+                              unlockMode === "instant"
+                                ? "bg-[#b8e7c5] text-[#17301f] shadow-sm"
+                                : "text-[#d6c8b8]"
+                            }`}
+                            type="button"
+                            onClick={() => updateUnlockMode("instant")}
+                          >
+                            <Zap className="size-4" aria-hidden="true" />
+                            Next check
+                          </button>
+                        </div>
+
+                        <div className="rounded-[8px] border border-[#edb981]/35 bg-[#edb981]/10 p-3">
+                          <div className="flex items-start gap-3">
+                            <AlertTriangle
+                              className="mt-0.5 size-5 text-[#edb981]"
+                              aria-hidden="true"
+                            />
+                            <p className="text-sm leading-6 text-[#f9efe1]">
+                              Drawing {formatMoney(actualUnlock)} from{" "}
+                              {selectedUnlockBucket?.name} adds{" "}
+                              {formatMoney(recoveryAmount)} to the next{" "}
+                              {recoveryChecks} paycheck
+                              {recoveryChecks === 1 ? "" : "s"}.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </details>
+                  </div>
+                ) : null}
               </section>
 
-              <details
-                id="recovery"
-                className="rounded-[8px] border border-[#3a3027] bg-[#211b16] p-4"
-              >
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-[#fff4e8]">
-                  <span className="inline-flex items-center gap-2">
-                    <KeyRound className="size-4 text-[#edb981]" aria-hidden="true" />
-                    Optional reserve recovery
-                  </span>
-                  <span className="text-xs font-medium text-[#b7aa9b]">
-                    {formatMoney(recoveryAmount)}/check
-                  </span>
-                </summary>
-
-                <div className="mt-4 grid gap-3">
-                  <label className="text-sm font-medium text-[#eadccc]">
-                    Reserve bucket
-                    <select
-                      className="mt-2 h-11 w-full rounded-[8px] border border-[#3a3027] bg-[#17130f] px-3 text-[#fff4e8] outline-none focus:border-[#b8e7c5]"
-                      value={unlockBucket}
-                      onChange={(event) =>
-                        updateUnlockBucket(event.target.value as BucketId)
-                      }
-                    >
-                      {plan.allocations.map((bucket) => (
-                        <option key={bucket.id} value={bucket.id}>
-                          {bucket.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="text-sm font-medium text-[#eadccc]">
-                    Reserve draw amount
-                    <input
-                      aria-label="Reserve draw amount"
-                      className="mt-2 h-11 w-full rounded-[8px] border border-[#3a3027] bg-[#17130f] px-3 text-[#fff4e8] outline-none focus:border-[#b8e7c5]"
-                      inputMode="numeric"
-                      max={2000}
-                      min={25}
-                      step={25}
-                      type="number"
-                      value={unlockAmount}
-                      onInput={(event) =>
-                        updateUnlockAmount(
-                          toNumber(event.currentTarget.value, unlockAmount),
-                        )
-                      }
-                      onChange={(event) =>
-                        updateUnlockAmount(
-                          toNumber(event.target.value, unlockAmount),
-                        )
-                      }
-                    />
-                  </label>
-
-                  <div
-                    aria-label="Recovery pace"
-                    className="grid grid-cols-2 gap-2 rounded-[8px] bg-[#17130f] p-1"
-                    role="group"
-                  >
-                    <button
-                      className={`rounded-[8px] px-3 py-2 text-sm font-semibold ${
-                        unlockMode === "slow"
-                          ? "bg-[#b8e7c5] text-[#17301f] shadow-sm"
-                          : "text-[#d6c8b8]"
-                      }`}
-                      type="button"
-                      onClick={() => updateUnlockMode("slow")}
-                    >
-                      Two checks
-                    </button>
-                    <button
-                      className={`inline-flex items-center justify-center gap-2 rounded-[8px] px-3 py-2 text-sm font-semibold ${
-                        unlockMode === "instant"
-                          ? "bg-[#b8e7c5] text-[#17301f] shadow-sm"
-                          : "text-[#d6c8b8]"
-                      }`}
-                      type="button"
-                      onClick={() => updateUnlockMode("instant")}
-                    >
-                      <Zap className="size-4" aria-hidden="true" />
-                      Next check
-                    </button>
-                  </div>
-
-                  <div className="rounded-[8px] border border-[#edb981]/35 bg-[#edb981]/10 p-3">
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle
-                        className="mt-0.5 size-5 text-[#edb981]"
-                        aria-hidden="true"
-                      />
-                      <p className="text-sm leading-6 text-[#f9efe1]">
-                        Drawing {formatMoney(actualUnlock)} from{" "}
-                        {selectedUnlockBucket?.name} adds{" "}
-                        {formatMoney(recoveryAmount)} to the next{" "}
-                        {recoveryChecks} paycheck
-                        {recoveryChecks === 1 ? "" : "s"}.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </details>
             </div>
           </section>
         </div>
