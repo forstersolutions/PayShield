@@ -127,36 +127,27 @@ textarea {
 }
 
 .pay-header-brand {
-  display: flex;
-  width: max-content;
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  align-self: flex-start;
   align-items: center;
-  justify-content: flex-start;
-  gap: 0.65rem;
-  color: #ffffff;
+  justify-content: center;
+  padding: 0.5rem 0.68rem;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 8px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(229, 244, 255, 0.92)),
+    #ffffff;
+  box-shadow:
+    0 18px 42px rgba(21, 136, 255, 0.16),
+    0 0 0 1px rgba(57, 232, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
   text-decoration: none;
 }
 
-.pay-header-logo-wrap {
-  display: grid;
-  min-width: 0;
-  place-items: center;
-  padding: 0.38rem;
-  border: 1px solid rgba(57, 232, 255, 0.24);
-  border-radius: 8px;
-  background:
-    linear-gradient(145deg, rgba(57, 232, 255, 0.12), rgba(21, 136, 255, 0.08)),
-    rgba(255, 255, 255, 0.035);
-  box-shadow:
-    0 14px 32px rgba(21, 136, 255, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
-.pay-header-wordmark {
-  font-size: clamp(1.15rem, 4.6vw, 1.48rem);
-  font-weight: 900;
-  line-height: 1;
-  letter-spacing: 0;
-  text-shadow: 0 0 22px rgba(57, 232, 255, 0.15);
+.pay-header-brand img {
+  filter: drop-shadow(0 8px 16px rgba(5, 19, 55, 0.12));
 }
 
 .pay-primary-nav {
