@@ -114,8 +114,12 @@ textarea {
   color: var(--grayston-amber);
   font-size: 0.74rem;
   font-weight: 800;
-  letter-spacing: 0.16em;
+  letter-spacing: 0;
   text-transform: uppercase;
+}
+
+.pay-app-shell [class*="tracking-"] {
+  letter-spacing: 0;
 }
 
 .brand-button-primary {

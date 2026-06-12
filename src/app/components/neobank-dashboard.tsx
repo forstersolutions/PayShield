@@ -18,7 +18,6 @@ import { BucketControlPanel } from "@/app/components/bucket-control-panel";
 import {
   GraystonLogo,
   PayShieldLogo,
-  PayShieldMark,
 } from "@/app/components/pay-shield-mark";
 import { WaitlistForm } from "@/app/components/waitlist-form";
 import { REGULATED_PARTNER_DISCLOSURE } from "@/app/lib/brand";
@@ -107,48 +106,53 @@ export function NeobankDashboard() {
       />
 
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8">
-        <header className="brand-panel flex flex-wrap items-center justify-between gap-3 rounded-[8px] px-3 py-3">
-          <a className="flex items-center gap-3" href="#product">
-            <PayShieldMark className="size-12" priority />
-            <span>
-              <span className="block text-base font-black leading-5 text-white">
-                PayShield
+        <header className="brand-panel flex flex-col gap-3 rounded-[8px] px-3 py-3 sm:px-4 lg:flex-row lg:items-center lg:justify-between">
+          <a
+            className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3"
+            href="#product"
+          >
+            <span className="flex h-[72px] w-full shrink-0 items-center justify-center rounded-[8px] border border-white/20 bg-white px-4 shadow-[0_18px_50px_rgba(21,136,255,0.2)] sm:h-[68px] sm:w-[222px]">
+              <PayShieldLogo className="h-auto w-[196px] sm:w-[188px]" priority />
+            </span>
+            <span className="hidden min-w-0 border-l border-white/12 pl-3 sm:block">
+              <span className="block text-sm font-black text-white">
+                By Grayston Technologies
               </span>
-              <span className="block text-xs font-bold uppercase leading-4 tracking-[0.14em] text-[#39e8ff]">
-                Grayston Technologies product
+              <span className="block text-xs font-bold text-[#39e8ff]">
+                Paycheck control product
               </span>
             </span>
           </a>
           <nav
             aria-label="Primary"
-            className="flex flex-wrap items-center gap-1 rounded-[8px] border border-white/10 bg-black/40 p-1 text-sm font-bold text-[#d9dde5]"
+            className="grid w-full grid-cols-2 gap-1 rounded-[8px] border border-white/10 bg-black/40 p-1 text-sm font-bold text-[#d9dde5] sm:flex sm:w-auto sm:flex-wrap sm:items-center"
           >
             <a
-              className="rounded-[8px] px-3 py-2 hover:bg-white/10"
+              className="rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
               href="#balances"
             >
               Balances
             </a>
             <a
-              className="rounded-[8px] px-3 py-2 hover:bg-white/10"
+              className="rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
               href="#bucket-studio"
             >
               Buckets
             </a>
             <a
-              className="rounded-[8px] px-3 py-2 hover:bg-white/10"
+              className="rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
               href="#rails"
             >
               Rails
             </a>
             <a
-              className="rounded-[8px] px-3 py-2 hover:bg-white/10"
+              className="rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
               href="#gates"
             >
               Gates
             </a>
             <a
-              className="brand-button-primary inline-flex items-center gap-2 rounded-[8px] px-4 py-2 font-black"
+              className="brand-button-primary col-span-2 inline-flex items-center justify-center gap-2 rounded-[8px] px-4 py-2 font-black sm:col-span-1"
               href="#profile"
             >
               Start profile
@@ -157,16 +161,16 @@ export function NeobankDashboard() {
           </nav>
         </header>
 
-        <div className="grid flex-1 gap-5 py-6 lg:grid-cols-[minmax(0,0.96fr)_minmax(0,1.04fr)]">
-          <section className="brand-panel accent-rule rounded-[8px] p-5 pt-7 sm:p-6 sm:pt-8">
-            <div className="inline-flex rounded-[8px] border border-white/15 bg-white px-4 py-3 shadow-[0_22px_70px_rgba(21,136,255,0.22)]">
+        <div className="grid flex-1 gap-6 py-8 lg:grid-cols-[minmax(0,0.96fr)_minmax(0,1.04fr)]">
+          <section className="brand-panel accent-rule rounded-[8px] p-5 pt-8 sm:p-7 sm:pt-9">
+            <div className="inline-flex rounded-[8px] border border-white/15 bg-white px-5 py-3 shadow-[0_22px_70px_rgba(21,136,255,0.22)]">
               <PayShieldLogo className="h-12 w-auto sm:h-14" priority />
             </div>
-            <p className="mt-6 inline-flex items-center gap-2 rounded-[8px] border border-[#39e8ff]/30 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black text-[#dffaff]">
+            <p className="mt-7 inline-flex items-center gap-2 rounded-[8px] border border-[#39e8ff]/30 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black text-[#dffaff]">
               <ShieldCheck className="size-4" aria-hidden="true" />
               Paycheck control software by Grayston Technologies.
             </p>
-            <h1 className="mt-5 max-w-2xl text-4xl font-black leading-[1.02] text-white sm:text-5xl lg:text-[3.45rem]">
+            <h1 className="mt-6 max-w-2xl text-4xl font-black leading-[1.02] text-white sm:text-5xl lg:text-[3.35rem]">
               The paycheck control layer for real life.
             </h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-[#c9d0da]">
@@ -175,7 +179,7 @@ export function NeobankDashboard() {
               and one clean Safe to Spend number.
             </p>
 
-            <div className="mt-6 grid gap-2 sm:grid-cols-3">
+            <div className="mt-7 grid gap-3 sm:grid-cols-3">
               {productStats.map((stat) => (
                 <div
                   className="brand-panel-soft rounded-[8px] p-3"
@@ -191,7 +195,7 @@ export function NeobankDashboard() {
 
             <div
               id="balances"
-              className="mt-6 rounded-[8px] border border-[#1588ff]/30 bg-[#07111f]/78 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+              className="mt-7 rounded-[8px] border border-[#1588ff]/30 bg-[#07111f]/78 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
             >
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
@@ -261,8 +265,8 @@ export function NeobankDashboard() {
             </div>
           </section>
 
-          <section className="grid gap-4">
-            <div className="brand-panel rounded-[8px] p-4">
+          <section className="grid gap-5">
+            <div className="brand-panel rounded-[8px] p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="brand-kicker">Household ledger</p>
@@ -272,7 +276,7 @@ export function NeobankDashboard() {
                 </div>
                 <Database className="size-6 text-[#39e8ff]" aria-hidden="true" />
               </div>
-              <div className="mt-4 grid gap-2">
+              <div className="mt-5 grid gap-3">
                 {snapshot.buckets.map((bucket) => (
                   <BucketRow bucket={bucket} key={bucket.id} />
                 ))}

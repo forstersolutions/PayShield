@@ -34,10 +34,10 @@ export function PayShieldLogo({
     <Image
       alt="PayShield"
       className={`object-contain ${className}`}
-      height={368}
+      height={306}
       priority={priority}
-      src="/images/payshield-logo.png"
-      width={920}
+      src="/images/payshield-logo-clean.png"
+      width={855}
     />
   );
 }

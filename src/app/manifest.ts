@@ -13,6 +13,12 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#050607",
     icons: [
       {
+        src: "/images/payshield-favicon.png",
+        sizes: "256x256",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
         src: "/icon.svg",
         sizes: "any",
         type: "image/svg+xml",
