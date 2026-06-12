@@ -85,6 +85,8 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/lib/brand.ts",
   "src/app/lib/pilot-analytics.ts",
   "src/app/lib/neobank/auth.ts",
+  "src/app/lib/neobank/core-client.ts",
+  "src/app/lib/neobank/core-config.ts",
   "src/app/lib/neobank/demo-state.ts",
   "src/app/lib/neobank/ledger.ts",
   "src/app/lib/neobank/provider.ts",
@@ -148,6 +150,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "CLERK_SECRET_KEY",
   "PAYSHIELD_CORE_API_URL",
   "PAYSHIELD_CORE_SERVICE_TOKEN",
+  "PAYSHIELD_CORE_TIMEOUT_MS",
   "PAYSHIELD_LEDGER_DATABASE_URL",
   "PAYSHIELD_LIVE_MONEY_ENABLED",
   "PAYSHIELD_BAAS_PROVIDER",
@@ -225,6 +228,8 @@ requireText("src/app/page.tsx", "NeobankDashboard");
 requireText("src/app/components/waitlist-form.tsx", "Contact Grayston support");
 requireText("src/app/components/bucket-control-panel.tsx", "Add bucket");
 requireText("src/app/components/bucket-control-panel.tsx", "Save bucket profile");
+requireText("src/app/lib/neobank/core-config.ts", "PAYSHIELD_CORE_API_URL");
+requireText("src/app/lib/neobank/core-config.ts", "VERCEL_ENV");
 requireText("services/core/migrations/0002_household_bucket_controls.sql", "household_buckets");
 requireText("services/core/migrations/0002_household_bucket_controls.sql", "household_bucket_rules");
 requireText("services/core/migrations/0003_ledger_integrity.sql", "assert_journal_entry_balanced_by_id");

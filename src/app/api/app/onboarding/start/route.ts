@@ -1,12 +1,24 @@
 import { NextResponse } from "next/server.js";
 import { getAppSession } from "../../../../lib/neobank/auth.ts";
+import { forwardCoreRequest } from "../../../../lib/neobank/core-client.ts";
 import { createNeobankSnapshot } from "../../../../lib/neobank/demo-state.ts";
 import { getBankingProvider } from "../../../../lib/neobank/provider.ts";
 import { assertLiveMoneyReady } from "../../../../lib/neobank/readiness.ts";
 
 export async function POST() {
   try {
-    await getAppSession();
+    const session = await getAppSession();
+    const coreResponse = await forwardCoreRequest({
+      body: {},
+      method: "POST",
+      path: "/api/app/onboarding/start",
+      session,
+    });
+
+    if (coreResponse) {
+      return coreResponse;
+    }
+
     const snapshot = createNeobankSnapshot();
     const liveGate = assertLiveMoneyReady(snapshot.readiness);
     const provider = getBankingProvider();

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server.js";
 import { getAppSession } from "../../../lib/neobank/auth.ts";
+import { forwardCoreRequest } from "../../../lib/neobank/core-client.ts";
 import {
   createNeobankSnapshot,
   isBucketId,
@@ -22,7 +23,18 @@ function toCents(value: unknown) {
 
 export async function POST(request: NextRequest) {
   try {
-    await getAppSession();
+    const session = await getAppSession();
+    const coreResponse = await forwardCoreRequest({
+      method: "POST",
+      path: "/api/app/payees",
+      request,
+      session,
+    });
+
+    if (coreResponse) {
+      return coreResponse;
+    }
+
     const payload = (await request.json().catch(() => ({}))) as {
       allowedBucketId?: unknown;
       maxCents?: unknown;

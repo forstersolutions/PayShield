@@ -30,6 +30,13 @@ are active.
   `/app/*` and `/api/app/*` style paths, returns no-store JSON, enforces
   request-size and JSON-shape guardrails, and can require
   `PAYSHIELD_CORE_SERVICE_TOKEN` for internal operation routes.
+- Next.js app APIs delegate app, card-authorization, and provider-webhook
+  operations to the dedicated core service whenever `PAYSHIELD_CORE_API_URL` is
+  configured. Delegated requests include the optional
+  `PAYSHIELD_CORE_SERVICE_TOKEN`, preserve authenticated app user context for
+  `/api/app/*`, keep no-store response semantics, and fail closed instead of
+  falling back to local simulation when the configured core is unavailable or
+  misconfigured.
 - Core migration operations include a redacted, checksummed
   `npm run core:migrations:plan` output, `npm run core:migrations:check` gate,
   and explicit `npm run core:migrations:apply` path that requires
@@ -213,6 +220,13 @@ are active.
   volume mounted at `/data/waitlist`, confirm `GET /health` returns
   `service: "payshield-waitlist-receiver"`, and include the volume backup/export
   owner in the launch evidence.
+- Before enabling provider-backed account, card, or payment operations in the
+  Vercel frontend, deploy the dedicated core service, set
+  `PAYSHIELD_CORE_API_URL` to its HTTPS base URL, set the matching
+  `PAYSHIELD_CORE_SERVICE_TOKEN` on both services if token protection is
+  enabled, keep `PAYSHIELD_CORE_TIMEOUT_MS` between 1000 and 30000, and verify
+  `/api/app/balances`, `/api/card/authorize`, and `/api/provider/webhooks`
+  return `x-payshield-core-proxied: true` from the web app.
 - If `compose.receiver.yml` is used, set `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`
   and `PAYSHIELD_RECEIVER_HOST_DATA_DIR` in `.env.receiver`, start it with
   `docker compose --env-file .env.receiver -f compose.receiver.yml up -d --build`,

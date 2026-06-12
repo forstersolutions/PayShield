@@ -7,6 +7,10 @@ async function parseJson(response: Response) {
     ok?: unknown;
     service?: unknown;
     siteUrl?: unknown;
+    neobank?: {
+      backendConfigured?: unknown;
+      remainingGates?: unknown;
+    };
     waitlist?: {
       mode?: unknown;
       paidTrafficReady?: unknown;
@@ -27,6 +31,7 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_WAITLIST_STORAGE;
   delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET;
   delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
+  delete process.env.PAYSHIELD_CORE_API_URL;
   delete process.env.BLOB_READ_WRITE_TOKEN;
   delete process.env.UPSTASH_REDIS_REST_TOKEN;
   delete process.env.UPSTASH_REDIS_REST_URL;
@@ -223,4 +228,18 @@ test("reports unhealthy when Upstash persistence is selected but missing credent
   assert.equal(body.waitlist?.storageConfigured, false);
   assert.equal(body.waitlist?.storageMisconfigured, true);
   assert.equal(body.waitlist?.paidTrafficReady, false);
+});
+
+test("does not count an unsafe core URL as a configured regulated backend", async () => {
+  process.env.PAYSHIELD_CORE_API_URL = "https://user:secret@example.com/core";
+
+  const response = GET();
+  const body = await parseJson(response);
+  const serialized = JSON.stringify(body);
+  const remainingGates = body.neobank?.remainingGates as string[];
+
+  assert.equal(response.status, 200);
+  assert.equal(body.neobank?.backendConfigured, false);
+  assert.equal(remainingGates.includes("dedicated_backend"), true);
+  assert.equal(serialized.includes("user:secret"), false);
 });

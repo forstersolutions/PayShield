@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server.js";
 import { getAppSession } from "../../../lib/neobank/auth.ts";
+import { forwardCoreRequest } from "../../../lib/neobank/core-client.ts";
 import {
   createNeobankSnapshot,
   isBucketId,
@@ -95,7 +96,17 @@ function normalizeBucketProfile(value: unknown) {
 
 export async function GET() {
   try {
-    await getAppSession();
+    const session = await getAppSession();
+    const coreResponse = await forwardCoreRequest({
+      method: "GET",
+      path: "/api/app/buckets",
+      session,
+    });
+
+    if (coreResponse) {
+      return coreResponse;
+    }
+
     const snapshot = createNeobankSnapshot();
 
     return NextResponse.json(
@@ -128,7 +139,18 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    await getAppSession();
+    const session = await getAppSession();
+    const coreResponse = await forwardCoreRequest({
+      method: "POST",
+      path: "/api/app/buckets",
+      request,
+      session,
+    });
+
+    if (coreResponse) {
+      return coreResponse;
+    }
+
     const payload = (await request.json().catch(() => ({}))) as {
       action?: unknown;
       buckets?: unknown;

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server.js";
+import { forwardCoreRequest } from "../../../lib/neobank/core-client.ts";
 import { simulateCardAuthorization } from "../../../lib/neobank/demo-state.ts";
 import { getBankingProvider } from "../../../lib/neobank/provider.ts";
 import { getNeobankReadiness } from "../../../lib/neobank/readiness.ts";
@@ -22,6 +23,16 @@ function toCents(value: unknown) {
 }
 
 export async function POST(request: NextRequest) {
+  const coreResponse = await forwardCoreRequest({
+    method: "POST",
+    path: "/api/card/authorize",
+    request,
+  });
+
+  if (coreResponse) {
+    return coreResponse;
+  }
+
   const payload = (await request.json().catch(() => ({}))) as {
     amountCents?: unknown;
     idempotencyKey?: unknown;

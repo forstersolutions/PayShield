@@ -1,4 +1,5 @@
 import type { NeobankReadiness, NeobankReadinessGate } from "./types.ts";
+import { getCoreServiceConfig } from "./core-config.ts";
 
 function envTrue(name: string) {
   return process.env[name]?.trim().toLowerCase() === "true";
@@ -9,6 +10,7 @@ function envPresent(name: string) {
 }
 
 export function getNeobankReadiness(): NeobankReadiness {
+  const coreService = getCoreServiceConfig();
   const gates: NeobankReadinessGate[] = [
     {
       description: "Signed BaaS/card partner contract is recorded.",
@@ -45,7 +47,7 @@ export function getNeobankReadiness(): NeobankReadiness {
     {
       description: "Always-on regulated core backend is configured.",
       id: "dedicated_backend",
-      ok: envPresent("PAYSHIELD_CORE_API_URL"),
+      ok: coreService.ok,
     },
     {
       description: "Clerk keys are configured for authenticated app access.",
