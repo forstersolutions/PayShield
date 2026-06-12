@@ -15,6 +15,7 @@
     "campaign:lint": "node scripts/check-campaign-copy.mjs",
     "campaign:lint:all": "node scripts/check-campaign-manifest.mjs",
     "core:compose:config": "docker compose --env-file .env.example -f compose.core.yml config >/dev/null",
+    "core:docker:smoke": "node scripts/smoke-core-service.mjs",
     "core:migrations:apply": "node scripts/core-migrations.mjs --apply",
     "core:migrations:check": "node scripts/core-migrations.mjs --check",
     "core:migrations:plan": "node scripts/core-migrations.mjs --plan",

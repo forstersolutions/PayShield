@@ -24,10 +24,20 @@ are active.
   constraint triggers that require every journal entry to have at least two
   lines, balance to zero cents at transaction commit, and remain immutable after
   posting so corrections happen through reversal entries.
+- Dedicated core backend operation routes for profile state, balances, bucket
+  profile loading/saving, onboarding start, payee modeling, emergency unlocks,
+  card authorization simulation, and provider webhooks. The service accepts both
+  `/app/*` and `/api/app/*` style paths, returns no-store JSON, enforces
+  request-size and JSON-shape guardrails, and can require
+  `PAYSHIELD_CORE_SERVICE_TOKEN` for internal operation routes.
 - Core migration operations include a redacted, checksummed
   `npm run core:migrations:plan` output, `npm run core:migrations:check` gate,
   and explicit `npm run core:migrations:apply` path that requires
   `PAYSHIELD_LEDGER_DATABASE_URL` and `psql`.
+- Core Docker smoke command that builds `Dockerfile.core`, starts the service
+  with token protection, checks health, proves authorized balance and card
+  authorization behavior, and confirms onboarding stays fail-closed until
+  provider and compliance gates pass. CI runs this before receiver smoke checks.
 - `BankingProvider` adapter contract and fail-closed provider implementation
   covering customer creation, KYC start, account opening, paycheck routing
   instructions, card issuing, transfers, bill payments, provider webhooks, and

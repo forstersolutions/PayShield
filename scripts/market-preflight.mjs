@@ -97,6 +97,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "Dockerfile.core",
   "compose.core.yml",
   "services/core/server.mjs",
+  "services/core/product.mjs",
   "services/core/migrations/0001_neobank_core.sql",
   "services/core/migrations/0002_household_bucket_controls.sql",
   "services/core/migrations/0003_ledger_integrity.sql",
@@ -128,6 +129,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "scripts/paid-traffic-readiness.mjs",
   "scripts/receiver-evidence.mjs",
   "scripts/smoke-deploy.mjs",
+  "scripts/smoke-core-service.mjs",
   "scripts/smoke-docker-receiver.mjs",
   "scripts/test-waitlist-webhook.mjs",
   "scripts/vercel-env-audit.mjs",
@@ -145,6 +147,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
   "CLERK_SECRET_KEY",
   "PAYSHIELD_CORE_API_URL",
+  "PAYSHIELD_CORE_SERVICE_TOKEN",
   "PAYSHIELD_LEDGER_DATABASE_URL",
   "PAYSHIELD_LIVE_MONEY_ENABLED",
   "PAYSHIELD_BAAS_PROVIDER",
@@ -252,6 +255,10 @@ requireText("scripts/smoke-deploy.mjs", "permissions-policy");
 requireText("scripts/smoke-deploy.mjs", "/.well-known/security.txt");
 requireText("scripts/smoke-deploy.mjs", "expectMissingAsset");
 requireText("scripts/smoke-deploy.mjs", "payshield-social-card.jpg");
+requireText("scripts/smoke-core-service.mjs", "runDockerCoreSmoke");
+requireText("scripts/smoke-core-service.mjs", "Dockerfile.core");
+requireText("scripts/smoke-core-service.mjs", "PAYSHIELD_CORE_SERVICE_TOKEN");
+requireText("scripts/smoke-core-service.mjs", "safeToSpendCents");
 requireText("scripts/smoke-docker-receiver.mjs", "runDockerReceiverSmoke");
 requireText("scripts/smoke-docker-receiver.mjs", "Dockerfile.receiver");
 requireText("scripts/smoke-docker-receiver.mjs", "sendSignedWebhookTest");
@@ -615,11 +622,19 @@ requireText("src/app/api/health/route.ts", "remainingGates");
 requireText("src/proxy.ts", "clerkMiddleware");
 requireText("src/proxy.ts", "/api/app(.*)");
 requireText("services/core/server.mjs", "payshield-core");
+requireText("services/core/server.mjs", 'path === "/card/authorize"');
+requireText("services/core/server.mjs", "PAYSHIELD_CORE_SERVICE_TOKEN");
+requireText("services/core/product.mjs", "getCoreReadiness");
+requireText("services/core/product.mjs", "saveBucketProfile");
+requireText("services/core/product.mjs", "authorizeCard");
+requireText("services/core/product.mjs", "handleProviderWebhook");
 requireText("services/core/migrations/0001_neobank_core.sql", "journal_entries");
 requireText("services/core/migrations/0001_neobank_core.sql", "provider_events");
 requireText("Dockerfile.core", "services/core/server.mjs");
 requireText("compose.core.yml", "PAYSHIELD_LEDGER_DATABASE_URL");
 requireText("compose.core.yml", "PAYSHIELD_BAAS_CONTRACT_APPROVED");
+requireText("package.json", "\"core:docker:smoke\"");
+requireText(".github/workflows/ci.yml", "Smoke core service image");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_URL");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_WAITLIST_STORAGE");

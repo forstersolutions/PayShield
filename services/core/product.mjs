@@ -1,0 +1,1065 @@
+const serviceName = "payshield-core";
+
+const gateDefinitions = [
+  {
+    description: "Signed BaaS/card partner contract is recorded.",
+    env: "PAYSHIELD_BAAS_CONTRACT_APPROVED",
+    id: "provider_contract",
+    kind: "true",
+  },
+  {
+    description: "Provider sandbox/live API credentials are configured.",
+    id: "provider_credentials",
+    kind: "provider_credentials",
+  },
+  {
+    description: "Sponsor-bank and pass-through wording is counsel-approved.",
+    env: "PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED",
+    id: "sponsor_disclosures",
+    kind: "true",
+  },
+  {
+    description: "Counsel has approved regulated product, fee, and UX copy.",
+    env: "PAYSHIELD_REGULATED_COUNSEL_SIGNOFF",
+    id: "counsel_signoff",
+    kind: "true",
+  },
+  {
+    description: "Reg E, dispute, reconciliation, and support runbooks exist.",
+    env: "PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED",
+    id: "operations_runbooks",
+    kind: "true",
+  },
+  {
+    description: "Durable Postgres ledger database is configured.",
+    env: "PAYSHIELD_LEDGER_DATABASE_URL",
+    id: "postgres_ledger",
+    kind: "present",
+  },
+  {
+    description: "Always-on regulated core backend is configured.",
+    env: "PAYSHIELD_CORE_API_URL",
+    id: "dedicated_backend",
+    kind: "core_online_or_present",
+  },
+  {
+    description: "Clerk keys are configured for authenticated app access.",
+    id: "clerk_auth",
+    kind: "clerk",
+  },
+];
+
+export const neobankBuckets = [
+  {
+    due: "1st",
+    id: "rent",
+    name: "Rent",
+    payeeId: "payee_abc_apartments",
+    priority: 10,
+    protection: "bill_only",
+    targetCents: 50_000,
+  },
+  {
+    due: "15th",
+    id: "vehicle",
+    name: "Vehicle",
+    payeeId: "payee_auto_lender",
+    priority: 20,
+    protection: "bill_only",
+    targetCents: 30_000,
+  },
+  {
+    due: "22nd",
+    id: "insurance",
+    name: "Insurance",
+    payeeId: "payee_insurance",
+    priority: 30,
+    protection: "bill_only",
+    targetCents: 50_000,
+  },
+  {
+    due: "Every check",
+    id: "kids",
+    name: "Kids",
+    priority: 40,
+    protection: "hard_lock",
+    targetCents: 5_000,
+  },
+  {
+    due: "Every check",
+    id: "vacation",
+    name: "Vacation",
+    priority: 50,
+    protection: "soft_lock",
+    targetCents: 10_000,
+  },
+  {
+    due: "Every check",
+    id: "emergency",
+    name: "Emergency",
+    priority: 60,
+    protection: "emergency",
+    targetCents: 10_000,
+  },
+  {
+    due: "Remainder",
+    id: "safe_spending",
+    name: "Safe to Spend",
+    priority: 100,
+    protection: "spendable",
+    targetCents: 0,
+  },
+];
+
+export const neobankPayees = [
+  {
+    allowedBucketId: "rent",
+    id: "payee_abc_apartments",
+    maxCents: 100_000,
+    name: "ABC Apartments",
+    status: "approved",
+  },
+  {
+    allowedBucketId: "vehicle",
+    id: "payee_auto_lender",
+    maxCents: 80_000,
+    name: "Auto lender",
+    status: "approved",
+  },
+  {
+    allowedBucketId: "insurance",
+    id: "payee_insurance",
+    maxCents: 70_000,
+    name: "Insurance carrier",
+    status: "approved",
+  },
+];
+
+export const demoUser = {
+  email: "private-household@example.com",
+  householdId: "household_demo_001",
+  id: "user_demo_001",
+  kycStatus: "provider_pending",
+  name: "PayShield household",
+  profileAccess: "approved",
+};
+
+const protectionValues = new Set([
+  "bill_only",
+  "emergency",
+  "hard_lock",
+  "soft_lock",
+]);
+
+function envTrue(env, name) {
+  return env[name]?.trim().toLowerCase() === "true";
+}
+
+function envPresent(env, name) {
+  return Boolean(env[name]?.trim());
+}
+
+function gateOk(definition, env, options) {
+  if (definition.kind === "true") {
+    return envTrue(env, definition.env);
+  }
+
+  if (definition.kind === "present") {
+    return envPresent(env, definition.env);
+  }
+
+  if (definition.kind === "provider_credentials") {
+    return envPresent(env, "PAYSHIELD_BAAS_PROVIDER") && envPresent(env, "PAYSHIELD_BAAS_API_KEY");
+  }
+
+  if (definition.kind === "core_online_or_present") {
+    return Boolean(options.coreOnline) || envPresent(env, "PAYSHIELD_CORE_API_URL");
+  }
+
+  if (definition.kind === "clerk") {
+    return envPresent(env, "CLERK_SECRET_KEY") && envPresent(env, "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY");
+  }
+
+  return false;
+}
+
+export function getCoreReadiness(env = process.env, options = {}) {
+  const gates = gateDefinitions.map((definition) => ({
+    description: definition.description,
+    id: definition.id,
+    ok: gateOk(definition, env, options),
+  }));
+  const liveMoneyReady = envTrue(env, "PAYSHIELD_LIVE_MONEY_ENABLED") && gates.every((gate) => gate.ok);
+  const providerConfigured = gates.some((gate) => gate.id === "provider_credentials" && gate.ok);
+
+  return {
+    backendConfigured: gates.some((gate) => gate.id === "dedicated_backend" && gate.ok),
+    clerkConfigured: gates.some((gate) => gate.id === "clerk_auth" && gate.ok),
+    gates,
+    liveMoneyReady,
+    mode: liveMoneyReady ? "live" : providerConfigured ? "sandbox" : "architecture",
+    postgresConfigured: gates.some((gate) => gate.id === "postgres_ledger" && gate.ok),
+    providerConfigured,
+    serviceAuthConfigured: envPresent(env, "PAYSHIELD_CORE_SERVICE_TOKEN"),
+  };
+}
+
+export function getCoreHealth(env = process.env) {
+  const readiness = getCoreReadiness(env, { coreOnline: true });
+
+  return {
+    ok: true,
+    readiness,
+    routes: [
+      "GET /app/me",
+      "GET /app/balances",
+      "GET /app/buckets",
+      "POST /app/buckets",
+      "POST /app/onboarding/start",
+      "POST /app/payees",
+      "POST /app/unlocks",
+      "POST /card/authorize",
+      "POST /provider/webhooks",
+    ],
+    service: serviceName,
+  };
+}
+
+export function assertLiveMoneyReady(readiness = getCoreReadiness(process.env, { coreOnline: true })) {
+  if (!readiness.liveMoneyReady) {
+    return {
+      missing: readiness.gates.filter((gate) => !gate.ok).map((gate) => gate.id),
+      ok: false,
+      readiness,
+      reason:
+        "Live money is blocked until provider, ledger, auth, counsel, disclosure, and operations gates are complete.",
+    };
+  }
+
+  return {
+    ok: true,
+    readiness,
+  };
+}
+
+function cents(value) {
+  if (!Number.isInteger(value)) {
+    throw new Error("Money amounts must be integer cents.");
+  }
+
+  return value;
+}
+
+function bucketAccount(bucketId) {
+  return `liability:bucket:${bucketId}`;
+}
+
+function entryId(type, idempotencyKey) {
+  const cleaned = idempotencyKey.replace(/[^A-Za-z0-9:_-]/g, "").slice(0, 80);
+  return `${type}:${cleaned || "entry"}`;
+}
+
+function assertBalanced(lines) {
+  const total = lines.reduce((sum, line) => sum + line.amountCents, 0);
+
+  if (total !== 0) {
+    throw new Error(`Journal entry is not balanced: ${total} cents`);
+  }
+}
+
+function metadataNumber(entry, key) {
+  const value = entry.metadata?.[key];
+
+  return typeof value === "number" && Number.isInteger(value) ? value : null;
+}
+
+function metadataString(entry, key) {
+  const value = entry.metadata?.[key];
+
+  return typeof value === "string" ? value : null;
+}
+
+function bucketIdFromAccount(accountId) {
+  const prefix = "liability:bucket:";
+
+  return accountId.startsWith(prefix) ? accountId.slice(prefix.length) : null;
+}
+
+function bucketLineAmount(entry, direction) {
+  const line = entry.lines.find((candidate) => {
+    if (!candidate.accountId.startsWith("liability:bucket:")) {
+      return false;
+    }
+
+    return direction === "debit" ? candidate.amountCents > 0 : candidate.amountCents < 0;
+  });
+
+  if (!line) {
+    return null;
+  }
+
+  return {
+    amountCents: Math.abs(line.amountCents),
+    bucketId: bucketIdFromAccount(line.accountId),
+  };
+}
+
+function assertSameIdempotentPayload(existing, expected) {
+  for (const [key, expectedValue] of Object.entries(expected)) {
+    if (expectedValue === undefined) {
+      continue;
+    }
+
+    if (existing.metadata?.[key] !== expectedValue) {
+      throw new Error(
+        `Idempotency key ${existing.idempotencyKey} already belongs to a different ${existing.type} payload.`,
+      );
+    }
+  }
+}
+
+class LedgerBook {
+  constructor(initialEntries = []) {
+    this.entries = new Map();
+
+    for (const entry of initialEntries) {
+      this.post(entry);
+    }
+  }
+
+  allEntries() {
+    return [...this.entries.values()];
+  }
+
+  findByIdempotencyKey(idempotencyKey) {
+    return this.allEntries().find((entry) => entry.idempotencyKey === idempotencyKey);
+  }
+
+  has(idempotencyKey) {
+    return Boolean(this.findByIdempotencyKey(idempotencyKey));
+  }
+
+  post(entry) {
+    assertBalanced(entry.lines);
+
+    if (this.has(entry.idempotencyKey)) {
+      return this.findByIdempotencyKey(entry.idempotencyKey);
+    }
+
+    this.entries.set(entry.id, entry);
+    return entry;
+  }
+
+  createEntry(input) {
+    return this.post({
+      createdAt: new Date().toISOString(),
+      id: entryId(input.type, input.idempotencyKey),
+      idempotencyKey: input.idempotencyKey,
+      lines: input.lines,
+      memo: input.memo,
+      metadata: input.metadata,
+      reversedEntryId: input.reversedEntryId,
+      type: input.type,
+    });
+  }
+
+  balance(accountId) {
+    return this.allEntries().reduce((sum, entry) => {
+      const accountTotal = entry.lines
+        .filter((line) => line.accountId === accountId)
+        .reduce((lineSum, line) => lineSum + line.amountCents, 0);
+
+      return sum + accountTotal;
+    }, 0);
+  }
+
+  bucketAvailable(bucketId) {
+    return Math.max(0, -this.balance(bucketAccount(bucketId)));
+  }
+}
+
+function buildBucketBalances(book, buckets) {
+  return buckets.map((bucket) => {
+    const availableCents = book.bucketAvailable(bucket.id);
+    const fundedCents = Math.min(bucket.targetCents, availableCents);
+
+    return {
+      ...bucket,
+      availableCents,
+      fundedCents,
+      shortCents: Math.max(0, bucket.targetCents - availableCents),
+    };
+  });
+}
+
+function postPaycheckDeposit(book, buckets, input) {
+  if (book.has(input.idempotencyKey)) {
+    return book.findByIdempotencyKey(input.idempotencyKey);
+  }
+
+  let remaining = cents(input.amountCents);
+  const sortedBuckets = [...buckets].sort((a, b) => a.priority - b.priority);
+  const lines = [
+    {
+      accountId: "asset:program_cash",
+      amountCents: input.amountCents,
+    },
+  ];
+
+  for (const bucket of sortedBuckets) {
+    if (bucket.id === "safe_spending") {
+      continue;
+    }
+
+    const funded = Math.min(bucket.targetCents, Math.max(0, remaining));
+
+    if (funded > 0) {
+      lines.push({
+        accountId: bucketAccount(bucket.id),
+        amountCents: -funded,
+      });
+      remaining -= funded;
+    }
+  }
+
+  if (remaining > 0) {
+    lines.push({
+      accountId: bucketAccount("safe_spending"),
+      amountCents: -remaining,
+    });
+  }
+
+  return book.createEntry({
+    idempotencyKey: input.idempotencyKey,
+    lines,
+    memo: `Paycheck deposit from ${input.employerName}`,
+    metadata: {
+      amountCents: input.amountCents,
+      employerName: input.employerName,
+      receivedAt: input.receivedAt,
+    },
+    type: "paycheck_deposit",
+  });
+}
+
+function createDemoLedgerBook(amountCents = 300_000) {
+  const book = new LedgerBook();
+
+  postPaycheckDeposit(book, neobankBuckets, {
+    amountCents,
+    employerName: "Demo payroll",
+    idempotencyKey: `demo-paycheck-${amountCents}`,
+    receivedAt: "2026-06-12T12:00:00.000Z",
+  });
+
+  return book;
+}
+
+function authorizeCardTransaction(book, payees, input) {
+  const payee = input.payeeId ? payees.find((candidate) => candidate.id === input.payeeId) : null;
+  const bucketId = payee?.allowedBucketId ?? "safe_spending";
+  const available = book.bucketAvailable(bucketId);
+  const approvedByPayee =
+    !input.payeeId || Boolean(payee && payee.status === "approved" && input.amountCents <= payee.maxCents);
+  const existing = book.findByIdempotencyKey(input.idempotencyKey);
+
+  if (existing) {
+    if (existing.type !== "card_authorization") {
+      throw new Error(`Idempotency key ${input.idempotencyKey} is already used for ${existing.type}.`);
+    }
+
+    assertSameIdempotentPayload(existing, {
+      amountCents: input.amountCents,
+      merchantCategoryCode: input.merchantCategoryCode ?? null,
+      merchantName: input.merchantName,
+      payeeId: input.payeeId ?? null,
+    });
+
+    const bucketLine = bucketLineAmount(existing, "debit");
+
+    return {
+      approved: true,
+      approvedAmountCents: metadataNumber(existing, "amountCents") ?? bucketLine?.amountCents ?? 0,
+      bucketId: metadataString(existing, "bucketId") ?? bucketLine?.bucketId ?? bucketId,
+      code: "approved",
+      reason: "Duplicate authorization replayed from the original ledger entry.",
+    };
+  }
+
+  if (!approvedByPayee) {
+    return {
+      approved: false,
+      approvedAmountCents: 0,
+      bucketId,
+      code: "payee_not_allowed",
+      reason: "This merchant is not approved for the requested protected bucket.",
+    };
+  }
+
+  if (input.amountCents > available) {
+    return {
+      approved: false,
+      approvedAmountCents: 0,
+      bucketId,
+      code: "insufficient_safe_spend",
+      reason:
+        bucketId === "safe_spending"
+          ? "Safe-to-spend does not cover this purchase."
+          : "The approved bucket does not have enough protected funds.",
+    };
+  }
+
+  const decision = {
+    approved: true,
+    approvedAmountCents: input.amountCents,
+    bucketId,
+    code: "approved",
+    reason:
+      bucketId === "safe_spending"
+        ? "Purchase fits the safe-to-spend balance."
+        : "Approved payee can draw from the protected bucket.",
+  };
+
+  book.createEntry({
+    idempotencyKey: input.idempotencyKey,
+    lines: [
+      {
+        accountId: bucketAccount(bucketId),
+        amountCents: input.amountCents,
+      },
+      {
+        accountId: "liability:card_settlement",
+        amountCents: -input.amountCents,
+      },
+    ],
+    memo: `Card authorization: ${input.merchantName}`,
+    metadata: {
+      amountCents: input.amountCents,
+      bucketId,
+      merchantCategoryCode: input.merchantCategoryCode ?? null,
+      merchantName: input.merchantName,
+      payeeId: input.payeeId ?? null,
+    },
+    type: "card_authorization",
+  });
+
+  return decision;
+}
+
+function unlockProtectedFunds(book, input) {
+  if (input.bucketId === "safe_spending") {
+    throw new Error("Safe spending is already unlocked.");
+  }
+
+  const existing = book.findByIdempotencyKey(input.idempotencyKey);
+
+  if (existing) {
+    if (existing.type !== "bucket_unlock") {
+      throw new Error(`Idempotency key ${input.idempotencyKey} is already used for ${existing.type}.`);
+    }
+
+    assertSameIdempotentPayload(existing, {
+      amountCents: input.amountCents,
+      bucketId: input.bucketId,
+      mode: input.mode,
+    });
+
+    const bucketLine = bucketLineAmount(existing, "debit");
+    const unlockedCents = metadataNumber(existing, "amountCents") ?? bucketLine?.amountCents ?? 0;
+    const recoveryChecks = metadataNumber(existing, "recoveryChecks") ?? (input.mode === "instant_fixed_fee" ? 1 : 2);
+
+    return {
+      recoveryChecks,
+      recoveryPerCheckCents: metadataNumber(existing, "recoveryPerCheckCents") ?? Math.ceil(unlockedCents / recoveryChecks),
+      unlockedCents,
+    };
+  }
+
+  const unlockedCents = Math.min(cents(input.amountCents), book.bucketAvailable(input.bucketId));
+
+  if (unlockedCents <= 0) {
+    throw new Error("No protected funds are available to unlock.");
+  }
+
+  const recoveryChecks = input.mode === "instant_fixed_fee" ? 1 : 2;
+  const result = {
+    recoveryChecks,
+    recoveryPerCheckCents: Math.ceil(unlockedCents / recoveryChecks),
+    unlockedCents,
+  };
+
+  book.createEntry({
+    idempotencyKey: input.idempotencyKey,
+    lines: [
+      {
+        accountId: bucketAccount(input.bucketId),
+        amountCents: unlockedCents,
+      },
+      {
+        accountId: bucketAccount("safe_spending"),
+        amountCents: -unlockedCents,
+      },
+    ],
+    memo: `Emergency unlock from ${input.bucketId}`,
+    metadata: {
+      amountCents: unlockedCents,
+      bucketId: input.bucketId,
+      mode: input.mode,
+      reason: input.reason,
+      recoveryChecks: result.recoveryChecks,
+      recoveryPerCheckCents: result.recoveryPerCheckCents,
+    },
+    type: "bucket_unlock",
+  });
+
+  return result;
+}
+
+function createNeobankSnapshot(book = createDemoLedgerBook(), env = process.env) {
+  const readiness = getCoreReadiness(env, { coreOnline: true });
+
+  return {
+    buckets: buildBucketBalances(book, neobankBuckets),
+    card: {
+      authorizationMode: readiness.liveMoneyReady ? "provider_gateway" : "simulation",
+      cardLast4: readiness.liveMoneyReady ? "9244" : "----",
+      status: readiness.liveMoneyReady ? "live" : "gated",
+    },
+    directDeposit: {
+      accountLast4: readiness.liveMoneyReady ? "4421" : "----",
+      accountName: "PayShield protected paycheck account",
+      providerStatus: readiness.liveMoneyReady ? "live" : "gated",
+      routingLast4: readiness.liveMoneyReady ? "0210" : "----",
+    },
+    householdId: demoUser.householdId,
+    ledgerEntries: book.allEntries(),
+    payees: neobankPayees,
+    readiness,
+    user: demoUser,
+  };
+}
+
+export function isBucketId(value) {
+  return typeof value === "string" && neobankBuckets.some((bucket) => bucket.id === value);
+}
+
+function cleanText(value, maxLength = 120) {
+  return typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, maxLength) : "";
+}
+
+function toIntegerCents(value, options = {}) {
+  const amount = typeof value === "number" ? value : Number(value);
+  const min = options.min ?? 0;
+  const max = options.max ?? 500_000;
+
+  if (!Number.isInteger(amount) || amount < min || amount > max) {
+    return null;
+  }
+
+  return amount;
+}
+
+function slugify(value) {
+  return (
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 32) || "custom_bucket"
+  );
+}
+
+function normalizeBucketProfile(value) {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 12) {
+    return null;
+  }
+
+  const seen = new Set();
+  const normalized = [];
+
+  for (const [index, item] of value.entries()) {
+    if (!item || typeof item !== "object") {
+      return null;
+    }
+
+    const name = cleanText(item.name, 48);
+    const due = cleanText(item.due, 40) || "Every check";
+    const targetCents = toIntegerCents(item.targetCents);
+    const protection = protectionValues.has(item.protection) ? item.protection : null;
+
+    if (!name || targetCents === null || !protection) {
+      return null;
+    }
+
+    const requestedId = cleanText(item.id, 48);
+    const id = isBucketId(requestedId)
+      ? requestedId
+      : requestedId.startsWith("custom_")
+        ? requestedId
+        : `custom_${slugify(requestedId || name)}`;
+
+    if (id === "safe_spending" || seen.has(id)) {
+      return null;
+    }
+
+    seen.add(id);
+    normalized.push({
+      due,
+      id,
+      name,
+      priority: (index + 1) * 10,
+      protection,
+      targetCents,
+    });
+  }
+
+  return normalized;
+}
+
+function providerBlockedResult(readiness) {
+  const gate = assertLiveMoneyReady(readiness);
+
+  return gate.ok ? null : gate;
+}
+
+export function getProfile(env = process.env) {
+  const snapshot = createNeobankSnapshot(undefined, env);
+
+  return {
+    auth: {
+      authMode: "core_service",
+      userId: snapshot.user.id,
+    },
+    householdId: snapshot.householdId,
+    kycStatus: snapshot.user.kycStatus,
+    profile: {
+      access: snapshot.user.profileAccess,
+      audience: "US households",
+      release: "commercial_control_profile",
+    },
+    readiness: snapshot.readiness,
+    user: snapshot.user,
+  };
+}
+
+export function getBalances(env = process.env) {
+  const snapshot = createNeobankSnapshot(undefined, env);
+  const safeSpend = snapshot.buckets.find((bucket) => bucket.id === "safe_spending");
+
+  return {
+    buckets: snapshot.buckets,
+    card: snapshot.card,
+    directDeposit: snapshot.directDeposit,
+    protectedCents: snapshot.buckets
+      .filter((bucket) => bucket.id !== "safe_spending")
+      .reduce((sum, bucket) => sum + bucket.availableCents, 0),
+    readiness: snapshot.readiness,
+    safeToSpendCents: safeSpend?.availableCents ?? 0,
+  };
+}
+
+export function getBucketProfile(env = process.env) {
+  const snapshot = createNeobankSnapshot(undefined, env);
+
+  return {
+    buckets: snapshot.buckets,
+    message: "Household bucket profile loaded from the core control model.",
+    readiness: snapshot.readiness,
+    templates: [
+      "Rent",
+      "Mortgage",
+      "Utilities",
+      "Insurance",
+      "Vehicle",
+      "Childcare",
+      "Debt payoff",
+      "Emergency",
+      "Taxes",
+    ],
+  };
+}
+
+export function saveBucketProfile(payload, env = process.env) {
+  if (payload?.action === "replace_profile") {
+    const profile = normalizeBucketProfile(payload.buckets);
+
+    if (!profile) {
+      return {
+        body: {
+          error: "Provide 1-12 protected buckets with name, targetCents, due, and protection.",
+        },
+        status: 400,
+      };
+    }
+
+    const protectedCents = profile.reduce((total, bucket) => total + bucket.targetCents, 0);
+
+    return {
+      body: {
+        buckets: profile,
+        message: "Bucket profile saved for this household control model.",
+        protectedCents,
+        readiness: getCoreReadiness(env, { coreOnline: true }),
+        safeSpendRule: "Safe to Spend is computed only after protected buckets fund.",
+      },
+      status: 200,
+    };
+  }
+
+  const targetCents = toIntegerCents(payload?.targetCents);
+
+  if (!isBucketId(payload?.bucketId) || targetCents === null) {
+    return {
+      body: {
+        error: "Provide bucketId and integer targetCents.",
+      },
+      status: 400,
+    };
+  }
+
+  if (payload.bucketId === "safe_spending") {
+    return {
+      body: {
+        error: "Safe spending is always the paycheck remainder.",
+      },
+      status: 400,
+    };
+  }
+
+  const modeledBuckets = neobankBuckets.map((bucket) =>
+    bucket.id === payload.bucketId ? { ...bucket, targetCents } : bucket,
+  );
+
+  return {
+    body: {
+      bucket: modeledBuckets.find((bucket) => bucket.id === payload.bucketId),
+      message: "Bucket target accepted for the household control model.",
+      readiness: getCoreReadiness(env, { coreOnline: true }),
+    },
+    status: 200,
+  };
+}
+
+export function startOnboarding(env = process.env) {
+  const readiness = getCoreReadiness(env, { coreOnline: true });
+  const liveGate = assertLiveMoneyReady(readiness);
+  const blocked = providerBlockedResult(readiness);
+
+  return {
+    body: {
+      card: {
+        cardLast4: blocked ? "----" : "9244",
+        providerCardId: blocked ? "card-provider-contract-required" : "card-live",
+        status: blocked ? "blocked" : "issued",
+      },
+      customer: {
+        providerCustomerId: blocked ? "provider-contract-required" : "provider-customer-live",
+        status: blocked ? "blocked" : "created",
+      },
+      directDeposit: {
+        accountLast4: blocked ? "----" : "4421",
+        accountName: "PayShield protected paycheck account",
+        providerStatus: blocked ? "gated" : "live",
+        routingLast4: blocked ? "----" : "0210",
+      },
+      financialAccount: {
+        providerAccountId: blocked ? "financial-account-provider-contract-required" : "financial-account-live",
+        status: blocked ? "blocked" : "opened",
+      },
+      kyc: {
+        providerApplicationId: blocked ? "kyc-provider-contract-required" : "kyc-provider-application-live",
+        status: blocked ? "blocked" : "started",
+      },
+      liveMoney: liveGate,
+      message: liveGate.ok
+        ? "Onboarding started with the configured provider."
+        : "Onboarding is queued. Provider activation is required before account, card, and transfer setup.",
+      profileAccess: demoUser.profileAccess,
+    },
+    status: liveGate.ok ? 200 : 423,
+  };
+}
+
+export function createPayee(payload, env = process.env) {
+  const name = cleanText(payload?.name, 80);
+  const maxCents = toIntegerCents(payload?.maxCents, { min: 1 });
+
+  if (!name || !isBucketId(payload?.allowedBucketId) || maxCents === null) {
+    return {
+      body: {
+        error: "Provide name, allowedBucketId, and integer maxCents.",
+      },
+      status: 400,
+    };
+  }
+
+  if (payload.allowedBucketId === "safe_spending") {
+    return {
+      body: {
+        error: "Payee controls are for protected buckets.",
+      },
+      status: 400,
+    };
+  }
+
+  const readiness = getCoreReadiness(env, { coreOnline: true });
+
+  return {
+    body: {
+      message: "Payee modeled. Provider approval is required before real bill routing.",
+      payee: {
+        allowedBucketId: payload.allowedBucketId,
+        id: `payee_modeled_${name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`,
+        maxCents,
+        name,
+        status: readiness.liveMoneyReady ? "approved" : "provider_pending",
+      },
+      readiness,
+    },
+    status: 200,
+  };
+}
+
+function isUnlockMode(value) {
+  return value === "slow_free" || value === "instant_fixed_fee";
+}
+
+export function createUnlock(payload, env = process.env) {
+  const amountCents = toIntegerCents(payload?.amountCents, { min: 1, max: 200_000 });
+  const reason = cleanText(payload?.reason, 140);
+
+  if (
+    amountCents === null ||
+    !isBucketId(payload?.bucketId) ||
+    payload.bucketId === "safe_spending" ||
+    !isUnlockMode(payload?.mode) ||
+    !reason
+  ) {
+    return {
+      body: {
+        error: "Provide protected bucketId, integer amountCents, mode, and reason.",
+      },
+      status: 400,
+    };
+  }
+
+  const input = {
+    amountCents,
+    bucketId: payload.bucketId,
+    idempotencyKey: cleanText(payload.idempotencyKey, 120) || `unlock-${payload.bucketId}-${amountCents}`,
+    mode: payload.mode,
+    reason,
+  };
+  const book = createDemoLedgerBook();
+  const result = unlockProtectedFunds(book, input);
+
+  return {
+    body: {
+      balances: buildBucketBalances(book, neobankBuckets),
+      ledgerEntries: book.allEntries(),
+      message: "Recovery plan created. Provider execution requires active money-movement controls.",
+      mode: "simulation",
+      readiness: getCoreReadiness(env, { coreOnline: true }),
+      result,
+    },
+    status: 200,
+  };
+}
+
+export function authorizeCard(payload, env = process.env) {
+  const amountCents = toIntegerCents(payload?.amountCents, { min: 1 });
+
+  if (amountCents === null) {
+    return {
+      body: {
+        error: "Provide integer amountCents.",
+      },
+      status: 400,
+    };
+  }
+
+  const input = {
+    amountCents,
+    idempotencyKey:
+      cleanText(payload?.idempotencyKey, 120) ||
+      `card-auth-${cleanText(payload?.merchantName, 120) || "merchant"}-${amountCents}`,
+    merchantCategoryCode: typeof payload?.merchantCategoryCode === "string" ? cleanText(payload.merchantCategoryCode, 20) : undefined,
+    merchantName: cleanText(payload?.merchantName, 120) || "Unknown merchant",
+    payeeId: typeof payload?.payeeId === "string" ? cleanText(payload.payeeId, 120) : undefined,
+  };
+  const readiness = getCoreReadiness(env, { coreOnline: true });
+
+  if (readiness.liveMoneyReady) {
+    return {
+      body: {
+        decision: {
+          approved: false,
+          approvedAmountCents: 0,
+          code: "live_money_gated",
+          reason:
+            "No live provider adapter is configured. Use the PayShield ledger decision path before enabling card gateway responses.",
+        },
+        mode: "provider_gateway",
+        readiness,
+      },
+      status: 200,
+    };
+  }
+
+  const book = createDemoLedgerBook();
+  const decision = authorizeCardTransaction(book, neobankPayees, input);
+
+  return {
+    body: {
+      balances: buildBucketBalances(book, neobankBuckets),
+      decision,
+      ledgerEntries: book.allEntries(),
+      mode: "simulation",
+      readiness,
+      service: "payshield-card-authorization",
+    },
+    status: 200,
+  };
+}
+
+export function handleProviderWebhook(payload, env = process.env) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return {
+      body: {
+        accepted: false,
+        mode: "blocked",
+        reason: "Provider webhook payload must be a JSON object.",
+        readiness: getCoreReadiness(env, { coreOnline: true }),
+        service: "payshield-provider-webhook",
+      },
+      status: 400,
+    };
+  }
+
+  const readiness = getCoreReadiness(env, { coreOnline: true });
+  const blocked = providerBlockedResult(readiness);
+
+  if (blocked) {
+    return {
+      body: {
+        accepted: true,
+        mode: "blocked",
+        readiness,
+        reason: blocked.reason,
+        service: "payshield-provider-webhook",
+      },
+      status: 202,
+    };
+  }
+
+  return {
+    body: {
+      accepted: true,
+      mode: "processed",
+      readiness,
+      service: "payshield-provider-webhook",
+    },
+    status: 202,
+  };
+}
