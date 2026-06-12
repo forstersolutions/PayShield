@@ -878,6 +878,7 @@ export function getBucketProfile(env = process.env) {
   return {
     buckets: snapshot.buckets,
     message: "Household bucket profile loaded from the core control model.",
+    profileSource: "core_control_model",
     readiness: snapshot.readiness,
     templates: [
       "Rent",
@@ -912,8 +913,10 @@ export function saveBucketProfile(payload, env = process.env) {
       body: {
         buckets: profile,
         message: "Bucket profile saved for this household control model.",
+        profileSource: "core_control_model",
         protectedCents,
         readiness: getCoreReadiness(env, { coreOnline: true }),
+        safeToSpendPreviewCents: Math.max(0, 300_000 - protectedCents),
         safeSpendRule: "Safe to Spend is computed only after protected buckets fund.",
       },
       status: 200,
@@ -948,6 +951,7 @@ export function saveBucketProfile(payload, env = process.env) {
     body: {
       bucket: modeledBuckets.find((bucket) => bucket.id === payload.bucketId),
       message: "Bucket target accepted for the household control model.",
+      profileSource: "core_control_model",
       readiness: getCoreReadiness(env, { coreOnline: true }),
     },
     status: 200,

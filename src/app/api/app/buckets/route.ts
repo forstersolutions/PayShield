@@ -113,6 +113,7 @@ export async function GET() {
       {
         buckets: snapshot.buckets,
         message: "Household bucket profile loaded.",
+        profileSource: "local_simulation",
         readiness: snapshot.readiness,
         templates: [
           "Rent",
@@ -181,8 +182,10 @@ export async function POST(request: NextRequest) {
         {
           buckets: profile,
           message: "Bucket profile saved for this household control model.",
+          profileSource: "local_simulation",
           protectedCents,
           readiness: snapshot.readiness,
+          safeToSpendPreviewCents: Math.max(0, 300_000 - protectedCents),
           safeSpendRule: "Safe to Spend is computed only after protected buckets fund.",
         },
         {
@@ -219,6 +222,7 @@ export async function POST(request: NextRequest) {
         bucket: modeledBuckets.find((bucket) => bucket.id === payload.bucketId),
         message:
           "Bucket target accepted for the household control model.",
+        profileSource: "local_simulation",
         readiness: snapshot.readiness,
       },
       {

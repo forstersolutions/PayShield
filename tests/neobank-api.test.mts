@@ -73,6 +73,7 @@ test("bucket endpoint loads editable household profile templates", async () => {
 
   assert.equal(response.status, 200);
   assert.equal(Array.isArray(body.buckets), true);
+  assert.equal(body.profileSource, "local_simulation");
   assert.equal(Array.isArray(body.templates), true);
   assert.equal((body.templates as string[]).includes("Childcare"), true);
 });
@@ -104,6 +105,8 @@ test("bucket endpoint saves customizable protected bucket profile", async () => 
 
   assert.equal(response.status, 200);
   assert.equal(body.protectedCents, 70_000);
+  assert.equal(body.profileSource, "local_simulation");
+  assert.equal(body.safeToSpendPreviewCents, 230_000);
   assert.equal(buckets[0]?.priority, 10);
   assert.equal(buckets[1]?.id, "custom_childcare");
   assert.equal(

@@ -189,6 +189,8 @@ test("core bucket profile route saves custom protected bucket rules", async () =
 
     assert.equal(response.status, 200);
     assert.equal(body.protectedCents, 70_000);
+    assert.equal(body.profileSource, "core_control_model");
+    assert.equal(body.safeToSpendPreviewCents, 230_000);
     assert.equal(buckets[0]?.priority, 10);
     assert.equal(buckets[1]?.id, "custom_childcare");
     assert.equal(

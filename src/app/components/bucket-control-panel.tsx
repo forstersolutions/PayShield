@@ -25,11 +25,19 @@ type BucketControl = {
 
 type SaveState =
   | { status: "idle"; message: string }
+  | { status: "loading"; message: string }
   | { status: "saving"; message: string }
   | { status: "saved"; message: string }
   | { status: "error"; message: string };
 
-const storageKey = "payshield.bucket-controls.v2";
+type BucketProfileResponse = {
+  buckets?: BucketBalance[] | BucketControl[];
+  error?: string;
+  message?: string;
+  profileSource?: "core_control_model" | "local_simulation";
+};
+
+const draftStorageKey = "payshield.bucket-controls.draft.v3";
 const paycheckCents = 300_000;
 const coreBucketIds = new Set(["rent", "vehicle", "insurance", "safe_spending"]);
 const protectionOptions: Array<{
@@ -85,13 +93,15 @@ function controlsFromBuckets(buckets: BucketBalance[]): BucketControl[] {
     }));
 }
 
-function readStoredControls(defaults: BucketControl[]) {
+function readDraftControls(defaults: BucketControl[]) {
   if (typeof window === "undefined") {
     return defaults;
   }
 
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(storageKey) ?? "[]");
+    const parsed = JSON.parse(
+      window.localStorage.getItem(draftStorageKey) ?? "[]",
+    );
 
     if (!Array.isArray(parsed)) {
       return defaults;
@@ -159,22 +169,78 @@ export function BucketControlPanel({
 }) {
   const defaults = useMemo(() => controlsFromBuckets(buckets), [buckets]);
   const [controls, setControls] = useState<BucketControl[]>(defaults);
+  const [draftDirty, setDraftDirty] = useState(false);
+  const [profileSource, setProfileSource] =
+    useState<BucketProfileResponse["profileSource"]>("local_simulation");
   const [saveState, setSaveState] = useState<SaveState>({
-    message: "",
-    status: "idle",
+    message: "Loading household profile...",
+    status: "loading",
   });
 
   useEffect(() => {
-    const handle = window.setTimeout(() => {
-      setControls(readStoredControls(defaults));
-    }, 0);
+    let cancelled = false;
 
-    return () => window.clearTimeout(handle);
+    async function loadProfile() {
+      try {
+        const response = await fetch("/api/app/buckets", {
+          headers: { accept: "application/json" },
+        });
+        const result = (await response.json().catch(() => ({}))) as
+          BucketProfileResponse;
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!response.ok || !Array.isArray(result.buckets)) {
+          setControls(readDraftControls(defaults));
+          setSaveState({
+            message:
+              result.error ??
+              "Could not load the household profile. A device draft is open for recovery.",
+            status: "error",
+          });
+          setDraftDirty(true);
+          return;
+        }
+
+        setControls(controlsFromBuckets(result.buckets as BucketBalance[]));
+        setProfileSource(result.profileSource ?? "local_simulation");
+        setDraftDirty(false);
+        window.localStorage.removeItem(draftStorageKey);
+        setSaveState({
+          message: result.message ?? "Household profile loaded.",
+          status: "saved",
+        });
+      } catch {
+        if (cancelled) {
+          return;
+        }
+
+        setControls(readDraftControls(defaults));
+        setSaveState({
+          message:
+            "Network error while loading the household profile. A device draft is open for recovery.",
+          status: "error",
+        });
+        setDraftDirty(true);
+      }
+    }
+
+    loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
   }, [defaults]);
 
   useEffect(() => {
-    window.localStorage.setItem(storageKey, JSON.stringify(controls));
-  }, [controls]);
+    if (!draftDirty) {
+      return;
+    }
+
+    window.localStorage.setItem(draftStorageKey, JSON.stringify(controls));
+  }, [controls, draftDirty]);
 
   const protectedCents = controls.reduce(
     (total, control) => total + control.targetCents,
@@ -195,6 +261,7 @@ export function BucketControlPanel({
         control.id === id ? { ...control, ...patch } : control,
       ),
     );
+    setDraftDirty(true);
     setSaveState({ message: "", status: "idle" });
   }
 
@@ -212,6 +279,7 @@ export function BucketControlPanel({
       next.splice(nextIndex, 0, control);
       return normalizePriorities(next);
     });
+    setDraftDirty(true);
     setSaveState({ message: "", status: "idle" });
   }
 
@@ -230,6 +298,7 @@ export function BucketControlPanel({
         },
       ]),
     );
+    setDraftDirty(true);
     setSaveState({ message: "", status: "idle" });
   }
 
@@ -241,6 +310,7 @@ export function BucketControlPanel({
     setControls((current) =>
       normalizePriorities(current.filter((control) => control.id !== id)),
     );
+    setDraftDirty(true);
     setSaveState({ message: "", status: "idle" });
   }
 
@@ -260,8 +330,10 @@ export function BucketControlPanel({
         method: "POST",
       });
       const result = (await response.json().catch(() => ({}))) as {
+        buckets?: BucketControl[];
         message?: string;
         error?: string;
+        profileSource?: BucketProfileResponse["profileSource"];
       };
 
       if (!response.ok) {
@@ -272,16 +344,25 @@ export function BucketControlPanel({
         return;
       }
 
-      setControls(normalizePriorities(controls));
+      const savedControls = Array.isArray(result.buckets)
+        ? controlsFromBuckets(result.buckets as BucketBalance[])
+        : normalizePriorities(controls);
+
+      setControls(savedControls);
+      setProfileSource(result.profileSource ?? profileSource);
+      setDraftDirty(false);
+      window.localStorage.removeItem(draftStorageKey);
       setSaveState({
         message: result.message ?? "Bucket rules saved.",
         status: "saved",
       });
     } catch {
       setSaveState({
-        message: "Network error. Bucket rules are still saved on this device.",
+        message:
+          "Network error. Your changes are preserved as a device draft; retry to sync them.",
         status: "error",
       });
+      setDraftDirty(true);
     }
   }
 
@@ -301,9 +382,9 @@ export function BucketControlPanel({
           </h2>
           <p className="mt-4 text-lg leading-8 text-[#c9d0da]">
             Every protected bucket has a name, funding target, due rule,
-            protection mode, and priority. The profile is saved locally today
-            and matches the backend bucket model for account-backed enforcement
-            when provider rails are activated.
+            protection mode, and priority. The profile loads and saves through
+            the app API, with device draft recovery only when the network is
+            unavailable.
           </p>
 
           <div className="mt-6 grid gap-3">
@@ -374,6 +455,12 @@ export function BucketControlPanel({
               <h3 className="mt-1 text-2xl font-semibold text-white">
                 Secure bucket rules
               </h3>
+              <p className="mt-1 text-xs font-bold text-[#8f99aa]">
+                {profileSource === "core_control_model"
+                  ? "Synced through the core control model"
+                  : "Gated app API model"}
+                {draftDirty ? " - unsaved draft" : ""}
+              </p>
             </div>
             <button
               className="brand-button-blue inline-flex h-10 items-center gap-2 rounded-[8px] px-3 text-sm font-black"
@@ -504,7 +591,9 @@ export function BucketControlPanel({
 
           <button
             className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#ffb237] px-4 text-sm font-black text-[#050607] hover:bg-[#ffd06f] disabled:cursor-not-allowed disabled:bg-[#252a31] disabled:text-[#8f99aa]"
-            disabled={saveState.status === "saving"}
+            disabled={
+              saveState.status === "saving" || saveState.status === "loading"
+            }
             onClick={saveProfile}
             type="button"
           >

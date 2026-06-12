@@ -16,7 +16,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { BillPaymentPanel } from "@/app/components/bill-payment-panel";
 import { BucketControlPanel } from "@/app/components/bucket-control-panel";
-import { PayShieldLogo } from "@/app/components/pay-shield-mark";
+import { PayShieldMark } from "@/app/components/pay-shield-mark";
 import { WaitlistForm } from "@/app/components/waitlist-form";
 import { REGULATED_PARTNER_DISCLOSURE } from "@/app/lib/brand";
 import { createNeobankSnapshot } from "@/app/lib/neobank/demo-state.ts";
@@ -104,18 +104,16 @@ export function NeobankDashboard() {
       />
 
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8">
-        <header className="pay-header brand-panel rounded-[8px]">
+        <header className="pay-header">
           <a
             aria-label="PayShield dashboard home"
             className="group pay-header-brand min-w-0"
             href="#product"
           >
             <span className="pay-header-logo-wrap">
-              <PayShieldLogo
-                className="h-[2.6rem] w-auto max-w-[13.5rem] sm:h-14 sm:max-w-[17.5rem]"
-                priority
-              />
+              <PayShieldMark className="size-9 sm:size-10" priority />
             </span>
+            <span className="pay-header-wordmark">PayShield</span>
           </a>
           <nav
             aria-label="Primary"
