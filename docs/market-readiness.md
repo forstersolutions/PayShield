@@ -24,6 +24,10 @@ are active.
   constraint triggers that require every journal entry to have at least two
   lines, balance to zero cents at transaction commit, and remain immutable after
   posting so corrections happen through reversal entries.
+- Core migration operations include a redacted, checksummed
+  `npm run core:migrations:plan` output, `npm run core:migrations:check` gate,
+  and explicit `npm run core:migrations:apply` path that requires
+  `PAYSHIELD_LEDGER_DATABASE_URL` and `psql`.
 - `BankingProvider` adapter contract and fail-closed provider implementation
   covering customer creation, KYC start, account opening, paycheck routing
   instructions, card issuing, transfers, bill payments, provider webhooks, and

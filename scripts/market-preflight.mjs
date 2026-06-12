@@ -99,6 +99,8 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "services/core/server.mjs",
   "services/core/migrations/0001_neobank_core.sql",
   "services/core/migrations/0002_household_bucket_controls.sql",
+  "services/core/migrations/0003_ledger_integrity.sql",
+  "scripts/core-migrations.mjs",
   "SECURITY.md",
   ".dockerignore",
   "compose.receiver.yml",
@@ -222,6 +224,11 @@ requireText("src/app/components/bucket-control-panel.tsx", "Add bucket");
 requireText("src/app/components/bucket-control-panel.tsx", "Save bucket profile");
 requireText("services/core/migrations/0002_household_bucket_controls.sql", "household_buckets");
 requireText("services/core/migrations/0002_household_bucket_controls.sql", "household_bucket_rules");
+requireText("services/core/migrations/0003_ledger_integrity.sql", "assert_journal_entry_balanced_by_id");
+requireText("services/core/migrations/0003_ledger_integrity.sql", "DEFERRABLE INITIALLY DEFERRED");
+requireText("services/core/migrations/0003_ledger_integrity.sql", "prevent_posted_journal_mutation");
+requireText("scripts/core-migrations.mjs", "PAYSHIELD_LEDGER_DATABASE_URL");
+requireText("scripts/core-migrations.mjs", "checksumSha256");
 requireText("docs/legal-review-packet.md", "Paycheck split model");
 requireText(
   "public/.well-known/security.txt",
