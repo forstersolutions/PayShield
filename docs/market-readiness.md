@@ -20,7 +20,10 @@ are active.
   Postgres ledger migrations for households, users, provider customers, ledger
   accounts, journal entries, journal lines, payees, provider events,
   reconciliation exceptions, household bucket profiles, bucket rules, and
-  bucket-change audit events.
+  bucket-change audit events. The ledger migrations include deferred Postgres
+  constraint triggers that require every journal entry to have at least two
+  lines, balance to zero cents at transaction commit, and remain immutable after
+  posting so corrections happen through reversal entries.
 - `BankingProvider` adapter contract and fail-closed provider implementation
   covering customer creation, KYC start, account opening, paycheck routing
   instructions, card issuing, transfers, bill payments, provider webhooks, and
