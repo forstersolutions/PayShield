@@ -15,10 +15,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { BucketControlPanel } from "@/app/components/bucket-control-panel";
-import {
-  GraystonLogo,
-  PayShieldLogo,
-} from "@/app/components/pay-shield-mark";
+import { PayShieldMark } from "@/app/components/pay-shield-mark";
 import { WaitlistForm } from "@/app/components/waitlist-form";
 import { REGULATED_PARTNER_DISCLOSURE } from "@/app/lib/brand";
 import { createNeobankSnapshot } from "@/app/lib/neobank/demo-state.ts";
@@ -106,53 +103,54 @@ export function NeobankDashboard() {
       />
 
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8">
-        <header className="brand-panel flex flex-col gap-3 rounded-[8px] px-3 py-3 sm:px-4 lg:flex-row lg:items-center lg:justify-between">
+        <header className="pay-header brand-panel rounded-[8px]">
           <a
-            className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3"
+            aria-label="PayShield dashboard home"
+            className="group flex min-w-0 items-center gap-3 sm:w-auto"
             href="#product"
           >
-            <span className="flex h-[72px] w-full shrink-0 items-center justify-center rounded-[8px] border border-white/20 bg-white px-4 shadow-[0_18px_50px_rgba(21,136,255,0.2)] sm:h-[68px] sm:w-[222px]">
-              <PayShieldLogo className="h-auto w-[196px] sm:w-[188px]" priority />
+            <span className="grid size-12 shrink-0 place-items-center rounded-[8px] border border-[#39e8ff]/22 bg-[#081424] shadow-[0_14px_34px_rgba(21,136,255,0.24)] transition group-hover:border-[#39e8ff]/45 sm:size-[3.25rem]">
+              <PayShieldMark className="size-9 sm:size-10" priority />
             </span>
-            <span className="hidden min-w-0 border-l border-white/12 pl-3 sm:block">
-              <span className="block text-sm font-black text-white">
-                By Grayston Technologies
+            <span className="min-w-0">
+              <span className="block text-2xl font-black leading-none text-white sm:text-[1.7rem]">
+                PayShield
               </span>
-              <span className="block text-xs font-bold text-[#39e8ff]">
-                Paycheck control product
+              <span className="mt-1 block text-xs font-bold leading-5 text-[#b9c6d8] sm:text-sm">
+                Grayston Technologies paycheck control
               </span>
             </span>
           </a>
           <nav
             aria-label="Primary"
-            className="grid w-full grid-cols-2 gap-1 rounded-[8px] border border-white/10 bg-black/40 p-1 text-sm font-bold text-[#d9dde5] sm:flex sm:w-auto sm:flex-wrap sm:items-center"
+            className="pay-primary-nav rounded-[8px] border border-white/10 bg-black/40 p-1 text-sm font-bold text-[#d9dde5]"
           >
             <a
-              className="rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
+              className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
               href="#balances"
             >
               Balances
             </a>
             <a
-              className="rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
+              className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
               href="#bucket-studio"
             >
               Buckets
             </a>
             <a
-              className="rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
+              className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
               href="#rails"
             >
               Rails
             </a>
             <a
-              className="rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
+              className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
               href="#gates"
             >
               Gates
             </a>
             <a
-              className="brand-button-primary col-span-2 inline-flex items-center justify-center gap-2 rounded-[8px] px-4 py-2 font-black sm:col-span-1"
+              className="pay-primary-nav-link pay-primary-nav-cta brand-button-primary gap-2 rounded-[8px] px-4 py-2 font-black"
               href="#profile"
             >
               Start profile
@@ -240,24 +238,27 @@ export function NeobankDashboard() {
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 rounded-[8px] border border-white/10 bg-black/40 p-4 sm:grid-cols-[150px_1fr]">
-              <div className="flex items-center rounded-[8px] border border-white/10 bg-black/50 px-3 py-2">
-                <GraystonLogo className="h-10 w-auto" />
-              </div>
-              <div>
-                <p className="text-sm font-black text-white">
-                  PayShield is operated by Grayston Technologies.
-                </p>
-                <p className="mt-1 text-sm leading-6 text-[#c9d0da]">
-                  Product and support requests route to{" "}
-                  <a
-                    className="font-black text-[#39e8ff] underline"
-                    href="mailto:support@graystontechnologies.com"
-                  >
-                    support@graystontechnologies.com
-                  </a>
-                  .
-                </p>
+            <div className="mt-4 rounded-[8px] border border-white/10 bg-black/40 p-4">
+              <div className="flex items-start gap-3">
+                <span
+                  aria-hidden="true"
+                  className="mt-1 h-11 w-1.5 shrink-0 rounded-full bg-gradient-to-b from-[#39e8ff] to-[#ffb237] shadow-[0_0_22px_rgba(57,232,255,0.32)]"
+                />
+                <div>
+                  <p className="text-sm font-black text-white">
+                    PayShield is operated by Grayston Technologies.
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-[#c9d0da]">
+                    Product and support requests route to{" "}
+                    <a
+                      className="font-black text-[#39e8ff] underline"
+                      href="mailto:support@graystontechnologies.com"
+                    >
+                      support@graystontechnologies.com
+                    </a>
+                    .
+                  </p>
+                </div>
               </div>
             </div>
           </section>

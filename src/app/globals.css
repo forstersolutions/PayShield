@@ -118,6 +118,34 @@ textarea {
   text-transform: uppercase;
 }
 
+.pay-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.pay-primary-nav {
+  display: flex;
+  width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.pay-primary-nav-link {
+  display: inline-flex;
+  min-height: 2.5rem;
+  flex: 1 1 7.25rem;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.pay-primary-nav-cta {
+  flex-basis: 100%;
+}
+
 .pay-app-shell [class*="tracking-"] {
   letter-spacing: 0;
 }
@@ -166,6 +194,38 @@ textarea {
   pointer-events: none;
   background: linear-gradient(90deg, transparent, rgba(57, 232, 255, 0.46), rgba(255, 178, 55, 0.24), transparent);
   transform-origin: left center;
+}
+
+@media (min-width: 40rem) {
+  .pay-header {
+    padding-inline: 1rem;
+  }
+
+  .pay-primary-nav-link {
+    flex-basis: 8rem;
+  }
+
+  .pay-primary-nav-cta {
+    flex-basis: 10rem;
+  }
+}
+
+@media (min-width: 64rem) {
+  .pay-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .pay-primary-nav {
+    width: auto;
+    flex-wrap: nowrap;
+  }
+
+  .pay-primary-nav-link,
+  .pay-primary-nav-cta {
+    flex: 0 0 auto;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
