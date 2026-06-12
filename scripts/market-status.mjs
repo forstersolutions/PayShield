@@ -11,6 +11,7 @@ import { normalizeSiteUrl } from "./paid-traffic-readiness.mjs";
 
 const execFileAsync = promisify(execFile);
 const defaultBranch = "main";
+const defaultCiWorkflowName = "CI";
 const defaultRepository = "forstersolutions/PayShield";
 const defaultTimeoutMs = 10_000;
 
@@ -23,6 +24,7 @@ function usage() {
     "Options:",
     "  --repo forstersolutions/PayShield   GitHub repository for CI lookup",
     "  --branch main                       GitHub branch for CI lookup",
+    "  --ci-workflow-name CI               GitHub Actions workflow used as the required CI gate",
     "  --receiver-evidence-file path      Optional JSON output from npm run receiver:evidence",
     "  --counsel-signoff-file path        Optional JSON legal/compliance sign-off record",
     "  --analytics-evidence-file path     Optional JSON live analytics evidence record",
@@ -60,6 +62,7 @@ function parseCliArgs(args) {
       ![
         "--analytics-evidence-file",
         "--branch",
+        "--ci-workflow-name",
         "--counsel-signoff-file",
         "--expect-site-url",
         "--help",
@@ -70,6 +73,7 @@ function parseCliArgs(args) {
       ].includes(arg) &&
       !arg.startsWith("--analytics-evidence-file=") &&
       !arg.startsWith("--branch=") &&
+      !arg.startsWith("--ci-workflow-name=") &&
       !arg.startsWith("--counsel-signoff-file=") &&
       !arg.startsWith("--expect-site-url=") &&
       !arg.startsWith("--receiver-evidence-file=") &&
@@ -92,6 +96,7 @@ function parseCliArgs(args) {
   return {
     analyticsEvidenceFile: flagValue(args, "--analytics-evidence-file"),
     branch: flagValue(args, "--branch") || defaultBranch,
+    ciWorkflowName: flagValue(args, "--ci-workflow-name") || defaultCiWorkflowName,
     counselSignoffFile: flagValue(args, "--counsel-signoff-file"),
     expectedSiteUrl: flagValue(args, "--expect-site-url"),
     help: false,
@@ -176,7 +181,19 @@ async function getLocalGit({ timeoutMs }) {
   }
 }
 
-async function getLatestCiRun({ branch, repository, timeoutMs }) {
+export function selectLatestCiRun(runs, { workflowName = defaultCiWorkflowName } = {}) {
+  if (!Array.isArray(runs) || runs.length === 0) {
+    return undefined;
+  }
+
+  return (
+    runs.find((run) => run?.workflowName === workflowName) ??
+    runs.find((run) => run?.workflowName === defaultCiWorkflowName) ??
+    runs[0]
+  );
+}
+
+async function getLatestCiRun({ branch, repository, timeoutMs, workflowName }) {
   try {
     const { stdout } = await execFileAsync(
       "gh",
@@ -188,7 +205,7 @@ async function getLatestCiRun({ branch, repository, timeoutMs }) {
         "--branch",
         branch,
         "--limit",
-        "1",
+        "10",
         "--json",
         "databaseId,status,conclusion,workflowName,headSha,url,createdAt,displayTitle",
       ],
@@ -199,8 +216,9 @@ async function getLatestCiRun({ branch, repository, timeoutMs }) {
       },
     );
     const runs = JSON.parse(stdout);
+    const selectedRun = selectLatestCiRun(runs, { workflowName });
 
-    if (!Array.isArray(runs) || runs.length === 0) {
+    if (!selectedRun) {
       return {
         error: "No GitHub Actions runs found.",
         ok: false,
@@ -208,8 +226,10 @@ async function getLatestCiRun({ branch, repository, timeoutMs }) {
     }
 
     return {
-      ...runs[0],
-      ok: runs[0].status === "completed" && runs[0].conclusion === "success",
+      ...selectedRun,
+      ok:
+        selectedRun.status === "completed" &&
+        selectedRun.conclusion === "success",
     };
   } catch (error) {
     return {
@@ -544,6 +564,7 @@ async function main() {
         branch: parsed.branch,
         repository: parsed.repository,
         timeoutMs: parsed.timeoutMs,
+        workflowName: parsed.ciWorkflowName,
       }),
       getVercelDeployment({
         targetUrl: parsed.targetUrl,
@@ -564,6 +585,7 @@ async function main() {
   });
   const result = summarizeMarketStatus({
     branch: parsed.branch,
+    ciWorkflowName: parsed.ciWorkflowName,
     githubLatestCiRun,
     launchEvidence,
     localGit,

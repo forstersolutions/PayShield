@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   parseVercelInspectOutput,
   parseVercelInspectResult,
+  selectLatestCiRun,
   summarizeMarketStatus,
 } from "../scripts/market-status.mjs";
 
@@ -88,6 +89,26 @@ const readyDeployment = {
   target: "production",
   url: deploymentUrl,
 };
+
+test("selects the CI workflow instead of newer unrelated workflow runs", () => {
+  const selected = selectLatestCiRun([
+    {
+      conclusion: "",
+      createdAt: "2026-06-12T20:52:50Z",
+      databaseId: 27442386751,
+      displayTitle: "npm_and_yarn in / for dependency updates",
+      headSha: commit,
+      status: "in_progress",
+      url: "https://github.com/forstersolutions/PayShield/actions/runs/27442386751",
+      workflowName: "Dependabot Updates",
+    },
+    passingCiRun,
+  ]);
+
+  assert.equal(selected?.workflowName, "CI");
+  assert.equal(selected?.ok, true);
+  assert.equal(selected?.headSha, commit);
+});
 
 test("summarizes current production status without marking market ready", () => {
   const status = summarizeMarketStatus({
