@@ -1,8 +1,14 @@
 # PayShield
 
-PayShield is a Vercel-hosted Next.js paycheck planning app. It helps households
-split a paycheck into required buckets, see what is safe to spend, model
-shortfalls, and export a private plan without connecting bank credentials.
+PayShield is a Vercel-hosted Next.js app for a closed-beta paycheck protection
+product. The current repo now contains the app-first dashboard, Clerk-ready auth
+boundary, regulated core backend scaffold, Postgres ledger migration, provider
+adapter contract, and fail-closed live-money gates for the full neobank build.
+
+The public app does not open accounts, hold funds, issue cards, route payments,
+or claim insured coverage until a BaaS/card partner, sponsor-bank disclosures,
+counsel approval, operational runbooks, Clerk auth, the dedicated core backend,
+and the Postgres ledger are configured.
 
 ## Getting Started
 
@@ -24,6 +30,8 @@ Production is deployed on Vercel at
 
 ```bash
 npm run dev
+npm run core:server
+npm run core:compose:config
 npm run verify
 npm run analytics:audit
 npm run campaign:lint -- path/to/campaign-copy.md
@@ -61,6 +69,38 @@ npm run start
 npm run lint
 npm run typecheck
 ```
+
+## Regulated Core
+
+The frontend remains on Vercel. Regulated ledger, provider webhook, card
+authorization, reconciliation, and future money-movement operations belong in
+the dedicated core service:
+
+```bash
+npm run core:server
+docker compose --env-file .env.example -f compose.core.yml up --build
+```
+
+`services/core/migrations/0001_neobank_core.sql` defines the first Postgres
+ledger schema: households, app users, provider customers, ledger accounts,
+journal entries, journal lines, payees, provider events, and reconciliation
+exceptions.
+
+The app exposes the planned API surface now:
+
+```text
+GET  /api/app/me
+GET  /api/app/balances
+POST /api/app/onboarding/start
+POST /api/app/buckets
+POST /api/app/payees
+POST /api/app/unlocks
+POST /api/provider/webhooks
+POST /api/card/authorize
+```
+
+Without complete live-money gates, onboarding returns a blocked response and
+card authorization runs only in simulation mode against the PayShield ledger.
 
 ## Continuous Integration
 
@@ -330,10 +370,11 @@ and banned PII fields.
 
 ## Launch Notes
 
-- The current app is a commercial paycheck planning app. It does not move money,
-  hold funds, open deposit accounts, issue cards, or provide insured coverage.
-- Live funds would require a banking sponsor, BaaS/program partner, KYC/AML workflow,
-  ACH/card rails, dispute handling, disclosures, and double-entry ledgering.
+- The current app is a closed-beta neobank foundation. It does not move money,
+  hold funds, open accounts, issue cards, or provide insured coverage.
+- Live funds require a banking sponsor, BaaS/card program partner, KYC/AML workflow,
+  payment/card rails, dispute handling, disclosures, support operations, and
+  double-entry ledgering.
 - Do not claim PayShield is a bank.
 - Do not claim FDIC insurance until the final sponsor bank and recordkeeping
   model supports precise, approved language.

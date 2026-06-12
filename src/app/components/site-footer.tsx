@@ -10,7 +10,7 @@ export function SiteFooter() {
           <div>
             <p className="text-sm font-semibold text-[#f9efe1]">PayShield</p>
             <p className="text-xs leading-5">
-              Know what is safe to spend before the week gets busy.
+              Protect the paycheck before ordinary spending can reach it.
             </p>
           </div>
         </div>
@@ -25,7 +25,7 @@ export function SiteFooter() {
             Terms
           </Link>
           <Link className="hover:text-[#f9efe1]" href="/#product">
-            Planner
+            Dashboard
           </Link>
         </nav>
       </div>

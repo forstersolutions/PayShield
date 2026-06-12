@@ -81,10 +81,22 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/components/site-footer.tsx",
   "src/app/components/waitlist-form.tsx",
   "src/app/components/paycheck-planner.tsx",
+  "src/app/components/neobank-dashboard.tsx",
   "src/app/lib/pilot-analytics.ts",
+  "src/app/lib/neobank/auth.ts",
+  "src/app/lib/neobank/demo-state.ts",
+  "src/app/lib/neobank/ledger.ts",
+  "src/app/lib/neobank/provider.ts",
+  "src/app/lib/neobank/readiness.ts",
+  "src/app/lib/neobank/types.ts",
   ".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml",
   ".github/workflows/ci.yml",
   "next.config.ts",
+  "src/proxy.ts",
+  "Dockerfile.core",
+  "compose.core.yml",
+  "services/core/server.mjs",
+  "services/core/migrations/0001_neobank_core.sql",
   "SECURITY.md",
   ".dockerignore",
   "compose.receiver.yml",
@@ -125,6 +137,17 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
 
 [
   "NEXT_PUBLIC_SITE_URL",
+  "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+  "CLERK_SECRET_KEY",
+  "PAYSHIELD_CORE_API_URL",
+  "PAYSHIELD_LEDGER_DATABASE_URL",
+  "PAYSHIELD_LIVE_MONEY_ENABLED",
+  "PAYSHIELD_BAAS_PROVIDER",
+  "PAYSHIELD_BAAS_API_KEY",
+  "PAYSHIELD_BAAS_CONTRACT_APPROVED",
+  "PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED",
+  "PAYSHIELD_REGULATED_COUNSEL_SIGNOFF",
+  "PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED",
   "PAYSHIELD_WAITLIST_WEBHOOK_URL",
   "PAYSHIELD_WAITLIST_WEBHOOK_SECRET",
   "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK",
@@ -145,7 +168,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
 
 requireText(
   "src/app/components/site-footer.tsx",
-  "Know what is safe to spend before the week gets busy.",
+  "Protect the paycheck before ordinary spending can reach it.",
 );
 requireText("src/app/terms/page.tsx", "PayShield is not a bank.");
 requireText(
@@ -183,12 +206,14 @@ requireText("src/app/layout.tsx", 'url: "/icon.svg"');
 requireText("src/app/manifest.ts", 'name: "PayShield"');
 requireText("src/app/manifest.ts", 'theme_color: "#211b16"');
 requireText(
-  "src/app/components/paycheck-planner.tsx",
-  "Know what is safe to spend before the week gets busy.",
+  "src/app/components/neobank-dashboard.tsx",
+  "Paycheck protection with partner-bank rails coming through closed beta.",
 );
-requireText("src/app/page.tsx", "A balance shows the total. PayShield shows what is safe to use.");
-requireText("src/app/page.tsx", "Bills covered. Spending clear.");
-requireText("src/app/page.tsx", "Open PayShield. Set the check. See what is safe to spend.");
+requireText("src/app/components/neobank-dashboard.tsx", "Safe to Spend");
+requireText("src/app/components/neobank-dashboard.tsx", "Live-money gates");
+requireText("src/app/components/neobank-dashboard.tsx", "PayShield is not a bank.");
+requireText("src/app/components/neobank-dashboard.tsx", "Closed paid beta");
+requireText("src/app/page.tsx", "NeobankDashboard");
 requireText("src/app/components/waitlist-form.tsx", "Contact PayShield");
 requireText(
   "src/app/components/paycheck-planner.tsx",
@@ -270,6 +295,8 @@ requireText("scripts/check-campaign-manifest.mjs", "docs/campaigns/manifest.json
 requireText("scripts/check-campaign-manifest.mjs", "draft-planning-only-framing");
 requireText("package.json", "\"campaign:lint\"");
 requireText("package.json", "\"campaign:lint:all\"");
+requireText("package.json", "\"core:server\"");
+requireText("package.json", "\"core:compose:config\"");
 requireText("package.json", "\"counsel:signoff:check\"");
 requireText("package.json", "\"legal:lint\"");
 requireText("package.json", "\"analytics:audit\"");
@@ -571,6 +598,16 @@ requireText("src/app/api/health/route.ts", "webhookSigningConfigured");
 requireText("src/app/api/health/route.ts", "storageConfigured");
 requireText("src/app/api/health/route.ts", "storageMisconfigured");
 requireText("src/app/api/health/route.ts", "storageProvider");
+requireText("src/app/api/health/route.ts", "liveMoneyReady");
+requireText("src/app/api/health/route.ts", "remainingGates");
+requireText("src/proxy.ts", "clerkMiddleware");
+requireText("src/proxy.ts", "/api/app(.*)");
+requireText("services/core/server.mjs", "payshield-core");
+requireText("services/core/migrations/0001_neobank_core.sql", "journal_entries");
+requireText("services/core/migrations/0001_neobank_core.sql", "provider_events");
+requireText("Dockerfile.core", "services/core/server.mjs");
+requireText("compose.core.yml", "PAYSHIELD_LEDGER_DATABASE_URL");
+requireText("compose.core.yml", "PAYSHIELD_BAAS_CONTRACT_APPROVED");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_URL");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_WAITLIST_STORAGE");
@@ -725,10 +762,12 @@ const publicCopyFiles = [
   "src/app/components/site-footer.tsx",
   "src/app/components/waitlist-form.tsx",
   "src/app/components/paycheck-planner.tsx",
+  "src/app/components/neobank-dashboard.tsx",
 ];
 const publicMarketingFiles = [
   "src/app/page.tsx",
   "src/app/components/paycheck-planner.tsx",
+  "src/app/components/neobank-dashboard.tsx",
 ];
 
 for (const path of publicCopyFiles) {

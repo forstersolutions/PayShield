@@ -14,6 +14,8 @@
     "build": "next build",
     "campaign:lint": "node scripts/check-campaign-copy.mjs",
     "campaign:lint:all": "node scripts/check-campaign-manifest.mjs",
+    "core:compose:config": "docker compose --env-file .env.example -f compose.core.yml config >/dev/null",
+    "core:server": "node services/core/server.mjs",
     "counsel:signoff:check": "node scripts/check-counsel-signoff.mjs",
     "legal:lint": "npm run campaign:lint -- docs/legal-review-packet.md docs/campaign-copy.md",
     "launch:evidence": "node scripts/launch-evidence.mjs",
@@ -46,6 +48,7 @@
     "verify": "npm run lint && npm run typecheck && npm test && npm run analytics:audit && npm run campaign:lint:all && npm run legal:lint && npm run market-preflight && npm run build && npm audit --omit=dev"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.5.2",
     "@vercel/analytics": "^2.0.1",
     "@vercel/blob": "^2.4.0",
     "@vercel/speed-insights": "^2.0.0",

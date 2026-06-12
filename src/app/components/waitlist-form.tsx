@@ -183,8 +183,8 @@ export function WaitlistForm() {
       <div className="mb-4">
         <p className="text-sm font-semibold">Contact PayShield</p>
         <p className="mt-1 text-sm leading-6 text-[#b7aa9b]">
-          Tell us where paycheck planning breaks down first. We will use it to
-          route your product conversation.
+          Tell us where protected paycheck controls would matter first. We will
+          use it to route your closed-beta product conversation.
         </p>
       </div>
 
@@ -226,7 +226,7 @@ export function WaitlistForm() {
         </label>
 
         <label className="text-sm font-medium text-[#eadccc]">
-          What should PayShield protect first?
+          What must PayShield protect first?
           <textarea
             className="mt-2 min-h-24 w-full resize-y rounded-[8px] border border-[#3a3027] bg-[#17130f] px-3 py-3 text-[#fff4e8] outline-none placeholder:text-[#7f7368] focus:border-[#b8e7c5]"
             name="message"

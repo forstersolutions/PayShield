@@ -21,9 +21,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   applicationName: "PayShield",
   metadataBase: new URL(siteUrl),
-  title: "PayShield | Paycheck Planning App",
+  title: "PayShield | Paycheck Protection App",
   description:
-    "PayShield shows what is safe to spend after bills, goals, and recovery are planned.",
+    "PayShield is a closed-beta paycheck protection app built around safe spending, protected buckets, and regulated partner rails.",
   alternates: {
     canonical: "/",
   },
@@ -36,13 +36,13 @@ export const metadata: Metadata = {
   openGraph: {
     title: "PayShield",
     description:
-      "Know what is safe to spend before the week gets busy.",
+      "Paycheck protection with partner-bank rails coming through closed beta.",
     images: [
       {
         url: socialImageUrl,
         width: 1536,
         height: 1024,
-        alt: "PayShield safe-to-spend planning preview",
+        alt: "PayShield safe-to-spend protected paycheck dashboard",
       },
     ],
     type: "website",
@@ -51,7 +51,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "PayShield",
     description:
-      "Know what is safe to spend before the week gets busy.",
+      "Paycheck protection with partner-bank rails coming through closed beta.",
     images: [socialImageUrl],
   },
 };

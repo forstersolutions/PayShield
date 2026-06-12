@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server.js";
 import { getWaitlistCaptureConfig } from "../../lib/waitlist-capture-config.ts";
+import { getNeobankReadiness } from "../../lib/neobank/readiness.ts";
 
 export function GET() {
   const capture = getWaitlistCaptureConfig();
+  const neobank = getNeobankReadiness();
   const ok =
     (!capture.requireWebhook || capture.paidTrafficReady) &&
     !capture.storageMisconfigured &&
@@ -29,6 +31,17 @@ export function GET() {
         webhookEndpointConfigured: capture.webhookEndpointConfigured,
         webhookMisconfigured: capture.webhookMisconfigured,
         webhookSigningConfigured: capture.webhookSigningConfigured,
+      },
+      neobank: {
+        backendConfigured: neobank.backendConfigured,
+        clerkConfigured: neobank.clerkConfigured,
+        liveMoneyReady: neobank.liveMoneyReady,
+        mode: neobank.mode,
+        postgresConfigured: neobank.postgresConfigured,
+        providerConfigured: neobank.providerConfigured,
+        remainingGates: neobank.gates
+          .filter((gate) => !gate.ok)
+          .map((gate) => gate.id),
       },
     },
     {

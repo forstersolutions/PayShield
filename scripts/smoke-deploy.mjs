@@ -295,13 +295,15 @@ async function submitLead() {
 
 try {
   const home = await expectText("/", [
-    "PayShield | Paycheck Planning App",
+    "PayShield | Paycheck Protection App",
     "/manifest.webmanifest",
     "/icon.svg",
     "payshield-social-card.jpg",
-    "Export plan",
-    "Open PayShield. Set the check. See what is safe to spend.",
-    "Know what is safe to spend before the week gets busy.",
+    "Safe to Spend",
+    "Closed beta",
+    "Paycheck protection with partner-bank rails coming through closed beta.",
+    "Live-money gates",
+    "PayShield is not a bank.",
   ]);
   expectSecurityHeaders(home.response, "/");
 

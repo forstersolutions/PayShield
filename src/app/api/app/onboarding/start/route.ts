@@ -1,0 +1,49 @@
+import { NextResponse } from "next/server.js";
+import { getAppSession } from "../../../../lib/neobank/auth.ts";
+import { createNeobankSnapshot } from "../../../../lib/neobank/demo-state.ts";
+import { getBankingProvider } from "../../../../lib/neobank/provider.ts";
+import { assertLiveMoneyReady } from "../../../../lib/neobank/readiness.ts";
+
+export async function POST() {
+  try {
+    await getAppSession();
+    const snapshot = createNeobankSnapshot();
+    const liveGate = assertLiveMoneyReady(snapshot.readiness);
+    const provider = getBankingProvider();
+    const customer = await provider.createCustomer(snapshot.user);
+    const kyc = await provider.startKyc(snapshot.user);
+    const financialAccount = await provider.openFinancialAccount({
+      providerCustomerId: customer.providerCustomerId,
+    });
+    const directDeposit = await provider.createDirectDepositInstructions({
+      providerAccountId: financialAccount.providerAccountId,
+    });
+    const card = await provider.issueCard({
+      providerAccountId: financialAccount.providerAccountId,
+      userId: snapshot.user.id,
+    });
+
+    return NextResponse.json(
+      {
+        betaAccess: snapshot.user.betaAccess,
+        card,
+        customer,
+        directDeposit,
+        financialAccount,
+        kyc,
+        liveMoney: liveGate,
+        message: liveGate.ok
+          ? "Onboarding started with the configured provider."
+          : "Closed beta is ready for architecture review; live onboarding is blocked until provider and compliance gates pass.",
+      },
+      {
+        headers: {
+          "cache-control": "no-store",
+        },
+        status: liveGate.ok ? 200 : 423,
+      },
+    );
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+}

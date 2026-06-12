@@ -1,13 +1,29 @@
 # Market Readiness
 
-This repository is ready to support a public commercial planning-app launch, Vercel preview
-deployments, partner demos, and product demand capture.
+This repository is ready to support a closed-beta neobank product surface,
+Vercel preview deployments, partner demos, BaaS/card-provider diligence, and
+product demand capture. The full live-money product remains gated until the
+provider, sponsor, counsel, operations, auth, backend, and ledger requirements
+are complete.
 
 ## Ready Now
 
-- Interactive protected-paycheck product demo.
-- Safe-to-spend balance, protected bucket funding, shortfall handling, card
-  authorization preview, and emergency unlock preview.
+- App-first protected-paycheck dashboard with safe-to-spend as the primary
+  balance, protected bucket funding, live-money gate status, direct-paycheck rail
+  order, card-decision simulation, and emergency unlock recovery preview.
+- Clerk-ready app access boundary for `/app` and `/api/app/*`, with demo mode
+  retained until Clerk keys are configured.
+- Dedicated regulated core backend scaffold, Dockerfile, compose manifest, and
+  Postgres ledger migration for households, users, provider customers, ledger
+  accounts, journal entries, journal lines, payees, provider events, and
+  reconciliation exceptions.
+- `BankingProvider` adapter contract and fail-closed provider implementation
+  covering customer creation, KYC start, account opening, paycheck routing
+  instructions, card issuing, transfers, bill payments, provider webhooks, and
+  card authorization responses.
+- App APIs for beta state, balances, onboarding start, bucket modeling, payee
+  modeling, unlock recovery, provider webhooks, and card authorization
+  simulation.
 - Pricing and positioning copy for Free, Plus, Pro, and Premium plans.
 - Product inquiry form with server-side validation, bounded in-memory rate
   limiting, request-size guardrails, honeypot filtering, required privacy/terms
