@@ -14,7 +14,7 @@ function usage() {
     "Usage: npm run core:docker:smoke [--image payshield-core:ci-smoke] [--skip-build] [--keep-image] [--timeout-ms 30000]",
     "",
     "Builds and runs Dockerfile.core, checks core health, verifies optional service-token protection,",
-    "and exercises balances, card authorization, and onboarding gates without printing the service token.",
+    "and exercises balances, bill payments, card authorization, and onboarding gates without printing the service token.",
   ].join("\n");
 }
 
@@ -129,6 +129,7 @@ function requireCheck(checks, condition, message) {
 
 export function summarizeDockerCoreSmoke({
   authorizedBalances,
+  billPayment,
   cardAuthorization,
   checks,
   health,
@@ -147,6 +148,12 @@ export function summarizeDockerCoreSmoke({
       bucketId: cardAuthorization.body.decision?.bucketId ?? null,
       mode: cardAuthorization.body.mode,
       status: cardAuthorization.response.status,
+    },
+    billPayment: {
+      accepted: billPayment.body.decision?.accepted === true,
+      bucketId: billPayment.body.decision?.bucketId ?? null,
+      providerStatus: billPayment.body.decision?.providerStatus ?? null,
+      status: billPayment.response.status,
     },
     checks,
     health,
@@ -252,6 +259,27 @@ export async function runDockerCoreSmoke({
       "authorized card decision approves only against Safe to Spend",
     );
 
+    const billPayment = await readJson(`${mapped.url}/api/app/bill-payments`, {
+      body: JSON.stringify({
+        amountCents: 50_000,
+        idempotencyKey: "docker-core-bill-rent",
+        payeeId: "payee_abc_apartments",
+        scheduledFor: "2026-07-01",
+      }),
+      headers: authorizedHeaders,
+      method: "POST",
+      timeoutMs,
+    });
+
+    requireCheck(
+      checks,
+      billPayment.response.status === 200 &&
+        billPayment.body?.decision?.accepted === true &&
+        billPayment.body?.decision?.bucketId === "rent" &&
+        billPayment.body?.decision?.providerStatus === "blocked",
+      "authorized bill payment schedules only from an approved protected bucket",
+    );
+
     const onboarding = await readJson(`${mapped.url}/api/app/onboarding/start`, {
       body: "{}",
       headers: authorizedHeaders,
@@ -268,6 +296,7 @@ export async function runDockerCoreSmoke({
 
     return summarizeDockerCoreSmoke({
       authorizedBalances,
+      billPayment,
       cardAuthorization,
       checks,
       health,

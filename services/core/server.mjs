@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import {
   authorizeCard,
+  createBillPayment,
   createPayee,
   createUnlock,
   getBalances,
@@ -170,6 +171,11 @@ export function createCoreServer() {
 
       if (request.method === "POST" && path === "/app/buckets") {
         await withJsonBody(request, response, saveBucketProfile);
+        return;
+      }
+
+      if (request.method === "POST" && path === "/app/bill-payments") {
+        await withJsonBody(request, response, createBillPayment);
         return;
       }
 

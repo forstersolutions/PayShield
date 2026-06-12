@@ -24,6 +24,18 @@ test("summarizes Docker core smoke output without exposing service token", () =>
         status: 200,
       },
     },
+    billPayment: {
+      body: {
+        decision: {
+          accepted: true,
+          bucketId: "rent",
+          providerStatus: "blocked",
+        },
+      },
+      response: {
+        status: 200,
+      },
+    },
     checks: [
       "Dockerfile.core builds successfully",
       "core container starts with token protection enabled",
@@ -60,6 +72,9 @@ test("summarizes Docker core smoke output without exposing service token", () =>
   assert.equal(result.authorization.protectedRouteStatusWithoutToken, 401);
   assert.equal(result.authorization.protectedRouteStatusWithToken, 200);
   assert.equal(result.cardAuthorization.approved, true);
+  assert.equal(result.billPayment.accepted, true);
+  assert.equal(result.billPayment.bucketId, "rent");
+  assert.equal(result.billPayment.providerStatus, "blocked");
   assert.equal(result.onboarding.status, 423);
   assert.equal(serialized.includes("core-smoke-"), false);
   assert.equal(serialized.includes("PAYSHIELD_CORE_SERVICE_TOKEN"), false);

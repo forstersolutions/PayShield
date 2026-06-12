@@ -85,6 +85,7 @@ test("core health exposes product operation routes and fail-closed readiness", a
     assert.equal(body.service, "payshield-core");
     assert.equal(readiness.liveMoneyReady, false);
     assert.equal(readiness.backendConfigured, true);
+    assert.equal(routes.includes("POST /app/bill-payments"), true);
     assert.equal(routes.includes("POST /card/authorize"), true);
     assert.equal(routes.includes("POST /app/onboarding/start"), true);
   });
@@ -225,6 +226,63 @@ test("core payee and onboarding routes remain provider-gated until live gates pa
     assert.equal(onboarding.response.status, 423);
     assert.equal(liveMoney.ok, false);
     assert.equal(card.status, "blocked");
+  });
+});
+
+test("core bill payment route schedules approved payee from protected bucket", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(
+      baseUrl,
+      "/api/app/bill-payments",
+      jsonPost({
+        amountCents: 50_000,
+        idempotencyKey: "core-bill-rent",
+        memo: "July rent",
+        payeeId: "payee_abc_apartments",
+        scheduledFor: "2026-07-01",
+      }),
+    );
+    const decision = body.decision as Record<string, unknown>;
+    const providerBillPayment = body.providerBillPayment as Record<
+      string,
+      unknown
+    >;
+
+    assert.equal(response.status, 200);
+    assert.equal(decision.accepted, true);
+    assert.equal(decision.code, "scheduled");
+    assert.equal(decision.bucketId, "rent");
+    assert.equal(providerBillPayment.status, "blocked");
+    assert.equal(Array.isArray(body.ledgerEntries), true);
+  });
+});
+
+test("core bill payment route rejects invalid payees and malformed dates", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const invalidDate = await getJson(
+      baseUrl,
+      "/api/app/bill-payments",
+      jsonPost({
+        amountCents: 50_000,
+        payeeId: "payee_abc_apartments",
+        scheduledFor: "July 1",
+      }),
+    );
+    const unapproved = await getJson(
+      baseUrl,
+      "/api/app/bill-payments",
+      jsonPost({
+        amountCents: 50_000,
+        payeeId: "payee_missing",
+        scheduledFor: "2026-07-01",
+      }),
+    );
+    const decision = unapproved.body.decision as Record<string, unknown>;
+
+    assert.equal(invalidDate.response.status, 400);
+    assert.equal(unapproved.response.status, 400);
+    assert.equal(decision.accepted, false);
+    assert.equal(decision.code, "payee_not_allowed");
   });
 });
 

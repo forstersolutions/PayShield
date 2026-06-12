@@ -14,8 +14,9 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { BillPaymentPanel } from "@/app/components/bill-payment-panel";
 import { BucketControlPanel } from "@/app/components/bucket-control-panel";
-import { PayShieldMark } from "@/app/components/pay-shield-mark";
+import { PayShieldLogo } from "@/app/components/pay-shield-mark";
 import { WaitlistForm } from "@/app/components/waitlist-form";
 import { REGULATED_PARTNER_DISCLOSURE } from "@/app/lib/brand";
 import { createNeobankSnapshot } from "@/app/lib/neobank/demo-state.ts";
@@ -106,19 +107,14 @@ export function NeobankDashboard() {
         <header className="pay-header brand-panel rounded-[8px]">
           <a
             aria-label="PayShield dashboard home"
-            className="group flex min-w-0 items-center gap-3 sm:w-auto"
+            className="group pay-header-brand min-w-0"
             href="#product"
           >
-            <span className="grid size-12 shrink-0 place-items-center rounded-[8px] border border-[#39e8ff]/22 bg-[#081424] shadow-[0_14px_34px_rgba(21,136,255,0.24)] transition group-hover:border-[#39e8ff]/45 sm:size-[3.25rem]">
-              <PayShieldMark className="size-9 sm:size-10" priority />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-2xl font-black leading-none text-white sm:text-[1.7rem]">
-                PayShield
-              </span>
-              <span className="mt-1 block text-xs font-bold leading-5 text-[#b9c6d8] sm:text-sm">
-                Grayston Technologies paycheck control
-              </span>
+            <span className="pay-header-logo-wrap">
+              <PayShieldLogo
+                className="h-[2.6rem] w-auto max-w-[13.5rem] sm:h-14 sm:max-w-[17.5rem]"
+                priority
+              />
             </span>
           </a>
           <nav
@@ -136,6 +132,12 @@ export function NeobankDashboard() {
               href="#bucket-studio"
             >
               Buckets
+            </a>
+            <a
+              className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
+              href="#bill-routing"
+            >
+              Bills
             </a>
             <a
               className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
@@ -302,6 +304,7 @@ export function NeobankDashboard() {
       </div>
 
       <BucketControlPanel buckets={snapshot.buckets} />
+      <BillPaymentPanel buckets={snapshot.buckets} payees={snapshot.payees} />
 
       <div className="relative z-10 border-y border-white/10 bg-[#090b0d]">
         <div

@@ -77,7 +77,9 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "public/.well-known/security.txt",
   "docs/campaign-copy.md",
   "docs/legal-review-packet.md",
+  "src/app/api/app/bill-payments/route.ts",
   "src/app/api/health/route.ts",
+  "src/app/components/bill-payment-panel.tsx",
   "src/app/components/site-footer.tsx",
   "src/app/components/waitlist-form.tsx",
   "src/app/components/bucket-control-panel.tsx",
@@ -228,8 +230,14 @@ requireText("src/app/page.tsx", "NeobankDashboard");
 requireText("src/app/components/waitlist-form.tsx", "Contact Grayston support");
 requireText("src/app/components/bucket-control-panel.tsx", "Add bucket");
 requireText("src/app/components/bucket-control-panel.tsx", "Save bucket profile");
+requireText("src/app/components/bill-payment-panel.tsx", "Bill routing");
+requireText("src/app/components/bill-payment-panel.tsx", "/api/app/bill-payments");
+requireText("src/app/components/neobank-dashboard.tsx", "BillPaymentPanel");
+requireText("src/app/api/app/bill-payments/route.ts", "/api/app/bill-payments");
+requireText("src/app/api/app/bill-payments/route.ts", "simulateBillPayment");
 requireText("src/app/lib/neobank/core-config.ts", "PAYSHIELD_CORE_API_URL");
 requireText("src/app/lib/neobank/core-config.ts", "VERCEL_ENV");
+requireText("src/app/lib/neobank/ledger.ts", "scheduleBillPayment");
 requireText("services/core/migrations/0002_household_bucket_controls.sql", "household_buckets");
 requireText("services/core/migrations/0002_household_bucket_controls.sql", "household_bucket_rules");
 requireText("services/core/migrations/0003_ledger_integrity.sql", "assert_journal_entry_balanced_by_id");
@@ -260,10 +268,16 @@ requireText("scripts/smoke-deploy.mjs", "permissions-policy");
 requireText("scripts/smoke-deploy.mjs", "/.well-known/security.txt");
 requireText("scripts/smoke-deploy.mjs", "expectMissingAsset");
 requireText("scripts/smoke-deploy.mjs", "payshield-social-card.jpg");
+requireText("scripts/smoke-deploy.mjs", "checkBillPaymentSimulation");
+requireText("scripts/smoke-deploy.mjs", "/api/app/bill-payments");
 requireText("scripts/smoke-core-service.mjs", "runDockerCoreSmoke");
 requireText("scripts/smoke-core-service.mjs", "Dockerfile.core");
 requireText("scripts/smoke-core-service.mjs", "PAYSHIELD_CORE_SERVICE_TOKEN");
 requireText("scripts/smoke-core-service.mjs", "safeToSpendCents");
+requireText("scripts/smoke-core-service.mjs", "/api/app/bill-payments");
+requireText("services/core/server.mjs", "path === \"/app/bill-payments\"");
+requireText("services/core/product.mjs", "createBillPayment");
+requireText("services/core/product.mjs", "scheduleBillPayment");
 requireText("scripts/smoke-docker-receiver.mjs", "runDockerReceiverSmoke");
 requireText("scripts/smoke-docker-receiver.mjs", "Dockerfile.receiver");
 requireText("scripts/smoke-docker-receiver.mjs", "sendSignedWebhookTest");

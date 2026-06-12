@@ -5,6 +5,7 @@ import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, test } from "node:test";
 import { NextRequest } from "next/server.js";
 import { GET as getBalances } from "../src/app/api/app/balances/route.ts";
+import { POST as scheduleBillPayment } from "../src/app/api/app/bill-payments/route.ts";
 import { POST as authorizeCard } from "../src/app/api/card/authorize/route.ts";
 
 const endpoint = "https://payshield.test";
@@ -178,6 +179,65 @@ test("card authorization delegates request body to configured core service", asy
       assert.equal(requestBody.amountCents, 180_000);
       assert.equal(requestBody.merchantName, "Furniture store");
       assert.equal(decision.code, "insufficient_safe_spend");
+    },
+  );
+});
+
+test("bill payment route delegates request body to configured core service", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    async (request, response) => {
+      captured.authorization = request.headers.authorization;
+      captured.authMode = request.headers["x-payshield-auth-mode"];
+      captured.body = await readRequestBody(request);
+      captured.method = request.method;
+      captured.url = request.url;
+
+      response.writeHead(200, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          decision: {
+            accepted: true,
+            amountCents: 50_000,
+            bucketId: "rent",
+            code: "scheduled",
+            providerStatus: "blocked",
+            reason: "Core bill payment decision",
+          },
+          mode: "simulation",
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-bill-secret";
+
+      const response = await scheduleBillPayment(
+        makeRequest("/api/app/bill-payments", {
+          amountCents: 50_000,
+          payeeId: "payee_abc_apartments",
+          scheduledFor: "2026-07-01",
+        }),
+      );
+      const body = await parseJson(response);
+      const requestBody = JSON.parse(String(captured.body)) as Record<
+        string,
+        unknown
+      >;
+      const decision = body.decision as Record<string, unknown>;
+
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("x-payshield-core-proxied"), "true");
+      assert.equal(captured.authorization, "Bearer core-bill-secret");
+      assert.equal(captured.authMode, "demo");
+      assert.equal(captured.method, "POST");
+      assert.equal(captured.url, "/api/app/bill-payments");
+      assert.equal(requestBody.payeeId, "payee_abc_apartments");
+      assert.equal(decision.code, "scheduled");
     },
   );
 });

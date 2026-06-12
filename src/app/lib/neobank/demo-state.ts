@@ -3,12 +3,14 @@ import {
   buildBucketBalances,
   LedgerBook,
   postPaycheckDeposit,
+  scheduleBillPayment,
   unlockProtectedFunds,
 } from "./ledger.ts";
 import { getNeobankReadiness } from "./readiness.ts";
 import type {
   BucketDefinition,
   BucketId,
+  BillPaymentInput,
   CardAuthorizationInput,
   NeobankSnapshot,
   Payee,
@@ -157,6 +159,19 @@ export function simulateCardAuthorization(input: CardAuthorizationInput) {
     decision,
     ledgerEntries: book.allEntries(),
     mode: "simulation" as const,
+  };
+}
+
+export function simulateBillPayment(input: BillPaymentInput) {
+  const book = createDemoLedgerBook();
+  const decision = scheduleBillPayment(book, neobankPayees, input);
+
+  return {
+    balances: buildBucketBalances(book, neobankBuckets),
+    decision,
+    ledgerEntries: book.allEntries(),
+    mode: "simulation" as const,
+    readiness: getNeobankReadiness(),
   };
 }
 

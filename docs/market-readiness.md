@@ -14,6 +14,9 @@ are active.
 - Customizable bucket control studio with editable bucket names, targets,
   protection modes, due rules, priorities, local profile storage, and app API
   save semantics.
+- Interactive bill-routing panel for scheduling approved payees against their
+  protected buckets, with amount/date validation and visible provider-gated
+  execution status.
 - Clerk-ready app access boundary for `/app` and `/api/app/*`, with demo mode
   retained until Clerk keys are configured.
 - Dedicated regulated core backend scaffold, Dockerfile, compose manifest, and
@@ -25,10 +28,11 @@ are active.
   lines, balance to zero cents at transaction commit, and remain immutable after
   posting so corrections happen through reversal entries.
 - Dedicated core backend operation routes for profile state, balances, bucket
-  profile loading/saving, onboarding start, payee modeling, emergency unlocks,
-  card authorization simulation, and provider webhooks. The service accepts both
-  `/app/*` and `/api/app/*` style paths, returns no-store JSON, enforces
-  request-size and JSON-shape guardrails, and can require
+  profile loading/saving, onboarding start, payee modeling, protected-bucket
+  bill-payment scheduling, emergency unlocks, card authorization simulation,
+  and provider webhooks. The service accepts both `/app/*` and `/api/app/*`
+  style paths, returns no-store JSON, enforces request-size and JSON-shape
+  guardrails, and can require
   `PAYSHIELD_CORE_SERVICE_TOKEN` for internal operation routes.
 - Next.js app APIs delegate app, card-authorization, and provider-webhook
   operations to the dedicated core service whenever `PAYSHIELD_CORE_API_URL` is
@@ -50,8 +54,8 @@ are active.
   instructions, card issuing, transfers, bill payments, provider webhooks, and
   card authorization responses.
 - App APIs for beta state, balances, bucket profile loading/saving, onboarding
-  start, payee modeling, unlock recovery, provider webhooks, and card
-  authorization simulation.
+  start, payee modeling, protected-bucket bill-payment scheduling, unlock
+  recovery, provider webhooks, and card authorization simulation.
 - Pricing and positioning copy for Free, Plus, Pro, and Premium plans.
 - Product inquiry form with server-side validation, bounded in-memory rate
   limiting, request-size guardrails, honeypot filtering, required privacy/terms
@@ -225,8 +229,9 @@ are active.
   `PAYSHIELD_CORE_API_URL` to its HTTPS base URL, set the matching
   `PAYSHIELD_CORE_SERVICE_TOKEN` on both services if token protection is
   enabled, keep `PAYSHIELD_CORE_TIMEOUT_MS` between 1000 and 30000, and verify
-  `/api/app/balances`, `/api/card/authorize`, and `/api/provider/webhooks`
-  return `x-payshield-core-proxied: true` from the web app.
+  `/api/app/balances`, `/api/app/bill-payments`, `/api/card/authorize`, and
+  `/api/provider/webhooks` return `x-payshield-core-proxied: true` from the web
+  app.
 - If `compose.receiver.yml` is used, set `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`
   and `PAYSHIELD_RECEIVER_HOST_DATA_DIR` in `.env.receiver`, start it with
   `docker compose --env-file .env.receiver -f compose.receiver.yml up -d --build`,

@@ -8,6 +8,7 @@ import {
   LedgerBook,
   postPaycheckDeposit,
   reverseEntry,
+  scheduleBillPayment,
   unlockProtectedFunds,
 } from "../src/app/lib/neobank/ledger.ts";
 import {
@@ -165,6 +166,102 @@ test("approved payee can draw from its assigned protected bucket", () => {
   assert.equal(decision.bucketId, "rent");
   assert.equal(book.bucketAvailable("rent"), 0);
   assert.equal(book.bucketAvailable("safe_spending"), 145_000);
+});
+
+test("bill payment schedules approved payee from assigned protected bucket", () => {
+  const book = createDemoLedgerBook();
+  const decision = scheduleBillPayment(book, neobankPayees, {
+    amountCents: 50_000,
+    idempotencyKey: "bill-rent-july",
+    memo: "July rent",
+    payeeId: "payee_abc_apartments",
+    scheduledFor: "2026-07-01",
+  });
+  const entry = book.findByIdempotencyKey("bill-rent-july");
+
+  assert.equal(decision.accepted, true);
+  assert.equal(decision.code, "scheduled");
+  assert.equal(decision.bucketId, "rent");
+  assert.equal(book.bucketAvailable("rent"), 0);
+  assert.equal(book.bucketAvailable("safe_spending"), 145_000);
+  assert.equal(entry?.type, "bill_payment");
+  assert.equal(
+    entry?.lines.some(
+      (line) =>
+        line.accountId === "liability:bill_pay_pending" &&
+        line.amountCents === -50_000,
+    ),
+    true,
+  );
+});
+
+test("duplicate bill payment replays original ledger decision", () => {
+  const book = createDemoLedgerBook();
+  const input = {
+    amountCents: 30_000,
+    idempotencyKey: "bill-auto-retry",
+    payeeId: "payee_auto_lender",
+    scheduledFor: "2026-07-15",
+  };
+
+  const firstDecision = scheduleBillPayment(book, neobankPayees, input);
+  const secondDecision = scheduleBillPayment(book, neobankPayees, input);
+
+  assert.equal(firstDecision.accepted, true);
+  assert.equal(secondDecision.accepted, true);
+  assert.equal(secondDecision.reason.includes("Duplicate"), true);
+  assert.equal(book.allEntries().length, 2);
+  assert.equal(book.bucketAvailable("vehicle"), 0);
+});
+
+test("bill payment rejects unapproved payee, payee limit, and insufficient bucket funds", () => {
+  const unapproved = scheduleBillPayment(createDemoLedgerBook(), neobankPayees, {
+    amountCents: 10_000,
+    idempotencyKey: "bill-unapproved",
+    payeeId: "payee_missing",
+    scheduledFor: "2026-07-01",
+  });
+  const overLimit = scheduleBillPayment(createDemoLedgerBook(), neobankPayees, {
+    amountCents: 120_000,
+    idempotencyKey: "bill-over-limit",
+    payeeId: "payee_abc_apartments",
+    scheduledFor: "2026-07-01",
+  });
+  const unfunded = scheduleBillPayment(createDemoLedgerBook(), neobankPayees, {
+    amountCents: 60_000,
+    idempotencyKey: "bill-underfunded-rent",
+    payeeId: "payee_abc_apartments",
+    scheduledFor: "2026-07-01",
+  });
+
+  assert.equal(unapproved.accepted, false);
+  assert.equal(unapproved.code, "payee_not_allowed");
+  assert.equal(overLimit.accepted, false);
+  assert.equal(overLimit.code, "amount_exceeds_payee_limit");
+  assert.equal(unfunded.accepted, false);
+  assert.equal(unfunded.code, "insufficient_bucket_funds");
+});
+
+test("bill payment rejects reused idempotency key with changed payload", () => {
+  const book = createDemoLedgerBook();
+  const input = {
+    amountCents: 30_000,
+    idempotencyKey: "bill-retry-conflict",
+    payeeId: "payee_auto_lender",
+    scheduledFor: "2026-07-15",
+  };
+
+  scheduleBillPayment(book, neobankPayees, input);
+
+  assert.throws(
+    () =>
+      scheduleBillPayment(book, neobankPayees, {
+        ...input,
+        amountCents: 20_000,
+      }),
+    LedgerIdempotencyConflictError,
+  );
+  assert.equal(book.bucketAvailable("vehicle"), 0);
 });
 
 test("emergency unlock moves protected funds into safe spending with recovery plan", () => {

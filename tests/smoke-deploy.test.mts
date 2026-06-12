@@ -29,6 +29,7 @@ function html(siteUrl: string) {
     "Safe to Spend",
     "Paycheck control software by Grayston Technologies.",
     "Bucket control studio",
+    "Bill routing",
     "Provider readiness",
     "support@graystontechnologies.com",
     "</body></html>",
@@ -185,6 +186,22 @@ async function startSmokeTarget() {
       send(response, 200, JSON.stringify({ ok: true, mode: "upstash" }), {
         "content-type": "application/json",
       });
+      return;
+    }
+
+    if (url.pathname === "/api/app/bill-payments" && request.method === "POST") {
+      send(
+        response,
+        200,
+        JSON.stringify({
+          decision: {
+            accepted: true,
+            bucketId: "rent",
+            providerStatus: "blocked",
+          },
+        }),
+        { "content-type": "application/json" },
+      );
       return;
     }
 

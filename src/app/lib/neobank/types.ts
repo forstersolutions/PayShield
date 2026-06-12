@@ -145,6 +145,29 @@ export type PaycheckDepositInput = {
   receivedAt: string;
 };
 
+export type BillPaymentInput = {
+  amountCents: number;
+  idempotencyKey: string;
+  memo?: string;
+  payeeId: string;
+  scheduledFor: string;
+};
+
+export type BillPaymentDecision = {
+  accepted: boolean;
+  amountCents: number;
+  bucketId?: BucketId;
+  code:
+    | "scheduled"
+    | "payee_not_allowed"
+    | "amount_exceeds_payee_limit"
+    | "insufficient_bucket_funds";
+  payeeId?: string;
+  providerStatus: "blocked" | "created";
+  reason: string;
+  scheduledFor?: string;
+};
+
 export type CardAuthorizationInput = {
   amountCents: number;
   idempotencyKey: string;

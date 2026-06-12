@@ -2,6 +2,8 @@ import type {
   BucketBalance,
   BucketDefinition,
   BucketId,
+  BillPaymentDecision,
+  BillPaymentInput,
   CardAuthorizationDecision,
   CardAuthorizationInput,
   JournalEntry,
@@ -356,6 +358,117 @@ export function authorizeCardTransaction(
   }
 
   return decision;
+}
+
+export function scheduleBillPayment(
+  book: LedgerBook,
+  payees: Payee[],
+  input: BillPaymentInput,
+) {
+  const payee = payees.find((candidate) => candidate.id === input.payeeId);
+  const bucketId = payee?.allowedBucketId;
+  const existing = book.findByIdempotencyKey(input.idempotencyKey);
+
+  if (existing) {
+    if (existing.type !== "bill_payment") {
+      throw new LedgerIdempotencyConflictError(
+        `Idempotency key ${input.idempotencyKey} is already used for ${existing.type}.`,
+      );
+    }
+
+    assertSameIdempotentPayload(existing, {
+      amountCents: input.amountCents,
+      payeeId: input.payeeId,
+      scheduledFor: input.scheduledFor,
+    });
+
+    return {
+      accepted: true,
+      amountCents:
+        metadataNumber(existing, "amountCents") ?? input.amountCents,
+      bucketId:
+        (metadataString(existing, "bucketId") as BucketId | null) ??
+        bucketLineAmount(existing, "debit")?.bucketId ??
+        bucketId,
+      code: "scheduled",
+      payeeId: input.payeeId,
+      providerStatus: "blocked",
+      reason: "Duplicate bill payment replayed from the original ledger entry.",
+      scheduledFor: metadataString(existing, "scheduledFor") ?? input.scheduledFor,
+    } satisfies BillPaymentDecision;
+  }
+
+  if (!payee || payee.status !== "approved" || !bucketId) {
+    return {
+      accepted: false,
+      amountCents: 0,
+      code: "payee_not_allowed",
+      payeeId: input.payeeId,
+      providerStatus: "blocked",
+      reason: "Bill payments require an approved protected-bucket payee.",
+    } satisfies BillPaymentDecision;
+  }
+
+  if (input.amountCents > payee.maxCents) {
+    return {
+      accepted: false,
+      amountCents: 0,
+      bucketId,
+      code: "amount_exceeds_payee_limit",
+      payeeId: input.payeeId,
+      providerStatus: "blocked",
+      reason: "The scheduled payment exceeds the approved payee limit.",
+      scheduledFor: input.scheduledFor,
+    } satisfies BillPaymentDecision;
+  }
+
+  if (input.amountCents > book.bucketAvailable(bucketId)) {
+    return {
+      accepted: false,
+      amountCents: 0,
+      bucketId,
+      code: "insufficient_bucket_funds",
+      payeeId: input.payeeId,
+      providerStatus: "blocked",
+      reason: "The protected bucket does not have enough funds for this bill.",
+      scheduledFor: input.scheduledFor,
+    } satisfies BillPaymentDecision;
+  }
+
+  book.createEntry({
+    idempotencyKey: input.idempotencyKey,
+    lines: [
+      {
+        accountId: bucketAccount(bucketId),
+        amountCents: input.amountCents,
+      },
+      {
+        accountId: "liability:bill_pay_pending",
+        amountCents: -input.amountCents,
+      },
+    ],
+    memo: input.memo || `Bill payment: ${payee.name}`,
+    metadata: {
+      amountCents: input.amountCents,
+      bucketId,
+      memo: input.memo ?? null,
+      payeeId: payee.id,
+      payeeName: payee.name,
+      scheduledFor: input.scheduledFor,
+    },
+    type: "bill_payment",
+  });
+
+  return {
+    accepted: true,
+    amountCents: input.amountCents,
+    bucketId,
+    code: "scheduled",
+    payeeId: input.payeeId,
+    providerStatus: "blocked",
+    reason: "Bill payment fits the approved payee and protected bucket.",
+    scheduledFor: input.scheduledFor,
+  } satisfies BillPaymentDecision;
 }
 
 export function unlockProtectedFunds(book: LedgerBook, input: UnlockInput) {

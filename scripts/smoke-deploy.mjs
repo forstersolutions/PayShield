@@ -180,6 +180,28 @@ async function checkHealth() {
   }
 }
 
+async function checkBillPaymentSimulation() {
+  const response = await expectStatus("/api/app/bill-payments", 200, {
+    body: JSON.stringify({
+      amountCents: 50_000,
+      idempotencyKey: `deploy-smoke-bill-${Date.now()}`,
+      payeeId: "payee_abc_apartments",
+      scheduledFor: "2026-07-01",
+    }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const body = await response.json().catch(() => ({}));
+
+  if (
+    body.decision?.accepted !== true ||
+    body.decision?.bucketId !== "rent" ||
+    body.decision?.providerStatus !== "blocked"
+  ) {
+    failures.push("/api/app/bill-payments returned an unexpected demo decision");
+  }
+}
+
 function expectHeader(response, path, name, expectedValue) {
   const actual = response.headers.get(name);
 
@@ -302,6 +324,7 @@ try {
     "Safe to Spend",
     "Paycheck control software by Grayston Technologies.",
     "Bucket control studio",
+    "Bill routing",
     "Provider readiness",
     "support@graystontechnologies.com",
   ]);
@@ -339,6 +362,7 @@ try {
   await expectMissingAsset("/vercel.svg");
   await expectMissingAsset("/window.svg");
   await checkHealth();
+  await checkBillPaymentSimulation();
   await checkWaitlistValidation();
   expectConfiguredSiteUrl(home.body, robots.body, sitemap.body, security.body);
 

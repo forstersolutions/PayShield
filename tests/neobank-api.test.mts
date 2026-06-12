@@ -7,6 +7,7 @@ import {
   GET as getBuckets,
   POST as saveBuckets,
 } from "../src/app/api/app/buckets/route.ts";
+import { POST as scheduleBillPayment } from "../src/app/api/app/bill-payments/route.ts";
 import { GET as getMe } from "../src/app/api/app/me/route.ts";
 import { POST as startOnboarding } from "../src/app/api/app/onboarding/start/route.ts";
 import { POST as createPayee } from "../src/app/api/app/payees/route.ts";
@@ -186,6 +187,58 @@ test("payee route models protected-bucket payee pending provider approval", asyn
   assert.equal(response.status, 200);
   assert.equal(payee.allowedBucketId, "rent");
   assert.equal(payee.status, "provider_pending");
+});
+
+test("bill payment route schedules approved payee from protected bucket", async () => {
+  const response = await scheduleBillPayment(
+    makeRequest("/api/app/bill-payments", {
+      amountCents: 50_000,
+      idempotencyKey: "route-bill-rent",
+      memo: "July rent",
+      payeeId: "payee_abc_apartments",
+      scheduledFor: "2026-07-01",
+    }),
+  );
+  const body = await parseJson(response);
+  const decision = body.decision as Record<string, unknown>;
+  const providerBillPayment = body.providerBillPayment as Record<
+    string,
+    unknown
+  >;
+
+  assert.equal(response.status, 200);
+  assert.equal(decision.accepted, true);
+  assert.equal(decision.code, "scheduled");
+  assert.equal(decision.bucketId, "rent");
+  assert.equal(providerBillPayment.status, "blocked");
+  assert.equal(
+    body.message,
+    "Bill payment scheduled in the protected bucket model. Provider execution requires active money-movement controls.",
+  );
+});
+
+test("bill payment route rejects invalid or unsafe schedule requests", async () => {
+  const invalidDate = await scheduleBillPayment(
+    makeRequest("/api/app/bill-payments", {
+      amountCents: 50_000,
+      payeeId: "payee_abc_apartments",
+      scheduledFor: "July 1",
+    }),
+  );
+  const unapprovedPayee = await scheduleBillPayment(
+    makeRequest("/api/app/bill-payments", {
+      amountCents: 50_000,
+      payeeId: "payee_missing",
+      scheduledFor: "2026-07-01",
+    }),
+  );
+  const unapprovedBody = await parseJson(unapprovedPayee);
+  const decision = unapprovedBody.decision as Record<string, unknown>;
+
+  assert.equal(invalidDate.status, 400);
+  assert.equal(unapprovedPayee.status, 400);
+  assert.equal(decision.accepted, false);
+  assert.equal(decision.code, "payee_not_allowed");
 });
 
 test("provider webhook route accepts events but reports blocked mode without provider gates", async () => {
