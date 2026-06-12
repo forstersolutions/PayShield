@@ -185,6 +185,12 @@ After a campaign-attributed production test appears in Vercel Web Analytics and
 Speed Insights, validate the redacted analytics evidence file:
 
 ```bash
+npm run analytics:probe -- \
+  https://payshield-lime.vercel.app \
+  --expect-site-url https://payshield-lime.vercel.app \
+  --output launch-evidence/analytics-evidence.json \
+  --require-paid-traffic-ready
+
 npm run analytics:evidence:check -- \
   --file launch-evidence/analytics-evidence.json \
   --site-url https://payshield-lime.vercel.app
@@ -590,8 +596,8 @@ Submit one product inquiry from the site and confirm:
 - A test URL with `utm_source`, `utm_medium`, and `utm_campaign` produces only
   sanitized `attribution` fields in the receiver or private storage path.
 - Vercel logs show `request_completed`.
-- Vercel Web Analytics receives `Pilot Request Attempted` and
-  `Pilot Request Submitted` with non-PII campaign metadata.
+- Vercel Web Analytics receives `Product Inquiry Attempted` and
+  `Product Inquiry Submitted` with non-PII campaign metadata.
 - Vercel Speed Insights starts recording page data.
 - `npm run analytics:evidence:check -- --file launch-evidence/analytics-evidence.json --site-url https://payshield-lime.vercel.app`
   passes before final go/no-go.

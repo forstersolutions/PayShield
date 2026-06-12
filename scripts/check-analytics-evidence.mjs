@@ -14,6 +14,8 @@ export const requiredLiveAnalyticsCampaignProperties = [
   "hasCampaignAttribution",
 ];
 
+const durableProbeModes = new Set(["blob", "upstash", "webhook"]);
+
 const sensitivePatterns = [
   {
     finding: "email-like value",
@@ -246,6 +248,8 @@ export function evaluateLiveAnalyticsEvidence(evidence, { targetUrl = "" } = {})
     : "";
   const eventNames = normalizedStringSet(evidence.observedEventNames);
   const campaignProperties = normalizedStringSet(evidence.observedCampaignProperties);
+  const probe = isObject(evidence.probe) ? evidence.probe : {};
+  const probeCampaign = isObject(probe.campaign) ? probe.campaign : {};
   const missingEvents = missingRequired(
     eventNames,
     requiredLiveAnalyticsEventNames,
@@ -300,6 +304,38 @@ export function evaluateLiveAnalyticsEvidence(evidence, { targetUrl = "" } = {})
     "analyticsEvidenceRedacted",
     findings.length === 0,
     findings.map((finding) => finding.finding),
+  );
+  addCheck(checks, "analyticsProductionProbeRecorded", isObject(evidence.probe));
+  addCheck(
+    checks,
+    "analyticsProbeProductionHealth",
+    probe.healthOk === true && probe.siteUrlMatchesExpected === true,
+  );
+  addCheck(
+    checks,
+    "analyticsProbeDurableCapture",
+    probe.paidTrafficReady === true &&
+      durableProbeModes.has(String(probe.waitlistMode ?? "")) &&
+      probe.durableCapture === true,
+    {
+      paidTrafficReady: probe.paidTrafficReady === true,
+      waitlistMode: probe.waitlistMode ?? "",
+    },
+  );
+  addCheck(
+    checks,
+    "analyticsProbeCampaignSubmitted",
+    probe.landingPageRequested === true &&
+      probe.productInquiryApiSubmitted === true &&
+      probe.receiptIdRecorded === true,
+  );
+  addCheck(
+    checks,
+    "analyticsProbeCampaignMetadata",
+    probe.sanitizedCampaignMetadataSubmitted === true &&
+      probeCampaign.campaignSource === "analytics-probe" &&
+      probeCampaign.campaignMedium === "ops" &&
+      probeCampaign.campaignName === "analytics-evidence",
   );
 
   return {

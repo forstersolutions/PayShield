@@ -142,6 +142,10 @@ are active.
   traffic.
 - Live analytics evidence validator for checking redacted Vercel Web Analytics
   and Speed Insights proof before final go/no-go.
+- Production analytics probe that submits a campaign-attributed live test,
+  verifies the production health and durable receiver path, records the redacted
+  campaign metadata shape, and drafts `analytics-evidence.json` without marking
+  Web Analytics confirmed until the Vercel dashboard is checked.
 - Managed receiver evidence validator for checking CRM, Airtable, Slack, Make,
   Zapier, or internal webhook proof of signed replay, signature verification,
   durable storage, consent metadata, `submissionId` idempotency, sanitized
@@ -331,6 +335,11 @@ are active.
 - Enable Vercel Web Analytics and Speed Insights in the Vercel dashboard.
 - Run `npm run analytics:audit` and attach the redacted output before campaign
   traffic.
+- Run
+  `npm run analytics:probe -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --output launch-evidence/analytics-evidence.json --require-paid-traffic-ready`
+  after production durable capture is active. The command writes a redacted
+  evidence draft and does not print the probe email, name, note, receipt ID, or
+  raw campaign URL.
 - Confirm custom events appear for product inquiry attempt, submission, and
   failure after the first production or preview deployment.
 - Submit at least one test URL with `utm_source`, `utm_medium`, and
@@ -412,7 +421,8 @@ Use this counsel sign-off shape after review:
 ```
 
 Use this live analytics evidence shape after a production campaign-attributed
-test:
+test, after running `npm run analytics:probe` and confirming the Vercel
+dashboard rows:
 
 ```json
 {
@@ -421,8 +431,8 @@ test:
   "productionUrl": "https://payshield-lime.vercel.app",
   "source": "Vercel Web Analytics and Speed Insights dashboard",
   "observedEventNames": [
-    "Pilot Request Attempted",
-    "Pilot Request Submitted"
+    "Product Inquiry Attempted",
+    "Product Inquiry Submitted"
   ],
   "observedCampaignProperties": [
     "campaignMedium",
@@ -430,6 +440,32 @@ test:
     "campaignSource",
     "hasCampaignAttribution"
   ],
+  "probe": {
+    "campaign": {
+      "campaignMedium": "ops",
+      "campaignName": "analytics-evidence",
+      "campaignSource": "analytics-probe"
+    },
+    "durableCapture": true,
+    "healthOk": true,
+    "landingPageRequested": true,
+    "paidTrafficReady": true,
+    "productInquiryApiSubmitted": true,
+    "receiptIdRecorded": true,
+    "receiptMode": "blob",
+    "sanitizedCampaignMetadataSubmitted": true,
+    "siteUrlMatchesExpected": true,
+    "speedInsightsMetrics": {
+      "attempted": true,
+      "metric": "vercel.speed_insights_metric.lcp",
+      "ok": true,
+      "project": "payshield",
+      "rowCount": 1,
+      "status": "observed",
+      "window": "24h"
+    },
+    "waitlistMode": "blob"
+  },
   "webAnalyticsPilotConversions": true,
   "sanitizedCampaignMetadata": true,
   "speedInsightsProductionData": true

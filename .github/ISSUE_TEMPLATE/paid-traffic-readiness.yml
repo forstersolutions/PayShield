@@ -74,6 +74,7 @@ body:
       options:
         - label: Production deployment is on the intended `main` commit.
         - label: "`npm run analytics:audit` passes and the redacted output is attached."
+        - label: "`npm run analytics:probe -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --output launch-evidence/analytics-evidence.json --require-paid-traffic-ready` runs after durable capture is active and the redacted draft is attached."
         - label: Vercel Web Analytics is enabled and receiving non-PII conversion events with sanitized campaign metadata.
         - label: Vercel Speed Insights is enabled and receiving page data.
         - label: "`npm run analytics:evidence:check -- --file launch-evidence/analytics-evidence.json --site-url https://payshield-lime.vercel.app` passes and the redacted output is attached."

@@ -112,6 +112,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "Dockerfile.receiver",
   ".env.receiver.example",
   "scripts/analytics-audit.mjs",
+  "scripts/analytics-production-probe.mjs",
   "scripts/blob-receiver-evidence.mjs",
   "scripts/check-blob-receiver-evidence.mjs",
   "scripts/check-managed-receiver-evidence.mjs",
@@ -298,6 +299,11 @@ requireText("scripts/analytics-audit.mjs", "Product Inquiry Submitted");
 requireText("scripts/analytics-audit.mjs", "approvedTrackPropertySpreads");
 requireText("scripts/analytics-audit.mjs", "bannedTrackPropertyPatterns");
 requireText("scripts/analytics-audit.mjs", "sends unapproved analytics property");
+requireText("scripts/analytics-production-probe.mjs", "buildAnalyticsProbeEvidence");
+requireText("scripts/analytics-production-probe.mjs", "analytics-evidence");
+requireText("scripts/analytics-production-probe.mjs", "dashboardConfirmationRequired");
+requireText("scripts/analytics-production-probe.mjs", "receiptIdRecorded");
+requireText("scripts/analytics-production-probe.mjs", "vercel.speed_insights_metric.lcp");
 requireText("scripts/check-analytics-evidence.mjs", "evaluateLiveAnalyticsEvidence");
 requireText("scripts/check-analytics-evidence.mjs", "Product Inquiry Attempted");
 requireText("scripts/check-analytics-evidence.mjs", "Product Inquiry Submitted");
@@ -305,6 +311,8 @@ requireText("scripts/check-analytics-evidence.mjs", "campaignSource");
 requireText("scripts/check-analytics-evidence.mjs", "campaignMedium");
 requireText("scripts/check-analytics-evidence.mjs", "hasCampaignAttribution");
 requireText("scripts/check-analytics-evidence.mjs", "analyticsEvidenceRedacted");
+requireText("scripts/check-analytics-evidence.mjs", "analyticsProductionProbeRecorded");
+requireText("scripts/check-analytics-evidence.mjs", "analyticsProbeDurableCapture");
 requireText(
   "scripts/check-managed-receiver-evidence.mjs",
   "evaluateManagedReceiverEvidenceFile",
@@ -346,6 +354,7 @@ requireText("package.json", "\"counsel:signoff:check\"");
 requireText("package.json", "\"legal:lint\"");
 requireText("package.json", "\"analytics:audit\"");
 requireText("package.json", "\"analytics:evidence:check\"");
+requireText("package.json", "\"analytics:probe\"");
 requireText("package.json", "\"launch:evidence\"");
 requireText("package.json", "\"lead-capture:dry-run\"");
 requireText("package.json", "\"market:evidence:init\"");
@@ -729,6 +738,7 @@ requireText("docs/vercel-launch.md", "npm run receiver:blob:check");
 requireText("docs/vercel-launch.md", "npm run market:evidence:init");
 requireText("docs/vercel-launch.md", "npm run counsel:signoff:check");
 requireText("docs/vercel-launch.md", "npm run analytics:evidence:check");
+requireText("docs/vercel-launch.md", "npm run analytics:probe");
 requireText("docs/vercel-launch.md", "npm run vercel:upstash:cutover");
 requireText("docs/vercel-launch.md", "--apply-env");
 requireText("docs/vercel-launch.md", "npm run vercel:webhook:cutover");
@@ -763,6 +773,7 @@ requireText("docs/market-readiness.md", "npm run receiver:blob:evidence");
 requireText("docs/market-readiness.md", "npm run receiver:blob:check");
 requireText("docs/market-readiness.md", "npm run market:evidence:init");
 requireText("docs/market-readiness.md", "npm run analytics:evidence:check");
+requireText("docs/market-readiness.md", "npm run analytics:probe");
 requireText("docs/market-readiness.md", "npm run vercel:upstash:cutover");
 requireText("docs/market-readiness.md", "--apply-env");
 requireText("docs/market-readiness.md", "npm run vercel:webhook:cutover");
@@ -771,6 +782,16 @@ requireText("docs/market-readiness.md", "npm run market:status");
 requireText("docs/market-readiness.md", "npm run waitlist:data -- audit --data-dir /path/to/waitlist");
 requireText("docs/market-readiness.md", "npm run waitlist:data -- backup --data-dir /path/to/waitlist --backup-dir /secure/path");
 requireText("docs/market-readiness.md", "npm run waitlist:data -- verify-backup --backup-path /secure/path/waitlist-backup-...");
+rejectPattern(
+  "docs/vercel-launch.md",
+  /Pilot Request (Attempted|Submitted|Failed|Received)/,
+  "stale analytics event name",
+);
+rejectPattern(
+  "docs/market-readiness.md",
+  /Pilot Request (Attempted|Submitted|Failed|Received)/,
+  "stale analytics event name",
+);
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "sanitized `attribution` fields");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run analytics:audit");
 requireText(".github/ISSUE_TEMPLATE/paid-traffic-readiness.yml", "npm run campaign:lint:all");

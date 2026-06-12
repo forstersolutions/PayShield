@@ -11,6 +11,7 @@
     "dev": "next dev",
     "analytics:audit": "node scripts/analytics-audit.mjs",
     "analytics:evidence:check": "node scripts/check-analytics-evidence.mjs",
+    "analytics:probe": "node scripts/analytics-production-probe.mjs",
     "build": "next build",
     "campaign:lint": "node scripts/check-campaign-copy.mjs",
     "campaign:lint:all": "node scripts/check-campaign-manifest.mjs",

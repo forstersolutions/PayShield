@@ -17,6 +17,32 @@ const analyticsEvidence = {
     "Product Inquiry Submitted",
   ],
   ok: true,
+  probe: {
+    campaign: {
+      campaignMedium: "ops",
+      campaignName: "analytics-evidence",
+      campaignSource: "analytics-probe",
+    },
+    durableCapture: true,
+    healthOk: true,
+    landingPageRequested: true,
+    paidTrafficReady: true,
+    productInquiryApiSubmitted: true,
+    receiptIdRecorded: true,
+    receiptMode: "blob",
+    sanitizedCampaignMetadataSubmitted: true,
+    siteUrlMatchesExpected: true,
+    speedInsightsMetrics: {
+      attempted: true,
+      metric: "vercel.speed_insights_metric.lcp",
+      ok: true,
+      project: "payshield",
+      rowCount: 1,
+      status: "observed",
+      window: "24h",
+    },
+    waitlistMode: "blob",
+  },
   productionUrl: targetUrl,
   sanitizedCampaignMetadata: true,
   source: "Vercel Web Analytics and Speed Insights dashboard",
@@ -102,4 +128,29 @@ test("requires evidence for the expected production URL", () => {
     ),
     true,
   );
+});
+
+test("requires a redacted production analytics probe", () => {
+  const result = evaluateLiveAnalyticsEvidence(
+    {
+      ...analyticsEvidence,
+      probe: {
+        ...analyticsEvidence.probe,
+        durableCapture: false,
+        paidTrafficReady: false,
+        receiptIdRecorded: false,
+        waitlistMode: "demo",
+      },
+    },
+    {
+      targetUrl,
+    },
+  );
+  const failedChecks = result.checks
+    .filter((check: { ok: boolean }) => !check.ok)
+    .map((check: { name: string }) => check.name);
+
+  assert.equal(result.ok, false);
+  assert.equal(failedChecks.includes("analyticsProbeDurableCapture"), true);
+  assert.equal(failedChecks.includes("analyticsProbeCampaignSubmitted"), true);
 });

@@ -144,6 +144,7 @@ BLOB_READ_WRITE_TOKEN=server-side-blob-token npm run receiver:blob:evidence -- h
 npm run receiver:blob:check -- --file launch-evidence/receiver-evidence.json
 npm run readiness:paid-traffic -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app
 npm run counsel:signoff:check -- --file launch-evidence/counsel-signoff.json
+npm run analytics:probe -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --output launch-evidence/analytics-evidence.json --require-paid-traffic-ready
 npm run analytics:evidence:check -- --file launch-evidence/analytics-evidence.json --site-url https://payshield-lime.vercel.app
 npm run market:go-no-go -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json --counsel-signoff-file launch-evidence/counsel-signoff.json --analytics-evidence-file launch-evidence/analytics-evidence.json
 npm run market:status -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app --receiver-evidence-file launch-evidence/receiver-evidence.json --counsel-signoff-file launch-evidence/counsel-signoff.json --analytics-evidence-file launch-evidence/analytics-evidence.json
