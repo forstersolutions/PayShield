@@ -3,6 +3,10 @@ import { beforeEach, test } from "node:test";
 import { NextRequest } from "next/server.js";
 import { POST as authorizeCard } from "../src/app/api/card/authorize/route.ts";
 import { GET as getBalances } from "../src/app/api/app/balances/route.ts";
+import {
+  GET as getBuckets,
+  POST as saveBuckets,
+} from "../src/app/api/app/buckets/route.ts";
 import { GET as getMe } from "../src/app/api/app/me/route.ts";
 import { POST as startOnboarding } from "../src/app/api/app/onboarding/start/route.ts";
 import { POST as createPayee } from "../src/app/api/app/payees/route.ts";
@@ -39,7 +43,7 @@ async function parseJson(response: Response) {
   return (await response.json()) as Record<string, unknown>;
 }
 
-test("me endpoint reports closed beta app state and gated live money", async () => {
+test("me endpoint reports private app state and gated live money", async () => {
   const response = await getMe();
   const body = await parseJson(response);
 
@@ -48,7 +52,7 @@ test("me endpoint reports closed beta app state and gated live money", async () 
     authMode: "demo",
     userId: "user_demo_001",
   });
-  assert.equal((body.beta as Record<string, unknown>).access, "approved");
+  assert.equal((body.profile as Record<string, unknown>).access, "approved");
   assert.equal((body.readiness as Record<string, unknown>).liveMoneyReady, false);
 });
 
@@ -60,6 +64,51 @@ test("balances endpoint exposes safe spend and protected buckets", async () => {
   assert.equal(body.safeToSpendCents, 145_000);
   assert.equal(body.protectedCents, 155_000);
   assert.equal(Array.isArray(body.buckets), true);
+});
+
+test("bucket endpoint loads editable household profile templates", async () => {
+  const response = await getBuckets();
+  const body = await parseJson(response);
+
+  assert.equal(response.status, 200);
+  assert.equal(Array.isArray(body.buckets), true);
+  assert.equal(Array.isArray(body.templates), true);
+  assert.equal((body.templates as string[]).includes("Childcare"), true);
+});
+
+test("bucket endpoint saves customizable protected bucket profile", async () => {
+  const response = await saveBuckets(
+    makeRequest("/api/app/buckets", {
+      action: "replace_profile",
+      buckets: [
+        {
+          due: "1st",
+          id: "rent",
+          name: "Rent",
+          protection: "bill_only",
+          targetCents: 50_000,
+        },
+        {
+          due: "Every check",
+          id: "custom_childcare",
+          name: "Childcare",
+          protection: "hard_lock",
+          targetCents: 20_000,
+        },
+      ],
+    }),
+  );
+  const body = await parseJson(response);
+  const buckets = body.buckets as Array<Record<string, unknown>>;
+
+  assert.equal(response.status, 200);
+  assert.equal(body.protectedCents, 70_000);
+  assert.equal(buckets[0]?.priority, 10);
+  assert.equal(buckets[1]?.id, "custom_childcare");
+  assert.equal(
+    body.safeSpendRule,
+    "Safe to Spend is computed only after protected buckets fund.",
+  );
 });
 
 test("onboarding fails closed until live-money gates are configured", async () => {

@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       {
         ...simulated,
         message:
-          "Unlock simulated with a recovery plan. Live unlocks remain gated until provider and compliance approval.",
+          "Recovery plan created. Provider execution requires regulated partner activation.",
       },
       {
         headers: {

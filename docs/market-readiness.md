@@ -1,35 +1,38 @@
 # Market Readiness
 
-This repository is ready to support a closed-beta neobank product surface,
-Vercel preview deployments, partner demos, BaaS/card-provider diligence, and
-product demand capture. The full live-money product remains gated until the
-provider, sponsor, counsel, operations, auth, backend, and ledger requirements
-are complete.
+This repository is ready to support a Grayston-operated paycheck control product
+surface, Vercel deployments, partner demos, BaaS/card-provider diligence, and
+product demand capture. Financial accounts, cards, transfers, and insurance
+coverage are available only through approved regulated partners when enabled.
 
 ## Ready Now
 
-- App-first protected-paycheck dashboard with safe-to-spend as the primary
-  balance, protected bucket funding, live-money gate status, direct-paycheck rail
+- App-first protected-paycheck dashboard with Safe to Spend as the primary
+  balance, protected bucket funding, regulated readiness status, operating rail
   order, card-decision simulation, and emergency unlock recovery preview.
+- Customizable bucket control studio with editable bucket names, targets,
+  protection modes, due rules, priorities, local profile storage, and app API
+  save semantics.
 - Clerk-ready app access boundary for `/app` and `/api/app/*`, with demo mode
   retained until Clerk keys are configured.
 - Dedicated regulated core backend scaffold, Dockerfile, compose manifest, and
-  Postgres ledger migration for households, users, provider customers, ledger
-  accounts, journal entries, journal lines, payees, provider events, and
-  reconciliation exceptions.
+  Postgres ledger migrations for households, users, provider customers, ledger
+  accounts, journal entries, journal lines, payees, provider events,
+  reconciliation exceptions, household bucket profiles, bucket rules, and
+  bucket-change audit events.
 - `BankingProvider` adapter contract and fail-closed provider implementation
   covering customer creation, KYC start, account opening, paycheck routing
   instructions, card issuing, transfers, bill payments, provider webhooks, and
   card authorization responses.
-- App APIs for beta state, balances, onboarding start, bucket modeling, payee
-  modeling, unlock recovery, provider webhooks, and card authorization
-  simulation.
+- App APIs for beta state, balances, bucket profile loading/saving, onboarding
+  start, payee modeling, unlock recovery, provider webhooks, and card
+  authorization simulation.
 - Pricing and positioning copy for Free, Plus, Pro, and Premium plans.
 - Product inquiry form with server-side validation, bounded in-memory rate
   limiting, request-size guardrails, honeypot filtering, required privacy/terms
   consent, sensitive financial-detail rejection, optional webhook forwarding,
   optional private Vercel Blob storage, optional Vercel Marketplace Upstash
-  Redis storage, consent audit fields,
+  Redis storage, Grayston support routing, consent audit fields,
   allowlisted campaign attribution from UTM fields, and an opt-in fail-closed
   mode for paid traffic when durable persistence is required.
 - Vercel-compatible Next.js app with production build, metadata, sitemap,
@@ -47,8 +50,8 @@ are complete.
   semver-major updates are deferred during launch so major framework and tooling
   migrations stay intentional. Dependabot security updates, secret scanning,
   push protection, and private vulnerability reporting are enabled on GitHub.
-- Security policy for private vulnerability reporting, sensitive data handling,
-  public `/.well-known/security.txt`, and the current planning-app/live-money
+- Security policy for Grayston support vulnerability intake, sensitive data
+  handling, public `/.well-known/security.txt`, and the regulated partner
   boundary.
 - Paid-traffic readiness issue form for tracking launch evidence and the
   remaining lead-capture, legal, analytics, and production-ops gates.
@@ -76,16 +79,17 @@ are complete.
   and prints the redacted Production env, redeploy, strict evidence,
   required-capture smoke, and Upstash evidence commands without exposing the
   REST URL or token.
-- Automated market preflight checks for required planning-only disclaimers, consent
-  links, launch assets, env examples, and blocked regulated-finance claims.
+- Automated market preflight checks for regulated-partner boundary language,
+  consent links, launch assets, env examples, and blocked regulated-finance
+  claims.
 - Campaign copy linter and guardrails for checking paid ads, email campaigns,
   social posts, partner one-pagers, and alternate landing-page copy before
   counsel review.
 - Counsel sign-off validator for checking the redacted legal/compliance
   approval record before final go/no-go.
 - Manifest-backed campaign lint command that checks every listed paid social,
-  paid search, email, partner, and alternate landing-page draft for planning-only
-  framing and prohibited regulated-finance claims.
+  paid search, email, partner, and alternate landing-page draft for
+  approved-partner framing and prohibited regulated-finance claims.
 - Post-deploy smoke checker for Vercel preview and production URLs, including
   homepage metadata, legal pages, SEO routes, assets, browser security headers,
   public security disclosure, absence of default scaffold assets, production
@@ -151,8 +155,8 @@ are complete.
   forces `/api/waitlist` into signed required-webhook mode, verifies persisted
   consent fields, sanitized attribution, idempotent replay, non-PII summary
   output, and deletion dry-run handling before a hosted receiver is selected.
-- Conservative fintech language that does not claim PayShield is a bank or that
-  funds are FDIC insured.
+- Conservative fintech language that ties regulated partner services to
+  approved activation and avoids deposit-insurance claims.
 - Privacy Notice and Terms pages linked from the contact form and
   footer.
 - Production Vercel deployment at `https://payshield-lime.vercel.app`, with the
@@ -397,7 +401,7 @@ The go/no-go command fails if it detects those values.
 - Banking services provided by a named sponsor bank.
 - FDIC insurance, pass-through insurance, or insured account coverage.
 - Live direct deposit, ACH, debit card, virtual card, or bill-pay functionality.
-- Consumer deposit account opening, KYC approval, or regulated money movement.
+- Consumer deposit account opening, KYC approval, or regulated transfer activity.
 
 ## Required Before Live Funds
 
@@ -408,8 +412,8 @@ The go/no-go command fails if it detects those values.
   error states, and settlement reporting.
 - ACH authorization flow, Reg E/error-resolution workflow, dispute operations,
   fee disclosures, privacy policy, and customer support procedures.
-- Card issuing and authorization controls if the safe-spending card becomes
-  real.
+- Card issuing and authorization controls before the safe-spending card is
+  activated through a provider.
 - Approved compliance review of all website, app, fee, and partner-bank copy.
 
 ## Suggested Pilot Funnel
@@ -418,6 +422,6 @@ The go/no-go command fails if it detects those values.
 2. Configure the waitlist webhook and analytics.
 3. Drive small traffic to families, hourly workers, gig workers, employers, and
    partner-bank/BaaS contacts.
-4. Measure the safe-to-spend message, target segment, bucket priorities, and
-   willingness to pay.
+4. Measure the Safe to Spend message, target segment, custom bucket rules,
+   priority ordering, support requests, and willingness to pay.
 5. Use pilot data to choose the first regulated infrastructure path.

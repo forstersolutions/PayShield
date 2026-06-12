@@ -1,15 +1,16 @@
 import type { MetadataRoute } from "next";
+import { GRAYSTON_COMPANY_NAME } from "@/app/lib/brand";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "PayShield",
+    name: `PayShield by ${GRAYSTON_COMPANY_NAME}`,
     short_name: "PayShield",
     description:
-      "Paycheck planning app that shows what is safe to spend.",
+      "Paycheck control app with customizable protected buckets and safe-spend rules.",
     start_url: "/",
     display: "standalone",
-    background_color: "#17130f",
-    theme_color: "#211b16",
+    background_color: "#101b16",
+    theme_color: "#16261f",
     icons: [
       {
         src: "/icon.svg",

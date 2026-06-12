@@ -1,4 +1,4 @@
-export type BucketId =
+export type StandardBucketId =
   | "rent"
   | "vehicle"
   | "insurance"
@@ -6,6 +6,8 @@ export type BucketId =
   | "vacation"
   | "emergency"
   | "safe_spending";
+
+export type BucketId = StandardBucketId | `custom_${string}`;
 
 export type BucketProtection =
   | "bill_only"
@@ -22,7 +24,7 @@ export type KycStatus =
   | "rejected"
   | "manual_review";
 
-export type BetaAccessStatus = "approved" | "pending" | "blocked";
+export type ProfileAccessStatus = "approved" | "pending" | "blocked";
 
 export type MoneyRailStatus = "gated" | "sandbox" | "live";
 
@@ -72,12 +74,12 @@ export type BucketBalance = BucketDefinition & {
 };
 
 export type PayShieldUser = {
-  betaAccess: BetaAccessStatus;
   email: string;
   householdId: string;
   id: string;
   kycStatus: KycStatus;
   name: string;
+  profileAccess: ProfileAccessStatus;
 };
 
 export type Payee = {

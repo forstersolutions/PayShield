@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Geist, Geist_Mono } from "next/font/google";
+import {
+  GRAYSTON_COMPANY_NAME,
+  REGULATED_PARTNER_DISCLOSURE,
+} from "@/app/lib/brand";
 import "./globals.css";
 
 const siteUrl =
@@ -21,9 +25,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   applicationName: "PayShield",
   metadataBase: new URL(siteUrl),
-  title: "PayShield | Paycheck Protection App",
+  title: "PayShield by Grayston | Paycheck Control App",
   description:
-    "PayShield is a closed-beta paycheck protection app built around safe spending, protected buckets, and regulated partner rails.",
+    "PayShield by Grayston Technologies is paycheck control software built around safe spending, customizable protected buckets, and regulated partner rails.",
   alternates: {
     canonical: "/",
   },
@@ -34,24 +38,22 @@ export const metadata: Metadata = {
   },
   manifest: "/manifest.webmanifest",
   openGraph: {
-    title: "PayShield",
-    description:
-      "Paycheck protection with partner-bank rails coming through closed beta.",
+    title: `PayShield by ${GRAYSTON_COMPANY_NAME}`,
+    description: REGULATED_PARTNER_DISCLOSURE,
     images: [
       {
         url: socialImageUrl,
         width: 1536,
         height: 1024,
-        alt: "PayShield safe-to-spend protected paycheck dashboard",
+        alt: "PayShield by Grayston protected paycheck dashboard",
       },
     ],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "PayShield",
-    description:
-      "Paycheck protection with partner-bank rails coming through closed beta.",
+    title: `PayShield by ${GRAYSTON_COMPANY_NAME}`,
+    description: REGULATED_PARTNER_DISCLOSURE,
     images: [socialImageUrl],
   },
 };

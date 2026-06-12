@@ -11,13 +11,13 @@ const homeHeaders = {
   "x-frame-options": "DENY",
 };
 const homeBody = `
-  <title>PayShield | Paycheck Planning App</title>
+  <title>PayShield by Grayston | Paycheck Control App</title>
   <link rel="canonical" href="https://payshield-lime.vercel.app" />
   <meta property="og:image" content="https://payshield-lime.vercel.app/images/payshield-social-card.jpg" />
   <main>
-    <h1>Know what is safe to spend before the week gets busy.</h1>
-    <p>Export plan.</p>
-    <p>Open PayShield. Set the check. See what is safe to spend.</p>
+    <h1>The paycheck control layer for real life.</h1>
+    <p>Bucket control studio.</p>
+    <p>Regulated readiness.</p>
   </main>
 `;
 
@@ -40,17 +40,18 @@ function evidence(overrides: Record<string, unknown> = {}) {
     homeBody,
     homeHeaders,
     privacyBody: [
-      "PayShield does not currently open deposit accounts.",
+      "PayShield is operated by Grayston Technologies.",
       "Campaign links may add allowlisted attribution fields such as utm_source and utm_campaign.",
       "Vercel Web Analytics and Speed Insights may process non-PII event metadata.",
       "PayShield does not send email addresses, names, bank details, or free-text financial notes to analytics.",
     ].join(" "),
     securityBody: [
-      "Contact: https://github.com/forstersolutions/PayShield/security/advisories/new",
+      "Contact: mailto:support@graystontechnologies.com",
       "Policy: https://github.com/forstersolutions/PayShield/security/policy",
       "Canonical: https://payshield-lime.vercel.app/.well-known/security.txt",
     ].join("\n"),
-    termsBody: "PayShield is not a bank.",
+    termsBody:
+      "Financial accounts, cards, money movement, and insurance coverage are available only through approved regulated partners when enabled.",
     validationBody: { error: "Accept the privacy and terms notice." },
     validationStatus: 400,
     ...overrides,
@@ -241,7 +242,7 @@ test("requires public security disclosure metadata", () => {
 test("requires privacy disclosure for attribution and analytics", () => {
   const result = evaluatePaidTrafficReadiness(
     evidence({
-      privacyBody: "PayShield does not currently open deposit accounts.",
+      privacyBody: "PayShield is operated by Grayston Technologies.",
     }),
   );
 

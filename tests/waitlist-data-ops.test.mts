@@ -20,19 +20,19 @@ const records = [
       utmSource: "Paid Social",
     },
     consentText:
-      "I agree that PayShield can contact me about product onboarding and handle my information under the Privacy Notice and Terms.",
+      "I agree that Grayston Technologies can contact me about PayShield onboarding and handle my information under the Privacy Notice and Terms.",
     consentedAt: "2026-06-05T00:00:00.000Z",
-    consentVersion: "product-onboarding-contact-consent-2026-06-06",
+    consentVersion: "grayston-product-onboarding-consent-2026-06-12",
     createdAt: "2026-06-05T00:00:00.000Z",
     email: "lead@example.com",
     message: "Rent first.",
     name: "Pilot Lead",
-    privacyVersion: "paycheck-planning-privacy-2026-06-06",
+    privacyVersion: "paycheck-control-privacy-2026-06-12",
     receivedAt: "2026-06-05T00:00:01.000Z",
     segment: "Household",
     source: "payshield-web-app",
     submissionId: "018f7f62-9878-4aab-9ed3-86368f7f4512",
-    termsVersion: "paycheck-planning-terms-2026-06-06",
+    termsVersion: "paycheck-control-terms-2026-06-12",
   },
   {
     attribution: {
@@ -42,19 +42,19 @@ const records = [
       utmSource: "Partner Newsletter",
     },
     consentText:
-      "I agree that PayShield can contact me about product onboarding and handle my information under the Privacy Notice and Terms.",
+      "I agree that Grayston Technologies can contact me about PayShield onboarding and handle my information under the Privacy Notice and Terms.",
     consentedAt: "2026-06-05T01:00:00.000Z",
-    consentVersion: "product-onboarding-contact-consent-2026-06-06",
+    consentVersion: "grayston-product-onboarding-consent-2026-06-12",
     createdAt: "2026-06-05T01:00:00.000Z",
     email: "partner@example.com",
     message: "Partner access.",
     name: "Partner Lead",
-    privacyVersion: "paycheck-planning-privacy-2026-06-06",
+    privacyVersion: "paycheck-control-privacy-2026-06-12",
     receivedAt: "2026-06-05T01:00:01.000Z",
     segment: "Investor or partner",
     source: "payshield-web-app",
     submissionId: "018f7f62-9878-4aab-9ed3-86368f7f4513",
-    termsVersion: "paycheck-planning-terms-2026-06-06",
+    termsVersion: "paycheck-control-terms-2026-06-12",
   },
 ];
 
@@ -419,7 +419,7 @@ test("erases matching email records and regenerates receiver files", async () =>
     assert.equal(csv.includes("partner@example.com"), true);
     assert.equal(csv.includes("018f7f62-9878-4aab-9ed3-86368f7f4513"), true);
     assert.equal(csv.includes("Partner Launch"), true);
-    assert.equal(csv.includes("paycheck-planning-terms-2026-06-06"), true);
+    assert.equal(csv.includes("paycheck-control-terms-2026-06-12"), true);
   } finally {
     await rm(dataDir, { recursive: true });
   }

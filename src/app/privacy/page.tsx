@@ -1,14 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "@/app/components/site-footer";
+import {
+  GRAYSTON_COMPANY_NAME,
+  REGULATED_PARTNER_DISCLOSURE,
+} from "@/app/lib/brand";
 
 export const metadata: Metadata = {
   title: "Privacy Notice | PayShield",
   description:
-    "How PayShield handles information for its paycheck planning app.",
+    "How PayShield by Grayston Technologies handles product and support information.",
 };
 
-const lastUpdated = "June 6, 2026";
+const lastUpdated = "June 12, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -23,7 +27,7 @@ export default function PrivacyPage() {
 
         <div className="mt-8 rounded-[8px] border border-[#3a3027] bg-[#211b16] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.26)] ring-1 ring-[#b8e7c5]/10 sm:p-8">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#b8e7c5]">
-            PayShield planning app
+            PayShield by Grayston Technologies
           </p>
           <h1 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
             Privacy Notice
@@ -38,11 +42,10 @@ export default function PrivacyPage() {
                 What this notice covers
               </h2>
               <p className="mt-3">
-                PayShield is a private paycheck planning app. The planner can
-                be used without creating an account or submitting a contact
-                form. PayShield does not currently open deposit accounts, move
-                money, issue cards, or collect bank credentials through this
-                website.
+                PayShield is operated by Grayston Technologies. This notice
+                covers the product website, household profile tools, support
+                requests, analytics, and private beta onboarding.{" "}
+                {REGULATED_PARTNER_DISCLOSURE}
               </p>
             </section>
 
@@ -51,15 +54,15 @@ export default function PrivacyPage() {
                 Information we collect
               </h2>
               <p className="mt-3">
-                Planner inputs such as paycheck amounts, bucket targets,
-                purchase checks, and recovery settings are saved in your
-                browser local storage so the plan can remain available on the
-                same device. The website may also process basic technical
-                information such as IP address, browser metadata, timestamps,
-                performance data, and anti-abuse signals. Campaign links may add
-                allowlisted attribution fields such as utm_source, utm_medium,
-                utm_campaign, utm_content, utm_term, and the landing path
-                without query parameters.
+                Profile inputs such as paycheck amounts, bucket targets,
+                protection modes, due rules, purchase checks, and recovery
+                settings may be saved in browser local storage so the household
+                rules remain available on the same device. The website may also
+                process basic technical information such as IP address, browser
+                metadata, timestamps, performance data, and anti-abuse signals.
+                Campaign links may add allowlisted attribution fields such as
+                utm_source, utm_medium, utm_campaign, utm_content, utm_term, and
+                the landing path without query parameters.
               </p>
             </section>
 
@@ -72,12 +75,14 @@ export default function PrivacyPage() {
                 secure, debug, and improve the app. Vercel Web Analytics and
                 Speed Insights may process non-PII event, campaign, and
                 performance metadata so PayShield can measure page experience
-                and product usage patterns.
+                and product usage patterns. Product and support requests route
+                to support@graystontechnologies.com.
               </p>
               <p className="mt-3">
                 PayShield does not send email addresses, names, bank details,
                 card details, Social Security numbers, or free-text financial
-                notes to analytics events.
+                notes to analytics events. {GRAYSTON_COMPANY_NAME} applies the
+                same boundary to PayShield product analytics.
               </p>
             </section>
 
@@ -86,11 +91,13 @@ export default function PrivacyPage() {
                 Sharing and storage
               </h2>
               <p className="mt-3">
-                Planner inputs remain in your browser unless you choose to
-                export or share them. We do not sell personal information. Do
-                not enter bank account numbers, Social Security numbers, card
-                numbers, routing numbers, passwords, or other sensitive
-                financial credentials into free-text fields or exported files.
+                Household profile inputs remain in your browser unless you
+                submit a product/support request, save through an authenticated
+                app workflow, export them, or share them. We do not sell
+                personal information. Do not enter bank account numbers, Social
+                Security numbers, card numbers, routing numbers, passwords, or
+                other sensitive financial credentials into free-text fields or
+                exported files.
               </p>
             </section>
 
@@ -99,9 +106,9 @@ export default function PrivacyPage() {
                 Your choices
               </h2>
               <p className="mt-3">
-                You can clear saved planner data by using your browser’s site
-                data controls for PayShield. You can also choose not to export a
-                plan or to delete exported files from your own device.
+                You can clear saved profile data by using your browser’s site
+                data controls for PayShield. Product and support questions can
+                be sent to support@graystontechnologies.com.
               </p>
             </section>
 
@@ -110,10 +117,9 @@ export default function PrivacyPage() {
                 Future financial services
               </h2>
               <p className="mt-3">
-                If PayShield later offers regulated financial services, account
-                opening, KYC, banking, payment, card, or bill-pay functionality,
-                additional privacy, compliance, consent, and partner-bank
-                notices will be required before those services launch.
+                If regulated partner services are enabled, additional privacy,
+                compliance, consent, support, account, card, payment, and
+                insurance notices will be shown before activation.
               </p>
             </section>
           </div>

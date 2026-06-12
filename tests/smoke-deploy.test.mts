@@ -22,15 +22,15 @@ function html(siteUrl: string) {
     '<link rel="manifest" href="/manifest.webmanifest">',
     '<link rel="icon" href="/icon.svg">',
     "</head><body>",
-    "PayShield | Paycheck Protection App",
+    "PayShield by Grayston | Paycheck Control App",
     "/manifest.webmanifest",
     "/icon.svg",
     "payshield-social-card.jpg",
     "Safe to Spend",
-    "Closed beta",
-    "Paycheck protection with partner-bank rails coming through closed beta.",
-    "Live-money gates",
-    "PayShield is not a bank.",
+    "Paycheck control software by Grayston Technologies.",
+    "Bucket control studio",
+    "Regulated readiness",
+    "support@graystontechnologies.com",
     "</body></html>",
   ].join("");
 }
@@ -75,11 +75,12 @@ async function startSmokeTarget() {
         200,
         [
           "Privacy Notice",
-          "does not currently open deposit accounts",
+          "PayShield is operated by Grayston Technologies.",
           "utm_source",
           "Vercel Web Analytics",
           "does not send email addresses, names, bank details",
           "free-text financial notes to analytics",
+          "support@graystontechnologies.com",
         ].join("\n"),
         { "content-type": "text/html" },
       );
@@ -87,9 +88,16 @@ async function startSmokeTarget() {
     }
 
     if (url.pathname === "/terms") {
-      send(response, 200, "Terms\nPayShield is not a bank.", {
-        "content-type": "text/html",
-      });
+      send(
+        response,
+        200,
+        [
+          "Terms",
+          "Regulated partner services",
+          "Financial accounts, cards, money movement, and insurance coverage are available only through approved regulated partners when enabled.",
+        ].join("\n"),
+        { "content-type": "text/html" },
+      );
       return;
     }
 
@@ -115,7 +123,7 @@ async function startSmokeTarget() {
         response,
         200,
         [
-          "Contact: https://github.com/forstersolutions/PayShield/security/advisories/new",
+          "Contact: mailto:support@graystontechnologies.com",
           "Policy: https://github.com/forstersolutions/PayShield/security/policy",
           "Preferred-Languages: en",
           `Canonical: ${siteUrl}/.well-known/security.txt`,

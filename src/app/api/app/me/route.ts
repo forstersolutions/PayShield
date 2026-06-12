@@ -10,10 +10,10 @@ export async function GET() {
     return NextResponse.json(
       {
         auth: session,
-        beta: {
-          access: snapshot.user.betaAccess,
+        profile: {
+          access: snapshot.user.profileAccess,
           audience: "US households",
-          release: "closed_paid_beta",
+          release: "commercial_control_profile",
         },
         householdId: snapshot.householdId,
         kycStatus: snapshot.user.kycStatus,

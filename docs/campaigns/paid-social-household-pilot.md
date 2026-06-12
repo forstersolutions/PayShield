@@ -14,5 +14,6 @@ Open the planner.
 
 Required disclosure:
 
-PayShield is not a bank. The current app is planning-only and does not open
-accounts, hold funds, move money, issue cards, or provide insured coverage.
+Financial accounts, cards, money movement, and insurance coverage are available
+only through approved regulated partners when enabled. The current public app is
+planning-only.

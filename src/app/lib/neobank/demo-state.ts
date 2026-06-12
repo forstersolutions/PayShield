@@ -103,12 +103,12 @@ export const neobankPayees: Payee[] = [
 ];
 
 export const demoUser: PayShieldUser = {
-  betaAccess: "approved",
-  email: "closed-beta-household@example.com",
+  email: "private-household@example.com",
   householdId: "household_demo_001",
   id: "user_demo_001",
   kycStatus: "provider_pending",
-  name: "Closed beta household",
+  name: "PayShield household",
+  profileAccess: "approved",
 };
 
 export function createDemoLedgerBook(amountCents = 300_000) {

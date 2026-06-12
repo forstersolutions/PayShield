@@ -1,14 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "@/app/components/site-footer";
+import {
+  GRAYSTON_COMPANY_NAME,
+  GRAYSTON_SUPPORT_EMAIL,
+  PAYSHIELD_OWNERSHIP_LINE,
+  REGULATED_PARTNER_DISCLOSURE,
+} from "@/app/lib/brand";
 
 export const metadata: Metadata = {
   title: "Terms | PayShield",
   description:
-    "Terms for using the PayShield paycheck planning app.",
+    "Terms for using PayShield by Grayston Technologies.",
 };
 
-const lastUpdated = "June 6, 2026";
+const lastUpdated = "June 12, 2026";
 
 export default function TermsPage() {
   return (
@@ -23,7 +29,7 @@ export default function TermsPage() {
 
         <div className="mt-8 rounded-[8px] border border-[#3a3027] bg-[#211b16] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.26)] ring-1 ring-[#b8e7c5]/10 sm:p-8">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#b8e7c5]">
-            PayShield planning app
+            PayShield by Grayston Technologies
           </p>
           <h1 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
             Terms
@@ -38,23 +44,21 @@ export default function TermsPage() {
                 Planning product
               </h2>
               <p className="mt-3">
-                PayShield is a paycheck planning app for modeling bills,
-                reserves, safe-to-spend decisions, and recovery plans. It does
-                not provide banking, deposit, payment, debit card, bill-pay, or
-                money movement services through this site.
+                {PAYSHIELD_OWNERSHIP_LINE} PayShield provides paycheck control
+                software for modeling protected buckets, bill rules,
+                safe-to-spend decisions, and recovery plans. Product and support
+                requests route to {GRAYSTON_SUPPORT_EMAIL}.
               </p>
             </section>
 
             <section>
               <h2 className="text-xl font-semibold text-[#fff4e8]">
-                No bank or insurance claim
+                Regulated partner services
               </h2>
               <p className="mt-3">
-                PayShield is not a bank. The planning app does not represent
-                that funds are held, insured, protected by FDIC insurance, or
-                eligible for pass-through deposit insurance. Any future banking
-                services would require approved partner-bank and compliance
-                disclosures before launch.
+                {REGULATED_PARTNER_DISCLOSURE} PayShield and{" "}
+                {GRAYSTON_COMPANY_NAME} do not represent through this site that
+                funds are held, insured, or eligible for deposit insurance.
               </p>
             </section>
 
@@ -63,9 +67,9 @@ export default function TermsPage() {
                 No financial advice
               </h2>
               <p className="mt-3">
-                Bucket examples and safe-to-spend calculations are planning
-                tools. They are not financial, legal, accounting, tax, or credit
-                advice.
+                Bucket examples, safe-to-spend calculations, and recovery plans
+                are product tools. They are not financial, legal, accounting,
+                tax, or credit advice.
               </p>
             </section>
 
@@ -74,10 +78,10 @@ export default function TermsPage() {
                 Local data and exports
               </h2>
               <p className="mt-3">
-                PayShield saves planner settings in browser local storage and
-                can export a plan file at your request. You are responsible for
-                reviewing exported files before sharing them and for keeping
-                sensitive information out of free-text fields.
+                PayShield may save household profile settings in browser local
+                storage and can export a profile file at your request. You are
+                responsible for reviewing exported files before sharing them and
+                for keeping sensitive information out of free-text fields.
               </p>
             </section>
 

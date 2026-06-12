@@ -17,5 +17,6 @@ Description options:
 
 Required disclosure:
 
-PayShield is not a bank. The current app is planning-only and does not provide
-financial services.
+Financial accounts, cards, money movement, and insurance coverage are available
+only through approved regulated partners when enabled. The current public app is
+planning-only.

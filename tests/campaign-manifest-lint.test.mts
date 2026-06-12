@@ -15,7 +15,7 @@ async function writeJson(path: string, value: unknown) {
 
 const safeCopy = [
   "PayShield is a planning-only paycheck app for household clarity.",
-  "PayShield is not a bank.",
+  "Financial accounts, cards, money movement, and insurance coverage are available only through approved regulated partners when enabled.",
   "The current app does not provide financial services.",
 ].join("\n");
 

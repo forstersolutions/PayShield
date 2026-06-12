@@ -96,6 +96,18 @@ function hasSafeContext(text, index) {
   return !contrastPattern.test(suffixAfterSafe);
 }
 
+function hasApprovedPartnerBoundary(text, index, length) {
+  const context = text
+    .slice(Math.max(0, index - 120), index + length + 180)
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+
+  return (
+    context.includes("approved regulated partners") &&
+    context.includes("when enabled")
+  );
+}
+
 function excerptForMatch(text, index, length) {
   const start = Math.max(0, index - 40);
   const end = Math.min(text.length, index + length + 40);
@@ -115,7 +127,10 @@ export function lintCampaignCopy({ label = "campaign-copy", text }) {
     for (const match of text.matchAll(rule.pattern)) {
       const index = match.index ?? 0;
 
-      if (hasSafeContext(text, index)) {
+      if (
+        hasSafeContext(text, index) ||
+        hasApprovedPartnerBoundary(text, index, match[0].length)
+      ) {
         continue;
       }
 

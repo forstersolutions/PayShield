@@ -10,8 +10,9 @@ The current product surface delivers paycheck buckets, protected-bucket
 messaging, shortfall awareness, and reserve recovery tradeoffs without bank
 credentials or money movement.
 
-PayShield is not a bank. The current app does not provide financial services,
-hold funds, move money, issue cards, or offer insured coverage.
+Financial accounts, cards, money movement, and insurance coverage are available
+only through approved regulated partners when enabled. The current public app
+does not provide financial services.
 
 Partner discussion goal:
 

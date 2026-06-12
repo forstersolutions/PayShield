@@ -65,18 +65,18 @@ async function startUpstashEvidenceTarget() {
       const record = {
         attribution: payload.attribution,
         consentText:
-          "I agree that PayShield can contact me about product onboarding and handle my information under the Privacy Notice and Terms.",
+          "I agree that Grayston Technologies can contact me about PayShield onboarding and handle my information under the Privacy Notice and Terms.",
         consentedAt: createdAt,
-        consentVersion: "product-onboarding-contact-consent-2026-06-06",
+        consentVersion: "grayston-product-onboarding-consent-2026-06-12",
         createdAt,
         email,
         message: payload.message,
         name: payload.name,
-        privacyVersion: "paycheck-planning-privacy-2026-06-06",
+        privacyVersion: "paycheck-control-privacy-2026-06-12",
         segment: payload.segment,
         source: "payshield-web-app",
         submissionId,
-        termsVersion: "paycheck-planning-terms-2026-06-06",
+        termsVersion: "paycheck-control-terms-2026-06-12",
       };
       const hash = emailHash(email);
 

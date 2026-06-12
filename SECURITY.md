@@ -1,7 +1,8 @@
 # Security Policy
 
-PayShield is currently a commercial planning app. It does not process live funds,
-open deposit accounts, issue cards, move money, or collect bank credentials.
+PayShield is operated by Grayston Technologies as paycheck control software.
+Financial accounts, cards, money movement, and insurance coverage are available
+only through approved regulated partners when enabled.
 
 ## Reporting a Vulnerability
 
@@ -9,11 +10,10 @@ Do not open a public issue for security vulnerabilities, exposed secrets,
 lead-data leaks, authentication weaknesses, or regulated-finance data handling
 concerns.
 
-Use GitHub private vulnerability reporting for this repository. If that flow is
-temporarily unavailable, contact a repository maintainer through a private
-channel first and wait for a secure place to share details.
-The production site also publishes `/.well-known/security.txt` with the private
-advisory link and this policy URL.
+Email `support@graystontechnologies.com` with a concise report and request a
+secure handoff channel before sharing sensitive technical detail. The production
+site also publishes `/.well-known/security.txt` with the Grayston support
+contact and this policy URL.
 
 Include:
 

@@ -80,8 +80,10 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/api/health/route.ts",
   "src/app/components/site-footer.tsx",
   "src/app/components/waitlist-form.tsx",
+  "src/app/components/bucket-control-panel.tsx",
   "src/app/components/paycheck-planner.tsx",
   "src/app/components/neobank-dashboard.tsx",
+  "src/app/lib/brand.ts",
   "src/app/lib/pilot-analytics.ts",
   "src/app/lib/neobank/auth.ts",
   "src/app/lib/neobank/demo-state.ts",
@@ -97,6 +99,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "compose.core.yml",
   "services/core/server.mjs",
   "services/core/migrations/0001_neobank_core.sql",
+  "services/core/migrations/0002_household_bucket_controls.sql",
   "SECURITY.md",
   ".dockerignore",
   "compose.receiver.yml",
@@ -137,6 +140,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
 
 [
   "NEXT_PUBLIC_SITE_URL",
+  "PAYSHIELD_SUPPORT_EMAIL",
   "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
   "CLERK_SECRET_KEY",
   "PAYSHIELD_CORE_API_URL",
@@ -170,15 +174,15 @@ requireText(
   "src/app/components/site-footer.tsx",
   "Protect the paycheck before ordinary spending can reach it.",
 );
-requireText("src/app/terms/page.tsx", "PayShield is not a bank.");
 requireText(
   "src/app/terms/page.tsx",
-  "does not provide banking, deposit, payment, debit card, bill-pay, or money movement services",
+  "Regulated partner services",
 );
 requireText(
   "src/app/privacy/page.tsx",
-  "does not currently open deposit accounts, move money, issue cards, or collect bank credentials",
+  "PayShield is operated by Grayston Technologies.",
 );
+requireText("src/app/privacy/page.tsx", "support@graystontechnologies.com");
 requireText("src/app/privacy/page.tsx", "utm_source");
 requireText("src/app/privacy/page.tsx", "utm_campaign");
 requireText("src/app/privacy/page.tsx", "Vercel Web Analytics");
@@ -203,18 +207,22 @@ requireText(
 );
 requireText("src/app/layout.tsx", 'manifest: "/manifest.webmanifest"');
 requireText("src/app/layout.tsx", 'url: "/icon.svg"');
-requireText("src/app/manifest.ts", 'name: "PayShield"');
-requireText("src/app/manifest.ts", 'theme_color: "#211b16"');
+requireText("src/app/manifest.ts", "GRAYSTON_COMPANY_NAME");
+requireText("src/app/lib/brand.ts", "Grayston Technologies");
+requireText("src/app/manifest.ts", 'theme_color: "#16261f"');
 requireText(
   "src/app/components/neobank-dashboard.tsx",
-  "Paycheck protection with partner-bank rails coming through closed beta.",
+  "Paycheck control software by Grayston Technologies.",
 );
 requireText("src/app/components/neobank-dashboard.tsx", "Safe to Spend");
-requireText("src/app/components/neobank-dashboard.tsx", "Live-money gates");
-requireText("src/app/components/neobank-dashboard.tsx", "PayShield is not a bank.");
-requireText("src/app/components/neobank-dashboard.tsx", "Closed paid beta");
+requireText("src/app/components/neobank-dashboard.tsx", "Regulated readiness");
+requireText("src/app/components/neobank-dashboard.tsx", "support@graystontechnologies.com");
 requireText("src/app/page.tsx", "NeobankDashboard");
-requireText("src/app/components/waitlist-form.tsx", "Contact PayShield");
+requireText("src/app/components/waitlist-form.tsx", "Contact Grayston support");
+requireText("src/app/components/bucket-control-panel.tsx", "Add bucket");
+requireText("src/app/components/bucket-control-panel.tsx", "Save bucket profile");
+requireText("services/core/migrations/0002_household_bucket_controls.sql", "household_buckets");
+requireText("services/core/migrations/0002_household_bucket_controls.sql", "household_bucket_rules");
 requireText(
   "src/app/components/paycheck-planner.tsx",
   "Check a purchase",
@@ -222,7 +230,7 @@ requireText(
 requireText("docs/legal-review-packet.md", "Paycheck split model");
 requireText(
   "public/.well-known/security.txt",
-  "Contact: https://github.com/forstersolutions/PayShield/security/advisories/new",
+  "Contact: mailto:support@graystontechnologies.com",
 );
 requireText(
   "public/.well-known/security.txt",
@@ -317,16 +325,16 @@ requireText("docs/campaign-copy.md", "npm run campaign:lint");
 requireText("docs/campaign-copy.md", "npm run campaign:lint:all");
 requireText("docs/campaign-copy.md", "docs/campaigns/manifest.json");
 requireText("docs/campaign-copy.md", "npm run legal:lint");
-requireText("docs/campaign-copy.md", "PayShield is not a bank.");
+requireText("docs/campaign-copy.md", "approved regulated partners");
 requireText("docs/campaigns/manifest.json", "paid-social-household-pilot.md");
 requireText("docs/campaigns/manifest.json", "paid-search-safe-spending.md");
 requireText("docs/campaigns/manifest.json", "employer-pilot-email.md");
 requireText("docs/campaigns/manifest.json", "partner-one-pager.md");
-requireText("docs/campaigns/paid-social-household-pilot.md", "PayShield is not a bank.");
+requireText("docs/campaigns/paid-social-household-pilot.md", "approved regulated partners");
 requireText("docs/campaigns/paid-social-household-pilot.md", "planning-only");
-requireText("docs/campaigns/paid-search-safe-spending.md", "PayShield is not a bank.");
-requireText("docs/campaigns/employer-pilot-email.md", "PayShield is not a bank.");
-requireText("docs/campaigns/partner-one-pager.md", "PayShield is not a bank.");
+requireText("docs/campaigns/paid-search-safe-spending.md", "approved regulated partners");
+requireText("docs/campaigns/employer-pilot-email.md", "approved regulated partners");
+requireText("docs/campaigns/partner-one-pager.md", "approved regulated partners");
 requireText("docs/legal-review-packet.md", "Counsel Questions");
 requireText("docs/legal-review-packet.md", "Sign-Off Record");
 requireText("docs/legal-review-packet.md", "npm run market:evidence:init");
@@ -408,8 +416,9 @@ requireText("scripts/vercel-webhook-cutover.mjs", "secretNotPrinted");
 requireText("scripts/test-waitlist-webhook.mjs", "sendSignedWebhookTest");
 requireText("scripts/test-waitlist-webhook.mjs", "x-payshield-webhook-signature");
 requireText("scripts/test-waitlist-webhook.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");
-requireText("scripts/test-waitlist-webhook.mjs", "product-onboarding-contact-consent-2026-06-06");
-requireText("scripts/test-waitlist-webhook.mjs", "paycheck-planning-terms-2026-06-06");
+requireText("scripts/test-waitlist-webhook.mjs", "grayston-product-onboarding-consent-2026-06-12");
+requireText("scripts/test-waitlist-webhook.mjs", "paycheck-control-terms-2026-06-12");
+requireText("scripts/test-waitlist-webhook.mjs", "support@graystontechnologies.com");
 requireText("scripts/test-waitlist-webhook.mjs", "x-payshield-submission-id");
 requireText("scripts/test-waitlist-webhook.mjs", "submissionId");
 requireText("scripts/test-waitlist-webhook.mjs", "--replay");
@@ -573,8 +582,9 @@ requireText("src/app/api/waitlist/route.ts", "multi-exec");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-signature");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-webhook-timestamp");
 requireText("src/app/api/waitlist/route.ts", "x-payshield-submission-id");
-requireText("src/app/api/waitlist/route.ts", "product-onboarding-contact-consent-2026-06-06");
-requireText("src/app/api/waitlist/route.ts", "paycheck-planning-terms-2026-06-06");
+requireText("src/app/api/waitlist/route.ts", "grayston-product-onboarding-consent-2026-06-12");
+requireText("src/app/api/waitlist/route.ts", "paycheck-control-terms-2026-06-12");
+requireText("src/app/api/waitlist/route.ts", "GRAYSTON_SUPPORT_EMAIL");
 requireText("src/app/api/waitlist/route.ts", "consentedAt");
 requireText("src/app/api/waitlist/route.ts", "consentText");
 requireText("src/app/api/waitlist/route.ts", "randomUUID");

@@ -271,9 +271,9 @@ export async function runLeadCaptureDryRun({ keepData = false } = {}) {
     );
     requireCheck(
       checks,
-      record.consentVersion === "product-onboarding-contact-consent-2026-06-06" &&
-        record.privacyVersion === "paycheck-planning-privacy-2026-06-06" &&
-        record.termsVersion === "paycheck-planning-terms-2026-06-06" &&
+      record.consentVersion === "grayston-product-onboarding-consent-2026-06-12" &&
+        record.privacyVersion === "paycheck-control-privacy-2026-06-12" &&
+        record.termsVersion === "paycheck-control-terms-2026-06-12" &&
         Boolean(record.consentedAt) &&
         Boolean(record.consentText),
       "receiver persists consent, privacy, and terms audit fields",

@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #17130f;
-  --foreground: #f9efe1;
+  --background: #101b16;
+  --foreground: #fff8ed;
 }
 
 @theme inline {
@@ -14,14 +14,14 @@
 
 body {
   background:
-    linear-gradient(180deg, #17130f 0%, #201915 52%, #17130f 100%);
+    linear-gradient(180deg, #101b16 0%, #152920 52%, #101b16 100%);
   color: var(--foreground);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 ::selection {
-  background: #edb981;
-  color: #211205;
+  background: #bfe8d0;
+  color: #0f1b16;
 }
 
 button,
@@ -38,9 +38,9 @@ html {
 
 .pay-app-shell {
   background:
-    linear-gradient(145deg, rgba(237, 185, 129, 0.12), transparent 30%),
-    linear-gradient(230deg, rgba(159, 191, 221, 0.1), transparent 34%),
-    linear-gradient(180deg, #17130f 0%, #211b16 54%, #17130f 100%);
+    linear-gradient(145deg, rgba(191, 232, 208, 0.14), transparent 32%),
+    linear-gradient(230deg, rgba(168, 200, 255, 0.12), transparent 36%),
+    linear-gradient(180deg, #101b16 0%, #152920 54%, #101b16 100%);
 }
 
 .pay-app-shell::before {
@@ -50,7 +50,7 @@ html {
   content: "";
   background-image:
     repeating-linear-gradient(135deg, transparent 0 80px, rgba(249, 239, 225, 0.035) 80px 81px, transparent 81px 160px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.035), transparent 45%, rgba(184, 231, 197, 0.035));
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035), transparent 45%, rgba(191, 232, 208, 0.045));
   background-size:
     720px 720px,
     100% 100%;
@@ -63,7 +63,7 @@ html {
   height: 32%;
   pointer-events: none;
   content: "";
-  background: linear-gradient(180deg, transparent, rgba(23, 19, 15, 0.96));
+  background: linear-gradient(180deg, transparent, rgba(16, 27, 22, 0.96));
 }
 
 @media (prefers-reduced-motion: reduce) {

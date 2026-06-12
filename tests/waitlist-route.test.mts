@@ -360,19 +360,23 @@ test("forwards valid submissions to the configured webhook", async () => {
         .digest("hex")}`,
     );
     assert.equal(webhook.requests[0]?.body.email, "partner@example.com");
+    assert.equal(
+      webhook.requests[0]?.body.destinationEmail,
+      "support@graystontechnologies.com",
+    );
     assert.equal(webhook.requests[0]?.body.segment, "Investor or partner");
     assert.equal(
       webhook.requests[0]?.body.consentText,
-      "I agree that PayShield can contact me about product onboarding and handle my information under the Privacy Notice and Terms.",
+      "I agree that Grayston Technologies can contact me about PayShield onboarding and handle my information under the Privacy Notice and Terms.",
     );
     assert.match(String(webhook.requests[0]?.body.consentedAt ?? ""), /^\d{4}-/);
     assert.equal(
       webhook.requests[0]?.body.privacyVersion,
-      "paycheck-planning-privacy-2026-06-06",
+      "paycheck-control-privacy-2026-06-12",
     );
     assert.equal(
       webhook.requests[0]?.body.termsVersion,
-      "paycheck-planning-terms-2026-06-06",
+      "paycheck-control-terms-2026-06-12",
     );
     assert.deepEqual(webhook.requests[0]?.body.attribution, {
       landingPath: "/",
@@ -383,7 +387,7 @@ test("forwards valid submissions to the configured webhook", async () => {
     });
     assert.equal(
       webhook.requests[0]?.body.consentVersion,
-      "product-onboarding-contact-consent-2026-06-06",
+      "grayston-product-onboarding-consent-2026-06-12",
     );
   } finally {
     delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
@@ -455,7 +459,7 @@ test("stores valid submissions in Upstash Redis when Vercel-native storage is co
   assert.equal(response.status, 200);
   assert.equal(body.ok, true);
   assert.equal(body.mode, "upstash");
-  assert.equal(body.message, "Product inquiry received.");
+  assert.equal(body.message, "Grayston support received your request.");
   assert.equal(upstashCalls.length, 1);
   assert.equal(upstashCalls[0]?.url, "https://known-lion.upstash.io/multi-exec");
   assert.equal(
@@ -479,7 +483,7 @@ test("stores valid submissions in Upstash Redis when Vercel-native storage is co
   });
   assert.equal(
     lead.consentVersion,
-    "product-onboarding-contact-consent-2026-06-06",
+    "grayston-product-onboarding-consent-2026-06-12",
   );
   assert.equal(serializedResponse.includes("upstash-secret"), false);
 });
@@ -542,7 +546,7 @@ test("stores valid submissions in private Vercel Blob when Blob storage is confi
   assert.equal(body.ok, true);
   assert.equal(body.mode, "blob");
   assert.match(String(body.receiptId ?? ""), /^[0-9a-f-]{36}$/);
-  assert.equal(body.message, "Product inquiry received.");
+  assert.equal(body.message, "Grayston support received your request.");
   assert.equal(blobWrites.length, 1);
   assert.match(blobWrites[0]?.pathname ?? "", /^payshield\/test\/leads\/[0-9a-f-]{36}\.json$/);
   assert.equal(blobWrites[0]?.options.access, "private");
@@ -558,7 +562,7 @@ test("stores valid submissions in private Vercel Blob when Blob storage is confi
     utmSource: "Paid Social",
   });
   assert.equal(lead.submissionId, body.receiptId);
-  assert.equal(lead.consentVersion, "product-onboarding-contact-consent-2026-06-06");
+  assert.equal(lead.consentVersion, "grayston-product-onboarding-consent-2026-06-12");
   assert.equal(serializedResponse.includes("blob-secret"), false);
 });
 

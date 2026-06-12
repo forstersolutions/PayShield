@@ -337,7 +337,7 @@ contains test lead data.
   "name": "Pilot Lead",
   "segment": "Household",
   "message": "Rent and insurance first.",
-  "consentText": "I agree that PayShield can contact me about the pilot and handle my information under the Privacy Notice and Terms.",
+  "consentText": "I agree that Grayston Technologies can contact me about PayShield onboarding and handle my information under the Privacy Notice and Terms.",
   "consentedAt": "2026-06-05T00:00:00.000Z",
   "consentVersion": "pilot-contact-consent-2026-06-05",
   "privacyVersion": "pilot-privacy-2026-06-05",

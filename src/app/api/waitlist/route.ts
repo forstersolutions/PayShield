@@ -6,6 +6,7 @@ import {
   pilotCampaignAnalyticsProperties,
   type CampaignAttribution,
 } from "../../lib/pilot-analytics.ts";
+import { GRAYSTON_SUPPORT_EMAIL } from "../../lib/brand.ts";
 import { putWaitlistBlob } from "../../lib/waitlist-blob-storage.ts";
 import { getWaitlistCaptureConfig } from "../../lib/waitlist-capture-config.ts";
 
@@ -15,6 +16,7 @@ type WaitlistPayload = {
   name?: unknown;
   segment?: unknown;
   company?: unknown;
+  destinationEmail?: unknown;
   message?: unknown;
   consent?: unknown;
 };
@@ -22,6 +24,7 @@ type WaitlistPayload = {
 type WaitlistSubmission = {
   attribution?: CampaignAttribution;
   consentText: string;
+  destinationEmail: string;
   email: string;
   name: string;
   segment: string;
@@ -63,10 +66,10 @@ const attributionFields = [
   "utmTerm",
 ] as const;
 const consentText =
-  "I agree that PayShield can contact me about product onboarding and handle my information under the Privacy Notice and Terms.";
-const consentVersion = "product-onboarding-contact-consent-2026-06-06";
-const privacyVersion = "paycheck-planning-privacy-2026-06-06";
-const termsVersion = "paycheck-planning-terms-2026-06-06";
+  "I agree that Grayston Technologies can contact me about PayShield onboarding and handle my information under the Privacy Notice and Terms.";
+const consentVersion = "grayston-product-onboarding-consent-2026-06-12";
+const privacyVersion = "paycheck-control-privacy-2026-06-12";
+const termsVersion = "paycheck-control-terms-2026-06-12";
 
 class WaitlistConfigurationError extends Error {}
 
@@ -430,6 +433,7 @@ export async function POST(request: NextRequest) {
   const name = cleanText(payload.name, 80);
   const segment = cleanText(payload.segment, 40);
   const message = cleanText(payload.message, 800);
+  const destinationEmail = GRAYSTON_SUPPORT_EMAIL;
   const consent = payload.consent === true;
   const attribution = cleanCampaignAttribution(payload.attribution);
   const analyticsAttribution = pilotCampaignAnalyticsProperties(attribution);
@@ -492,6 +496,7 @@ export async function POST(request: NextRequest) {
     consentText,
     consentedAt: createdAt,
     consentVersion,
+    destinationEmail,
     privacyVersion,
     source: "payshield-web-app",
     submissionId: randomUUID(),
@@ -540,7 +545,7 @@ export async function POST(request: NextRequest) {
         result.mode === "blob" ||
         result.mode === "upstash" ||
         result.mode === "webhook"
-          ? "Product inquiry received."
+          ? "Grayston support received your request."
           : "Request received in local capture mode.",
     });
   } catch (error) {

@@ -36,13 +36,13 @@ the review step.
   gets loud.
 - PayShield can support household, employer, investor, and partner
   conversations without bank credentials or money movement.
-- PayShield is not a bank.
-- The current app does not open accounts, hold funds, move money, issue cards,
-  or offer FDIC insurance.
+- Financial accounts, cards, money movement, and insurance coverage are
+  available only through approved regulated partners when enabled.
+- The current public app does not provide financial services.
 
 ## Do Not Claim
 
-- Do not say PayShield is a bank.
+- Do not say PayShield or Grayston Technologies is a bank.
 - Do not say funds are FDIC insured, pass-through insured, or held by a sponsor
   bank.
 - Do not say users can open a deposit account.

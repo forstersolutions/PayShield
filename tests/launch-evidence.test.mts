@@ -5,10 +5,10 @@ import { summarizeLaunchReadiness } from "../scripts/launch-evidence.mjs";
 const targetUrl = "https://payshield-lime.vercel.app";
 const gitCommit = "abc123";
 const requiredHome = [
-  "PayShield | Paycheck Planning App",
-  "Know what is safe to spend before the week gets busy.",
-  "Export plan",
-  "Open PayShield. Set the check. See what is safe to spend.",
+  "PayShield by Grayston | Paycheck Control App",
+  "The paycheck control layer for real life.",
+  "Bucket control studio",
+  "Regulated readiness",
 ].join(" ");
 
 function publicEvidence(waitlist: Record<string, unknown>) {
@@ -36,7 +36,7 @@ function publicEvidence(waitlist: Record<string, unknown>) {
       "x-frame-options": "DENY",
     },
     privacyBody: [
-      "does not currently open deposit accounts",
+      "PayShield is operated by Grayston Technologies.",
       "utm_source",
       "utm_campaign",
       "Vercel Web Analytics",
@@ -45,11 +45,12 @@ function publicEvidence(waitlist: Record<string, unknown>) {
       "free-text financial notes to analytics",
     ].join(" "),
     securityBody: [
-      "Contact: https://github.com/forstersolutions/PayShield/security/advisories/new",
+      "Contact: mailto:support@graystontechnologies.com",
       "Policy: https://github.com/forstersolutions/PayShield/security/policy",
       `Canonical: ${targetUrl}/.well-known/security.txt`,
     ].join("\n"),
-    termsBody: "PayShield is not a bank.",
+    termsBody:
+      "Financial accounts, cards, money movement, and insurance coverage are available only through approved regulated partners when enabled.",
     validationBody: {
       error: "Accept the privacy and terms notice.",
     },

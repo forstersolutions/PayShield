@@ -8,6 +8,10 @@ import {
   pilotCampaignAnalyticsProperties,
   type CampaignAttribution,
 } from "../lib/pilot-analytics.ts";
+import {
+  GRAYSTON_COMPANY_NAME,
+  GRAYSTON_SUPPORT_EMAIL,
+} from "../lib/brand";
 
 const segments = [
   "Household",
@@ -128,6 +132,7 @@ export function WaitlistForm() {
           company: formData.get("company"),
           message: formData.get("message"),
           consent: formData.get("consent") === "on",
+          destinationEmail: GRAYSTON_SUPPORT_EMAIL,
           attribution,
         }),
       });
@@ -160,7 +165,7 @@ export function WaitlistForm() {
       });
       setState({
         status: "success",
-        message: result.message ?? "Product inquiry received.",
+        message: result.message ?? "Grayston support received your request.",
       });
     } catch {
       track("Product Inquiry Failed", {
@@ -181,10 +186,14 @@ export function WaitlistForm() {
       onSubmit={submitProductInquiry}
     >
       <div className="mb-4">
-        <p className="text-sm font-semibold">Contact PayShield</p>
+        <p className="text-sm font-semibold">Contact Grayston support</p>
         <p className="mt-1 text-sm leading-6 text-[#b7aa9b]">
-          Tell us where protected paycheck controls would matter first. We will
-          use it to route your closed-beta product conversation.
+          Tell us where protected paycheck controls would matter first. Product
+          requests route to{" "}
+          <a className="font-semibold text-[#a8c8ff] underline" href={`mailto:${GRAYSTON_SUPPORT_EMAIL}`}>
+            {GRAYSTON_SUPPORT_EMAIL}
+          </a>
+          .
         </p>
       </div>
 
@@ -250,8 +259,8 @@ export function WaitlistForm() {
             type="checkbox"
           />
           <span>
-            I agree that PayShield can contact me about product onboarding and handle my
-            information under the{" "}
+            I agree that {GRAYSTON_COMPANY_NAME} can contact me about PayShield
+            onboarding and handle my information under the{" "}
             <Link className="font-semibold text-[#b8e7c5] underline" href="/privacy">
               Privacy Notice
             </Link>{" "}

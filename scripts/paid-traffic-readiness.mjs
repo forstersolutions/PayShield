@@ -3,10 +3,10 @@ import { pathToFileURL } from "node:url";
 const defaultTimeoutMs = 10_000;
 const serviceName = "payshield-web-app";
 const requiredHomeText = [
-  "PayShield | Paycheck Planning App",
-  "Know what is safe to spend before the week gets busy.",
-  "Export plan",
-  "Open PayShield. Set the check. See what is safe to spend.",
+  "PayShield by Grayston | Paycheck Control App",
+  "The paycheck control layer for real life.",
+  "Bucket control studio",
+  "Regulated readiness",
 ];
 const publicCopyBannedPhrases = [
   "Vercel preview",
@@ -241,8 +241,8 @@ export function evaluatePaidTrafficReadiness(evidence) {
 
   record(
     result,
-    normalizedPrivacyBody.includes("does not currently open deposit accounts"),
-    "/privacy states PayShield does not open deposit accounts",
+    normalizedPrivacyBody.includes("PayShield is operated by Grayston Technologies."),
+    "/privacy states Grayston operates PayShield",
   );
   record(
     result,
@@ -265,15 +265,17 @@ export function evaluatePaidTrafficReadiness(evidence) {
   );
   record(
     result,
-    evidence.termsBody.includes("PayShield is not a bank."),
-    "/terms states PayShield is not a bank",
+    evidence.termsBody.includes(
+      "Financial accounts, cards, money movement, and insurance coverage are available only through approved regulated partners when enabled.",
+    ),
+    "/terms states regulated partner boundary",
   );
   record(
     result,
     evidence.securityBody.includes(
-      "Contact: https://github.com/forstersolutions/PayShield/security/advisories/new",
+      "Contact: mailto:support@graystontechnologies.com",
     ),
-    "/.well-known/security.txt publishes private vulnerability contact",
+    "/.well-known/security.txt publishes Grayston support contact",
   );
   record(
     result,

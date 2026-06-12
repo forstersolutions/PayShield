@@ -24,15 +24,15 @@ The current public surface positions PayShield as a commercial planning app for
 customer discovery, employer conversations, investor review, and banking-partner
 diligence.
 
-Approved planning-only framing currently present in the product:
+Approved regulated-partner framing currently present in the product:
 
-- "Planning app only. PayShield is not a bank."
-- "Planning app ready for diligence. Regulated-money launch still needs the partner
-  stack."
-- Future-only public phrase: "Start with demand validation, then partner-led
-  launch diligence."
-- "The current app is ready for customer discovery, employer conversations,
-  investor review, and banking-partner diligence."
+- "PayShield is operated by Grayston Technologies."
+- "Financial accounts, cards, money movement, and insurance coverage are
+  available only through approved regulated partners when enabled."
+- "PayShield provides paycheck control software for modeling protected buckets,
+  bill rules, safe-to-spend decisions, and recovery plans."
+- "Customer funds, if enabled, belong on approved regulated rails with exact
+  account, card, insurance, and support disclosures shown before activation."
 
 Counsel should confirm this framing is sufficient for the intended campaign
 audience and channel.
@@ -62,13 +62,12 @@ still be reviewed before paid traffic.
 
 ## Required Disclaimers Currently Present
 
-- Terms state PayShield is not a bank.
-- Terms state the site does not provide banking, deposit, payment, debit card,
-  bill-pay, or money movement services.
-- Terms state the current app does not represent that funds are held, insured,
-  protected by FDIC insurance, or eligible for pass-through deposit insurance.
-- Privacy Notice states the site does not currently open deposit accounts, move
-  money, issue cards, or collect bank credentials.
+- Terms state regulated partner services are available only through approved
+  regulated partners when enabled.
+- Terms state PayShield and Grayston Technologies do not represent through the
+  site that funds are held, insured, or eligible for deposit insurance.
+- Privacy Notice states PayShield is operated by Grayston Technologies and that
+  regulated partner services require additional notices before activation.
 - Contact form tells users not to include bank, card, SSN, account, or routing
   numbers.
 

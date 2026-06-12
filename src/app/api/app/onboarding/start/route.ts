@@ -25,7 +25,6 @@ export async function POST() {
 
     return NextResponse.json(
       {
-        betaAccess: snapshot.user.betaAccess,
         card,
         customer,
         directDeposit,
@@ -34,7 +33,8 @@ export async function POST() {
         liveMoney: liveGate,
         message: liveGate.ok
           ? "Onboarding started with the configured provider."
-          : "Closed beta is ready for architecture review; live onboarding is blocked until provider and compliance gates pass.",
+          : "Onboarding is queued. Regulated partner activation is required before account, card, and transfer setup.",
+        profileAccess: snapshot.user.profileAccess,
       },
       {
         headers: {

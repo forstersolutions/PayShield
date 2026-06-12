@@ -1,14 +1,14 @@
 # PayShield
 
-PayShield is a Vercel-hosted Next.js app for a closed-beta paycheck protection
-product. The current repo now contains the app-first dashboard, Clerk-ready auth
-boundary, regulated core backend scaffold, Postgres ledger migration, provider
-adapter contract, and fail-closed live-money gates for the full neobank build.
+PayShield is a Vercel-hosted Next.js paycheck control app operated by Grayston
+Technologies. The current repo contains the app-first Safe to Spend dashboard,
+customizable protected bucket controls, Clerk-ready auth boundary, regulated
+core backend scaffold, Postgres ledger migrations, provider adapter contract,
+and fail-closed activation gates for the full neobank path.
 
-The public app does not open accounts, hold funds, issue cards, route payments,
-or claim insured coverage until a BaaS/card partner, sponsor-bank disclosures,
-counsel approval, operational runbooks, Clerk auth, the dedicated core backend,
-and the Postgres ledger are configured.
+Financial accounts, cards, transfers, and insurance coverage are available only
+through approved regulated partners when enabled. Product and support requests
+route to `support@graystontechnologies.com`.
 
 ## Getting Started
 
@@ -84,13 +84,16 @@ docker compose --env-file .env.example -f compose.core.yml up --build
 `services/core/migrations/0001_neobank_core.sql` defines the first Postgres
 ledger schema: households, app users, provider customers, ledger accounts,
 journal entries, journal lines, payees, provider events, and reconciliation
-exceptions.
+exceptions. `services/core/migrations/0002_household_bucket_controls.sql`
+adds durable household bucket profiles, bucket rules, and bucket-change audit
+events for customizable protected money rules.
 
 The app exposes the planned API surface now:
 
 ```text
 GET  /api/app/me
 GET  /api/app/balances
+GET  /api/app/buckets
 POST /api/app/onboarding/start
 POST /api/app/buckets
 POST /api/app/payees
@@ -358,7 +361,8 @@ does not expose the webhook URL or signing secret, and it reports whether the
 site is still in demo capture mode or paid-traffic-ready webhook mode.
 
 The contact form requires consent to the PayShield Privacy Notice and Terms
-before submission.
+before submission and stores `support@graystontechnologies.com` as the Grayston
+support destination for routed product inquiries.
 
 Vercel Web Analytics and Speed Insights are wired in `src/app/layout.tsx`. Enable
 both products in the Vercel project dashboard after import. Product inquiry conversion
@@ -370,14 +374,15 @@ and banned PII fields.
 
 ## Launch Notes
 
-- The current app is a closed-beta neobank foundation. It does not move money,
-  hold funds, open accounts, issue cards, or provide insured coverage.
-- Live funds require a banking sponsor, BaaS/card program partner, KYC/AML workflow,
-  payment/card rails, dispute handling, disclosures, support operations, and
-  double-entry ledgering.
-- Do not claim PayShield is a bank.
-- Do not claim FDIC insurance until the final sponsor bank and recordkeeping
-  model supports precise, approved language.
+- The current app is a Grayston-operated paycheck control product surface with
+  customizable household bucket rules and a regulated-core architecture.
+- Financial accounts, cards, transfers, and insurance coverage are available
+  only through approved regulated partners when enabled.
+- Live funds require a banking sponsor, BaaS/card program partner, KYC/AML
+  workflow, payment/card rails, dispute handling, disclosures, support
+  operations, and double-entry ledgering.
+- Do not claim FDIC or pass-through insurance until the final sponsor bank and
+  recordkeeping model supports precise, approved language.
 - Enable Vercel Web Analytics and Speed Insights before paid traffic so segment,
   conversion, and performance can be measured from the first launch push.
 - Have counsel review the Privacy Notice, Terms, and legal review

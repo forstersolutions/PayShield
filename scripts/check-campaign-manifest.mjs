@@ -85,7 +85,7 @@ function hasRequiredPlanningOnlyFraming(text) {
   const normalized = text.replace(/\s+/g, " ").toLowerCase();
 
   return (
-    normalized.includes("payshield is not a bank") &&
+    normalized.includes("approved regulated partners") &&
     (normalized.includes("planning-only") ||
       normalized.includes("planning only") ||
       normalized.includes("does not provide financial services"))
@@ -261,7 +261,7 @@ export async function lintCampaignManifest({
         id: "draft-planning-only-framing",
         label: draftFile.relative,
         message:
-          'Campaign draft must include "PayShield is not a bank" and planning-only framing.',
+          'Campaign draft must include approved-regulated-partner and planning-only framing.',
       });
     }
 

@@ -295,34 +295,36 @@ async function submitLead() {
 
 try {
   const home = await expectText("/", [
-    "PayShield | Paycheck Protection App",
+    "PayShield by Grayston | Paycheck Control App",
     "/manifest.webmanifest",
     "/icon.svg",
     "payshield-social-card.jpg",
     "Safe to Spend",
-    "Closed beta",
-    "Paycheck protection with partner-bank rails coming through closed beta.",
-    "Live-money gates",
-    "PayShield is not a bank.",
+    "Paycheck control software by Grayston Technologies.",
+    "Bucket control studio",
+    "Regulated readiness",
+    "support@graystontechnologies.com",
   ]);
   expectSecurityHeaders(home.response, "/");
 
   await expectText("/privacy", [
     "Privacy Notice",
-    "does not currently open deposit accounts",
+    "PayShield is operated by Grayston Technologies.",
     "utm_source",
     "Vercel Web Analytics",
     "does not send email addresses, names, bank details",
     "free-text financial notes to analytics",
+    "support@graystontechnologies.com",
   ]);
   await expectText("/terms", [
     "Terms",
-    "PayShield is not a bank.",
+    "Regulated partner services",
+    "Financial accounts, cards, money movement, and insurance coverage are available only through approved regulated partners when enabled.",
   ]);
   const robots = await expectText("/robots.txt", ["User-Agent: *", "Sitemap:"]);
   const sitemap = await expectText("/sitemap.xml", ["/privacy", "/terms"]);
   const security = await expectText("/.well-known/security.txt", [
-    "Contact: https://github.com/forstersolutions/PayShield/security/advisories/new",
+    "Contact: mailto:support@graystontechnologies.com",
     "Policy: https://github.com/forstersolutions/PayShield/security/policy",
     "Preferred-Languages: en",
     "Canonical:",

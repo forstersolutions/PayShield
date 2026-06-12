@@ -6,8 +6,8 @@ test("allows planning-only campaign copy and disclaimers", () => {
   const result = lintCampaignCopy({
     text: [
       "PayShield is a planning-only paycheck app for household clarity.",
-      "PayShield is not a bank.",
-      "The current app does not open accounts, move money, issue cards, or offer FDIC insurance.",
+      "Financial accounts, cards, money movement, and insurance coverage are available only through approved regulated partners when enabled.",
+      "The current app does not provide financial services.",
       "Use it to see the safe-to-spend number after obligations are covered.",
     ].join("\n"),
   });
@@ -57,7 +57,8 @@ test("reports line and column for campaign copy findings", () => {
 
 test("does not let a safe disclaimer hide a later regulated claim", () => {
   const result = lintCampaignCopy({
-    text: "PayShield is not a bank, but direct deposit and ACH are live.",
+    text:
+      "Financial accounts are partner-provided when enabled, but direct deposit and ACH are live.",
   });
   const ids = result.findings.map((finding) => finding.id);
 
@@ -69,7 +70,7 @@ test("does not let a safe disclaimer hide a later regulated claim", () => {
 test("allows explicit do-not guardrails that name prohibited claims", () => {
   const result = lintCampaignCopy({
     text: [
-      "Do not say PayShield is a bank.",
+      "Do not say PayShield or Grayston Technologies is a bank.",
       "Do not say users can open a deposit account.",
       "Do not say PayShield supports live direct deposit, ACH, debit cards, virtual cards, or bill-pay.",
       "Do not say PayShield moves money or guarantees protection.",
