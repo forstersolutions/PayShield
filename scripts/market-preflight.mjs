@@ -81,7 +81,6 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/components/site-footer.tsx",
   "src/app/components/waitlist-form.tsx",
   "src/app/components/bucket-control-panel.tsx",
-  "src/app/components/paycheck-planner.tsx",
   "src/app/components/neobank-dashboard.tsx",
   "src/app/lib/brand.ts",
   "src/app/lib/pilot-analytics.ts",
@@ -176,7 +175,7 @@ requireText(
 );
 requireText(
   "src/app/terms/page.tsx",
-  "Regulated partner services",
+  "Provider-enabled services",
 );
 requireText(
   "src/app/privacy/page.tsx",
@@ -209,13 +208,13 @@ requireText("src/app/layout.tsx", 'manifest: "/manifest.webmanifest"');
 requireText("src/app/layout.tsx", 'url: "/icon.svg"');
 requireText("src/app/manifest.ts", "GRAYSTON_COMPANY_NAME");
 requireText("src/app/lib/brand.ts", "Grayston Technologies");
-requireText("src/app/manifest.ts", 'theme_color: "#16261f"');
+requireText("src/app/manifest.ts", 'theme_color: "#050607"');
 requireText(
   "src/app/components/neobank-dashboard.tsx",
   "Paycheck control software by Grayston Technologies.",
 );
 requireText("src/app/components/neobank-dashboard.tsx", "Safe to Spend");
-requireText("src/app/components/neobank-dashboard.tsx", "Regulated readiness");
+requireText("src/app/components/neobank-dashboard.tsx", "Provider readiness");
 requireText("src/app/components/neobank-dashboard.tsx", "support@graystontechnologies.com");
 requireText("src/app/page.tsx", "NeobankDashboard");
 requireText("src/app/components/waitlist-form.tsx", "Contact Grayston support");
@@ -223,10 +222,6 @@ requireText("src/app/components/bucket-control-panel.tsx", "Add bucket");
 requireText("src/app/components/bucket-control-panel.tsx", "Save bucket profile");
 requireText("services/core/migrations/0002_household_bucket_controls.sql", "household_buckets");
 requireText("services/core/migrations/0002_household_bucket_controls.sql", "household_bucket_rules");
-requireText(
-  "src/app/components/paycheck-planner.tsx",
-  "Check a purchase",
-);
 requireText("docs/legal-review-packet.md", "Paycheck split model");
 requireText(
   "public/.well-known/security.txt",
@@ -325,16 +320,16 @@ requireText("docs/campaign-copy.md", "npm run campaign:lint");
 requireText("docs/campaign-copy.md", "npm run campaign:lint:all");
 requireText("docs/campaign-copy.md", "docs/campaigns/manifest.json");
 requireText("docs/campaign-copy.md", "npm run legal:lint");
-requireText("docs/campaign-copy.md", "approved regulated partners");
+requireText("docs/campaign-copy.md", "approved provider credentials");
 requireText("docs/campaigns/manifest.json", "paid-social-household-pilot.md");
 requireText("docs/campaigns/manifest.json", "paid-search-safe-spending.md");
 requireText("docs/campaigns/manifest.json", "employer-pilot-email.md");
 requireText("docs/campaigns/manifest.json", "partner-one-pager.md");
-requireText("docs/campaigns/paid-social-household-pilot.md", "approved regulated partners");
-requireText("docs/campaigns/paid-social-household-pilot.md", "planning-only");
-requireText("docs/campaigns/paid-search-safe-spending.md", "approved regulated partners");
-requireText("docs/campaigns/employer-pilot-email.md", "approved regulated partners");
-requireText("docs/campaigns/partner-one-pager.md", "approved regulated partners");
+requireText("docs/campaigns/paid-social-household-pilot.md", "approved provider credentials");
+requireText("docs/campaigns/paid-social-household-pilot.md", "does not provide financial services");
+requireText("docs/campaigns/paid-search-safe-spending.md", "approved provider credentials");
+requireText("docs/campaigns/employer-pilot-email.md", "approved provider credentials");
+requireText("docs/campaigns/partner-one-pager.md", "approved provider credentials");
 requireText("docs/legal-review-packet.md", "Counsel Questions");
 requireText("docs/legal-review-packet.md", "Sign-Off Record");
 requireText("docs/legal-review-packet.md", "npm run market:evidence:init");
@@ -771,12 +766,10 @@ const publicCopyFiles = [
   "src/app/terms/page.tsx",
   "src/app/components/site-footer.tsx",
   "src/app/components/waitlist-form.tsx",
-  "src/app/components/paycheck-planner.tsx",
   "src/app/components/neobank-dashboard.tsx",
 ];
 const publicMarketingFiles = [
   "src/app/page.tsx",
-  "src/app/components/paycheck-planner.tsx",
   "src/app/components/neobank-dashboard.tsx",
 ];
 
@@ -784,7 +777,7 @@ for (const path of publicCopyFiles) {
   rejectPattern(
     path,
     /\bmember\s+fdic\b/i,
-    "Do not claim partner-bank FDIC status before sponsorship is approved",
+    "Do not claim sponsored-account FDIC status before approvals are complete",
   );
   rejectPattern(
     path,

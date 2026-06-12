@@ -18,30 +18,30 @@ const lastUpdated = "June 12, 2026";
 
 export default function TermsPage() {
   return (
-    <main className="bg-[#17130f] text-[#f9efe1]">
+    <main className="bg-[#050607] text-[#f7f8fb]">
       <section className="mx-auto min-h-screen max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
         <Link
-          className="text-sm font-semibold text-[#b8e7c5] hover:text-[#cff1d7]"
+          className="text-sm font-semibold text-[#39e8ff] hover:text-[#9bf4ff]"
           href="/"
         >
           Back to PayShield
         </Link>
 
-        <div className="mt-8 rounded-[8px] border border-[#3a3027] bg-[#211b16] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.26)] ring-1 ring-[#b8e7c5]/10 sm:p-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#b8e7c5]">
+        <div className="brand-panel mt-8 rounded-[8px] p-6 sm:p-8">
+          <p className="brand-kicker">
             PayShield by Grayston Technologies
           </p>
           <h1 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
             Terms
           </h1>
-          <p className="mt-3 text-sm text-[#b7aa9b]">
+          <p className="mt-3 text-sm text-[#aab3c2]">
             Last updated: {lastUpdated}
           </p>
 
-          <div className="mt-8 grid gap-8 text-base leading-7 text-[#d6c8b8]">
+          <div className="mt-8 grid gap-8 text-base leading-7 text-[#c9d0da]">
             <section>
-              <h2 className="text-xl font-semibold text-[#fff4e8]">
-                Planning product
+              <h2 className="text-xl font-semibold text-white">
+                Product controls
               </h2>
               <p className="mt-3">
                 {PAYSHIELD_OWNERSHIP_LINE} PayShield provides paycheck control
@@ -52,18 +52,18 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-[#fff4e8]">
-                Regulated partner services
+              <h2 className="text-xl font-semibold text-white">
+                Provider-enabled services
               </h2>
               <p className="mt-3">
                 {REGULATED_PARTNER_DISCLOSURE} PayShield and{" "}
-                {GRAYSTON_COMPANY_NAME} do not represent through this site that
-                funds are held, insured, or eligible for deposit insurance.
+                {GRAYSTON_COMPANY_NAME} do not activate account, card, transfer,
+                or bill-payment workflows before those controls are in place.
               </p>
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-[#fff4e8]">
+              <h2 className="text-xl font-semibold text-white">
                 No financial advice
               </h2>
               <p className="mt-3">
@@ -74,7 +74,7 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-[#fff4e8]">
+              <h2 className="text-xl font-semibold text-white">
                 Local data and exports
               </h2>
               <p className="mt-3">
@@ -86,7 +86,7 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-[#fff4e8]">
+              <h2 className="text-xl font-semibold text-white">
                 Acceptable use
               </h2>
               <p className="mt-3">
@@ -97,12 +97,12 @@ export default function TermsPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-[#fff4e8]">
+              <h2 className="text-xl font-semibold text-white">
                 Changes
               </h2>
               <p className="mt-3">
                 These terms may be updated as PayShield adds features, partner
-                onboarding, or regulated financial-service functionality.
+                onboarding, or provider-enabled product functionality.
                 Continued use of the site after updates means you accept the
                 updated terms.
               </p>

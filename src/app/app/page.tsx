@@ -3,7 +3,7 @@ import { SiteFooter } from "@/app/components/site-footer";
 
 export default function AppPage() {
   return (
-    <main className="bg-[#17130f] text-[#f9efe1]">
+    <main className="bg-[#050607] text-[#f7f8fb]">
       <NeobankDashboard />
       <SiteFooter />
     </main>

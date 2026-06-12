@@ -103,8 +103,10 @@ function hasApprovedPartnerBoundary(text, index, length) {
     .toLowerCase();
 
   return (
-    context.includes("approved regulated partners") &&
-    context.includes("when enabled")
+    context.includes("approved provider credentials") &&
+    (context.includes("when enabled") ||
+      context.includes("stay locked until") ||
+      context.includes("operating controls are active"))
   );
 }
 

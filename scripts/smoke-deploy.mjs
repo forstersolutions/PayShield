@@ -302,7 +302,7 @@ try {
     "Safe to Spend",
     "Paycheck control software by Grayston Technologies.",
     "Bucket control studio",
-    "Regulated readiness",
+    "Provider readiness",
     "support@graystontechnologies.com",
   ]);
   expectSecurityHeaders(home.response, "/");
@@ -318,8 +318,8 @@ try {
   ]);
   await expectText("/terms", [
     "Terms",
-    "Regulated partner services",
-    "Financial accounts, cards, money movement, and insurance coverage are available only through approved regulated partners when enabled.",
+    "Provider-enabled services",
+    "Account opening, card controls, and money movement stay locked until approved provider credentials, disclosures, and operating controls are active.",
   ]);
   const robots = await expectText("/robots.txt", ["User-Agent: *", "Sitemap:"]);
   const sitemap = await expectText("/sitemap.xml", ["/privacy", "/terms"]);

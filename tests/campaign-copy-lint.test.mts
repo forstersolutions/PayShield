@@ -6,7 +6,7 @@ test("allows planning-only campaign copy and disclaimers", () => {
   const result = lintCampaignCopy({
     text: [
       "PayShield is a planning-only paycheck app for household clarity.",
-      "Financial accounts, cards, money movement, and insurance coverage are available only through approved regulated partners when enabled.",
+      "Account opening, card controls, and money movement stay locked until approved provider credentials, disclosures, and operating controls are active.",
       "The current app does not provide financial services.",
       "Use it to see the safe-to-spend number after obligations are covered.",
     ].join("\n"),

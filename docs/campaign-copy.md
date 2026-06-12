@@ -3,9 +3,10 @@
 Use this guide before paid ads, email campaigns, social posts, partner one-pagers,
 or alternate landing-page copy go live.
 
-PayShield is currently a planning-only paycheck app. Campaign copy can promote
-the safe-to-spend planner while staying clear that PayShield does not offer
-regulated financial services.
+PayShield is a commercial paycheck-control product surface. Campaign copy can
+promote Safe to Spend, customizable protected buckets, and provider-ready
+controls while staying clear that PayShield does not offer regulated financial
+services until approved provider activation is complete.
 
 ## Required Review Flow
 
@@ -31,13 +32,14 @@ the review step.
 
 ## Approved Commercial Positioning
 
-- PayShield is a planning-only paycheck app.
-- PayShield helps households model one safe-to-spend balance before the week
-  gets loud.
+- PayShield is paycheck control software for households that need one reliable
+  Safe to Spend number.
+- PayShield helps households shape protected bucket rules before the week gets
+  loud.
 - PayShield can support household, employer, investor, and partner
   conversations without bank credentials or money movement.
-- Financial accounts, cards, money movement, and insurance coverage are
-  available only through approved regulated partners when enabled.
+- Account opening, card controls, and money movement stay locked until approved
+  provider credentials, disclosures, and operating controls are active.
 - The current public app does not provide financial services.
 
 ## Do Not Claim

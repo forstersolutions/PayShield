@@ -2,13 +2,14 @@
 
 This repository is ready to support a Grayston-operated paycheck control product
 surface, Vercel deployments, partner demos, BaaS/card-provider diligence, and
-product demand capture. Financial accounts, cards, transfers, and insurance
-coverage are available only through approved regulated partners when enabled.
+product demand capture. Account opening, card controls, and money movement stay
+locked until approved provider credentials, disclosures, and operating controls
+are active.
 
 ## Ready Now
 
 - App-first protected-paycheck dashboard with Safe to Spend as the primary
-  balance, protected bucket funding, regulated readiness status, operating rail
+  balance, protected bucket funding, provider readiness status, operating rail
   order, card-decision simulation, and emergency unlock recovery preview.
 - Customizable bucket control studio with editable bucket names, targets,
   protection modes, due rules, priorities, local profile storage, and app API
@@ -155,7 +156,7 @@ coverage are available only through approved regulated partners when enabled.
   forces `/api/waitlist` into signed required-webhook mode, verifies persisted
   consent fields, sanitized attribution, idempotent replay, non-PII summary
   output, and deletion dry-run handling before a hosted receiver is selected.
-- Conservative fintech language that ties regulated partner services to
+- Conservative fintech language that ties provider-enabled services to
   approved activation and avoids deposit-insurance claims.
 - Privacy Notice and Terms pages linked from the contact form and
   footer.
@@ -414,14 +415,14 @@ The go/no-go command fails if it detects those values.
   fee disclosures, privacy policy, and customer support procedures.
 - Card issuing and authorization controls before the safe-spending card is
   activated through a provider.
-- Approved compliance review of all website, app, fee, and partner-bank copy.
+- Approved compliance review of all website, app, fee, and provider-program copy.
 
 ## Suggested Pilot Funnel
 
 1. Deploy from GitHub to Vercel.
 2. Configure the waitlist webhook and analytics.
 3. Drive small traffic to families, hourly workers, gig workers, employers, and
-   partner-bank/BaaS contacts.
+   provider/BaaS contacts.
 4. Measure the Safe to Spend message, target segment, custom bucket rules,
    priority ordering, support requests, and willingness to pay.
 5. Use pilot data to choose the first regulated infrastructure path.

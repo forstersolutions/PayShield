@@ -8,7 +8,7 @@ const requiredHome = [
   "PayShield by Grayston | Paycheck Control App",
   "The paycheck control layer for real life.",
   "Bucket control studio",
-  "Regulated readiness",
+  "Provider readiness",
 ].join(" ");
 
 function publicEvidence(waitlist: Record<string, unknown>) {
@@ -50,7 +50,7 @@ function publicEvidence(waitlist: Record<string, unknown>) {
       `Canonical: ${targetUrl}/.well-known/security.txt`,
     ].join("\n"),
     termsBody:
-      "Financial accounts, cards, money movement, and insurance coverage are available only through approved regulated partners when enabled.",
+      "Account opening, card controls, and money movement stay locked until approved provider credentials, disclosures, and operating controls are active.",
     validationBody: {
       error: "Accept the privacy and terms notice.",
     },

@@ -5,21 +5,21 @@ Channel: email.
 
 Subject:
 
-PayShield paycheck planning for employee money stress
+PayShield paycheck control for employee money stress
 
 Body:
 
 Hi,
 
-PayShield is a planning-only paycheck app for teams that want a clearer way to
-discuss safe spending, bill pressure, and paycheck timing with employees.
+PayShield is a paycheck-control app for teams that want a clearer way to discuss
+safe spending, bill pressure, and paycheck timing with employees.
 
-The current app helps households model paycheck buckets, shortfalls, and reserve
-recovery without bank credentials or money movement.
+The current app helps households build protected bucket rules, shortfall
+warnings, and recovery plans without bank credentials or money movement.
 
-Financial accounts, cards, money movement, and insurance coverage are available
-only through approved regulated partners when enabled. The current public app is
-planning-only and does not provide financial services.
+Account opening, card controls, and money movement stay locked until approved
+provider credentials, disclosures, and operating controls are active. The current
+public app does not provide financial services.
 
-Would it be useful to review the planner and discuss whether this would help
+Would it be useful to review the product and discuss whether this would help
 your team?

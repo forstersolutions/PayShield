@@ -1,77 +1,43 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1536" height="1024" viewBox="0 0 1536 1024">
+<svg width="1536" height="1024" viewBox="0 0 1536 1024" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0" stop-color="#2a2018" />
-      <stop offset="0.52" stop-color="#17130f" />
-      <stop offset="1" stop-color="#243140" />
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#050607"/>
+      <stop offset="0.55" stop-color="#0b0d10"/>
+      <stop offset="1" stop-color="#050607"/>
     </linearGradient>
-    <linearGradient id="softLine" x1="0" x2="1">
-      <stop offset="0" stop-color="#edb981" />
-      <stop offset="0.52" stop-color="#fff4e8" />
-      <stop offset="1" stop-color="#b8e7c5" />
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#39E8FF"/>
+      <stop offset="0.55" stop-color="#1588FF"/>
+      <stop offset="1" stop-color="#061A4D"/>
     </linearGradient>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="28" stdDeviation="36" flood-color="#000000" flood-opacity="0.34" />
+    <linearGradient id="amber" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#FFE39D"/>
+      <stop offset="1" stop-color="#FFB237"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
-
-  <rect width="1536" height="1024" fill="url(#bg)" />
-  <path d="M0 154C214 98 388 88 580 132c278 64 454 28 642-36 108-36 212-50 314-38v966H0Z" fill="#fff4e8" fill-opacity="0.035" />
-  <path d="M0 812C208 746 404 748 582 796c240 64 444 66 624 6 118-40 228-48 330-28" fill="none" stroke="#b8e7c5" stroke-opacity="0.18" stroke-width="3" />
-  <path d="M118 112h1300v800H118z" fill="#17130f" fill-opacity="0.74" stroke="#3a3027" />
-
-  <g transform="translate(176 166) scale(1.96875)">
-    <rect width="64" height="64" rx="14" fill="#17130f" />
-    <path d="M18 12h18.6C45.2 12 51 17.7 51 25.4s-5.8 13.4-14.4 13.4h-7.3V52H18V12Z" fill="#fff4e8" />
-    <path d="M18 12h18.6c6.4 0 11.3 3.1 13.3 8.2H18V12Z" fill="#edb981" />
-    <path d="M29.3 38.8V52h7.3c6.5-2.1 11.3-7.5 12.6-14.3-3.2 0.7-7.2 1.1-12.6 1.1h-7.3Z" fill="#b8e7c5" />
-    <path d="M29.3 21.2v8.7h6.6c2.9 0 4.7-1.7 4.7-4.4 0-2.6-1.8-4.3-4.7-4.3h-6.6Z" fill="#17130f" />
-    <path d="M18 48h11.3v4H18z" fill="#b8e7c5" />
+  <rect width="1536" height="1024" fill="url(#bg)"/>
+  <g opacity="0.16">
+    <path d="M0 0V1024" stroke="#fff" stroke-width="1"/><path d="M48 0V1024" stroke="#fff" stroke-width="1"/><path d="M96 0V1024" stroke="#fff" stroke-width="1"/><path d="M144 0V1024" stroke="#fff" stroke-width="1"/><path d="M192 0V1024" stroke="#fff" stroke-width="1"/><path d="M240 0V1024" stroke="#fff" stroke-width="1"/><path d="M288 0V1024" stroke="#fff" stroke-width="1"/><path d="M336 0V1024" stroke="#fff" stroke-width="1"/><path d="M384 0V1024" stroke="#fff" stroke-width="1"/><path d="M432 0V1024" stroke="#fff" stroke-width="1"/><path d="M480 0V1024" stroke="#fff" stroke-width="1"/><path d="M528 0V1024" stroke="#fff" stroke-width="1"/><path d="M576 0V1024" stroke="#fff" stroke-width="1"/><path d="M624 0V1024" stroke="#fff" stroke-width="1"/><path d="M672 0V1024" stroke="#fff" stroke-width="1"/><path d="M720 0V1024" stroke="#fff" stroke-width="1"/><path d="M768 0V1024" stroke="#fff" stroke-width="1"/><path d="M816 0V1024" stroke="#fff" stroke-width="1"/><path d="M864 0V1024" stroke="#fff" stroke-width="1"/><path d="M912 0V1024" stroke="#fff" stroke-width="1"/><path d="M960 0V1024" stroke="#fff" stroke-width="1"/><path d="M1008 0V1024" stroke="#fff" stroke-width="1"/><path d="M1056 0V1024" stroke="#fff" stroke-width="1"/><path d="M1104 0V1024" stroke="#fff" stroke-width="1"/><path d="M1152 0V1024" stroke="#fff" stroke-width="1"/><path d="M1200 0V1024" stroke="#fff" stroke-width="1"/><path d="M1248 0V1024" stroke="#fff" stroke-width="1"/><path d="M1296 0V1024" stroke="#fff" stroke-width="1"/><path d="M1344 0V1024" stroke="#fff" stroke-width="1"/><path d="M1392 0V1024" stroke="#fff" stroke-width="1"/><path d="M1440 0V1024" stroke="#fff" stroke-width="1"/><path d="M1488 0V1024" stroke="#fff" stroke-width="1"/><path d="M1536 0V1024" stroke="#fff" stroke-width="1"/>
+    <path d="M0 0H1536" stroke="#fff" stroke-width="1"/><path d="M0 48H1536" stroke="#fff" stroke-width="1"/><path d="M0 96H1536" stroke="#fff" stroke-width="1"/><path d="M0 144H1536" stroke="#fff" stroke-width="1"/><path d="M0 192H1536" stroke="#fff" stroke-width="1"/><path d="M0 240H1536" stroke="#fff" stroke-width="1"/><path d="M0 288H1536" stroke="#fff" stroke-width="1"/><path d="M0 336H1536" stroke="#fff" stroke-width="1"/><path d="M0 384H1536" stroke="#fff" stroke-width="1"/><path d="M0 432H1536" stroke="#fff" stroke-width="1"/><path d="M0 480H1536" stroke="#fff" stroke-width="1"/><path d="M0 528H1536" stroke="#fff" stroke-width="1"/><path d="M0 576H1536" stroke="#fff" stroke-width="1"/><path d="M0 624H1536" stroke="#fff" stroke-width="1"/><path d="M0 672H1536" stroke="#fff" stroke-width="1"/><path d="M0 720H1536" stroke="#fff" stroke-width="1"/><path d="M0 768H1536" stroke="#fff" stroke-width="1"/><path d="M0 816H1536" stroke="#fff" stroke-width="1"/><path d="M0 864H1536" stroke="#fff" stroke-width="1"/><path d="M0 912H1536" stroke="#fff" stroke-width="1"/><path d="M0 960H1536" stroke="#fff" stroke-width="1"/><path d="M0 1008H1536" stroke="#fff" stroke-width="1"/>
   </g>
-
-  <text x="330" y="214" fill="#fff4e8" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="44" font-weight="700">PayShield</text>
-  <text x="332" y="258" fill="#b7aa9b" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="700" letter-spacing="6">PAYCHECK CLARITY</text>
-
-  <text x="176" y="408" fill="#fff4e8" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="78" font-weight="760">Bills covered.</text>
-  <text x="176" y="500" fill="#fff4e8" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="78" font-weight="760">Spending clear.</text>
-  <text x="180" y="628" fill="#d6c8b8" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="30" font-weight="500">PayShield shows what is safe to spend after the</text>
-  <text x="180" y="674" fill="#d6c8b8" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="30" font-weight="500">must-pay money is set aside.</text>
-  <rect x="176" y="752" width="452" height="58" rx="8" fill="#b8e7c5" />
-  <text x="214" y="790" fill="#17301f" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="850" letter-spacing="2">SEE THE SAFE NUMBER FIRST</text>
-
-  <g filter="url(#shadow)" transform="translate(940 180)">
-    <rect width="458" height="664" rx="8" fill="#211b16" stroke="#3a3027" />
-    <text x="38" y="70" fill="#b8e7c5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="18" font-weight="800" letter-spacing="5">THIS PAYCHECK</text>
-    <text x="38" y="130" fill="#fff4e8" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="50" font-weight="750">$3,000</text>
-
-    <rect x="38" y="176" width="382" height="82" rx="8" fill="#17130f" stroke="#3a3027" />
-    <rect x="38" y="176" width="242" height="82" rx="8" fill="#edb981" fill-opacity="0.9" />
-    <rect x="280" y="176" width="140" height="82" rx="8" fill="#b8e7c5" />
-    <text x="60" y="228" fill="#211205" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="17" font-weight="850" letter-spacing="2">SET ASIDE</text>
-    <text x="310" y="228" fill="#17301f" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="17" font-weight="850" letter-spacing="2">SAFE</text>
-
-    <path d="M38 306H420" stroke="url(#softLine)" stroke-width="8" stroke-linecap="round" />
-
-    <g transform="translate(38 354)">
-      <rect width="112" height="128" rx="8" fill="#17130f" stroke="#3a3027" />
-      <text x="18" y="36" fill="#b7aa9b" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="800" letter-spacing="3">BILLS</text>
-      <text x="18" y="78" fill="#fff4e8" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="28" font-weight="750">$1,300</text>
-      <rect x="18" y="98" width="76" height="8" rx="4" fill="#edb981" />
-    </g>
-    <g transform="translate(173 354)">
-      <rect width="112" height="128" rx="8" fill="#17130f" stroke="#3a3027" />
-      <text x="18" y="36" fill="#b7aa9b" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="800" letter-spacing="3">GOALS</text>
-      <text x="18" y="78" fill="#fff4e8" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="28" font-weight="750">$250</text>
-      <rect x="18" y="98" width="54" height="8" rx="4" fill="#9fbfdd" />
-    </g>
-    <g transform="translate(308 354)">
-      <rect width="112" height="128" rx="8" fill="#17130f" stroke="#3a3027" />
-      <text x="18" y="36" fill="#b7aa9b" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="800" letter-spacing="3">SAFE</text>
-      <text x="18" y="78" fill="#b8e7c5" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="28" font-weight="750">$1,450</text>
-      <rect x="18" y="98" width="76" height="8" rx="4" fill="#b8e7c5" />
-    </g>
-
-    <rect x="38" y="536" width="382" height="64" rx="8" fill="#b8e7c5" />
-    <text x="88" y="578" fill="#17301f" font-family="Geist, Inter, ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="850" letter-spacing="2">SAFE TO SPEND: $1,450</text>
-  </g>
+  <path d="M90 710 1120 285" stroke="#39E8FF" stroke-width="2" opacity="0.45"/>
+  <path d="M330 100 690 980" stroke="#39E8FF" stroke-width="8" opacity="0.16" filter="url(#glow)"/>
+  <path d="M760 0 1010 1024" stroke="#FFB237" stroke-width="6" opacity="0.16" filter="url(#glow)"/>
+  <rect x="80" y="78" width="1376" height="868" rx="26" fill="rgba(255,255,255,0.045)" stroke="rgba(255,255,255,0.14)"/>
+  <rect x="110" y="110" width="1316" height="808" rx="18" fill="rgba(0,0,0,0.28)" stroke="rgba(255,255,255,0.08)"/>
+  <rect x="160" y="660" width="360" height="104" rx="12" fill="rgba(21,136,255,0.16)" stroke="rgba(57,232,255,0.26)"/>
+  <text x="190" y="704" fill="#39E8FF" font-family="Arial, sans-serif" font-size="20" font-weight="800" letter-spacing="4">SAFE TO SPEND</text>
+  <text x="190" y="748" fill="#fff" font-family="Arial, sans-serif" font-size="42" font-weight="900">$1,450</text>
+  <rect x="560" y="660" width="360" height="104" rx="12" fill="rgba(255,178,55,0.13)" stroke="rgba(255,178,55,0.28)"/>
+  <text x="590" y="704" fill="#FFB237" font-family="Arial, sans-serif" font-size="20" font-weight="800" letter-spacing="4">PROTECTED FIRST</text>
+  <text x="590" y="748" fill="#fff" font-family="Arial, sans-serif" font-size="42" font-weight="900">$1,550</text>
+  <rect x="960" y="660" width="360" height="104" rx="12" fill="rgba(255,255,255,0.055)" stroke="rgba(255,255,255,0.13)"/>
+  <text x="990" y="704" fill="#AAB3C2" font-family="Arial, sans-serif" font-size="20" font-weight="800" letter-spacing="4">CONTROL MODEL</text>
+  <text x="990" y="748" fill="#fff" font-family="Arial, sans-serif" font-size="42" font-weight="900">Custom buckets</text>
+  <text x="160" y="845" fill="#FFB237" font-family="Arial, sans-serif" font-size="18" font-weight="900" letter-spacing="5">PAYCHECK CONTROL SOFTWARE BY GRAYSTON TECHNOLOGIES</text>
+  <text x="160" y="890" fill="#C9D0DA" font-family="Arial, sans-serif" font-size="26" font-weight="600">Protected obligations. One Safe to Spend number. Real rails when approved.</text>
 </svg>

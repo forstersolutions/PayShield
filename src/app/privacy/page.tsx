@@ -16,29 +16,29 @@ const lastUpdated = "June 12, 2026";
 
 export default function PrivacyPage() {
   return (
-    <main className="bg-[#17130f] text-[#f9efe1]">
+    <main className="bg-[#050607] text-[#f7f8fb]">
       <section className="mx-auto min-h-screen max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
         <Link
-          className="text-sm font-semibold text-[#b8e7c5] hover:text-[#cff1d7]"
+          className="text-sm font-semibold text-[#39e8ff] hover:text-[#9bf4ff]"
           href="/"
         >
           Back to PayShield
         </Link>
 
-        <div className="mt-8 rounded-[8px] border border-[#3a3027] bg-[#211b16] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.26)] ring-1 ring-[#b8e7c5]/10 sm:p-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#b8e7c5]">
+        <div className="brand-panel mt-8 rounded-[8px] p-6 sm:p-8">
+          <p className="brand-kicker">
             PayShield by Grayston Technologies
           </p>
           <h1 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
             Privacy Notice
           </h1>
-          <p className="mt-3 text-sm text-[#b7aa9b]">
+          <p className="mt-3 text-sm text-[#aab3c2]">
             Last updated: {lastUpdated}
           </p>
 
-          <div className="mt-8 grid gap-8 text-base leading-7 text-[#d6c8b8]">
+          <div className="mt-8 grid gap-8 text-base leading-7 text-[#c9d0da]">
             <section>
-              <h2 className="text-xl font-semibold text-[#fff4e8]">
+              <h2 className="text-xl font-semibold text-white">
                 What this notice covers
               </h2>
               <p className="mt-3">
@@ -50,7 +50,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-[#fff4e8]">
+              <h2 className="text-xl font-semibold text-white">
                 Information we collect
               </h2>
               <p className="mt-3">
@@ -67,7 +67,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-[#fff4e8]">
+              <h2 className="text-xl font-semibold text-white">
                 How we use information
               </h2>
               <p className="mt-3">
@@ -87,7 +87,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-[#fff4e8]">
+              <h2 className="text-xl font-semibold text-white">
                 Sharing and storage
               </h2>
               <p className="mt-3">
@@ -102,7 +102,7 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-[#fff4e8]">
+              <h2 className="text-xl font-semibold text-white">
                 Your choices
               </h2>
               <p className="mt-3">
@@ -113,13 +113,13 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold text-[#fff4e8]">
-                Future financial services
+              <h2 className="text-xl font-semibold text-white">
+                Provider-enabled controls
               </h2>
               <p className="mt-3">
-                If regulated partner services are enabled, additional privacy,
-                compliance, consent, support, account, card, payment, and
-                insurance notices will be shown before activation.
+                If provider-enabled account, card, or payment controls are
+                activated, additional privacy, compliance, consent, support, and
+                product notices will be shown before activation.
               </p>
             </section>
           </div>

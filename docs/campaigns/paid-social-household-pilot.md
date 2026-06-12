@@ -5,15 +5,15 @@ Channel: paid social.
 
 Primary copy:
 
-PayShield is a planning-only paycheck app for households that want one clear
-safe-to-spend number before the month gets away from them.
+PayShield gives households one clear Safe to Spend number, with protected
+buckets for the bills and obligations that need to survive the week.
 
 CTA:
 
-Open the planner.
+Build your control profile.
 
 Required disclosure:
 
-Financial accounts, cards, money movement, and insurance coverage are available
-only through approved regulated partners when enabled. The current public app is
-planning-only.
+Account opening, card controls, and money movement stay locked until approved
+provider credentials, disclosures, and operating controls are active. The current
+public app does not provide financial services.

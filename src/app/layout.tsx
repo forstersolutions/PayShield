@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: "PayShield by Grayston | Paycheck Control App",
   description:
-    "PayShield by Grayston Technologies is paycheck control software built around safe spending, customizable protected buckets, and regulated partner rails.",
+    "PayShield by Grayston Technologies is paycheck control software built around Safe to Spend, customizable protected buckets, and provider-ready operating controls.",
   alternates: {
     canonical: "/",
   },
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
         url: socialImageUrl,
         width: 1536,
         height: 1024,
-        alt: "PayShield by Grayston protected paycheck dashboard",
+        alt: "PayShield logo and Grayston-branded paycheck control dashboard",
       },
     ],
     type: "website",

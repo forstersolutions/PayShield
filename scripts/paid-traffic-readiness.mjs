@@ -6,7 +6,7 @@ const requiredHomeText = [
   "PayShield by Grayston | Paycheck Control App",
   "The paycheck control layer for real life.",
   "Bucket control studio",
-  "Regulated readiness",
+  "Provider readiness",
 ];
 const publicCopyBannedPhrases = [
   "Vercel preview",
@@ -266,7 +266,7 @@ export function evaluatePaidTrafficReadiness(evidence) {
   record(
     result,
     evidence.termsBody.includes(
-      "Financial accounts, cards, money movement, and insurance coverage are available only through approved regulated partners when enabled.",
+      "Account opening, card controls, and money movement stay locked until approved provider credentials, disclosures, and operating controls are active.",
     ),
     "/terms states regulated partner boundary",
   );

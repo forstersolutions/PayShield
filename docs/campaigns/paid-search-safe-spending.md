@@ -5,18 +5,18 @@ Channel: paid search.
 
 Headline options:
 
-- Planning-only paycheck app
+- Paycheck control app
 - Spend after life is covered
-- PayShield paycheck planner
+- PayShield Safe to Spend
 
 Description options:
 
-- PayShield helps households test a clearer paycheck plan before the week gets
+- PayShield helps households shape protected bucket rules before the week gets
   loud.
-- Open the planner and see what is safe to spend.
+- Build a control profile and see what is safe to spend.
 
 Required disclosure:
 
-Financial accounts, cards, money movement, and insurance coverage are available
-only through approved regulated partners when enabled. The current public app is
-planning-only.
+Account opening, card controls, and money movement stay locked until approved
+provider credentials, disclosures, and operating controls are active. The current
+public app does not provide financial services.

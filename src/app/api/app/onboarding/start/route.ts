@@ -33,7 +33,7 @@ export async function POST() {
         liveMoney: liveGate,
         message: liveGate.ok
           ? "Onboarding started with the configured provider."
-          : "Onboarding is queued. Regulated partner activation is required before account, card, and transfer setup.",
+          : "Onboarding is queued. Provider activation is required before account, card, and transfer setup.",
         profileAccess: snapshot.user.profileAccess,
       },
       {

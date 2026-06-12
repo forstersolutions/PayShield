@@ -182,6 +182,11 @@ export function BucketControlPanel({
   );
   const safePreviewCents = Math.max(0, paycheckCents - protectedCents);
   const overTargetCents = Math.max(0, protectedCents - paycheckCents);
+  const protectedPercent = Math.min(
+    100,
+    Math.round((protectedCents / paycheckCents) * 100),
+  );
+  const safePercent = Math.max(0, 100 - protectedPercent);
   const nextProtected = controls.find((control) => control.targetCents > 0);
 
   function updateControl(id: string, patch: Partial<BucketControl>) {
@@ -282,60 +287,77 @@ export function BucketControlPanel({
 
   return (
     <section
-      className="relative z-10 border-y border-[#243b32] bg-[#102019]"
+      className="relative z-10 border-y border-white/10 bg-[#050607]"
       id="bucket-studio"
     >
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.78fr_1.22fr] lg:px-8">
         <div>
-          <p className="inline-flex items-center gap-2 rounded-[8px] border border-[#bfe8d0]/25 bg-[#bfe8d0]/10 px-3 py-2 text-sm font-semibold uppercase tracking-[0.14em] text-[#d7f7df]">
+          <p className="inline-flex items-center gap-2 rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 px-3 py-2 text-sm font-semibold uppercase tracking-[0.14em] text-[#dffaff]">
             <Settings2 className="size-4" aria-hidden="true" />
             Bucket control studio
           </p>
-          <h2 className="mt-4 text-3xl font-semibold leading-tight text-[#fff8ed] sm:text-4xl">
+          <h2 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl">
             Build the household rules before the money arrives.
           </h2>
-          <p className="mt-4 text-lg leading-8 text-[#d8cbb8]">
+          <p className="mt-4 text-lg leading-8 text-[#c9d0da]">
             Every protected bucket has a name, funding target, due rule,
             protection mode, and priority. The profile is saved locally today
             and matches the backend bucket model for account-backed enforcement
-            when regulated partner rails are enabled.
+            when provider rails are activated.
           </p>
 
           <div className="mt-6 grid gap-3">
-            <div className="rounded-[8px] border border-[#33473e] bg-[#152920] p-4">
-              <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#f2bc7d]">
+            <div className="rounded-[8px] border border-white/10 bg-[#101214] p-4">
+              <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#ffb237]">
                 Current check
               </p>
-              <p className="mt-2 text-3xl font-semibold text-[#fff8ed]">
+              <p className="mt-2 text-3xl font-semibold text-white">
                 {formatMoney(paycheckCents)}
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[8px] border border-[#33473e] bg-[#152920] p-4">
-                <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#bfe8d0]">
+              <div className="rounded-[8px] border border-white/10 bg-[#101214] p-4">
+                <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#39e8ff]">
                   Protected first
                 </p>
-                <p className="mt-2 text-2xl font-semibold text-[#fff8ed]">
+                <p className="mt-2 text-2xl font-semibold text-white">
                   {formatMoney(protectedCents)}
                 </p>
               </div>
-              <div className="rounded-[8px] border border-[#33473e] bg-[#152920] p-4">
-                <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#a8c8ff]">
+              <div className="rounded-[8px] border border-white/10 bg-[#101214] p-4">
+                <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#1588ff]">
                   Safe after rules
                 </p>
-                <p className="mt-2 text-2xl font-semibold text-[#fff8ed]">
+                <p className="mt-2 text-2xl font-semibold text-white">
                   {formatMoney(safePreviewCents)}
                 </p>
               </div>
             </div>
+            <div className="rounded-[8px] border border-white/10 bg-black/40 p-3">
+              <div className="flex items-center justify-between gap-3 text-xs font-black uppercase tracking-[0.12em] text-[#8f99aa]">
+                <span>Protected</span>
+                <span>Safe</span>
+              </div>
+              <div className="mt-3 flex h-3 overflow-hidden rounded-full bg-[#121821]">
+                <span
+                  className="bg-gradient-to-r from-[#ffb237] to-[#ff6b35]"
+                  style={{ width: `${protectedPercent}%` }}
+                />
+                <span
+                  className="bg-gradient-to-r from-[#1588ff] to-[#39e8ff]"
+                  style={{ width: `${safePercent}%` }}
+                />
+              </div>
+            </div>
+
             {overTargetCents ? (
-              <p className="rounded-[8px] border border-[#f2bc7d]/35 bg-[#f2bc7d]/10 p-3 text-sm leading-6 text-[#ffe2bd]">
+              <p className="rounded-[8px] border border-[#ffb237]/35 bg-[#ffb237]/10 p-3 text-sm leading-6 text-[#ffe2bd]">
                 This profile over-allocates the paycheck by{" "}
                 {formatMoney(overTargetCents)}. PayShield would fund in priority
                 order and leave lower-priority buckets short.
               </p>
             ) : (
-              <p className="rounded-[8px] border border-[#bfe8d0]/25 bg-[#bfe8d0]/10 p-3 text-sm leading-6 text-[#d7f7df]">
+              <p className="rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 p-3 text-sm leading-6 text-[#dffaff]">
                 {nextProtected?.name ?? "Protected buckets"} fund before
                 ordinary card spending. Safe to Spend is the remainder.
               </p>
@@ -343,18 +365,18 @@ export function BucketControlPanel({
           </div>
         </div>
 
-        <div className="rounded-[8px] border border-[#33473e] bg-[#152920] p-4 shadow-[0_26px_90px_rgba(0,0,0,0.26)]">
+        <div className="brand-panel rounded-[8px] p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[#bfe8d0]">
+              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[#39e8ff]">
                 Household profile
               </p>
-              <h3 className="mt-1 text-2xl font-semibold text-[#fff8ed]">
+              <h3 className="mt-1 text-2xl font-semibold text-white">
                 Secure bucket rules
               </h3>
             </div>
             <button
-              className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#bfe8d0] px-3 text-sm font-semibold text-[#11251a] hover:bg-[#d7f7df]"
+              className="brand-button-blue inline-flex h-10 items-center gap-2 rounded-[8px] px-3 text-sm font-black"
               onClick={addBucket}
               type="button"
             >
@@ -366,12 +388,12 @@ export function BucketControlPanel({
           <div className="mt-4 grid gap-3">
             {controls.map((control, index) => (
               <div
-                className="rounded-[8px] border border-[#33473e] bg-[#0f1b16] p-3"
+                className="rounded-[8px] border border-white/10 bg-black/40 p-3 transition hover:border-[#39e8ff]/35"
                 key={control.id}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-3">
-                    <span className="grid size-10 place-items-center rounded-[8px] bg-[#20382d] text-[#bfe8d0]">
+                    <span className="grid size-10 place-items-center rounded-[8px] border border-[#1588ff]/25 bg-[#1588ff]/12 text-[#39e8ff]">
                       {control.protection === "bill_only" ? (
                         <CircleDollarSign className="size-5" aria-hidden="true" />
                       ) : (
@@ -379,10 +401,10 @@ export function BucketControlPanel({
                       )}
                     </span>
                     <div>
-                      <p className="text-sm font-semibold text-[#fff8ed]">
+                      <p className="text-sm font-semibold text-white">
                         Priority {index + 1}
                       </p>
-                      <p className="text-xs leading-5 text-[#b8ab99]">
+                      <p className="text-xs leading-5 text-[#8f99aa]">
                         {protectionOptions.find(
                           (option) => option.value === control.protection,
                         )?.label ?? "Protected"}{" "}
@@ -393,7 +415,7 @@ export function BucketControlPanel({
                   <div className="flex items-center gap-1">
                     <button
                       aria-label={`Move ${control.name} earlier`}
-                      className="grid size-9 place-items-center rounded-[8px] border border-[#33473e] text-[#d8cbb8] hover:bg-[#20382d]"
+                      className="grid size-9 place-items-center rounded-[8px] border border-white/10 text-[#c9d0da] hover:bg-[#1588ff]/12"
                       disabled={index === 0}
                       onClick={() => moveControl(control.id, -1)}
                       type="button"
@@ -402,7 +424,7 @@ export function BucketControlPanel({
                     </button>
                     <button
                       aria-label={`Move ${control.name} later`}
-                      className="grid size-9 place-items-center rounded-[8px] border border-[#33473e] text-[#d8cbb8] hover:bg-[#20382d]"
+                      className="grid size-9 place-items-center rounded-[8px] border border-white/10 text-[#c9d0da] hover:bg-[#1588ff]/12"
                       disabled={index === controls.length - 1}
                       onClick={() => moveControl(control.id, 1)}
                       type="button"
@@ -411,7 +433,7 @@ export function BucketControlPanel({
                     </button>
                     <button
                       aria-label={`Remove ${control.name}`}
-                      className="grid size-9 place-items-center rounded-[8px] border border-[#33473e] text-[#f0a6a0] hover:bg-[#3a1f1d] disabled:cursor-not-allowed disabled:text-[#73685e]"
+                      className="grid size-9 place-items-center rounded-[8px] border border-white/10 text-[#ff8a7a] hover:bg-[#ff6b35]/10 disabled:cursor-not-allowed disabled:text-[#555d69]"
                       disabled={coreBucketIds.has(control.id)}
                       onClick={() => removeBucket(control.id)}
                       type="button"
@@ -422,20 +444,20 @@ export function BucketControlPanel({
                 </div>
 
                 <div className="mt-3 grid gap-3 md:grid-cols-[1.1fr_0.7fr_0.85fr_0.8fr]">
-                  <label className="text-xs font-semibold uppercase tracking-[0.1em] text-[#b8ab99]">
+                  <label className="text-xs font-semibold uppercase tracking-[0.1em] text-[#8f99aa]">
                     Bucket name
                     <input
-                      className="mt-2 h-10 w-full rounded-[8px] border border-[#33473e] bg-[#152920] px-3 text-sm normal-case tracking-normal text-[#fff8ed] outline-none focus:border-[#bfe8d0]"
+                      className="mt-2 h-10 w-full rounded-[8px] border border-white/10 bg-[#101214] px-3 text-sm normal-case tracking-normal text-white outline-none focus:border-[#39e8ff]"
                       onChange={(event) =>
                         updateControl(control.id, { name: event.target.value })
                       }
                       value={control.name}
                     />
                   </label>
-                  <label className="text-xs font-semibold uppercase tracking-[0.1em] text-[#b8ab99]">
+                  <label className="text-xs font-semibold uppercase tracking-[0.1em] text-[#8f99aa]">
                     Target
                     <input
-                      className="mt-2 h-10 w-full rounded-[8px] border border-[#33473e] bg-[#152920] px-3 text-sm normal-case tracking-normal text-[#fff8ed] outline-none focus:border-[#bfe8d0]"
+                      className="mt-2 h-10 w-full rounded-[8px] border border-white/10 bg-[#101214] px-3 text-sm normal-case tracking-normal text-white outline-none focus:border-[#39e8ff]"
                       min={0}
                       onChange={(event) =>
                         updateControl(control.id, {
@@ -447,10 +469,10 @@ export function BucketControlPanel({
                       value={control.targetCents / 100}
                     />
                   </label>
-                  <label className="text-xs font-semibold uppercase tracking-[0.1em] text-[#b8ab99]">
+                  <label className="text-xs font-semibold uppercase tracking-[0.1em] text-[#8f99aa]">
                     Protection
                     <select
-                      className="mt-2 h-10 w-full rounded-[8px] border border-[#33473e] bg-[#152920] px-3 text-sm normal-case tracking-normal text-[#fff8ed] outline-none focus:border-[#bfe8d0]"
+                      className="mt-2 h-10 w-full rounded-[8px] border border-white/10 bg-[#101214] px-3 text-sm normal-case tracking-normal text-white outline-none focus:border-[#39e8ff]"
                       onChange={(event) =>
                         updateControl(control.id, {
                           protection: event.target.value as BucketProtection,
@@ -465,10 +487,10 @@ export function BucketControlPanel({
                       ))}
                     </select>
                   </label>
-                  <label className="text-xs font-semibold uppercase tracking-[0.1em] text-[#b8ab99]">
+                  <label className="text-xs font-semibold uppercase tracking-[0.1em] text-[#8f99aa]">
                     Due rule
                     <input
-                      className="mt-2 h-10 w-full rounded-[8px] border border-[#33473e] bg-[#152920] px-3 text-sm normal-case tracking-normal text-[#fff8ed] outline-none focus:border-[#bfe8d0]"
+                      className="mt-2 h-10 w-full rounded-[8px] border border-white/10 bg-[#101214] px-3 text-sm normal-case tracking-normal text-white outline-none focus:border-[#39e8ff]"
                       onChange={(event) =>
                         updateControl(control.id, { due: event.target.value })
                       }
@@ -481,7 +503,7 @@ export function BucketControlPanel({
           </div>
 
           <button
-            className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#f2bc7d] px-4 text-sm font-semibold text-[#23150a] hover:bg-[#ffd39c] disabled:cursor-not-allowed disabled:bg-[#33473e] disabled:text-[#b8ab99]"
+            className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#ffb237] px-4 text-sm font-black text-[#050607] hover:bg-[#ffd06f] disabled:cursor-not-allowed disabled:bg-[#252a31] disabled:text-[#8f99aa]"
             disabled={saveState.status === "saving"}
             onClick={saveProfile}
             type="button"
@@ -499,8 +521,8 @@ export function BucketControlPanel({
               aria-live={saveState.status === "error" ? "assertive" : "polite"}
               className={`mt-3 rounded-[8px] border p-3 text-sm leading-6 ${
                 saveState.status === "error"
-                  ? "border-[#f0a6a0]/35 bg-[#f0a6a0]/10 text-[#ffd2cf]"
-                  : "border-[#bfe8d0]/25 bg-[#bfe8d0]/10 text-[#d7f7df]"
+                  ? "border-[#ff8a7a]/35 bg-[#ff8a7a]/10 text-[#ffd7d1]"
+                  : "border-[#39e8ff]/25 bg-[#39e8ff]/10 text-[#dffaff]"
               }`}
               role={saveState.status === "error" ? "alert" : "status"}
             >

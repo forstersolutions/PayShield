@@ -4,4 +4,4 @@ export const GRAYSTON_SUPPORT_EMAIL = "support@graystontechnologies.com";
 export const PAYSHIELD_OWNERSHIP_LINE =
   "PayShield is operated by Grayston Technologies.";
 export const REGULATED_PARTNER_DISCLOSURE =
-  "Financial accounts, cards, money movement, and insurance coverage are available only through approved regulated partners when enabled.";
+  "Account opening, card controls, and money movement stay locked until approved provider credentials, disclosures, and operating controls are active.";

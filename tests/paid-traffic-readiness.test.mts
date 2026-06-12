@@ -17,7 +17,7 @@ const homeBody = `
   <main>
     <h1>The paycheck control layer for real life.</h1>
     <p>Bucket control studio.</p>
-    <p>Regulated readiness.</p>
+    <p>Provider readiness.</p>
   </main>
 `;
 
@@ -51,7 +51,7 @@ function evidence(overrides: Record<string, unknown> = {}) {
       "Canonical: https://payshield-lime.vercel.app/.well-known/security.txt",
     ].join("\n"),
     termsBody:
-      "Financial accounts, cards, money movement, and insurance coverage are available only through approved regulated partners when enabled.",
+      "Account opening, card controls, and money movement stay locked until approved provider credentials, disclosures, and operating controls are active.",
     validationBody: { error: "Accept the privacy and terms notice." },
     validationStatus: 400,
     ...overrides,

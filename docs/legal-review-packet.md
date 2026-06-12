@@ -5,8 +5,8 @@ Last updated: June 5, 2026.
 
 Use this packet before broad public acquisition, paid ads, partner one-pagers, or
 any regulated financial-service claim. It summarizes the current public
-planning-app surface and the specific legal/compliance questions that still need a
-qualified review.
+commercial product surface and the specific legal/compliance questions that still
+need a qualified review.
 
 ## Review Scope
 
@@ -20,19 +20,20 @@ qualified review.
 
 ## Current Positioning
 
-The current public surface positions PayShield as a commercial planning app for
-customer discovery, employer conversations, investor review, and banking-partner
-diligence.
+The current public surface positions PayShield as a commercial paycheck-control
+app for customer discovery, employer conversations, investor review, and
+provider diligence.
 
-Approved regulated-partner framing currently present in the product:
+Approved provider-activation framing currently present in the product:
 
 - "PayShield is operated by Grayston Technologies."
-- "Financial accounts, cards, money movement, and insurance coverage are
-  available only through approved regulated partners when enabled."
+- "Account opening, card controls, and money movement stay locked until
+  approved provider credentials, disclosures, and operating controls are active."
 - "PayShield provides paycheck control software for modeling protected buckets,
   bill rules, safe-to-spend decisions, and recovery plans."
-- "Customer funds, if enabled, belong on approved regulated rails with exact
-  account, card, insurance, and support disclosures shown before activation."
+- "Customer money controls require approved provider credentials, exact account,
+  card, payment, and support disclosures, and Grayston operating runbooks before
+  activation."
 
 Counsel should confirm this framing is sufficient for the intended campaign
 audience and channel.
@@ -40,8 +41,8 @@ audience and channel.
 ## Public Claims To Review
 
 These are the highest-risk claims or near-claims currently visible in public
-copy. They are intentionally presented as planning-only mechanics, but should
-still be reviewed before paid traffic.
+copy. They are intentionally presented as product controls with provider
+activation gates, but should still be reviewed before paid traffic.
 
 - "A controlled ledger first. Banking rails when the partner stack is approved."
 - "The front-end presents planning mechanics: paycheck planning, protected
@@ -62,12 +63,12 @@ still be reviewed before paid traffic.
 
 ## Required Disclaimers Currently Present
 
-- Terms state regulated partner services are available only through approved
-  regulated partners when enabled.
-- Terms state PayShield and Grayston Technologies do not represent through the
-  site that funds are held, insured, or eligible for deposit insurance.
+- Terms state provider-enabled services stay locked until approved provider
+  credentials, disclosures, and operating controls are active.
+- Terms state PayShield and Grayston Technologies do not activate account, card,
+  transfer, or bill-payment workflows before those controls are in place.
 - Privacy Notice states PayShield is operated by Grayston Technologies and that
-  regulated partner services require additional notices before activation.
+  provider-enabled services require additional notices before activation.
 - Contact form tells users not to include bank, card, SSN, account, or routing
   numbers.
 
@@ -79,7 +80,7 @@ still be reviewed before paid traffic.
    buckets", "safe spending", and "rent money cannot disappear" create
    guarantee, UDAAP, or reliance risk.
 3. Confirm whether pricing examples can remain public before real service terms,
-   partner-bank contracts, and fee disclosures exist.
+   provider-program contracts, and fee disclosures exist.
 4. Confirm whether future-only phrases such as "paycheck split model", "card
    controls", "bill-only buckets", and similar future mechanics need stronger
    qualification or removal from paid landing pages.

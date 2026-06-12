@@ -607,4 +607,4 @@ Submit one product inquiry from the site and confirm:
 - Confirm no public copy says PayShield is a bank, claims FDIC insurance, or
   implies live money movement.
 - Have counsel review the current app Privacy Notice, Terms, fintech claims, and
-  partner-bank disclaimers.
+  provider-program disclosures.

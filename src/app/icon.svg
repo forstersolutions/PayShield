@@ -1,26 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="16" fill="#0F1714" />
+  <defs>
+    <linearGradient id="payshieldBlue" x1="12" y1="10" x2="52" y2="55" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#11A8FF" />
+      <stop offset="0.48" stop-color="#1767F2" />
+      <stop offset="1" stop-color="#061A4D" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#050607" />
   <path
-    d="M32 7.5 51 15v13.7c0 12.1-7.2 21.9-19 27.8-11.8-5.9-19-15.7-19-27.8V15l19-7.5Z"
-    fill="#BEECCB"
+    d="M32 7.5c-6 4.2-12.6 7-21 8v11.7h6.7V21c5.5-1 10-2.7 14.3-5.3 4.5 2.7 9.1 4.4 14.5 5.3v14.2c0 7.5-4.9 13.7-14.5 18.5-3.4-1.7-6.3-3.7-8.6-6v7.1c2.5 2 5.4 3.8 8.6 5.4 13-6.1 21-14.8 21-25V15.5c-8.2-1-15-3.8-21-8Z"
+    fill="url(#payshieldBlue)"
   />
   <path
-    d="M32 14.3 44.8 19v9.1c0 8.2-4.5 14.8-12.8 19.5-8.3-4.7-12.8-11.3-12.8-19.5V19L32 14.3Z"
-    fill="#12271D"
+    d="M20.2 25.6h14c5.6 0 9.7 4 9.7 9.1s-4.1 9.2-9.7 9.2h-7.7v10h-6.3V37.8h14c2.1 0 3.5-1.3 3.5-3.1s-1.4-3.1-3.5-3.1h-14v-6Z"
+    fill="url(#payshieldBlue)"
   />
-  <path
-    d="M25 24.5h15.5c2.2 0 4 1.8 4 4s-1.8 4-4 4H31.6c-2.2 0-4 1.8-4 4s1.8 4 4 4H43"
-    fill="none"
-    stroke="#F7F1E7"
-    stroke-linecap="round"
-    stroke-width="5.5"
-  />
-  <path d="M22.5 24.5h6.7v16h-6.7z" fill="#F2BC7D" />
-  <path
-    d="M22.5 32.2h20.7"
-    fill="none"
-    stroke="#BEECCB"
-    stroke-linecap="round"
-    stroke-width="3.4"
-  />
+  <path d="M7.7 33h14.9a2.2 2.2 0 0 1 0 4.4H7.7a2.2 2.2 0 0 1 0-4.4Zm4.4 7.2h13.2a2.2 2.2 0 0 1 0 4.4H12.1a2.2 2.2 0 0 1 0-4.4Z" fill="#1098FF" />
 </svg>

@@ -6,9 +6,9 @@ customizable protected bucket controls, Clerk-ready auth boundary, regulated
 core backend scaffold, Postgres ledger migrations, provider adapter contract,
 and fail-closed activation gates for the full neobank path.
 
-Financial accounts, cards, transfers, and insurance coverage are available only
-through approved regulated partners when enabled. Product and support requests
-route to `support@graystontechnologies.com`.
+Account opening, card controls, and money movement stay locked until approved
+provider credentials, disclosures, and operating controls are active. Product
+and support requests route to `support@graystontechnologies.com`.
 
 ## Getting Started
 
@@ -376,8 +376,8 @@ and banned PII fields.
 
 - The current app is a Grayston-operated paycheck control product surface with
   customizable household bucket rules and a regulated-core architecture.
-- Financial accounts, cards, transfers, and insurance coverage are available
-  only through approved regulated partners when enabled.
+- Account opening, card controls, and money movement stay locked until approved
+  provider credentials, disclosures, and operating controls are active.
 - Live funds require a banking sponsor, BaaS/card program partner, KYC/AML
   workflow, payment/card rails, dispute handling, disclosures, support
   operations, and double-entry ledgering.

@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       {
         ...simulated,
         message:
-          "Recovery plan created. Provider execution requires regulated partner activation.",
+          "Recovery plan created. Provider execution requires active money-movement controls.",
       },
       {
         headers: {

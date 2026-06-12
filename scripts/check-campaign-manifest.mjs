@@ -85,7 +85,7 @@ function hasRequiredPlanningOnlyFraming(text) {
   const normalized = text.replace(/\s+/g, " ").toLowerCase();
 
   return (
-    normalized.includes("approved regulated partners") &&
+    normalized.includes("approved provider credentials") &&
     (normalized.includes("planning-only") ||
       normalized.includes("planning only") ||
       normalized.includes("does not provide financial services"))
