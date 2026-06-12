@@ -878,6 +878,8 @@ export function getBucketProfile(env = process.env) {
   return {
     buckets: snapshot.buckets,
     message: "Household bucket profile loaded from the core control model.",
+    persisted: false,
+    profilePersistence: "core_service_model",
     profileSource: "core_control_model",
     readiness: snapshot.readiness,
     templates: [
@@ -912,7 +914,10 @@ export function saveBucketProfile(payload, env = process.env) {
     return {
       body: {
         buckets: profile,
-        message: "Bucket profile saved for this household control model.",
+        message:
+          "Bucket profile validated by the core control model. Durable account sync requires Postgres-backed profile persistence.",
+        persisted: false,
+        profilePersistence: "core_service_model",
         profileSource: "core_control_model",
         protectedCents,
         readiness: getCoreReadiness(env, { coreOnline: true }),
@@ -950,7 +955,9 @@ export function saveBucketProfile(payload, env = process.env) {
   return {
     body: {
       bucket: modeledBuckets.find((bucket) => bucket.id === payload.bucketId),
-      message: "Bucket target accepted for the household control model.",
+      message: "Bucket target validated for the household control model.",
+      persisted: false,
+      profilePersistence: "core_service_model",
       profileSource: "core_control_model",
       readiness: getCoreReadiness(env, { coreOnline: true }),
     },

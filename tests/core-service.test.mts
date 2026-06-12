@@ -188,7 +188,9 @@ test("core bucket profile route saves custom protected bucket rules", async () =
     const buckets = body.buckets as Array<Record<string, unknown>>;
 
     assert.equal(response.status, 200);
+    assert.equal(body.persisted, false);
     assert.equal(body.protectedCents, 70_000);
+    assert.equal(body.profilePersistence, "core_service_model");
     assert.equal(body.profileSource, "core_control_model");
     assert.equal(body.safeToSpendPreviewCents, 230_000);
     assert.equal(buckets[0]?.priority, 10);

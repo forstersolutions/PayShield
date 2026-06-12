@@ -233,6 +233,8 @@ requireText("src/app/components/bucket-control-panel.tsx", "Save bucket profile"
 requireText("src/app/components/bucket-control-panel.tsx", "/api/app/buckets");
 requireText("src/app/components/bucket-control-panel.tsx", "draft recovery");
 requireText("src/app/components/bucket-control-panel.tsx", "profileSource");
+requireText("src/app/components/bucket-control-panel.tsx", "profilePersistence");
+requireText("src/app/api/app/buckets/route.ts", "persisted: false");
 requireText("src/app/components/bill-payment-panel.tsx", "Bill routing");
 requireText("src/app/components/bill-payment-panel.tsx", "/api/app/bill-payments");
 requireText("src/app/components/neobank-dashboard.tsx", "BillPaymentPanel");

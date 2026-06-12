@@ -26,14 +26,19 @@ type BucketControl = {
 type SaveState =
   | { status: "idle"; message: string }
   | { status: "loading"; message: string }
+  | { status: "drafted"; message: string }
   | { status: "saving"; message: string }
   | { status: "saved"; message: string }
   | { status: "error"; message: string };
+
+type ProfilePersistence = "core_service_model" | "durable_core" | "stateless_model";
 
 type BucketProfileResponse = {
   buckets?: BucketBalance[] | BucketControl[];
   error?: string;
   message?: string;
+  persisted?: boolean;
+  profilePersistence?: ProfilePersistence;
   profileSource?: "core_control_model" | "local_simulation";
 };
 
@@ -95,16 +100,29 @@ function controlsFromBuckets(buckets: BucketBalance[]): BucketControl[] {
 
 function readDraftControls(defaults: BucketControl[]) {
   if (typeof window === "undefined") {
-    return defaults;
+    return {
+      controls: defaults,
+      found: false,
+    };
   }
 
   try {
-    const parsed = JSON.parse(
-      window.localStorage.getItem(draftStorageKey) ?? "[]",
-    );
+    const stored = window.localStorage.getItem(draftStorageKey);
+
+    if (!stored) {
+      return {
+        controls: defaults,
+        found: false,
+      };
+    }
+
+    const parsed = JSON.parse(stored);
 
     if (!Array.isArray(parsed)) {
-      return defaults;
+      return {
+        controls: defaults,
+        found: false,
+      };
     }
 
     const storedControls = parsed
@@ -149,9 +167,15 @@ function readDraftControls(defaults: BucketControl[]) {
       })
       .filter((item): item is BucketControl => Boolean(item));
 
-    return storedControls.length ? storedControls : defaults;
+    return {
+      controls: storedControls.length ? storedControls : defaults,
+      found: storedControls.length > 0,
+    };
   } catch {
-    return defaults;
+    return {
+      controls: defaults,
+      found: false,
+    };
   }
 }
 
@@ -172,6 +196,9 @@ export function BucketControlPanel({
   const [draftDirty, setDraftDirty] = useState(false);
   const [profileSource, setProfileSource] =
     useState<BucketProfileResponse["profileSource"]>("local_simulation");
+  const [profilePersistence, setProfilePersistence] =
+    useState<ProfilePersistence>("stateless_model");
+  const [profilePersisted, setProfilePersisted] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>({
     message: "Loading household profile...",
     status: "loading",
@@ -193,37 +220,57 @@ export function BucketControlPanel({
         }
 
         if (!response.ok || !Array.isArray(result.buckets)) {
-          setControls(readDraftControls(defaults));
+          const draft = readDraftControls(defaults);
+
+          setControls(draft.controls);
           setSaveState({
             message:
               result.error ??
               "Could not load the household profile. A device draft is open for recovery.",
             status: "error",
           });
-          setDraftDirty(true);
+          setDraftDirty(draft.found);
           return;
         }
 
-        setControls(controlsFromBuckets(result.buckets as BucketBalance[]));
+        const loadedControls = controlsFromBuckets(result.buckets as BucketBalance[]);
+        const draft =
+          result.persisted === true
+            ? { controls: loadedControls, found: false }
+            : readDraftControls(loadedControls);
+
+        setControls(draft.controls);
         setProfileSource(result.profileSource ?? "local_simulation");
-        setDraftDirty(false);
-        window.localStorage.removeItem(draftStorageKey);
+        setProfilePersistence(result.profilePersistence ?? "stateless_model");
+        setProfilePersisted(result.persisted === true);
+
+        if (result.persisted === true) {
+          setDraftDirty(false);
+          window.localStorage.removeItem(draftStorageKey);
+        } else {
+          setDraftDirty(draft.found);
+        }
+
         setSaveState({
-          message: result.message ?? "Household profile loaded.",
-          status: "saved",
+          message: draft.found
+            ? "Recovered your device draft for bucket rules."
+            : result.message ?? "Household profile loaded for rule validation.",
+          status: result.persisted === true ? "saved" : "drafted",
         });
       } catch {
         if (cancelled) {
           return;
         }
 
-        setControls(readDraftControls(defaults));
+        const draft = readDraftControls(defaults);
+
+        setControls(draft.controls);
         setSaveState({
           message:
             "Network error while loading the household profile. A device draft is open for recovery.",
           status: "error",
         });
-        setDraftDirty(true);
+        setDraftDirty(draft.found);
       }
     }
 
@@ -333,6 +380,8 @@ export function BucketControlPanel({
         buckets?: BucketControl[];
         message?: string;
         error?: string;
+        persisted?: boolean;
+        profilePersistence?: ProfilePersistence;
         profileSource?: BucketProfileResponse["profileSource"];
       };
 
@@ -350,11 +399,23 @@ export function BucketControlPanel({
 
       setControls(savedControls);
       setProfileSource(result.profileSource ?? profileSource);
-      setDraftDirty(false);
-      window.localStorage.removeItem(draftStorageKey);
+      setProfilePersistence(result.profilePersistence ?? profilePersistence);
+      setProfilePersisted(result.persisted === true);
+
+      if (result.persisted === true) {
+        setDraftDirty(false);
+        window.localStorage.removeItem(draftStorageKey);
+      } else {
+        setDraftDirty(true);
+      }
+
       setSaveState({
-        message: result.message ?? "Bucket rules saved.",
-        status: "saved",
+        message:
+          result.message ??
+          (result.persisted === true
+            ? "Bucket rules saved."
+            : "Bucket rules validated and preserved as a device draft."),
+        status: result.persisted === true ? "saved" : "drafted",
       });
     } catch {
       setSaveState({
@@ -382,9 +443,9 @@ export function BucketControlPanel({
           </h2>
           <p className="mt-4 text-lg leading-8 text-[#c9d0da]">
             Every protected bucket has a name, funding target, due rule,
-            protection mode, and priority. The profile loads and saves through
-            the app API, with device draft recovery only when the network is
-            unavailable.
+            protection mode, and priority. The app validates those rules through
+            the control API and keeps device draft recovery active until durable
+            account sync is active.
           </p>
 
           <div className="mt-6 grid gap-3">
@@ -456,10 +517,18 @@ export function BucketControlPanel({
                 Secure bucket rules
               </h3>
               <p className="mt-1 text-xs font-bold text-[#8f99aa]">
-                {profileSource === "core_control_model"
-                  ? "Synced through the core control model"
-                  : "Gated app API model"}
-                {draftDirty ? " - unsaved draft" : ""}
+                {profilePersisted
+                  ? "Durable account sync active"
+                  : profileSource === "core_control_model"
+                    ? "Core model validated"
+                    : "App model validated"}
+                {!profilePersisted
+                  ? profilePersistence === "core_service_model"
+                    ? " - account sync pending"
+                    : draftDirty
+                      ? " - device draft kept"
+                      : " - draft recovery ready"
+                  : ""}
               </p>
             </div>
             <button

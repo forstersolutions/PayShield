@@ -12,8 +12,9 @@ are active.
   balance, protected bucket funding, provider readiness status, operating rail
   order, card-decision simulation, and emergency unlock recovery preview.
 - Customizable bucket control studio with editable bucket names, targets,
-  protection modes, due rules, priorities, app API load/save semantics, visible
-  sync source, and device draft recovery when a network save fails.
+  protection modes, due rules, priorities, app/core API validation, explicit
+  persistence status, visible sync source, and device draft recovery until
+  durable account sync is active.
 - Interactive bill-routing panel for scheduling approved payees against their
   protected buckets, with amount/date validation and visible provider-gated
   execution status.

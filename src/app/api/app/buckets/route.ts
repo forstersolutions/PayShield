@@ -112,7 +112,9 @@ export async function GET() {
     return NextResponse.json(
       {
         buckets: snapshot.buckets,
-        message: "Household bucket profile loaded.",
+        message: "Household bucket profile loaded for rule validation.",
+        persisted: false,
+        profilePersistence: "stateless_model",
         profileSource: "local_simulation",
         readiness: snapshot.readiness,
         templates: [
@@ -181,7 +183,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           buckets: profile,
-          message: "Bucket profile saved for this household control model.",
+          message:
+            "Bucket profile validated. Durable account sync requires the protected app backend.",
+          persisted: false,
+          profilePersistence: "stateless_model",
           profileSource: "local_simulation",
           protectedCents,
           readiness: snapshot.readiness,
@@ -221,7 +226,9 @@ export async function POST(request: NextRequest) {
       {
         bucket: modeledBuckets.find((bucket) => bucket.id === payload.bucketId),
         message:
-          "Bucket target accepted for the household control model.",
+          "Bucket target validated for the household control model.",
+        persisted: false,
+        profilePersistence: "stateless_model",
         profileSource: "local_simulation",
         readiness: snapshot.readiness,
       },
