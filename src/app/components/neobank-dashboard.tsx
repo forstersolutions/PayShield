@@ -162,11 +162,8 @@ export function NeobankDashboard() {
         </header>
 
         <div className="grid flex-1 gap-6 py-8 lg:grid-cols-[minmax(0,0.96fr)_minmax(0,1.04fr)]">
-          <section className="brand-panel accent-rule rounded-[8px] p-5 pt-8 sm:p-7 sm:pt-9">
-            <div className="inline-flex rounded-[8px] border border-white/15 bg-white px-5 py-3 shadow-[0_22px_70px_rgba(21,136,255,0.22)]">
-              <PayShieldLogo className="h-12 w-auto sm:h-14" priority />
-            </div>
-            <p className="mt-7 inline-flex items-center gap-2 rounded-[8px] border border-[#39e8ff]/30 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black text-[#dffaff]">
+          <section className="brand-panel accent-rule rounded-[8px] p-5 sm:p-7">
+            <p className="inline-flex items-center gap-2 rounded-[8px] border border-[#39e8ff]/30 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black text-[#dffaff]">
               <ShieldCheck className="size-4" aria-hidden="true" />
               Paycheck control software by Grayston Technologies.
             </p>
