@@ -45,6 +45,73 @@ export function assertBalanced(lines: JournalLine[]) {
   }
 }
 
+export class LedgerIdempotencyConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LedgerIdempotencyConflictError";
+  }
+}
+
+function metadataNumber(entry: JournalEntry, key: string) {
+  const value = entry.metadata?.[key];
+
+  return typeof value === "number" && Number.isInteger(value) ? value : null;
+}
+
+function metadataString(entry: JournalEntry, key: string) {
+  const value = entry.metadata?.[key];
+
+  return typeof value === "string" ? value : null;
+}
+
+function bucketIdFromAccount(accountId: LedgerAccountId) {
+  const prefix = "liability:bucket:";
+
+  return accountId.startsWith(prefix)
+    ? (accountId.slice(prefix.length) as BucketId)
+    : null;
+}
+
+function bucketLineAmount(entry: JournalEntry, direction: "credit" | "debit") {
+  const line = entry.lines.find((candidate) => {
+    if (!candidate.accountId.startsWith("liability:bucket:")) {
+      return false;
+    }
+
+    return direction === "debit"
+      ? candidate.amountCents > 0
+      : candidate.amountCents < 0;
+  });
+
+  if (!line) {
+    return null;
+  }
+
+  return {
+    amountCents: Math.abs(line.amountCents),
+    bucketId: bucketIdFromAccount(line.accountId),
+  };
+}
+
+function assertSameIdempotentPayload(
+  existing: JournalEntry,
+  expected: Record<string, string | number | null | undefined>,
+) {
+  for (const [key, expectedValue] of Object.entries(expected)) {
+    if (expectedValue === undefined) {
+      continue;
+    }
+
+    const existingValue = existing.metadata?.[key];
+
+    if (existingValue !== expectedValue) {
+      throw new LedgerIdempotencyConflictError(
+        `Idempotency key ${existing.idempotencyKey} already belongs to a different ${existing.type} payload.`,
+      );
+    }
+  }
+}
+
 export class LedgerBook {
   private readonly entries = new Map<string, JournalEntry>();
 
@@ -58,19 +125,21 @@ export class LedgerBook {
     return [...this.entries.values()];
   }
 
-  has(idempotencyKey: string) {
-    return [...this.entries.values()].some(
+  findByIdempotencyKey(idempotencyKey: string) {
+    return this.allEntries().find(
       (entry) => entry.idempotencyKey === idempotencyKey,
     );
+  }
+
+  has(idempotencyKey: string) {
+    return Boolean(this.findByIdempotencyKey(idempotencyKey));
   }
 
   post(entry: JournalEntry) {
     assertBalanced(entry.lines);
 
     if (this.has(entry.idempotencyKey)) {
-      return this.allEntries().find(
-        (candidate) => candidate.idempotencyKey === entry.idempotencyKey,
-      ) as JournalEntry;
+      return this.findByIdempotencyKey(entry.idempotencyKey) as JournalEntry;
     }
 
     this.entries.set(entry.id, entry);
@@ -198,6 +267,36 @@ export function authorizeCardTransaction(
   const approvedByPayee =
     !input.payeeId ||
     Boolean(payee && payee.status === "approved" && input.amountCents <= payee.maxCents);
+  const existing = book.findByIdempotencyKey(input.idempotencyKey);
+
+  if (existing) {
+    if (existing.type !== "card_authorization") {
+      throw new LedgerIdempotencyConflictError(
+        `Idempotency key ${input.idempotencyKey} is already used for ${existing.type}.`,
+      );
+    }
+
+    assertSameIdempotentPayload(existing, {
+      amountCents: input.amountCents,
+      merchantCategoryCode: input.merchantCategoryCode ?? null,
+      merchantName: input.merchantName,
+      payeeId: input.payeeId ?? null,
+    });
+
+    const bucketLine = bucketLineAmount(existing, "debit");
+
+    return {
+      approved: true,
+      approvedAmountCents:
+        metadataNumber(existing, "amountCents") ?? bucketLine?.amountCents ?? 0,
+      bucketId:
+        (metadataString(existing, "bucketId") as BucketId | null) ??
+        bucketLine?.bucketId ??
+        bucketId,
+      code: "approved",
+      reason: "Duplicate authorization replayed from the original ledger entry.",
+    };
+  }
 
   let decision: CardAuthorizationDecision;
 
@@ -247,6 +346,7 @@ export function authorizeCardTransaction(
       memo: `Card authorization: ${input.merchantName}`,
       metadata: {
         amountCents: input.amountCents,
+        bucketId,
         merchantCategoryCode: input.merchantCategoryCode ?? null,
         merchantName: input.merchantName,
         payeeId: input.payeeId ?? null,
@@ -263,6 +363,37 @@ export function unlockProtectedFunds(book: LedgerBook, input: UnlockInput) {
     throw new Error("Safe spending is already unlocked.");
   }
 
+  const existing = book.findByIdempotencyKey(input.idempotencyKey);
+
+  if (existing) {
+    if (existing.type !== "bucket_unlock") {
+      throw new LedgerIdempotencyConflictError(
+        `Idempotency key ${input.idempotencyKey} is already used for ${existing.type}.`,
+      );
+    }
+
+    assertSameIdempotentPayload(existing, {
+      amountCents: input.amountCents,
+      bucketId: input.bucketId,
+      mode: input.mode,
+    });
+
+    const bucketLine = bucketLineAmount(existing, "debit");
+    const unlockedCents =
+      metadataNumber(existing, "amountCents") ?? bucketLine?.amountCents ?? 0;
+    const recoveryChecks =
+      metadataNumber(existing, "recoveryChecks") ??
+      (input.mode === "instant_fixed_fee" ? 1 : 2);
+
+    return {
+      recoveryChecks,
+      recoveryPerCheckCents:
+        metadataNumber(existing, "recoveryPerCheckCents") ??
+        Math.ceil(unlockedCents / recoveryChecks),
+      unlockedCents,
+    };
+  }
+
   const unlockedCents = Math.min(
     cents(input.amountCents),
     book.bucketAvailable(input.bucketId),
@@ -271,6 +402,13 @@ export function unlockProtectedFunds(book: LedgerBook, input: UnlockInput) {
   if (unlockedCents <= 0) {
     throw new Error("No protected funds are available to unlock.");
   }
+
+  const recoveryChecks = input.mode === "instant_fixed_fee" ? 1 : 2;
+  const result: UnlockResult = {
+    recoveryChecks,
+    recoveryPerCheckCents: Math.ceil(unlockedCents / recoveryChecks),
+    unlockedCents,
+  };
 
   book.createEntry({
     idempotencyKey: input.idempotencyKey,
@@ -286,19 +424,15 @@ export function unlockProtectedFunds(book: LedgerBook, input: UnlockInput) {
     ],
     memo: `Emergency unlock from ${input.bucketId}`,
     metadata: {
+      bucketId: input.bucketId,
       amountCents: unlockedCents,
       mode: input.mode,
+      recoveryChecks: result.recoveryChecks,
+      recoveryPerCheckCents: result.recoveryPerCheckCents,
       reason: input.reason,
     },
     type: "bucket_unlock",
   });
-
-  const recoveryChecks = input.mode === "instant_fixed_fee" ? 1 : 2;
-  const result: UnlockResult = {
-    recoveryChecks,
-    recoveryPerCheckCents: Math.ceil(unlockedCents / recoveryChecks),
-    unlockedCents,
-  };
 
   return result;
 }

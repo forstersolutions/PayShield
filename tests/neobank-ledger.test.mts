@@ -4,6 +4,7 @@ import {
   assertBalanced,
   authorizeCardTransaction,
   buildBucketBalances,
+  LedgerIdempotencyConflictError,
   LedgerBook,
   postPaycheckDeposit,
   reverseEntry,
@@ -96,6 +97,48 @@ test("card authorization approves only safe spending for ordinary purchases", ()
   assert.equal(book.bucketAvailable("safe_spending"), 137_000);
 });
 
+test("duplicate approved card authorization replays the original decision", () => {
+  const book = createDemoLedgerBook();
+  const input = {
+    amountCents: 100_000,
+    idempotencyKey: "card-retry-safe-spend",
+    merchantCategoryCode: "5411",
+    merchantName: "Grocery market",
+  };
+
+  const firstDecision = authorizeCardTransaction(book, neobankPayees, input);
+  const secondDecision = authorizeCardTransaction(book, neobankPayees, input);
+
+  assert.equal(firstDecision.approved, true);
+  assert.equal(secondDecision.approved, true);
+  assert.equal(secondDecision.approvedAmountCents, 100_000);
+  assert.equal(secondDecision.code, "approved");
+  assert.equal(book.allEntries().length, 2);
+  assert.equal(book.bucketAvailable("safe_spending"), 45_000);
+});
+
+test("card authorization rejects reused idempotency key with changed payload", () => {
+  const book = createDemoLedgerBook();
+  const input = {
+    amountCents: 25_000,
+    idempotencyKey: "card-retry-conflict",
+    merchantName: "Grocery market",
+  };
+
+  authorizeCardTransaction(book, neobankPayees, input);
+
+  assert.throws(
+    () =>
+      authorizeCardTransaction(book, neobankPayees, {
+        ...input,
+        amountCents: 30_000,
+      }),
+    LedgerIdempotencyConflictError,
+  );
+  assert.equal(book.allEntries().length, 2);
+  assert.equal(book.bucketAvailable("safe_spending"), 120_000);
+});
+
 test("card authorization declines when protected money would be needed", () => {
   const book = createDemoLedgerBook();
   const decision = authorizeCardTransaction(book, neobankPayees, {
@@ -138,6 +181,51 @@ test("emergency unlock moves protected funds into safe spending with recovery pl
   assert.equal(result.recoveryChecks, 2);
   assert.equal(result.recoveryPerCheckCents, 10_000);
   assert.equal(book.bucketAvailable("rent"), 30_000);
+  assert.equal(book.bucketAvailable("safe_spending"), 165_000);
+});
+
+test("duplicate emergency unlock replays the recovery plan", () => {
+  const book = createDemoLedgerBook();
+  const input = {
+    amountCents: 50_000,
+    bucketId: "rent" as const,
+    idempotencyKey: "unlock-rent-retry",
+    mode: "slow_free" as const,
+    reason: "Emergency repair",
+  };
+
+  const firstResult = unlockProtectedFunds(book, input);
+  const secondResult = unlockProtectedFunds(book, input);
+
+  assert.deepEqual(secondResult, firstResult);
+  assert.equal(book.allEntries().length, 2);
+  assert.equal(book.bucketAvailable("rent"), 0);
+  assert.equal(book.bucketAvailable("safe_spending"), 195_000);
+});
+
+test("emergency unlock rejects reused idempotency key with changed bucket", () => {
+  const book = createDemoLedgerBook();
+  const input = {
+    amountCents: 20_000,
+    bucketId: "rent" as const,
+    idempotencyKey: "unlock-retry-conflict",
+    mode: "slow_free" as const,
+    reason: "Emergency repair",
+  };
+
+  unlockProtectedFunds(book, input);
+
+  assert.throws(
+    () =>
+      unlockProtectedFunds(book, {
+        ...input,
+        bucketId: "vehicle",
+      }),
+    LedgerIdempotencyConflictError,
+  );
+  assert.equal(book.allEntries().length, 2);
+  assert.equal(book.bucketAvailable("rent"), 30_000);
+  assert.equal(book.bucketAvailable("vehicle"), 30_000);
   assert.equal(book.bucketAvailable("safe_spending"), 165_000);
 });
 
