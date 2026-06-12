@@ -245,6 +245,10 @@ requireText("services/core/migrations/0003_ledger_integrity.sql", "DEFERRABLE IN
 requireText("services/core/migrations/0003_ledger_integrity.sql", "prevent_posted_journal_mutation");
 requireText("scripts/core-migrations.mjs", "PAYSHIELD_LEDGER_DATABASE_URL");
 requireText("scripts/core-migrations.mjs", "checksumSha256");
+requireText("scripts/core-migrations.mjs", "core_schema_migrations");
+requireText("scripts/core-migrations.mjs", "verifyAppliedMigrations");
+requireText("scripts/core-migrations.mjs", "PAYSHIELD_LEDGER_SCHEMA_VERIFIED");
+requireText("scripts/core-migrations.mjs", "PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION");
 requireText("docs/legal-review-packet.md", "Paycheck split model");
 requireText(
   "public/.well-known/security.txt",
@@ -637,6 +641,7 @@ requireText("src/app/api/health/route.ts", "storageConfigured");
 requireText("src/app/api/health/route.ts", "storageMisconfigured");
 requireText("src/app/api/health/route.ts", "storageProvider");
 requireText("src/app/api/health/route.ts", "liveMoneyReady");
+requireText("src/app/api/health/route.ts", "postgresSchemaVerified");
 requireText("src/app/api/health/route.ts", "remainingGates");
 requireText("src/proxy.ts", "clerkMiddleware");
 requireText("src/proxy.ts", "/api/app(.*)");
@@ -651,8 +656,11 @@ requireText("services/core/migrations/0001_neobank_core.sql", "journal_entries")
 requireText("services/core/migrations/0001_neobank_core.sql", "provider_events");
 requireText("Dockerfile.core", "services/core/server.mjs");
 requireText("compose.core.yml", "PAYSHIELD_LEDGER_DATABASE_URL");
+requireText("compose.core.yml", "PAYSHIELD_LEDGER_SCHEMA_VERIFIED");
+requireText("compose.core.yml", "PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION");
 requireText("compose.core.yml", "PAYSHIELD_BAAS_CONTRACT_APPROVED");
 requireText("package.json", "\"core:docker:smoke\"");
+requireText("package.json", "\"core:migrations:verify\"");
 requireText(".github/workflows/ci.yml", "Smoke core service image");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_URL");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_WAITLIST_WEBHOOK_SECRET");

@@ -1,4 +1,5 @@
 const serviceName = "payshield-core";
+export const coreLedgerSchemaVersion = "0003";
 
 const gateDefinitions = [
   {
@@ -31,10 +32,9 @@ const gateDefinitions = [
     kind: "true",
   },
   {
-    description: "Durable Postgres ledger database is configured.",
-    env: "PAYSHIELD_LEDGER_DATABASE_URL",
+    description: "Durable Postgres ledger schema is configured and verified.",
     id: "postgres_ledger",
-    kind: "present",
+    kind: "postgres_ledger_verified",
   },
   {
     description: "Always-on regulated core backend is configured.",
@@ -168,6 +168,15 @@ function gateOk(definition, env, options) {
     return envPresent(env, definition.env);
   }
 
+  if (definition.kind === "postgres_ledger_verified") {
+    return (
+      envPresent(env, "PAYSHIELD_LEDGER_DATABASE_URL") &&
+      envTrue(env, "PAYSHIELD_LEDGER_SCHEMA_VERIFIED") &&
+      env["PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION"]?.trim() ===
+        coreLedgerSchemaVersion
+    );
+  }
+
   if (definition.kind === "provider_credentials") {
     return envPresent(env, "PAYSHIELD_BAAS_PROVIDER") && envPresent(env, "PAYSHIELD_BAAS_API_KEY");
   }
@@ -198,7 +207,9 @@ export function getCoreReadiness(env = process.env, options = {}) {
     gates,
     liveMoneyReady,
     mode: liveMoneyReady ? "live" : providerConfigured ? "sandbox" : "architecture",
-    postgresConfigured: gates.some((gate) => gate.id === "postgres_ledger" && gate.ok),
+    postgresConfigured: envPresent(env, "PAYSHIELD_LEDGER_DATABASE_URL"),
+    postgresSchemaVerified: gates.some((gate) => gate.id === "postgres_ledger" && gate.ok),
+    postgresSchemaVersion: coreLedgerSchemaVersion,
     providerConfigured,
     serviceAuthConfigured: envPresent(env, "PAYSHIELD_CORE_SERVICE_TOKEN"),
   };

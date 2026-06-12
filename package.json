@@ -19,6 +19,7 @@
     "core:migrations:apply": "node scripts/core-migrations.mjs --apply",
     "core:migrations:check": "node scripts/core-migrations.mjs --check",
     "core:migrations:plan": "node scripts/core-migrations.mjs --plan",
+    "core:migrations:verify": "node scripts/core-migrations.mjs --verify",
     "core:server": "node services/core/server.mjs",
     "counsel:signoff:check": "node scripts/check-counsel-signoff.mjs",
     "legal:lint": "npm run campaign:lint -- docs/legal-review-packet.md docs/campaign-copy.md",

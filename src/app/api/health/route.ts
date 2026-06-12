@@ -38,6 +38,8 @@ export function GET() {
         liveMoneyReady: neobank.liveMoneyReady,
         mode: neobank.mode,
         postgresConfigured: neobank.postgresConfigured,
+        postgresSchemaVerified: neobank.postgresSchemaVerified,
+        postgresSchemaVersion: neobank.postgresSchemaVersion,
         providerConfigured: neobank.providerConfigured,
         remainingGates: neobank.gates
           .filter((gate) => !gate.ok)

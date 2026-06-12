@@ -9,6 +9,9 @@ async function parseJson(response: Response) {
     siteUrl?: unknown;
     neobank?: {
       backendConfigured?: unknown;
+      postgresConfigured?: unknown;
+      postgresSchemaVerified?: unknown;
+      postgresSchemaVersion?: unknown;
       remainingGates?: unknown;
     };
     waitlist?: {
@@ -32,6 +35,10 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET;
   delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
   delete process.env.PAYSHIELD_CORE_API_URL;
+  delete process.env.PAYSHIELD_LEDGER_DATABASE_URL;
+  delete process.env.PAYSHIELD_LEDGER_SCHEMA_FINGERPRINT;
+  delete process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED;
+  delete process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION;
   delete process.env.BLOB_READ_WRITE_TOKEN;
   delete process.env.UPSTASH_REDIS_REST_TOKEN;
   delete process.env.UPSTASH_REDIS_REST_URL;
@@ -242,4 +249,29 @@ test("does not count an unsafe core URL as a configured regulated backend", asyn
   assert.equal(body.neobank?.backendConfigured, false);
   assert.equal(remainingGates.includes("dedicated_backend"), true);
   assert.equal(serialized.includes("user:secret"), false);
+});
+
+test("does not count a Postgres URL as ready until ledger schema is verified", async () => {
+  process.env.PAYSHIELD_LEDGER_DATABASE_URL =
+    "postgres://payshield:secret@example.invalid:5432/ledger";
+
+  const urlOnly = GET();
+  const urlOnlyBody = await parseJson(urlOnly);
+  const urlOnlyRemaining = urlOnlyBody.neobank?.remainingGates as string[];
+
+  assert.equal(urlOnlyBody.neobank?.postgresConfigured, true);
+  assert.equal(urlOnlyBody.neobank?.postgresSchemaVerified, false);
+  assert.equal(urlOnlyBody.neobank?.postgresSchemaVersion, "0003");
+  assert.equal(urlOnlyRemaining.includes("postgres_ledger"), true);
+
+  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
+  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0003";
+
+  const verified = GET();
+  const verifiedBody = await parseJson(verified);
+  const verifiedRemaining = verifiedBody.neobank?.remainingGates as string[];
+
+  assert.equal(verifiedBody.neobank?.postgresConfigured, true);
+  assert.equal(verifiedBody.neobank?.postgresSchemaVerified, true);
+  assert.equal(verifiedRemaining.includes("postgres_ledger"), false);
 });

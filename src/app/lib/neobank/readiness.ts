@@ -1,6 +1,8 @@
 import type { NeobankReadiness, NeobankReadinessGate } from "./types.ts";
 import { getCoreServiceConfig } from "./core-config.ts";
 
+export const CORE_LEDGER_SCHEMA_VERSION = "0003";
+
 function envTrue(name: string) {
   return process.env[name]?.trim().toLowerCase() === "true";
 }
@@ -40,9 +42,13 @@ export function getNeobankReadiness(): NeobankReadiness {
       ok: envTrue("PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED"),
     },
     {
-      description: "Durable Postgres ledger database is configured.",
+      description: "Durable Postgres ledger schema is configured and verified.",
       id: "postgres_ledger",
-      ok: envPresent("PAYSHIELD_LEDGER_DATABASE_URL"),
+      ok:
+        envPresent("PAYSHIELD_LEDGER_DATABASE_URL") &&
+        envTrue("PAYSHIELD_LEDGER_SCHEMA_VERIFIED") &&
+        process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION?.trim() ===
+          CORE_LEDGER_SCHEMA_VERSION,
     },
     {
       description: "Always-on regulated core backend is configured.",
@@ -71,9 +77,11 @@ export function getNeobankReadiness(): NeobankReadiness {
     gates,
     liveMoneyReady,
     mode: liveMoneyReady ? "live" : providerConfigured ? "sandbox" : "architecture",
-    postgresConfigured: gates.some(
+    postgresConfigured: envPresent("PAYSHIELD_LEDGER_DATABASE_URL"),
+    postgresSchemaVerified: gates.some(
       (gate) => gate.id === "postgres_ledger" && gate.ok,
     ),
+    postgresSchemaVersion: CORE_LEDGER_SCHEMA_VERSION,
     providerConfigured,
   };
 }

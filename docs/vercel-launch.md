@@ -541,6 +541,12 @@ return `waitlist.mode: "blob"`, `waitlist.storageConfigured: true`, and
 should return `waitlist.mode: "upstash"`, `waitlist.storageConfigured: true`,
 and `waitlist.paidTrafficReady: true`. The endpoint does not expose the webhook
 URL, signing secret, Blob read-write token, Upstash endpoint, or Upstash token.
+For regulated product readiness, a configured `PAYSHIELD_LEDGER_DATABASE_URL`
+only reports database presence; the Postgres ledger gate remains closed until
+`npm run core:migrations:verify` succeeds and the resulting
+`PAYSHIELD_LEDGER_SCHEMA_VERIFIED=true` plus
+`PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0003` values are set for the
+regulated backend environment.
 
 After durable capture is configured, run one explicit submission test:
 

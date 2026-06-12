@@ -43,8 +43,14 @@ are active.
   misconfigured.
 - Core migration operations include a redacted, checksummed
   `npm run core:migrations:plan` output, `npm run core:migrations:check` gate,
-  and explicit `npm run core:migrations:apply` path that requires
-  `PAYSHIELD_LEDGER_DATABASE_URL` and `psql`.
+  an explicit `npm run core:migrations:apply` path that requires
+  `PAYSHIELD_LEDGER_DATABASE_URL` and `psql`, a tracked
+  `core_schema_migrations` ledger with checksums, and
+  `npm run core:migrations:verify` output that returns the non-secret
+  `PAYSHIELD_LEDGER_SCHEMA_VERIFIED=true` and
+  `PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0003` values only after the
+  required tables, triggers, functions, and migration checksums are present.
+  The live-money Postgres gate does not pass from a database URL alone.
 - Core Docker smoke command that builds `Dockerfile.core`, starts the service
   with token protection, checks health, proves authorized balance and card
   authorization behavior, and confirms onboarding stays fail-closed until
@@ -447,6 +453,11 @@ The go/no-go command fails if it detects those values.
   where applicable.
 - Double-entry ledger with immutable audit trail, reconciliation, reversals,
   error states, and settlement reporting.
+- Applied Postgres ledger schema verified with
+  `npm run core:migrations:verify`; set
+  `PAYSHIELD_LEDGER_SCHEMA_VERIFIED=true` and
+  `PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0003` only from that successful
+  verification output.
 - ACH authorization flow, Reg E/error-resolution workflow, dispute operations,
   fee disclosures, privacy policy, and customer support procedures.
 - Card issuing and authorization controls before the safe-spending card is

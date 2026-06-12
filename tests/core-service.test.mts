@@ -13,6 +13,9 @@ const coreEnvKeys = [
   "PAYSHIELD_CORE_API_URL",
   "PAYSHIELD_CORE_SERVICE_TOKEN",
   "PAYSHIELD_LEDGER_DATABASE_URL",
+  "PAYSHIELD_LEDGER_SCHEMA_FINGERPRINT",
+  "PAYSHIELD_LEDGER_SCHEMA_VERIFIED",
+  "PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION",
   "PAYSHIELD_LIVE_MONEY_ENABLED",
   "PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED",
   "PAYSHIELD_REGULATED_COUNSEL_SIGNOFF",
@@ -100,6 +103,60 @@ test("core balances endpoint mirrors protected paycheck model", async () => {
     assert.equal(body.safeToSpendCents, 145_000);
     assert.equal(body.protectedCents, 155_000);
     assert.equal(Array.isArray(body.buckets), true);
+  });
+});
+
+test("core postgres gate requires verified ledger schema version", async () => {
+  process.env.PAYSHIELD_LEDGER_DATABASE_URL =
+    "postgres://payshield:secret@example.invalid:5432/ledger";
+
+  await withCoreServer(async (baseUrl) => {
+    const urlOnly = await getJson(baseUrl, "/health");
+    const urlOnlyReadiness = urlOnly.body.readiness as Record<string, unknown>;
+    const urlOnlyGates = urlOnlyReadiness.gates as Array<
+      Record<string, unknown>
+    >;
+    const postgresGate = urlOnlyGates.find(
+      (gate) => gate.id === "postgres_ledger",
+    );
+
+    assert.equal(urlOnlyReadiness.postgresConfigured, true);
+    assert.equal(urlOnlyReadiness.postgresSchemaVerified, false);
+    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0003");
+    assert.equal(postgresGate?.ok, false);
+
+    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
+    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0002";
+
+    const staleVersion = await getJson(baseUrl, "/health");
+    const staleReadiness = staleVersion.body.readiness as Record<
+      string,
+      unknown
+    >;
+    const staleGates = staleReadiness.gates as Array<Record<string, unknown>>;
+
+    assert.equal(
+      staleGates.find((gate) => gate.id === "postgres_ledger")?.ok,
+      false,
+    );
+
+    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0003";
+
+    const verified = await getJson(baseUrl, "/health");
+    const verifiedReadiness = verified.body.readiness as Record<
+      string,
+      unknown
+    >;
+    const verifiedGates = verifiedReadiness.gates as Array<
+      Record<string, unknown>
+    >;
+
+    assert.equal(verifiedReadiness.postgresConfigured, true);
+    assert.equal(verifiedReadiness.postgresSchemaVerified, true);
+    assert.equal(
+      verifiedGates.find((gate) => gate.id === "postgres_ledger")?.ok,
+      true,
+    );
   });
 });
 

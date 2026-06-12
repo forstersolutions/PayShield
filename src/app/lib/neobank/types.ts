@@ -124,6 +124,8 @@ export type NeobankReadiness = {
   liveMoneyReady: boolean;
   mode: "architecture" | "sandbox" | "live";
   postgresConfigured: boolean;
+  postgresSchemaVerified: boolean;
+  postgresSchemaVersion: string;
   providerConfigured: boolean;
 };
 
