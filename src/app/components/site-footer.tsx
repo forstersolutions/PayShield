@@ -31,7 +31,10 @@ export function SiteFooter() {
             </p>
             <p className="text-xs leading-5">
               {PAYSHIELD_OWNERSHIP_LINE}{" "}
-              <a className="text-[#39e8ff] underline" href={`mailto:${GRAYSTON_SUPPORT_EMAIL}`}>
+              <a
+                className="inline-flex min-h-9 items-center text-[#39e8ff] underline"
+                href={`mailto:${GRAYSTON_SUPPORT_EMAIL}`}
+              >
                 {GRAYSTON_SUPPORT_EMAIL}
               </a>
             </p>
@@ -41,16 +44,28 @@ export function SiteFooter() {
           aria-label="Footer"
           className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium"
         >
-          <Link className="hover:text-white" href="/privacy">
+          <Link
+            className="inline-flex min-h-9 items-center px-2 hover:text-white"
+            href="/privacy"
+          >
             Privacy
           </Link>
-          <Link className="hover:text-white" href="/terms">
+          <Link
+            className="inline-flex min-h-9 items-center px-2 hover:text-white"
+            href="/terms"
+          >
             Terms
           </Link>
-          <Link className="hover:text-white" href="/app">
+          <Link
+            className="inline-flex min-h-9 items-center px-2 hover:text-white"
+            href="/app"
+          >
             App
           </Link>
-          <Link className="hover:text-white" href="/#product">
+          <Link
+            className="inline-flex min-h-9 items-center px-2 hover:text-white"
+            href="/#product"
+          >
             Product
           </Link>
         </nav>

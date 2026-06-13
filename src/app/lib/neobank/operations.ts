@@ -18,9 +18,14 @@ function buildActivationPlan(input: {
   moneyRails: ReturnType<typeof getMoneyRailReadiness>;
   neobank: NeobankReadiness;
 }) {
+  const priceLabel = input.commercial.priceLabel || "$19/month";
   const stages = [
     {
       actionHref: "#money-operations",
+      businessImpact:
+        `Collect ${priceLabel} before the household can use bank link, paycheck detection, protected transfers, or card controls.`,
+      evidence:
+        "Stripe checkout intent, verified webhook event, and active commercial access record.",
       key: "revenue",
       label: "Revenue",
       ownerAction:
@@ -33,11 +38,22 @@ function buildActivationPlan(input: {
         : input.commercial.checkoutConfigured
           ? "activation_needed"
           : "stripe_needed",
+      setupChecklist: [
+        "Set STRIPE_SECRET_KEY plus PAYSHIELD_COMMERCIAL_PRICE_ID or a live payment link.",
+        "Set STRIPE_WEBHOOK_SECRET for /api/app/billing/webhook.",
+        "Point PAYSHIELD_CORE_API_URL at the always-on core so paid access persists.",
+      ],
       title: "Charge the household",
       userAction: "Activate paid access",
+      verification:
+        "Create checkout, complete a Stripe test/live event, then confirm commercialAccess.state is active.",
     },
     {
       actionHref: "#money-operations",
+      businessImpact:
+        "Turn a paying household into a connected funding source with token custody outside the browser.",
+      evidence:
+        "Plaid Link token, public-token exchange, masked account metadata, and token vault reference.",
       key: "bank_connection",
       label: "Bank connection",
       ownerAction:
@@ -57,11 +73,22 @@ function buildActivationPlan(input: {
         : input.moneyRails.plaidConfigured
           ? "vault_needed"
           : "plaid_needed",
+      setupChecklist: [
+        "Set PLAID_CLIENT_ID, PLAID_SECRET, PLAID_ENV, and PLAID_PRODUCTS.",
+        "Set PAYSHIELD_TOKEN_VAULT_KEY_ID, PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL, and PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET.",
+        "Verify /api/app/bank-link/exchange records the masked account and vault reference.",
+      ],
       title: "Connect banks",
       userAction: "Connect bank",
+      verification:
+        "Open Plaid Link, exchange the public token, then confirm bankConnections contains the linked source.",
     },
     {
       actionHref: "#money-operations",
+      businessImpact:
+        "Convert connected account activity into automatic payroll detection and bucket funding.",
+      evidence:
+        "Saved paycheck rule, signed provider event, balanced ledger entry, and updated Safe to Spend.",
       key: "paycheck_detection",
       label: "Paycheck detection",
       ownerAction:
@@ -81,11 +108,22 @@ function buildActivationPlan(input: {
         : input.moneyRails.detectionMode === "plaid_transactions_sync"
           ? "provider_event_needed"
           : "manual_event_ready",
+      setupChecklist: [
+        "Save employer, amount, frequency, and provider account matching rules.",
+        "Set PAYSHIELD_PROVIDER_WEBHOOK_SECRET for signed provider events.",
+        "Verify duplicate provider events are idempotent and exceptions enter the queue.",
+      ],
       title: "Detect paychecks",
       userAction: "Save rule and run detection",
+      verification:
+        "Run /api/app/paychecks/detect or send a signed provider webhook and confirm protected buckets fund before Safe to Spend.",
     },
     {
       actionHref: "#bucket-studio",
+      businessImpact:
+        "Give households configurable protected categories, priorities, payees, and unlock rules before spend happens.",
+      evidence:
+        "Bucket profile, payee list, target amounts, due rules, and immutable ledger journal.",
       key: "protection_rules",
       label: "Protection rules",
       ownerAction:
@@ -94,11 +132,22 @@ function buildActivationPlan(input: {
       ready: true,
       requiredGates: [],
       status: input.neobank.postgresSchemaVerified ? "durable" : "control_model",
+      setupChecklist: [
+        "Customize protected buckets, targets, priorities, and due cadence.",
+        "Assign approved payees and bucket-only bill routes.",
+        "Verify journal entries stay balanced and safe-spend excludes protected funds.",
+      ],
       title: "Protect the paycheck",
       userAction: "Save bucket profile",
+      verification:
+        "Save the bucket profile, run a paycheck split, then export the audit packet.",
     },
     {
       actionHref: "#money-operations",
+      businessImpact:
+        "Release protected money only after PayShield validates the bucket balance and provider handoff state.",
+      evidence:
+        "Transfer intent, source bucket validation, destination payee, provider status, and audit record.",
       key: "money_movement",
       label: "Money movement",
       ownerAction:
@@ -116,11 +165,22 @@ function buildActivationPlan(input: {
         : input.moneyRails.transferConfigured
           ? "live_gates_needed"
           : "intent_validation_active",
+      setupChecklist: [
+        "Set PAYSHIELD_TRANSFER_ENABLED plus transfer or BaaS credentials.",
+        "Keep PAYSHIELD_LIVE_MONEY_ENABLED off until provider, ledger, auth, counsel, and runbook gates pass.",
+        "Verify provider handoff records match settlement and exception queues.",
+      ],
       title: "Move protected funds",
       userAction: "Create transfer intent",
+      verification:
+        "Create a transfer intent, confirm it cannot exceed the bucket balance, then confirm provider execution only opens when live gates pass.",
     },
     {
       actionHref: "#card-authorization",
+      businessImpact:
+        "Approve ordinary spending only from Safe to Spend while approved billers can draw from assigned buckets.",
+      evidence:
+        "Authorization request, approved amount, bucket decision, denial reason, and ledger record.",
       key: "card_control",
       label: "Card control",
       ownerAction:
@@ -129,13 +189,27 @@ function buildActivationPlan(input: {
       ready: input.neobank.liveMoneyReady,
       requiredGates: neobankMissing(input.neobank),
       status: input.neobank.liveMoneyReady ? "gateway_ready" : "ledger_decisions_active",
+      setupChecklist: [
+        "Connect a provider authorization gateway to POST /api/card/authorize.",
+        "Map merchant, MCC, payee, and partial-approval metadata into the ledger decision.",
+        "Verify overreach declines and approved billers cannot drain unrelated buckets.",
+      ],
       title: "Approve only safe spend",
       userAction: "Check card swipe",
+      verification:
+        "Send safe-spend, protected-overreach, and approved-biller authorization cases and confirm decisions match the ledger.",
     },
   ];
   const nextStage = stages.find((stage) => !stage.ready) ?? stages[0];
 
   return {
+    businessModel: {
+      billingProvider: "Stripe",
+      priceLabel,
+      revenuePath:
+        "Checkout -> webhook -> commercial access -> bank link -> paycheck controls.",
+      supportContact: GRAYSTON_SUPPORT_EMAIL,
+    },
     generatedAt: new Date().toISOString(),
     liveMoneyReady: input.neobank.liveMoneyReady,
     nextStageKey: nextStage.key,

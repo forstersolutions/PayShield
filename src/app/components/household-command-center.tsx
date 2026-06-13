@@ -668,7 +668,7 @@ export function HouseholdCommandCenter() {
               {PAYSHIELD_OWNERSHIP_LINE} Product, support, readiness, and
               operational questions route to{" "}
               <a
-                className="font-black text-[#39e8ff] underline"
+                className="inline-flex min-h-9 items-center font-black text-[#39e8ff] underline"
                 href={`mailto:${GRAYSTON_SUPPORT_EMAIL}`}
               >
                 {GRAYSTON_SUPPORT_EMAIL}
@@ -698,24 +698,52 @@ function ActivationConsole({ plan }: { plan: ActivationPlan }) {
     plan.stages.find((stage) => stage.key === plan.nextStageKey) ??
     plan.stages[0];
   const NextIcon = activationIconMap[nextStage.key] ?? KeyRound;
+  const businessModel = plan.businessModel;
 
   return (
     <div className="brand-panel rounded-[8px] p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="brand-kicker">Revenue and rails</p>
+          <p className="brand-kicker">Operator activation console</p>
           <h2 className="mt-1 text-2xl font-black text-white">
-            How PayShield runs.
+            How PayShield earns and controls money.
           </h2>
           <p className="mt-3 text-sm leading-6 text-[#c9d0da]">
-            The product loop is paid access, bank connection, paycheck
-            detection, bucket protection, controlled movement, and card
-            decisions.
+            Revenue, bank connection, paycheck detection, protected movement,
+            and card decisions are wired as one operating system. Every rail
+            shows the endpoint, setup work, and evidence needed to run it.
           </p>
         </div>
         <span className="rounded-[8px] border border-[#68f0c2]/25 bg-[#68f0c2]/10 px-3 py-2 text-sm font-black text-[#9af7d5]">
           {plan.readyCount}/{plan.totalStages} active
         </span>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-[8px] border border-[#68f0c2]/25 bg-[#68f0c2]/10 p-3">
+          <p className="brand-kicker">Subscription</p>
+          <p className="mt-2 text-2xl font-black text-white">
+            {businessModel.priceLabel}
+          </p>
+          <p className="mt-1 text-xs font-bold text-[#9af7d5]">
+            Per household access
+          </p>
+        </div>
+        <div className="rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 p-3">
+          <p className="brand-kicker">Billing provider</p>
+          <p className="mt-2 text-2xl font-black text-white">
+            {businessModel.billingProvider}
+          </p>
+          <p className="mt-1 text-xs font-bold text-[#dffaff]">
+            Checkout plus webhook activation
+          </p>
+        </div>
+        <div className="rounded-[8px] border border-[#ffb237]/25 bg-[#ffb237]/10 p-3">
+          <p className="brand-kicker">Revenue path</p>
+          <p className="mt-2 text-sm font-black leading-6 text-white">
+            {businessModel.revenuePath}
+          </p>
+        </div>
       </div>
 
       <a
@@ -748,7 +776,7 @@ function ActivationConsole({ plan }: { plan: ActivationPlan }) {
 
           return (
             <a
-              className="grid gap-3 rounded-[8px] border border-white/10 bg-black/35 p-3 transition hover:border-[#39e8ff]/35 hover:bg-[#39e8ff]/10 sm:grid-cols-[2.25rem_1fr_auto]"
+              className="grid gap-3 rounded-[8px] border border-white/10 bg-black/35 p-3 transition hover:border-[#39e8ff]/35 hover:bg-[#39e8ff]/10 sm:grid-cols-[2.25rem_minmax(0,1fr)_auto]"
               href={stage.actionHref}
               key={stage.key}
             >
@@ -771,6 +799,9 @@ function ActivationConsole({ plan }: { plan: ActivationPlan }) {
                 <span className="mt-1 block text-xs leading-5 text-[#aab3c2]">
                   {stage.primaryEndpoint}
                 </span>
+                <span className="mt-2 block text-sm leading-6 text-[#d9dde5]">
+                  {stage.businessImpact}
+                </span>
               </span>
               <span
                 className={`self-start rounded-[8px] px-2.5 py-1 text-xs font-black capitalize ${
@@ -784,6 +815,25 @@ function ActivationConsole({ plan }: { plan: ActivationPlan }) {
               <span className="text-xs leading-5 text-[#8f99aa] sm:col-span-3 sm:pl-[3rem]">
                 {compactActivationGates(stage)}
               </span>
+              <div className="grid gap-2 text-xs leading-5 text-[#aab3c2] sm:col-span-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:pl-[3rem]">
+                <div className="rounded-[8px] border border-white/10 bg-white/[0.035] p-3">
+                  <span className="font-black uppercase text-[#dffaff]">
+                    Setup
+                  </span>
+                  <ul className="mt-2 grid gap-1">
+                    {stage.setupChecklist.slice(0, 3).map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="rounded-[8px] border border-white/10 bg-white/[0.035] p-3">
+                  <span className="font-black uppercase text-[#ffcf72]">
+                    Proof
+                  </span>
+                  <p className="mt-2">{stage.evidence}</p>
+                  <p className="mt-2 text-[#d9dde5]">{stage.verification}</p>
+                </div>
+              </div>
             </a>
           );
         })}

@@ -47,6 +47,12 @@ test("app command center exposes a guided real-money setup surface", async () =>
   assert.match(appPage, /HouseholdCommandCenter/);
   assert.match(commandCenter, /getCommercialReadiness/);
   assert.match(commandCenter, /getMoneyRailReadiness/);
+  assert.match(commandCenter, /Operator activation console/);
+  assert.match(commandCenter, /How PayShield earns and controls money/);
+  assert.match(commandCenter, /Per household access/);
+  assert.match(commandCenter, /Checkout plus webhook activation/);
+  assert.match(commandCenter, /Setup/);
+  assert.match(commandCenter, /Proof/);
   assert.match(commandCenter, /Household setup/);
   assert.match(commandCenter, /Next best action/);
   assert.match(commandCenter, /Turn on paid access/);

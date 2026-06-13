@@ -200,11 +200,14 @@ export function getCommercialReadiness() {
 
 export function paidAccessRequired() {
   const readiness = getCommercialReadiness();
+  const productionRuntime = process.env.VERCEL_ENV === "production";
 
   return {
     readiness,
     required:
-      envTrue("PAYSHIELD_REQUIRE_PAID_ACCESS") || readiness.checkoutConfigured,
+      productionRuntime ||
+      envTrue("PAYSHIELD_REQUIRE_PAID_ACCESS") ||
+      readiness.checkoutConfigured,
   };
 }
 

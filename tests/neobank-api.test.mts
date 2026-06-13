@@ -25,7 +25,10 @@ import { POST as savePaycheckRule } from "../src/app/api/app/paychecks/rules/rou
 import { POST as createTransfer } from "../src/app/api/app/transfers/route.ts";
 import { POST as unlockBucket } from "../src/app/api/app/unlocks/route.ts";
 import { POST as providerWebhook } from "../src/app/api/provider/webhooks/route.ts";
-import { createCommercialCheckoutSession } from "../src/app/lib/commercial/billing.ts";
+import {
+  createCommercialCheckoutSession,
+  paidAccessRequired,
+} from "../src/app/lib/commercial/billing.ts";
 
 const endpoint = "https://payshield.test";
 
@@ -152,11 +155,21 @@ test("operations endpoint exposes the revenue and money-control record", async (
   assert.equal(timeline[0]?.rail, "ledger");
   assert.equal(activationPlan.revenueReady, false);
   assert.equal(activationPlan.nextStageKey, "revenue");
+  assert.deepEqual(activationPlan.businessModel, {
+    billingProvider: "Stripe",
+    priceLabel: "$19/month",
+    revenuePath:
+      "Checkout -> webhook -> commercial access -> bank link -> paycheck controls.",
+    supportContact: "support@graystontechnologies.com",
+  });
   assert.equal(
     activationStages.some(
       (stage) =>
         stage.key === "bank_connection" &&
-        stage.primaryEndpoint === "POST /api/app/bank-link/token",
+        stage.primaryEndpoint === "POST /api/app/bank-link/token" &&
+        String(stage.businessImpact).includes("connected funding source") &&
+        Array.isArray(stage.setupChecklist) &&
+        String(stage.evidence).includes("token vault reference"),
     ),
     true,
   );
@@ -289,6 +302,15 @@ test("paid access checkout reports missing Stripe configuration", async () => {
   assert.equal(checkoutIntent.status, "blocked");
   assert.equal(checkoutIntent.errorCode, "checkout_not_configured");
   assert.equal(Array.isArray(readiness.missing), true);
+});
+
+test("production runtime requires paid access before money workflows", () => {
+  process.env.VERCEL_ENV = "production";
+
+  const gate = paidAccessRequired();
+
+  assert.equal(gate.required, true);
+  assert.equal(gate.readiness.checkoutConfigured, false);
 });
 
 test("paid access checkout can return a configured payment link", async () => {

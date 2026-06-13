@@ -186,11 +186,21 @@ test("core operations endpoint exposes household money-control records", async (
     );
     assert.equal(timeline[0]?.status, "posted");
     assert.equal(activationPlan.nextStageKey, "revenue");
+    assert.deepEqual(activationPlan.businessModel, {
+      billingProvider: "Stripe",
+      priceLabel: "$19/month",
+      revenuePath:
+        "Checkout -> webhook -> commercial access -> bank link -> paycheck controls.",
+      supportContact: "support@graystontechnologies.com",
+    });
     assert.equal(
       activationStages.some(
         (stage) =>
           stage.key === "money_movement" &&
-          stage.primaryEndpoint === "POST /api/app/transfers",
+          stage.primaryEndpoint === "POST /api/app/transfers" &&
+          String(stage.businessImpact).includes("Release protected money") &&
+          Array.isArray(stage.setupChecklist) &&
+          String(stage.verification).includes("provider execution"),
       ),
       true,
     );
