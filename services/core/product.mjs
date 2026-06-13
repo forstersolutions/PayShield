@@ -1040,7 +1040,7 @@ export async function recordBankConnection(payload, env = process.env) {
     };
   }
 
-  await persistMoneyRailEvent(
+  const auditPersistence = await persistMoneyRailEvent(
     {
       eventType: "bank_connection_recorded",
       householdId: demoUser.householdId,
@@ -1061,8 +1061,23 @@ export async function recordBankConnection(payload, env = process.env) {
     env,
   );
 
+  if (persistenceFailed(auditPersistence)) {
+    return {
+      body: {
+        auditPersistence,
+        bankConnection: connection,
+        message: "Bank connection audit event could not be persisted.",
+        persistence,
+        readiness,
+        service: "payshield-bank-connections",
+      },
+      status: 503,
+    };
+  }
+
   return {
     body: {
+      auditPersistence,
       bankConnection: connection,
       message: readiness.bankLinkReady
         ? "Bank connection recorded for paycheck detection and transfer handoff."
@@ -1318,6 +1333,10 @@ function getMoneyRailReadiness(env = process.env) {
   };
 }
 
+function persistenceFailed(result) {
+  return result?.persistence === "postgres_error";
+}
+
 export async function detectPaycheck(payload, env = process.env) {
   const amountCents = toIntegerCents(payload?.amountCents, {
     max: 2_000_000,
@@ -1366,7 +1385,19 @@ export async function detectPaycheck(payload, env = process.env) {
     },
     env,
   );
-  await persistMoneyRailEvent(
+  if (persistenceFailed(persistence)) {
+    return {
+      body: {
+        error: "Paycheck detection could not be persisted.",
+        persistence,
+        readiness,
+        service: "payshield-paycheck-detection",
+      },
+      status: 503,
+    };
+  }
+
+  const auditPersistence = await persistMoneyRailEvent(
     {
       eventType: "paycheck_detected",
       householdId: demoUser.householdId,
@@ -1383,10 +1414,11 @@ export async function detectPaycheck(payload, env = process.env) {
     env,
   );
 
-  if (persistence.persistence === "postgres_error") {
+  if (persistenceFailed(auditPersistence)) {
     return {
       body: {
-        error: "Paycheck detection could not be persisted.",
+        auditPersistence,
+        error: "Paycheck detection audit event could not be persisted.",
         persistence,
         readiness,
         service: "payshield-paycheck-detection",
@@ -1397,12 +1429,13 @@ export async function detectPaycheck(payload, env = process.env) {
 
   return {
     body: {
+      auditPersistence,
       balances,
       detection: {
         amountCents,
         employerName,
         mode: getMoneyRailReadiness(env).detectionMode,
-          receivedAt: entry.metadata?.receivedAt,
+        receivedAt: entry.metadata?.receivedAt,
       },
       ledgerEntry: entry,
       message:
@@ -1481,7 +1514,20 @@ export async function createTransferIntent(payload, env = process.env) {
     },
     env,
   );
-  await persistMoneyRailEvent(
+
+  if (persistenceFailed(persistence)) {
+    return {
+      body: {
+        error: "Transfer intent could not be persisted.",
+        persistence,
+        readiness,
+        service: "payshield-transfer-intents",
+      },
+      status: 503,
+    };
+  }
+
+  const auditPersistence = await persistMoneyRailEvent(
     {
       eventType: "transfer_intent_created",
       householdId: demoUser.householdId,
@@ -1499,10 +1545,11 @@ export async function createTransferIntent(payload, env = process.env) {
     env,
   );
 
-  if (persistence.persistence === "postgres_error") {
+  if (persistenceFailed(auditPersistence)) {
     return {
       body: {
-        error: "Transfer intent could not be persisted.",
+        auditPersistence,
+        error: "Transfer intent audit event could not be persisted.",
         persistence,
         readiness,
         service: "payshield-transfer-intents",
@@ -1513,6 +1560,7 @@ export async function createTransferIntent(payload, env = process.env) {
 
   return {
     body: {
+      auditPersistence,
       intent: {
         amountCents,
         destinationPayeeId,

@@ -13,6 +13,7 @@ const coreEnvKeys = [
   "PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL",
   "PAYSHIELD_COMMERCIAL_PRICE_ID",
   "PAYSHIELD_CORE_API_URL",
+  "PAYSHIELD_CORE_DB_CONNECT_TIMEOUT_MS",
   "PAYSHIELD_CORE_SERVICE_TOKEN",
   "PAYSHIELD_LEDGER_DATABASE_URL",
   "PAYSHIELD_LEDGER_SCHEMA_FINGERPRINT",
@@ -242,11 +243,13 @@ test("core bank connection route records Plaid rail readiness", async () => {
     );
     const readiness = body.readiness as Record<string, unknown>;
     const bankConnection = body.bankConnection as Record<string, unknown>;
+    const auditPersistence = body.auditPersistence as Record<string, unknown>;
     const persistence = body.persistence as Record<string, unknown>;
 
     assert.equal(response.status, 200);
     assert.equal(readiness.bankLinkReady, true);
     assert.equal(bankConnection.status, "connected");
+    assert.equal(auditPersistence.persistence, "memory");
     assert.equal(persistence.persistence, "memory");
   });
 });
@@ -393,9 +396,11 @@ test("core paycheck detection posts bucket split before safe spend", async () =>
         receivedAt: "2026-07-01T12:00:00.000Z",
       }),
     );
+    const auditPersistence = body.auditPersistence as Record<string, unknown>;
     const entry = body.ledgerEntry as Record<string, unknown>;
 
     assert.equal(response.status, 200);
+    assert.equal(auditPersistence.persistence, "memory");
     assert.equal(body.protectedCents, 155_000);
     assert.equal(body.safeToSpendCents, 145_000);
     assert.equal(entry.type, "paycheck_deposit");
@@ -414,9 +419,11 @@ test("core transfer route validates bucket funds and provider status", async () 
         sourceBucketId: "rent",
       }),
     );
+    const auditPersistence = body.auditPersistence as Record<string, unknown>;
     const providerTransfer = body.providerTransfer as Record<string, unknown>;
 
     assert.equal(response.status, 200);
+    assert.equal(auditPersistence.persistence, "memory");
     assert.equal(providerTransfer.status, "blocked");
 
     const rejected = await getJson(
@@ -430,6 +437,47 @@ test("core transfer route validates bucket funds and provider status", async () 
     );
 
     assert.equal(rejected.response.status, 400);
+  });
+});
+
+test("core money operations fail closed when configured ledger persistence fails", async () => {
+  process.env.PAYSHIELD_LEDGER_DATABASE_URL =
+    "postgres://payshield:secret@127.0.0.1:1/ledger";
+  process.env.PAYSHIELD_CORE_DB_CONNECT_TIMEOUT_MS = "100";
+
+  await withCoreServer(async (baseUrl) => {
+    const paycheck = await getJson(
+      baseUrl,
+      "/api/app/paychecks/detect",
+      jsonPost({
+        amountCents: 300_000,
+        employerName: "Acme Payroll",
+        idempotencyKey: "core-paycheck-db-fail",
+      }),
+    );
+    const transfer = await getJson(
+      baseUrl,
+      "/api/app/transfers",
+      jsonPost({
+        amountCents: 25_000,
+        destinationPayeeId: "payee_abc_apartments",
+        idempotencyKey: "core-transfer-db-fail",
+        sourceBucketId: "rent",
+      }),
+    );
+
+    assert.equal(paycheck.response.status, 503);
+    assert.equal(paycheck.body.error, "Paycheck detection could not be persisted.");
+    assert.equal(
+      (paycheck.body.persistence as Record<string, unknown>).persistence,
+      "postgres_error",
+    );
+    assert.equal(transfer.response.status, 503);
+    assert.equal(transfer.body.error, "Transfer intent could not be persisted.");
+    assert.equal(
+      (transfer.body.persistence as Record<string, unknown>).persistence,
+      "postgres_error",
+    );
   });
 });
 

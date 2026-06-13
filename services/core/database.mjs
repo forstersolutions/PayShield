@@ -10,6 +10,16 @@ function databaseUrl(env = process.env) {
   return env.PAYSHIELD_LEDGER_DATABASE_URL?.trim() || "";
 }
 
+function parsePoolNumber(value, fallback, { max, min }) {
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
 export function databaseConfigured(env = process.env) {
   return Boolean(databaseUrl(env));
 }
@@ -32,8 +42,21 @@ function poolFor(env = process.env) {
 
   if (!activePool || activeDatabaseUrl !== url) {
     activePool = new Pool({
+      connectionTimeoutMillis: parsePoolNumber(
+        env.PAYSHIELD_CORE_DB_CONNECT_TIMEOUT_MS,
+        2_000,
+        { max: 10_000, min: 100 },
+      ),
       connectionString: url,
-      max: Number(env.PAYSHIELD_CORE_DB_POOL_SIZE || 5),
+      idleTimeoutMillis: parsePoolNumber(
+        env.PAYSHIELD_CORE_DB_IDLE_TIMEOUT_MS,
+        30_000,
+        { max: 120_000, min: 1_000 },
+      ),
+      max: parsePoolNumber(env.PAYSHIELD_CORE_DB_POOL_SIZE, 5, {
+        max: 20,
+        min: 1,
+      }),
     });
     activeDatabaseUrl = url;
   }
