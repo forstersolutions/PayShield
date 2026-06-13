@@ -293,6 +293,12 @@ requireText("src/app/lib/neobank/core-config.ts", "VERCEL_ENV");
 requireText("src/app/lib/neobank/core-client.ts", "x-payshield-provider-signature");
 requireText("src/app/lib/commercial/billing.ts", "requirePaidAccessForFallback");
 requireText("src/app/lib/neobank/money-rails.ts", "providerWebhookSigningConfigured");
+requireText("src/app/api/provider/webhooks/route.ts", "providerWebhookSignatureRequired");
+requireText("src/app/api/provider/webhooks/route.ts", 'process.env.VERCEL_ENV === "production"');
+requireText(
+  "src/app/api/provider/webhooks/route.ts",
+  "PAYSHIELD_PROVIDER_WEBHOOK_SECRET is required before provider webhooks can affect money controls.",
+);
 requireText("src/app/lib/neobank/ledger.ts", "scheduleBillPayment");
 requireText("services/core/migrations/0002_household_bucket_controls.sql", "household_buckets");
 requireText("services/core/migrations/0002_household_bucket_controls.sql", "household_bucket_rules");

@@ -904,6 +904,25 @@ test("provider webhook route accepts events but reports blocked mode without pro
   assert.equal(response.status, 202);
   assert.equal(body.accepted, true);
   assert.equal(body.mode, "blocked");
+  assert.equal(body.providerWebhookAuthenticity, "not_required");
+});
+
+test("provider webhook route fails closed in production without signing secret", async () => {
+  process.env.VERCEL_ENV = "production";
+
+  const response = await providerWebhook(
+    makeRequest("/api/provider/webhooks", {
+      eventId: "evt_unsigned_production_provider",
+      type: "transactions.sync",
+    }),
+  );
+  const body = await parseJson(response);
+
+  assert.equal(response.status, 503);
+  assert.equal(body.accepted, false);
+  assert.equal(body.mode, "blocked");
+  assert.equal(body.providerWebhookAuthenticity, "missing_secret");
+  assert.match(String(body.error), /PAYSHIELD_PROVIDER_WEBHOOK_SECRET/);
 });
 
 test("provider webhook route requires signature when provider webhook secret is configured", async () => {
@@ -935,4 +954,5 @@ test("provider webhook route requires signature when provider webhook secret is 
   assert.equal(signed.status, 202);
   assert.equal(signedBody.accepted, true);
   assert.equal(signedBody.mode, "blocked");
+  assert.equal(signedBody.providerWebhookAuthenticity, "verified");
 });

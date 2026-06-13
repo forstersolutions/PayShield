@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server.js";
 import { forwardCoreRequest } from "../../../lib/neobank/core-client.ts";
+import { getMoneyRailReadiness } from "../../../lib/neobank/money-rails.ts";
 import { getBankingProvider } from "../../../lib/neobank/provider.ts";
 import { getNeobankReadiness } from "../../../lib/neobank/readiness.ts";
 
@@ -43,16 +44,49 @@ function compareHexDigest(left: string, right: string) {
   return timingSafeEqual(Buffer.from(left, "hex"), Buffer.from(right, "hex"));
 }
 
-function verifyProviderWebhookSignature(rawBody: string, signatureHeader: string) {
+function providerWebhookSignatureRequired(
+  readiness: ReturnType<typeof getNeobankReadiness>,
+  moneyRails: ReturnType<typeof getMoneyRailReadiness>,
+) {
+  return Boolean(
+    process.env.PAYSHIELD_PROVIDER_WEBHOOK_SECRET?.trim() ||
+      process.env.VERCEL_ENV === "production" ||
+      process.env.PAYSHIELD_LEDGER_DATABASE_URL?.trim() ||
+      readiness.liveMoneyReady ||
+      (moneyRails.plaidConfigured && moneyRails.tokenVaultStoreReady),
+  );
+}
+
+function verifyProviderWebhookSignature(
+  rawBody: string,
+  signatureHeader: string,
+  readiness: ReturnType<typeof getNeobankReadiness>,
+  moneyRails: ReturnType<typeof getMoneyRailReadiness>,
+) {
   const secret = process.env.PAYSHIELD_PROVIDER_WEBHOOK_SECRET?.trim() || "";
+  const required = providerWebhookSignatureRequired(readiness, moneyRails);
+
+  if (!required && !secret) {
+    return {
+      mode: "not_required",
+      ok: true,
+    };
+  }
 
   if (!secret) {
-    return { ok: true };
+    return {
+      error:
+        "PAYSHIELD_PROVIDER_WEBHOOK_SECRET is required before provider webhooks can affect money controls.",
+      mode: "missing_secret",
+      ok: false,
+      status: 503,
+    };
   }
 
   if (!rawBody || !signatureHeader) {
     return {
       error: "Provider webhook requires a signed raw body.",
+      mode: "missing_signature",
       ok: false,
       status: 401,
     };
@@ -65,6 +99,7 @@ function verifyProviderWebhookSignature(rawBody: string, signatureHeader: string
   if (!Number.isInteger(timestampSeconds)) {
     return {
       error: "Provider webhook signature timestamp is invalid.",
+      mode: "invalid_timestamp",
       ok: false,
       status: 401,
     };
@@ -76,6 +111,7 @@ function verifyProviderWebhookSignature(rawBody: string, signatureHeader: string
   ) {
     return {
       error: "Provider webhook signature timestamp is outside replay tolerance.",
+      mode: "stale_signature",
       ok: false,
       status: 401,
     };
@@ -88,12 +124,16 @@ function verifyProviderWebhookSignature(rawBody: string, signatureHeader: string
   if (!compareHexDigest(expected, signature.versionOne)) {
     return {
       error: "Provider webhook signature is invalid.",
+      mode: "invalid_signature",
       ok: false,
       status: 401,
     };
   }
 
-  return { ok: true };
+  return {
+    mode: "verified",
+    ok: true,
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -125,9 +165,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const readiness = getNeobankReadiness();
+  const moneyRails = getMoneyRailReadiness();
   const verified = verifyProviderWebhookSignature(
     rawBody,
     request.headers.get("x-payshield-provider-signature") || "",
+    readiness,
+    moneyRails,
   );
 
   if (!verified.ok) {
@@ -136,6 +180,9 @@ export async function POST(request: NextRequest) {
         accepted: false,
         error: verified.error,
         mode: "blocked",
+        moneyRails,
+        providerWebhookAuthenticity: verified.mode,
+        readiness,
         service: "payshield-provider-webhook",
       },
       {
@@ -169,11 +216,12 @@ export async function POST(request: NextRequest) {
   }
   const provider = getBankingProvider();
   const result = await provider.handleProviderWebhook(payload);
-  const readiness = getNeobankReadiness();
 
   return NextResponse.json(
     {
       ...result,
+      moneyRails,
+      providerWebhookAuthenticity: verified.mode,
       readiness,
       service: "payshield-provider-webhook",
     },
