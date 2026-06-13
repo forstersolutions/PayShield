@@ -3,6 +3,148 @@ import { getCommercialReadiness } from "../commercial/billing.ts";
 import type { AppSession } from "./auth.ts";
 import { createNeobankSnapshot } from "./demo-state.ts";
 import { getMoneyRailReadiness } from "./money-rails.ts";
+import type { NeobankReadiness } from "./types.ts";
+
+function cleanMissing(values: string[] | undefined) {
+  return [...new Set(values ?? [])].filter(Boolean);
+}
+
+function neobankMissing(readiness: NeobankReadiness) {
+  return readiness.gates.filter((gate) => !gate.ok).map((gate) => gate.id);
+}
+
+function buildActivationPlan(input: {
+  commercial: ReturnType<typeof getCommercialReadiness>;
+  moneyRails: ReturnType<typeof getMoneyRailReadiness>;
+  neobank: NeobankReadiness;
+}) {
+  const stages = [
+    {
+      actionHref: "#money-operations",
+      key: "revenue",
+      label: "Revenue",
+      ownerAction:
+        "Configure Stripe checkout, webhook signing, and core activation so paid households unlock automatically.",
+      primaryEndpoint: "POST /api/app/billing/checkout",
+      ready: input.commercial.paidAccessReady,
+      requiredGates: cleanMissing(input.commercial.missing),
+      status: input.commercial.paidAccessReady
+        ? "ready"
+        : input.commercial.checkoutConfigured
+          ? "activation_needed"
+          : "stripe_needed",
+      title: "Charge the household",
+      userAction: "Activate paid access",
+    },
+    {
+      actionHref: "#money-operations",
+      key: "bank_connection",
+      label: "Bank connection",
+      ownerAction:
+        "Configure Plaid credentials and token-vault handoff so users can connect an external account from the app.",
+      primaryEndpoint: "POST /api/app/bank-link/token",
+      ready: input.moneyRails.bankLinkReady,
+      requiredGates: cleanMissing(
+        input.moneyRails.missing.filter(
+          (gate) =>
+            gate.includes("PLAID") ||
+            gate.includes("TOKEN_VAULT") ||
+            gate.includes("token vault"),
+        ),
+      ),
+      status: input.moneyRails.bankLinkReady
+        ? "ready"
+        : input.moneyRails.plaidConfigured
+          ? "vault_needed"
+          : "plaid_needed",
+      title: "Connect banks",
+      userAction: "Connect bank",
+    },
+    {
+      actionHref: "#money-operations",
+      key: "paycheck_detection",
+      label: "Paycheck detection",
+      ownerAction:
+        "Store detection rules and consume Plaid/provider events so payroll deposits split into buckets automatically.",
+      primaryEndpoint: "POST /api/app/paychecks/detect",
+      ready: input.moneyRails.paycheckDetectionReady,
+      requiredGates: cleanMissing(
+        input.moneyRails.missing.filter(
+          (gate) =>
+            gate.includes("PLAID") ||
+            gate.includes("TOKEN_VAULT") ||
+            gate.includes("PROVIDER_WEBHOOK"),
+        ),
+      ),
+      status: input.moneyRails.paycheckDetectionReady
+        ? "automatic"
+        : input.moneyRails.detectionMode === "plaid_transactions_sync"
+          ? "provider_event_needed"
+          : "manual_event_ready",
+      title: "Detect paychecks",
+      userAction: "Save rule and run detection",
+    },
+    {
+      actionHref: "#bucket-studio",
+      key: "protection_rules",
+      label: "Protection rules",
+      ownerAction:
+        "Use the bucket studio to customize protected categories, priorities, due rules, payees, and unlock behavior.",
+      primaryEndpoint: "POST /api/app/buckets",
+      ready: true,
+      requiredGates: [],
+      status: input.neobank.postgresSchemaVerified ? "durable" : "control_model",
+      title: "Protect the paycheck",
+      userAction: "Save bucket profile",
+    },
+    {
+      actionHref: "#money-operations",
+      key: "money_movement",
+      label: "Money movement",
+      ownerAction:
+        "Configure transfer/BaaS credentials plus the live-money gates so approved transfers execute after ledger validation.",
+      primaryEndpoint: "POST /api/app/transfers",
+      ready: input.moneyRails.transferReady,
+      requiredGates: cleanMissing([
+        ...input.moneyRails.missing.filter(
+          (gate) => gate.includes("TRANSFER") || gate.includes("transfer/BaaS"),
+        ),
+        ...neobankMissing(input.neobank),
+      ]),
+      status: input.moneyRails.transferReady
+        ? "ready"
+        : input.moneyRails.transferConfigured
+          ? "live_gates_needed"
+          : "intent_validation_active",
+      title: "Move protected funds",
+      userAction: "Create transfer intent",
+    },
+    {
+      actionHref: "#card-authorization",
+      key: "card_control",
+      label: "Card control",
+      ownerAction:
+        "Connect a provider gateway so authorization decisions run against Safe to Spend and approved biller buckets.",
+      primaryEndpoint: "POST /api/card/authorize",
+      ready: input.neobank.liveMoneyReady,
+      requiredGates: neobankMissing(input.neobank),
+      status: input.neobank.liveMoneyReady ? "gateway_ready" : "ledger_decisions_active",
+      title: "Approve only safe spend",
+      userAction: "Check card swipe",
+    },
+  ];
+  const nextStage = stages.find((stage) => !stage.ready) ?? stages[0];
+
+  return {
+    generatedAt: new Date().toISOString(),
+    liveMoneyReady: input.neobank.liveMoneyReady,
+    nextStageKey: nextStage.key,
+    readyCount: stages.filter((stage) => stage.ready).length,
+    revenueReady: input.commercial.paidAccessReady,
+    stages,
+    totalStages: stages.length,
+  };
+}
 
 export function createHouseholdOperationsPacket(session?: AppSession) {
   const snapshot = createNeobankSnapshot();
@@ -87,6 +229,11 @@ export function createHouseholdOperationsPacket(session?: AppSession) {
       state: commercial.checkoutConfigured ? "ready" : "needs_setup",
       subscriptionStatus: null,
     },
+    activationPlan: buildActivationPlan({
+      commercial,
+      moneyRails,
+      neobank: snapshot.readiness,
+    }),
     moneyRails,
     operations,
     operationalAudit: {
@@ -141,6 +288,7 @@ export function createHouseholdAuditPacket(session?: AppSession) {
     exportVersion: "payshield-household-audit-v1",
     generatedAt: packet.generatedAt,
     household: packet.household,
+    activationPlan: packet.activationPlan,
     commercialAccess: packet.commercialAccess,
     ledger: {
       entries: packet.operations.journalEntries,

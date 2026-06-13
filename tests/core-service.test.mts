@@ -172,6 +172,8 @@ test("core operations endpoint exposes household money-control records", async (
     const operations = body.operations as Record<string, unknown[]>;
     const statusCards = body.statusCards as Array<Record<string, unknown>>;
     const timeline = body.timeline as Array<Record<string, unknown>>;
+    const activationPlan = body.activationPlan as Record<string, unknown>;
+    const activationStages = activationPlan.stages as Array<Record<string, unknown>>;
 
     assert.equal(response.status, 200);
     assert.equal(body.service, "payshield-household-operations");
@@ -183,6 +185,15 @@ test("core operations endpoint exposes household money-control records", async (
       true,
     );
     assert.equal(timeline[0]?.status, "posted");
+    assert.equal(activationPlan.nextStageKey, "revenue");
+    assert.equal(
+      activationStages.some(
+        (stage) =>
+          stage.key === "money_movement" &&
+          stage.primaryEndpoint === "POST /api/app/transfers",
+      ),
+      true,
+    );
   });
 });
 
@@ -191,6 +202,7 @@ test("core audit export packages ledger and operations for support handoff", asy
     const { body, response } = await getJson(baseUrl, "/api/app/audit/export");
     const ledger = body.ledger as Record<string, unknown>;
     const support = body.support as Record<string, unknown>;
+    const activationPlan = body.activationPlan as Record<string, unknown>;
 
     assert.equal(response.status, 200);
     assert.equal(body.service, "payshield-audit-export");
@@ -198,6 +210,7 @@ test("core audit export packages ledger and operations for support handoff", asy
     assert.equal(ledger.source, "core_control_model");
     assert.equal(Array.isArray(ledger.entries), true);
     assert.equal(support.contact, "support@graystontechnologies.com");
+    assert.equal(activationPlan.totalStages, 6);
   });
 });
 

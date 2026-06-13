@@ -138,6 +138,8 @@ test("operations endpoint exposes the revenue and money-control record", async (
   const balances = body.balances as Record<string, unknown>;
   const statusCards = body.statusCards as Array<Record<string, unknown>>;
   const timeline = body.timeline as Array<Record<string, unknown>>;
+  const activationPlan = body.activationPlan as Record<string, unknown>;
+  const activationStages = activationPlan.stages as Array<Record<string, unknown>>;
 
   assert.equal(response.status, 200);
   assert.equal(body.service, "payshield-household-operations");
@@ -148,6 +150,16 @@ test("operations endpoint exposes the revenue and money-control record", async (
     true,
   );
   assert.equal(timeline[0]?.rail, "ledger");
+  assert.equal(activationPlan.revenueReady, false);
+  assert.equal(activationPlan.nextStageKey, "revenue");
+  assert.equal(
+    activationStages.some(
+      (stage) =>
+        stage.key === "bank_connection" &&
+        stage.primaryEndpoint === "POST /api/app/bank-link/token",
+    ),
+    true,
+  );
 });
 
 test("billing status exposes household paid-access state", async () => {
@@ -183,6 +195,7 @@ test("audit export returns a downloadable household operations packet", async ()
   const response = await exportAudit();
   const body = await parseJson(response);
   const ledger = body.ledger as Record<string, unknown>;
+  const activationPlan = body.activationPlan as Record<string, unknown>;
 
   assert.equal(response.status, 200);
   assert.equal(body.service, "payshield-audit-export");
@@ -195,6 +208,7 @@ test("audit export returns a downloadable household operations packet", async ()
   );
   assert.equal(ledger.source, "core_control_model");
   assert.equal(Array.isArray(ledger.entries), true);
+  assert.equal(activationPlan.totalStages, 6);
 });
 
 test("bucket endpoint loads editable household profile templates", async () => {

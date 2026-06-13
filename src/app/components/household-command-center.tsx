@@ -100,11 +100,68 @@ function stepTone(ready: boolean) {
   return ready ? "ready" : "attention";
 }
 
+type ActivationPlan = ReturnType<
+  typeof createHouseholdOperationsPacket
+>["activationPlan"];
+type ActivationStage = ActivationPlan["stages"][number];
+
+const activationIconMap: Record<string, LucideIcon> = {
+  bank_connection: Link2,
+  card_control: CreditCard,
+  money_movement: ArrowRight,
+  paycheck_detection: Radar,
+  protection_rules: Split,
+  revenue: BadgeDollarSign,
+};
+
+function friendlyActivationGate(gate: string) {
+  if (gate.includes("STRIPE_SECRET_KEY")) {
+    return "Stripe API key";
+  }
+
+  if (gate.includes("STRIPE_WEBHOOK_SECRET")) {
+    return "Stripe webhook";
+  }
+
+  if (gate.includes("PAYSHIELD_COMMERCIAL_PRICE_ID")) {
+    return "Checkout price or payment link";
+  }
+
+  if (gate.includes("PLAID_CLIENT_ID") || gate.includes("PLAID_SECRET")) {
+    return "Plaid credentials";
+  }
+
+  if (gate.includes("TOKEN_VAULT")) {
+    return "Token vault";
+  }
+
+  if (gate.includes("PROVIDER_WEBHOOK")) {
+    return "Provider webhook";
+  }
+
+  if (gate.includes("TRANSFER") || gate.includes("transfer/BaaS")) {
+    return "Transfer provider";
+  }
+
+  return gate.replace(/^PAYSHIELD_/, "").replace(/_/g, " ").toLowerCase();
+}
+
+function compactActivationGates(stage: ActivationStage) {
+  if (!stage.requiredGates.length) {
+    return stage.ready ? "Ready now" : "Control model active";
+  }
+
+  const labels = [...new Set(stage.requiredGates.map(friendlyActivationGate))];
+
+  return labels.slice(0, 2).join(", ") + (labels.length > 2 ? " +" : "");
+}
+
 export function HouseholdCommandCenter() {
   const snapshot = createNeobankSnapshot();
   const commercialReadiness = getCommercialReadiness();
   const moneyRailReadiness = getMoneyRailReadiness();
   const initialOperations = createHouseholdOperationsPacket();
+  const activationPlan = initialOperations.activationPlan;
   const initialOperationsReadiness = {
     commercial: {
       checkoutConfigured: commercialReadiness.checkoutConfigured,
@@ -374,6 +431,8 @@ export function HouseholdCommandCenter() {
           </section>
 
           <section className="grid gap-5">
+            <ActivationConsole plan={activationPlan} />
+
             <div className="brand-panel rounded-[8px] p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -631,6 +690,105 @@ export function HouseholdCommandCenter() {
       <CardAuthorizationPanel safeSpendCents={safeSpend} />
       <UnlockControlPanel buckets={snapshot.buckets} />
     </section>
+  );
+}
+
+function ActivationConsole({ plan }: { plan: ActivationPlan }) {
+  const nextStage =
+    plan.stages.find((stage) => stage.key === plan.nextStageKey) ??
+    plan.stages[0];
+  const NextIcon = activationIconMap[nextStage.key] ?? KeyRound;
+
+  return (
+    <div className="brand-panel rounded-[8px] p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="brand-kicker">Revenue and rails</p>
+          <h2 className="mt-1 text-2xl font-black text-white">
+            How PayShield runs.
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-[#c9d0da]">
+            The product loop is paid access, bank connection, paycheck
+            detection, bucket protection, controlled movement, and card
+            decisions.
+          </p>
+        </div>
+        <span className="rounded-[8px] border border-[#68f0c2]/25 bg-[#68f0c2]/10 px-3 py-2 text-sm font-black text-[#9af7d5]">
+          {plan.readyCount}/{plan.totalStages} active
+        </span>
+      </div>
+
+      <a
+        className="mt-5 grid gap-3 rounded-[8px] border border-[#ffb237]/30 bg-[#ffb237]/10 p-4 transition hover:border-[#ffcf72]/45 hover:bg-[#ffb237]/15 sm:grid-cols-[44px_1fr_auto]"
+        href={nextStage.actionHref}
+      >
+        <span className="grid size-11 place-items-center rounded-[8px] border border-[#ffb237]/25 bg-black/35 text-[#ffcf72]">
+          <NextIcon className="size-5" aria-hidden="true" />
+        </span>
+        <span>
+          <span className="text-xs font-black uppercase text-[#ffcf72]">
+            Next activation move
+          </span>
+          <span className="mt-1 block text-base font-black text-white">
+            {nextStage.title}
+          </span>
+          <span className="mt-1 block text-sm leading-6 text-[#ffe4bd]">
+            {nextStage.ownerAction}
+          </span>
+        </span>
+        <span className="inline-flex h-10 items-center justify-center rounded-[8px] bg-white px-3 text-sm font-black text-[#050607]">
+          Open
+        </span>
+      </a>
+
+      <div className="mt-5 grid gap-2">
+        {plan.stages.map((stage, index) => {
+          const Icon = activationIconMap[stage.key] ?? KeyRound;
+          const ready = stage.ready;
+
+          return (
+            <a
+              className="grid gap-3 rounded-[8px] border border-white/10 bg-black/35 p-3 transition hover:border-[#39e8ff]/35 hover:bg-[#39e8ff]/10 sm:grid-cols-[2.25rem_1fr_auto]"
+              href={stage.actionHref}
+              key={stage.key}
+            >
+              <span
+                className={`grid size-9 place-items-center rounded-[8px] border ${
+                  ready
+                    ? "border-[#68f0c2]/25 bg-[#68f0c2]/10 text-[#68f0c2]"
+                    : "border-[#ffb237]/25 bg-[#ffb237]/10 text-[#ffcf72]"
+                }`}
+              >
+                <Icon className="size-5" aria-hidden="true" />
+              </span>
+              <span className="min-w-0">
+                <span className="text-xs font-black uppercase text-[#8f99aa]">
+                  {String(index + 1).padStart(2, "0")} / {stage.label}
+                </span>
+                <span className="mt-0.5 block text-sm font-black text-white">
+                  {stage.userAction}
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-[#aab3c2]">
+                  {stage.primaryEndpoint}
+                </span>
+              </span>
+              <span
+                className={`self-start rounded-[8px] px-2.5 py-1 text-xs font-black capitalize ${
+                  ready
+                    ? "bg-[#68f0c2]/10 text-[#9af7d5]"
+                    : "bg-[#ffb237]/10 text-[#ffe4ad]"
+                }`}
+              >
+                {stage.status.replace(/_/g, " ")}
+              </span>
+              <span className="text-xs leading-5 text-[#8f99aa] sm:col-span-3 sm:pl-[3rem]">
+                {compactActivationGates(stage)}
+              </span>
+            </a>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
