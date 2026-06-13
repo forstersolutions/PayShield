@@ -97,10 +97,64 @@ function objectValue(value: unknown) {
     : {};
 }
 
+function firstObjectValue(...values: unknown[]) {
+  for (const value of values) {
+    const object = objectValue(value);
+
+    if (Object.keys(object).length > 0) {
+      return object;
+    }
+  }
+
+  return {};
+}
+
 function metadataValue(object: Record<string, unknown>, key: string) {
   const metadata = objectValue(object.metadata);
 
   return stringValue(metadata[key]);
+}
+
+function metadataValueFrom(value: unknown, key: string) {
+  return metadataValue(objectValue(value), key);
+}
+
+function subscriptionDetailsObject(object: Record<string, unknown>) {
+  const parent = objectValue(object.parent);
+
+  return firstObjectValue(object.subscription_details, parent.subscription_details);
+}
+
+function billingIdentityUserId(object: Record<string, unknown>) {
+  const parent = objectValue(object.parent);
+  const subscription = objectValue(object.subscription);
+  const subscriptionDetails = subscriptionDetailsObject(object);
+
+  return (
+    metadataValue(object, "payshield_user_id") ||
+    stringValue(object.client_reference_id) ||
+    metadataValueFrom(subscriptionDetails, "payshield_user_id") ||
+    metadataValueFrom(subscription, "payshield_user_id") ||
+    metadataValueFrom(parent, "payshield_user_id")
+  );
+}
+
+function billingCustomerEmail(object: Record<string, unknown>) {
+  const customerDetails = objectValue(object.customer_details);
+  const customer = objectValue(object.customer);
+  const subscription = objectValue(object.subscription);
+  const subscriptionDetails = subscriptionDetailsObject(object);
+
+  return (
+    stringValue(object.customer_email) ||
+    stringValue(customerDetails.email) ||
+    stringValue(customer.email) ||
+    stringValue(object.receipt_email) ||
+    stringValue(object.account_email) ||
+    metadataValue(object, "payshield_customer_email") ||
+    metadataValueFrom(subscriptionDetails, "payshield_customer_email") ||
+    metadataValueFrom(subscription, "payshield_customer_email")
+  );
 }
 
 function linePriceId(object: Record<string, unknown>) {
@@ -132,12 +186,13 @@ function subscriptionObjectId(object: Record<string, unknown>) {
 }
 
 function invoiceSubscriptionId(object: Record<string, unknown>) {
-  const parent = objectValue(object.parent);
-  const subscriptionDetails = objectValue(parent.subscription_details);
+  const subscriptionDetails = subscriptionDetailsObject(object);
+  const nestedSubscription = objectValue(subscriptionDetails.subscription);
 
   return (
     stringValue(object.subscription) ||
     stringValue(subscriptionDetails.subscription) ||
+    stringValue(nestedSubscription.id) ||
     stringValue(objectValue(object.subscription).id)
   );
 }
@@ -149,17 +204,6 @@ function checkoutPriceId(object: Record<string, unknown>) {
   const price = objectValue(firstLine.price);
 
   return stringValue(price.id) || metadataValue(object, "price_id");
-}
-
-function checkoutCustomerEmail(object: Record<string, unknown>) {
-  const customerDetails = objectValue(object.customer_details);
-  const customer = objectValue(object.customer);
-
-  return (
-    stringValue(object.customer_email) ||
-    stringValue(customerDetails.email) ||
-    stringValue(customer.email)
-  );
 }
 
 function accessStatusFor(eventType: string, object: Record<string, unknown>) {
@@ -357,7 +401,7 @@ export function summarizeStripeBillingEvent(event: StripeWebhookEvent): StripeBi
     amountPaidCents,
     cancelAtPeriodEnd: booleanValue(object.cancel_at_period_end),
     checkoutSessionId,
-    customerEmail: checkoutCustomerEmail(object),
+    customerEmail: billingCustomerEmail(object),
     customerId,
     currentPeriodEnd: unixSecondsToIso(object.current_period_end),
     eventId: stringValue(event.id) ?? "",
@@ -372,9 +416,7 @@ export function summarizeStripeBillingEvent(event: StripeWebhookEvent): StripeBi
       accessStatus,
       handled,
     ),
-    userId:
-      metadataValue(object, "payshield_user_id") ||
-      stringValue(object.client_reference_id),
+    userId: billingIdentityUserId(object),
   };
 }
 

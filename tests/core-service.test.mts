@@ -176,6 +176,8 @@ test("core operations endpoint exposes household money-control records", async (
     const timeline = body.timeline as Array<Record<string, unknown>>;
     const activationPlan = body.activationPlan as Record<string, unknown>;
     const activationStages = activationPlan.stages as Array<Record<string, unknown>>;
+    const revenueAndRails = body.revenueAndRails as Record<string, unknown>;
+    const rails = revenueAndRails.rails as Array<Record<string, unknown>>;
 
     assert.equal(response.status, 200);
     assert.equal(body.service, "payshield-household-operations");
@@ -206,6 +208,25 @@ test("core operations endpoint exposes household money-control records", async (
       ),
       true,
     );
+    assert.equal((revenueAndRails.summary as Record<string, unknown>).priceLabel, "$19/month");
+    assert.equal(
+      rails.some(
+        (rail) =>
+          rail.key === "revenue" &&
+          rail.label === "Get paid" &&
+          rail.endpoint === "POST /api/app/billing/checkout",
+      ),
+      true,
+    );
+    assert.equal(
+      rails.some(
+        (rail) =>
+          rail.key === "money_movement" &&
+          rail.provider === "BaaS or transfer partner" &&
+          String(rail.unlocks).includes("bucket balance"),
+      ),
+      true,
+    );
   });
 });
 
@@ -213,6 +234,7 @@ test("core activation endpoint exposes operator launch checklist", async () => {
   await withCoreServer(async (baseUrl) => {
     const { body, response } = await getJson(baseUrl, "/api/app/activation");
     const activationPlan = body.activationPlan as Record<string, unknown>;
+    const revenueAndRails = body.revenueAndRails as Record<string, unknown>;
     const currentState = body.currentState as Record<string, unknown>;
     const nextAction = body.nextAction as Record<string, unknown>;
     const operatorRunbook = body.operatorRunbook as Record<string, unknown>;
@@ -224,6 +246,7 @@ test("core activation endpoint exposes operator launch checklist", async () => {
     assert.equal(response.status, 200);
     assert.equal(body.service, "payshield-activation-console");
     assert.equal(activationPlan.nextStageKey, "revenue");
+    assert.equal(Array.isArray(revenueAndRails.rails), true);
     assert.equal(nextAction.primaryEndpoint, "POST /api/app/billing/checkout");
     assert.equal(operatorRunbook.activationEndpoint, "/api/launch/activation");
     assert.equal(operatorRunbook.appActivationEndpoint, "/api/app/activation");

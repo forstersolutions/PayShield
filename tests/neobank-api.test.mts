@@ -146,6 +146,8 @@ test("operations endpoint exposes the revenue and money-control record", async (
   const timeline = body.timeline as Array<Record<string, unknown>>;
   const activationPlan = body.activationPlan as Record<string, unknown>;
   const activationStages = activationPlan.stages as Array<Record<string, unknown>>;
+  const revenueAndRails = body.revenueAndRails as Record<string, unknown>;
+  const rails = revenueAndRails.rails as Array<Record<string, unknown>>;
 
   assert.equal(response.status, 200);
   assert.equal(body.service, "payshield-household-operations");
@@ -176,6 +178,26 @@ test("operations endpoint exposes the revenue and money-control record", async (
     ),
     true,
   );
+  assert.equal((revenueAndRails.summary as Record<string, unknown>).priceLabel, "$19/month");
+  assert.equal(
+    rails.some(
+      (rail) =>
+        rail.key === "revenue" &&
+        rail.label === "Get paid" &&
+        rail.endpoint === "POST /api/app/billing/checkout" &&
+        String(rail.unlocks).includes("paid money workflows"),
+    ),
+    true,
+  );
+  assert.equal(
+    rails.some(
+      (rail) =>
+        rail.key === "bank_connection" &&
+        rail.provider === "Plaid Link" &&
+        rail.endpoint === "POST /api/app/bank-link/token",
+    ),
+    true,
+  );
 });
 
 test("activation endpoint exposes operator launch checklist and smoke commands", async () => {
@@ -185,6 +207,7 @@ test("activation endpoint exposes operator launch checklist and smoke commands",
   const currentState = body.currentState as Record<string, unknown>;
   const nextAction = body.nextAction as Record<string, unknown>;
   const operatorRunbook = body.operatorRunbook as Record<string, unknown>;
+  const revenueAndRails = body.revenueAndRails as Record<string, unknown>;
   const smokeCommands = operatorRunbook.smokeCommands as string[];
   const authenticatedSmokeCommands =
     operatorRunbook.authenticatedSmokeCommands as string[];
@@ -236,6 +259,10 @@ test("activation endpoint exposes operator launch checklist and smoke commands",
   assert.equal(
     (currentState.commercialAccess as Record<string, unknown>).state,
     "needs_setup",
+  );
+  assert.equal(
+    Array.isArray(revenueAndRails.rails),
+    true,
   );
 });
 
@@ -529,7 +556,15 @@ test("paid access checkout session uses the authenticated customer identity", as
     assert.equal(capturedStripeVersion, "2026-02-25.clover");
     assert.equal(form.get("customer_email"), "customer@example.com");
     assert.equal(form.get("client_reference_id"), "user_clerk_123");
+    assert.equal(
+      form.get("metadata[payshield_customer_email]"),
+      "customer@example.com",
+    );
     assert.equal(form.get("metadata[payshield_user_id]"), "user_clerk_123");
+    assert.equal(
+      form.get("subscription_data[metadata][payshield_customer_email]"),
+      "customer@example.com",
+    );
     assert.equal(
       form.get("subscription_data[metadata][payshield_user_id]"),
       "user_clerk_123",
@@ -688,7 +723,15 @@ test("public checkout creates Stripe session with email-stable PayShield identit
     assert.equal(coreBodies[1]?.status, "created");
     assert.equal(form.get("customer_email"), "buyer@example.com");
     assert.match(userId, /^email_[a-f0-9]{32}$/);
+    assert.equal(
+      form.get("metadata[payshield_customer_email]"),
+      "buyer@example.com",
+    );
     assert.equal(form.get("metadata[payshield_user_id]"), userId);
+    assert.equal(
+      form.get("subscription_data[metadata][payshield_customer_email]"),
+      "buyer@example.com",
+    );
     assert.equal(
       form.get("subscription_data[metadata][payshield_user_id]"),
       userId,
@@ -749,6 +792,48 @@ test("billing webhook verifies Stripe signature and summarizes paid access", asy
   assert.equal(summary.customerId, "cus_test");
   assert.equal(summary.subscriptionId, "sub_test");
   assert.equal(summary.subscriptionStatus, "active");
+});
+
+test("billing webhook attaches invoice events through nested subscription metadata", async () => {
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+
+  const payload = JSON.stringify({
+    data: {
+      object: {
+        amount_paid: 1900,
+        customer: "cus_invoice",
+        customer_email: "buyer@example.com",
+        id: "in_paid",
+        parent: {
+          subscription_details: {
+            metadata: {
+              payshield_customer_email: "buyer@example.com",
+              payshield_user_id: "email_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            },
+            subscription: "sub_invoice",
+          },
+        },
+        status: "paid",
+      },
+    },
+    id: "evt_invoice_paid",
+    type: "invoice.payment_succeeded",
+  });
+  const response = await billingWebhook(
+    makeStripeWebhookRequest(payload, "whsec_test", Math.floor(Date.now() / 1000)),
+  );
+  const body = await parseJson(response);
+  const summary = body.summary as Record<string, unknown>;
+
+  assert.equal(response.status, 200);
+  assert.equal(summary.accessStatus, "active");
+  assert.equal(summary.amountPaidCents, 1900);
+  assert.equal(summary.customerEmail, "buyer@example.com");
+  assert.equal(summary.customerId, "cus_invoice");
+  assert.equal(summary.invoiceId, "in_paid");
+  assert.equal(summary.subscriptionId, "sub_invoice");
+  assert.equal(summary.subscriptionStatus, "active");
+  assert.equal(summary.userId, "email_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 });
 
 test("money workflows require activation-ready paid access before commercial operations", async () => {

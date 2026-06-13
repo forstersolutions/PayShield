@@ -369,6 +369,142 @@ function buildActivationPlan(input: {
   };
 }
 
+function buildRevenueAndRails(input: {
+  commercial: ReturnType<typeof getCommercialReadiness>;
+  moneyRails: ReturnType<typeof getMoneyRailReadiness>;
+  neobank: NeobankReadiness;
+  protectedCents: number;
+  safeToSpendCents: number;
+}) {
+  const liveMoneyMissing = neobankMissing(input.neobank);
+  const priceLabel = input.commercial.priceLabel || "$19/month";
+
+  return {
+    operatingSequence: [
+      "Collect paid household access",
+      "Bind the household identity",
+      "Connect the external bank source",
+      "Route and detect paycheck deposits",
+      "Split protected buckets before Safe to Spend",
+      "Release funds only through approved transfers, billers, unlocks, or card decisions",
+    ],
+    rails: [
+      {
+        blockers: cleanMissing(input.commercial.missing),
+        canRunNow: input.commercial.paidAccessReady,
+        endpoint: "POST /api/app/billing/checkout",
+        key: "revenue",
+        label: "Get paid",
+        ownerAction:
+          "Configure Stripe Checkout, webhook signing, and core persistence.",
+        provider: "Stripe",
+        state: input.commercial.paidAccessReady
+          ? "active"
+          : input.commercial.checkoutConfigured
+            ? "activation_needed"
+            : "stripe_needed",
+        userAction: `Subscribe at ${priceLabel}`,
+        unlocks: "Commercial access, billing status, and paid money workflows.",
+      },
+      {
+        blockers: cleanMissing(
+          input.moneyRails.missing.filter(
+            (gate) =>
+              gate.includes("PLAID") ||
+              gate.includes("TOKEN_VAULT") ||
+              gate.includes("token vault"),
+          ),
+        ),
+        canRunNow: input.moneyRails.bankLinkReady,
+        endpoint: "POST /api/app/bank-link/token",
+        key: "bank_connection",
+        label: "Connect banks",
+        ownerAction: "Set Plaid credentials and signed token-vault handoff.",
+        provider: "Plaid Link",
+        state: input.moneyRails.bankLinkReady
+          ? "ready"
+          : input.moneyRails.plaidConfigured
+            ? "vault_needed"
+            : "plaid_needed",
+        userAction: "Launch bank connection",
+        unlocks: "Masked funding source, token custody, and provider account mapping.",
+      },
+      {
+        blockers: cleanMissing(
+          input.moneyRails.missing.filter(
+            (gate) =>
+              gate.includes("PLAID") ||
+              gate.includes("TOKEN_VAULT") ||
+              gate.includes("PROVIDER_WEBHOOK"),
+          ),
+        ),
+        canRunNow: true,
+        endpoint: "POST /api/app/paychecks/detect",
+        key: "paycheck_detection",
+        label: "Detect income",
+        ownerAction:
+          "Configure signed provider events for automatic detection; manual detection remains available for controlled testing.",
+        provider:
+          input.moneyRails.detectionMode === "plaid_transactions_sync"
+            ? "Plaid Transactions"
+            : "Provider webhook",
+        state: input.moneyRails.paycheckDetectionReady
+          ? "automatic"
+          : "manual_event_ready",
+        userAction: "Save payroll rule and run detection",
+        unlocks: "Priority bucket funding and a recalculated Safe to Spend balance.",
+      },
+      {
+        blockers: cleanMissing([
+          ...input.moneyRails.missing.filter(
+            (gate) => gate.includes("TRANSFER") || gate.includes("transfer/BaaS"),
+          ),
+          ...liveMoneyMissing,
+        ]),
+        canRunNow: input.moneyRails.transferReady,
+        endpoint: "POST /api/app/transfers",
+        key: "money_movement",
+        label: "Move funds",
+        ownerAction:
+          "Set transfer/BaaS credentials, provider approvals, durable ledger, and operating gates.",
+        provider: "BaaS or transfer partner",
+        state: input.moneyRails.transferReady
+          ? "ready"
+          : input.moneyRails.transferConfigured
+            ? "live_gates_needed"
+            : "intent_validation_active",
+        userAction: "Create protected transfer intent",
+        unlocks: "Provider handoff only after bucket balance and payee validation pass.",
+      },
+      {
+        blockers: cleanMissing(liveMoneyMissing),
+        canRunNow: input.neobank.liveMoneyReady,
+        endpoint: "POST /api/card/authorize",
+        key: "card_control",
+        label: "Control spend",
+        ownerAction:
+          "Connect the card authorization gateway after provider, counsel, ledger, auth, and runbook gates pass.",
+        provider: "Card gateway",
+        state: input.neobank.liveMoneyReady
+          ? "gateway_ready"
+          : "ledger_decisions_active",
+        userAction: "Check swipe decision",
+        unlocks: "Safe-to-spend approvals, protected-fund declines, and biller exceptions.",
+      },
+    ],
+    summary: {
+      bankLinkReady: input.moneyRails.bankLinkReady,
+      detectionMode: input.moneyRails.detectionMode,
+      liveMoneyReady: input.neobank.liveMoneyReady,
+      priceLabel,
+      protectedCents: input.protectedCents,
+      revenueReady: input.commercial.paidAccessReady,
+      safeToSpendCents: input.safeToSpendCents,
+      transferReady: input.moneyRails.transferReady,
+    },
+  };
+}
+
 export function createHouseholdOperationsPacket(session?: AppSession) {
   const snapshot = createNeobankSnapshot();
   const commercial = getCommercialReadiness();
@@ -458,6 +594,13 @@ export function createHouseholdOperationsPacket(session?: AppSession) {
       moneyRails,
       neobank: snapshot.readiness,
     }),
+    revenueAndRails: buildRevenueAndRails({
+      commercial,
+      moneyRails,
+      neobank: snapshot.readiness,
+      protectedCents,
+      safeToSpendCents,
+    }),
     moneyRails,
     operations,
     operationalAudit: {
@@ -538,6 +681,7 @@ function activationPacketFromOperations(
       commercialAccess: packet.commercialAccess,
       moneyRails: packet.moneyRails,
       readiness: packet.readiness,
+      revenueAndRails: packet.revenueAndRails,
       statusCards: packet.statusCards,
     },
     generatedAt: packet.generatedAt,
@@ -574,6 +718,7 @@ function activationPacketFromOperations(
     },
     service: "payshield-activation-console",
     support: packet.support,
+    revenueAndRails: packet.revenueAndRails,
   };
 }
 
@@ -595,6 +740,7 @@ export function createHouseholdAuditPacket(session?: AppSession) {
     household: packet.household,
     activationPlan: packet.activationPlan,
     commercialAccess: packet.commercialAccess,
+    revenueAndRails: packet.revenueAndRails,
     ledger: {
       entries: packet.operations.journalEntries,
       source: "core_control_model",

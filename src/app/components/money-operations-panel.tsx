@@ -125,6 +125,34 @@ type CheckoutIntent = {
   status?: string;
 };
 
+type RevenueRail = {
+  blockers?: string[];
+  canRunNow?: boolean;
+  endpoint: string;
+  key: string;
+  label: string;
+  ownerAction: string;
+  provider: string;
+  state: string;
+  userAction: string;
+  unlocks: string;
+};
+
+type RevenueAndRails = {
+  operatingSequence?: string[];
+  rails?: RevenueRail[];
+  summary?: {
+    bankLinkReady?: boolean;
+    detectionMode?: string;
+    liveMoneyReady?: boolean;
+    priceLabel?: string;
+    protectedCents?: number;
+    revenueReady?: boolean;
+    safeToSpendCents?: number;
+    transferReady?: boolean;
+  };
+};
+
 type OperationsPacket = {
   balances?: {
     protectedCents?: number;
@@ -153,6 +181,7 @@ type OperationsPacket = {
     persistence?: string;
   };
   operations?: Record<string, unknown[]>;
+  revenueAndRails?: RevenueAndRails;
   statusCards?: Array<{
     key: string;
     label: string;
@@ -1197,6 +1226,8 @@ export function MoneyOperationsPanel({
     ...localTimeline,
     ...(operations?.timeline ?? []),
   ].slice(0, 8);
+  const revenueAndRails = operations?.revenueAndRails;
+  const revenueRails = revenueAndRails?.rails ?? [];
   const serverRecordCount = recordCount(operations);
   const commercialGates = readiness?.commercial?.remainingGates ?? [];
   const moneyRailGates = readiness?.moneyRails?.remainingGates ?? [];
@@ -1428,6 +1459,79 @@ export function MoneyOperationsPanel({
             </div>
           </div>
         </div>
+
+        {revenueRails.length > 0 ? (
+          <div className="brand-panel rounded-[8px] p-4 sm:p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="brand-kicker">Revenue and rails</p>
+                <h3 className="mt-1 text-2xl font-black text-white">
+                  The commercial operating map.
+                </h3>
+              </div>
+              <div className="grid min-w-[12rem] gap-1 rounded-[8px] border border-[#68f0c2]/25 bg-[#68f0c2]/10 p-3">
+                <p className="brand-kicker">Subscription</p>
+                <p className="text-2xl font-black text-white">
+                  {revenueAndRails?.summary?.priceLabel ??
+                    operations?.commercialAccess?.priceLabel ??
+                    "$19/month"}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              {revenueRails.map((rail) => (
+                <div
+                  className={`grid min-h-52 content-start gap-3 rounded-[8px] border p-3 ${
+                    rail.canRunNow
+                      ? "border-[#68f0c2]/25 bg-[#68f0c2]/[0.07]"
+                      : "border-white/10 bg-black/35"
+                  }`}
+                  key={rail.key}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span>
+                      <span className="block text-xs font-black uppercase tracking-[0.12em] text-[#8f99aa]">
+                        {rail.provider}
+                      </span>
+                      <span className="mt-1 block text-base font-black text-white">
+                        {rail.label}
+                      </span>
+                    </span>
+                    <span
+                      className={`rounded-[8px] px-2.5 py-1 text-xs font-black capitalize ${
+                        rail.canRunNow
+                          ? "bg-[#68f0c2]/10 text-[#9af7d5]"
+                          : "bg-[#ffb237]/10 text-[#ffe4ad]"
+                      }`}
+                    >
+                      {rail.state.replace(/_/g, " ")}
+                    </span>
+                  </div>
+                  <p className="text-sm font-bold leading-6 text-[#d9dde5]">
+                    {rail.userAction}
+                  </p>
+                  <p className="text-xs leading-5 text-[#aab3c2]">
+                    {rail.unlocks}
+                  </p>
+                  <span className="mt-auto font-mono text-[0.68rem] font-black uppercase text-[#39e8ff]">
+                    {rail.endpoint}
+                  </span>
+                  {rail.blockers?.length ? (
+                    <p className="text-xs font-bold leading-5 text-[#ffe4ad]">
+                      Needs {rail.blockers.slice(0, 2).map(friendlyGateLabel).join(", ")}
+                      {rail.blockers.length > 2 ? " +" : ""}.
+                    </p>
+                  ) : (
+                    <p className="text-xs font-bold leading-5 text-[#9af7d5]">
+                      Ready in the current operating state.
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <div className="brand-panel rounded-[8px] p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
