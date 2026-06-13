@@ -38,6 +38,8 @@ const endpoint = "https://payshield.test";
 beforeEach(() => {
   delete process.env.CLERK_SECRET_KEY;
   delete process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  delete process.env.PAYSHIELD_BAAS_ADAPTER;
+  delete process.env.PAYSHIELD_BAAS_API_BASE_URL;
   delete process.env.PAYSHIELD_BAAS_API_KEY;
   delete process.env.PAYSHIELD_BAAS_CONTRACT_APPROVED;
   delete process.env.PAYSHIELD_BAAS_PROVIDER;

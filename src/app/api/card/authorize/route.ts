@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server.js";
 import { requirePaidAccessForFallback } from "../../../lib/commercial/billing.ts";
 import { forwardCoreRequest } from "../../../lib/neobank/core-client.ts";
 import { simulateCardAuthorization } from "../../../lib/neobank/demo-state.ts";
-import { getBankingProvider } from "../../../lib/neobank/provider.ts";
+import {
+  getBankingProvider,
+  ProviderAdapterError,
+} from "../../../lib/neobank/provider.ts";
 import { getNeobankReadiness } from "../../../lib/neobank/readiness.ts";
 
 function cleanText(value: unknown, fallback: string) {
@@ -77,7 +80,30 @@ export async function POST(request: NextRequest) {
   const readiness = getNeobankReadiness();
 
   if (readiness.liveMoneyReady) {
-    const decision = await getBankingProvider().respondToCardAuthorization(input);
+    let decision;
+
+    try {
+      decision = await getBankingProvider().respondToCardAuthorization(input);
+    } catch (error) {
+      if (error instanceof ProviderAdapterError) {
+        return NextResponse.json(
+          {
+            error: error.message,
+            mode: "provider_gateway",
+            readiness,
+            service: "payshield-card-authorization",
+          },
+          {
+            headers: {
+              "cache-control": "no-store",
+            },
+            status: 502,
+          },
+        );
+      }
+
+      throw error;
+    }
 
     return NextResponse.json(
       {

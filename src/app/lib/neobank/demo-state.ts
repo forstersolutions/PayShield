@@ -133,14 +133,14 @@ export function createNeobankSnapshot(book = createDemoLedgerBook()): NeobankSna
     buckets: buildBucketBalances(book, neobankBuckets),
     card: {
       authorizationMode: readiness.liveMoneyReady ? "provider_gateway" : "simulation",
-      cardLast4: readiness.liveMoneyReady ? "9244" : "----",
+      cardLast4: "----",
       status: readiness.liveMoneyReady ? "live" : "gated",
     },
     directDeposit: {
-      accountLast4: readiness.liveMoneyReady ? "4421" : "----",
+      accountLast4: "----",
       accountName: "PayShield protected paycheck account",
       providerStatus: readiness.liveMoneyReady ? "live" : "gated",
-      routingLast4: readiness.liveMoneyReady ? "0210" : "----",
+      routingLast4: "----",
     },
     householdId: demoUser.householdId,
     ledgerEntries: book.allEntries(),

@@ -18,6 +18,8 @@ import {
 } from "../src/app/lib/neobank/demo-state.ts";
 
 beforeEach(() => {
+  delete process.env.PAYSHIELD_BAAS_ADAPTER;
+  delete process.env.PAYSHIELD_BAAS_API_BASE_URL;
   delete process.env.PAYSHIELD_BAAS_API_KEY;
   delete process.env.PAYSHIELD_BAAS_CONTRACT_APPROVED;
   delete process.env.PAYSHIELD_BAAS_PROVIDER;

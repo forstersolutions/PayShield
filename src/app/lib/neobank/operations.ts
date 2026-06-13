@@ -128,8 +128,9 @@ function buildActivationSetupGroups(input: {
       env: [
         "PAYSHIELD_TRANSFER_ENABLED",
         "PAYSHIELD_BAAS_PROVIDER",
+        "PAYSHIELD_BAAS_ADAPTER",
+        "PAYSHIELD_BAAS_API_BASE_URL",
         "PAYSHIELD_BAAS_API_KEY",
-        "PLAID_TRANSFER_CLIENT_ID",
       ],
       key: "money_movement",
       productAction:
@@ -147,6 +148,8 @@ function buildActivationSetupGroups(input: {
       endpoint: "POST /api/card/authorize",
       env: [
         "PAYSHIELD_BAAS_CONTRACT_APPROVED",
+        "PAYSHIELD_BAAS_ADAPTER",
+        "PAYSHIELD_BAAS_API_BASE_URL",
         "PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED",
         "PAYSHIELD_REGULATED_COUNSEL_SIGNOFF",
         "PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED",

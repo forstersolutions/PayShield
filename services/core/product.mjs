@@ -40,6 +40,11 @@ const gateDefinitions = [
     kind: "provider_credentials",
   },
   {
+    description: "Configured BaaS/card provider adapter can receive live API calls.",
+    id: "provider_adapter",
+    kind: "provider_adapter",
+  },
+  {
     description: "Sponsor-bank and pass-through wording is counsel-approved.",
     env: "PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED",
     id: "sponsor_disclosures",
@@ -188,6 +193,199 @@ function envPresent(env, name) {
   return Boolean(env[name]?.trim());
 }
 
+const httpJsonProviderAdapter = "http_json";
+
+const providerEndpointDefaults = {
+  billPayment: "/bill-payments",
+  cardAuthorization: "/card-authorizations",
+  cardIssue: "/cards",
+  customer: "/customers",
+  directDeposit: "/direct-deposit-instructions",
+  financialAccount: "/financial-accounts",
+  kyc: "/kyc/applications",
+  transfer: "/ach-transfers",
+};
+
+function cleanProviderBaseUrl(value, env) {
+  if (!value?.trim()) {
+    return "";
+  }
+
+  try {
+    const url = new URL(value);
+    const localHttp =
+      url.protocol === "http:" &&
+      ["127.0.0.1", "::1", "localhost"].includes(url.hostname) &&
+      env.VERCEL_ENV !== "production";
+
+    if (
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      (url.protocol !== "https:" && !localHttp)
+    ) {
+      return "";
+    }
+
+    url.pathname = url.pathname.replace(/\/+$/, "");
+
+    return url.toString().replace(/\/+$/, "");
+  } catch {
+    return "";
+  }
+}
+
+function cleanProviderPath(value, fallback) {
+  const path = value?.trim() || fallback;
+
+  if (!path.startsWith("/") || path.includes("://")) {
+    return fallback;
+  }
+
+  return path.replace(/\/{2,}/g, "/");
+}
+
+function providerAdapterTimeoutMs(env) {
+  const parsed = Number(env.PAYSHIELD_BAAS_TIMEOUT_MS);
+
+  return Number.isInteger(parsed) && parsed >= 1000 && parsed <= 30_000
+    ? parsed
+    : 8000;
+}
+
+function getProviderAdapterConfig(env = process.env) {
+  const adapter = env.PAYSHIELD_BAAS_ADAPTER?.trim().toLowerCase() || "";
+  const apiBaseUrl = cleanProviderBaseUrl(env.PAYSHIELD_BAAS_API_BASE_URL, env);
+  const apiKeyConfigured = envPresent(env, "PAYSHIELD_BAAS_API_KEY");
+  const providerName = env.PAYSHIELD_BAAS_PROVIDER?.trim() || "";
+  const missing = [
+    ...(adapter === httpJsonProviderAdapter ? [] : ["PAYSHIELD_BAAS_ADAPTER=http_json"]),
+    ...(apiBaseUrl ? [] : ["PAYSHIELD_BAAS_API_BASE_URL"]),
+    ...(apiKeyConfigured ? [] : ["PAYSHIELD_BAAS_API_KEY"]),
+    ...(providerName ? [] : ["PAYSHIELD_BAAS_PROVIDER"]),
+  ];
+
+  return {
+    adapter,
+    apiBaseUrl,
+    apiKeyConfigured,
+    endpoints: {
+      billPayment: cleanProviderPath(env.PAYSHIELD_BAAS_BILL_PAYMENT_PATH, providerEndpointDefaults.billPayment),
+      cardAuthorization: cleanProviderPath(env.PAYSHIELD_BAAS_CARD_AUTHORIZATION_PATH, providerEndpointDefaults.cardAuthorization),
+      cardIssue: cleanProviderPath(env.PAYSHIELD_BAAS_CARD_ISSUE_PATH, providerEndpointDefaults.cardIssue),
+      customer: cleanProviderPath(env.PAYSHIELD_BAAS_CUSTOMER_PATH, providerEndpointDefaults.customer),
+      directDeposit: cleanProviderPath(env.PAYSHIELD_BAAS_DIRECT_DEPOSIT_PATH, providerEndpointDefaults.directDeposit),
+      financialAccount: cleanProviderPath(env.PAYSHIELD_BAAS_FINANCIAL_ACCOUNT_PATH, providerEndpointDefaults.financialAccount),
+      kyc: cleanProviderPath(env.PAYSHIELD_BAAS_KYC_PATH, providerEndpointDefaults.kyc),
+      transfer: cleanProviderPath(env.PAYSHIELD_BAAS_TRANSFER_PATH, providerEndpointDefaults.transfer),
+    },
+    missing,
+    ok: missing.length === 0,
+    providerName,
+    timeoutMs: providerAdapterTimeoutMs(env),
+  };
+}
+
+function joinProviderPath(baseUrl, path) {
+  return new URL(path.replace(/^\/+/, ""), `${baseUrl}/`).toString();
+}
+
+class ProviderAdapterError extends Error {
+  constructor(message = "Configured provider adapter request failed.") {
+    super(message);
+    this.name = "ProviderAdapterError";
+  }
+}
+
+async function providerAdapterRequest(env, operation, path, body) {
+  const config = getProviderAdapterConfig(env);
+
+  if (!config.ok) {
+    throw new ProviderAdapterError(
+      `Provider adapter is missing ${config.missing.join(", ")}.`,
+    );
+  }
+
+  let response;
+
+  try {
+    response = await fetch(joinProviderPath(config.apiBaseUrl, path), {
+      body: JSON.stringify({
+        ...body,
+        operation,
+        providerName: config.providerName,
+      }),
+      cache: "no-store",
+      headers: {
+        "authorization": `Bearer ${env.PAYSHIELD_BAAS_API_KEY?.trim()}`,
+        "content-type": "application/json",
+        "x-payshield-provider": config.providerName,
+        "x-payshield-provider-operation": operation,
+      },
+      method: "POST",
+      signal: AbortSignal.timeout(config.timeoutMs),
+    });
+  } catch (error) {
+    throw new ProviderAdapterError(
+      error instanceof Error
+        ? `Provider ${operation} request failed: ${error.message}`
+        : `Provider ${operation} request failed.`,
+    );
+  }
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new ProviderAdapterError(
+      safeString(payload?.error, 180) ||
+        safeString(payload?.message, 180) ||
+        `Provider ${operation} request failed with status ${response.status}.`,
+    );
+  }
+
+  return safeObject(payload);
+}
+
+function providerField(payload, fields) {
+  for (const field of fields) {
+    const value = safeString(payload?.[field], 240);
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return "";
+}
+
+function providerRequestId(payload) {
+  return providerField(payload, ["providerRequestId", "requestId", "id"]);
+}
+
+function requireProviderField(payload, fields, message) {
+  const value = providerField(payload, fields);
+
+  if (!value) {
+    throw new ProviderAdapterError(message);
+  }
+
+  return value;
+}
+
+function providerErrorResult(error, service) {
+  return {
+    body: {
+      error:
+        error instanceof ProviderAdapterError
+          ? error.message
+          : "Configured provider adapter request failed.",
+      service,
+    },
+    status: 502,
+  };
+}
+
 function gateOk(definition, env, options) {
   if (definition.kind === "true") {
     return envTrue(env, definition.env);
@@ -208,6 +406,10 @@ function gateOk(definition, env, options) {
 
   if (definition.kind === "provider_credentials") {
     return envPresent(env, "PAYSHIELD_BAAS_PROVIDER") && envPresent(env, "PAYSHIELD_BAAS_API_KEY");
+  }
+
+  if (definition.kind === "provider_adapter") {
+    return getProviderAdapterConfig(env).ok;
   }
 
   if (definition.kind === "core_online_or_present") {
@@ -287,7 +489,7 @@ export function assertLiveMoneyReady(readiness = getCoreReadiness(process.env, {
       ok: false,
       readiness,
       reason:
-        "Live money is blocked until provider, ledger, auth, counsel, disclosure, and operations gates are complete.",
+        "Live money is blocked until provider adapter, ledger, auth, counsel, disclosure, and operations gates are complete.",
     };
   }
 
@@ -831,14 +1033,14 @@ function createNeobankSnapshot(
     buckets: buildBucketBalances(book, buckets),
     card: {
       authorizationMode: readiness.liveMoneyReady ? "provider_gateway" : "simulation",
-      cardLast4: readiness.liveMoneyReady ? "9244" : "----",
+      cardLast4: "----",
       status: readiness.liveMoneyReady ? "live" : "gated",
     },
     directDeposit: {
-      accountLast4: readiness.liveMoneyReady ? "4421" : "----",
+      accountLast4: "----",
       accountName: "PayShield protected paycheck account",
       providerStatus: readiness.liveMoneyReady ? "live" : "gated",
-      routingLast4: readiness.liveMoneyReady ? "0210" : "----",
+      routingLast4: "----",
     },
     householdId: actor.householdId,
     ledgerEntries: book.allEntries(),
@@ -1949,8 +2151,9 @@ function buildActivationSetupGroups(body, siteUrl) {
       env: [
         "PAYSHIELD_TRANSFER_ENABLED",
         "PAYSHIELD_BAAS_PROVIDER",
+        "PAYSHIELD_BAAS_ADAPTER",
+        "PAYSHIELD_BAAS_API_BASE_URL",
         "PAYSHIELD_BAAS_API_KEY",
-        "PLAID_TRANSFER_CLIENT_ID",
       ],
       key: "money_movement",
       productAction:
@@ -1968,6 +2171,8 @@ function buildActivationSetupGroups(body, siteUrl) {
       endpoint: "POST /api/card/authorize",
       env: [
         "PAYSHIELD_BAAS_CONTRACT_APPROVED",
+        "PAYSHIELD_BAAS_ADAPTER",
+        "PAYSHIELD_BAAS_API_BASE_URL",
         "PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED",
         "PAYSHIELD_REGULATED_COUNSEL_SIGNOFF",
         "PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED",
@@ -2853,10 +3058,177 @@ export async function saveBucketProfile(payload, env = process.env) {
 
 function directDepositInstructionsForReadiness(readiness) {
   return {
-    accountLast4: readiness.liveMoneyReady ? "4421" : "----",
+    accountLast4: "----",
     accountName: "PayShield protected paycheck account",
     providerStatus: readiness.liveMoneyReady ? "live" : "gated",
-    routingLast4: readiness.liveMoneyReady ? "0210" : "----",
+    routingLast4: "----",
+  };
+}
+
+function directDepositInstructionsFromProviderPayload(payload) {
+  const accountLast4 = safeString(payload?.accountLast4, 4);
+  const routingLast4 = safeString(payload?.routingLast4, 4);
+
+  if (!/^\d{4}$/.test(accountLast4) || !/^\d{4}$/.test(routingLast4)) {
+    throw new ProviderAdapterError(
+      "Provider direct-deposit response did not include masked routing details.",
+    );
+  }
+
+  return {
+    accountLast4,
+    accountName:
+      safeString(payload?.accountName, 80) ||
+      "PayShield protected paycheck account",
+    providerStatus: "live",
+    routingLast4,
+  };
+}
+
+async function providerCreateCustomer(env, actor) {
+  const payload = await providerAdapterRequest(
+    env,
+    "createCustomer",
+    getProviderAdapterConfig(env).endpoints.customer,
+    {
+      email: actor.email,
+      idempotencyKey: `customer:${actor.id}`,
+      name: actor.name,
+      userId: actor.id,
+    },
+  );
+
+  return {
+    providerCustomerId: requireProviderField(
+      payload,
+      ["providerCustomerId", "customerId"],
+      "Provider customer response did not include a customer id.",
+    ),
+    providerRequestId: providerRequestId(payload) || undefined,
+    status: "created",
+  };
+}
+
+async function providerStartKyc(env, actor) {
+  const payload = await providerAdapterRequest(
+    env,
+    "startKyc",
+    getProviderAdapterConfig(env).endpoints.kyc,
+    {
+      email: actor.email,
+      idempotencyKey: `kyc:${actor.id}`,
+      name: actor.name,
+      userId: actor.id,
+    },
+  );
+
+  return {
+    providerApplicationId: requireProviderField(
+      payload,
+      ["providerApplicationId", "applicationId"],
+      "Provider KYC response did not include an application id.",
+    ),
+    providerRequestId: providerRequestId(payload) || undefined,
+    status: "started",
+  };
+}
+
+async function providerOpenFinancialAccount(env, providerCustomerId) {
+  const payload = await providerAdapterRequest(
+    env,
+    "openFinancialAccount",
+    getProviderAdapterConfig(env).endpoints.financialAccount,
+    {
+      idempotencyKey: `financial-account:${providerCustomerId}`,
+      providerCustomerId,
+    },
+  );
+
+  return {
+    providerAccountId: requireProviderField(
+      payload,
+      ["providerAccountId", "accountId"],
+      "Provider account response did not include an account id.",
+    ),
+    providerRequestId: providerRequestId(payload) || undefined,
+    status: "opened",
+  };
+}
+
+async function providerCreateDirectDepositInstructions(env, providerAccountId) {
+  const payload = await providerAdapterRequest(
+    env,
+    "createDirectDepositInstructions",
+    getProviderAdapterConfig(env).endpoints.directDeposit,
+    {
+      idempotencyKey: `direct-deposit:${providerAccountId}`,
+      providerAccountId,
+    },
+  );
+
+  return directDepositInstructionsFromProviderPayload(payload);
+}
+
+async function providerIssueCard(env, actor, providerAccountId) {
+  const payload = await providerAdapterRequest(
+    env,
+    "issueCard",
+    getProviderAdapterConfig(env).endpoints.cardIssue,
+    {
+      idempotencyKey: `card:${actor.id}:${providerAccountId}`,
+      providerAccountId,
+      userId: actor.id,
+    },
+  );
+  const cardLast4 = safeString(payload?.cardLast4, 4);
+  const providerCardId = providerField(payload, ["providerCardId", "cardId"]);
+
+  if (!providerCardId || !/^\d{4}$/.test(cardLast4)) {
+    throw new ProviderAdapterError(
+      "Provider card response did not include card identifiers.",
+    );
+  }
+
+  return {
+    cardLast4,
+    providerCardId,
+    status: "issued",
+  };
+}
+
+async function providerCreateAchTransfer(env, input) {
+  const payload = await providerAdapterRequest(
+    env,
+    "createAchTransfer",
+    getProviderAdapterConfig(env).endpoints.transfer,
+    input,
+  );
+
+  return {
+    providerTransferId: requireProviderField(
+      payload,
+      ["providerTransferId", "transferId"],
+      "Provider transfer response did not include a transfer id.",
+    ),
+    status: "created",
+  };
+}
+
+async function providerCreateBillPayment(env, input) {
+  const payload = await providerAdapterRequest(
+    env,
+    "createBillPayment",
+    getProviderAdapterConfig(env).endpoints.billPayment,
+    input,
+  );
+
+  return {
+    providerBillPaymentId: requireProviderField(
+      payload,
+      ["providerBillPaymentId", "billPaymentId"],
+      "Provider bill-payment response did not include a bill payment id.",
+    ),
+    status: "created",
   };
 }
 
@@ -2878,18 +3250,56 @@ export async function createDirectDepositSetup(payload = {}, env = process.env) 
     return paidAccess.result;
   }
 
-  const providerName = cleanText(payload?.providerName, 40).toLowerCase() || "payshield";
-  const providerCustomerId = readiness.liveMoneyReady
-    ? cleanText(payload?.providerCustomerId, 160) || "provider-customer-live"
+  const providerName =
+    cleanText(payload?.providerName, 40).toLowerCase() ||
+    getProviderAdapterConfig(env).providerName ||
+    "payshield";
+  const providerCustomerId = liveGate.ok
+    ? cleanText(payload?.providerCustomerId, 160) || null
     : null;
-  const providerAccountId = readiness.liveMoneyReady
-    ? cleanText(payload?.providerAccountId, 160) || "financial-account-live"
+  const providerAccountId = liveGate.ok
+    ? cleanText(payload?.providerAccountId, 160)
     : "financial-account-provider-contract-required";
+
+  if (liveGate.ok && !providerAccountId) {
+    return {
+      body: {
+        error:
+          "providerAccountId is required before live direct-deposit instructions can be requested.",
+        liveMoney: liveGate,
+        readiness,
+        service: "payshield-direct-deposit-setup",
+      },
+      status: 400,
+    };
+  }
+
   const idempotencyKey =
     cleanText(payload?.idempotencyKey, 120) ||
     `direct-deposit-${actor.householdId}`;
-  const directDeposit = directDepositInstructionsForReadiness(readiness);
-  const status = readiness.liveMoneyReady ? "ready" : "blocked";
+  let directDeposit = directDepositInstructionsForReadiness(readiness);
+
+  if (liveGate.ok) {
+    try {
+      directDeposit = await providerCreateDirectDepositInstructions(
+        env,
+        providerAccountId,
+      );
+    } catch (error) {
+      const result = providerErrorResult(error, "payshield-direct-deposit-setup");
+
+      return {
+        body: {
+          ...result.body,
+          liveMoney: liveGate,
+          readiness,
+        },
+        status: result.status,
+      };
+    }
+  }
+
+  const status = liveGate.ok ? "ready" : "blocked";
   const setup = {
     accountLast4: directDeposit.accountLast4,
     accountName: directDeposit.accountName,
@@ -2991,31 +3401,68 @@ async function startOnboardingWithPaidAccess(env = process.env, actorInput = dem
     return paidAccess.result;
   }
 
+  let customer = {
+    providerCustomerId: "provider-contract-required",
+    status: "blocked",
+  };
+  let kyc = {
+    providerApplicationId: "kyc-provider-contract-required",
+    status: "blocked",
+  };
+  let financialAccount = {
+    providerAccountId: "financial-account-provider-contract-required",
+    status: "blocked",
+  };
+  let directDeposit = {
+    accountLast4: "----",
+    accountName: "PayShield protected paycheck account",
+    providerStatus: "gated",
+    routingLast4: "----",
+  };
+  let card = {
+    cardLast4: "----",
+    providerCardId: "card-provider-contract-required",
+    status: "blocked",
+  };
+
+  if (!blocked) {
+    try {
+      customer = await providerCreateCustomer(env, actor);
+      kyc = await providerStartKyc(env, actor);
+      financialAccount = await providerOpenFinancialAccount(
+        env,
+        customer.providerCustomerId,
+      );
+      directDeposit = await providerCreateDirectDepositInstructions(
+        env,
+        financialAccount.providerAccountId,
+      );
+      card = await providerIssueCard(
+        env,
+        actor,
+        financialAccount.providerAccountId,
+      );
+    } catch (error) {
+      const result = providerErrorResult(error, "payshield-provider-onboarding");
+
+      return {
+        body: {
+          ...result.body,
+          liveMoney: liveGate,
+          readiness,
+        },
+        status: result.status,
+      };
+    }
+  }
+
   return {
     body: {
-      card: {
-        cardLast4: blocked ? "----" : "9244",
-        providerCardId: blocked ? "card-provider-contract-required" : "card-live",
-        status: blocked ? "blocked" : "issued",
-      },
-      customer: {
-        providerCustomerId: blocked ? "provider-contract-required" : "provider-customer-live",
-        status: blocked ? "blocked" : "created",
-      },
-      directDeposit: {
-        accountLast4: blocked ? "----" : "4421",
-        accountName: "PayShield protected paycheck account",
-        providerStatus: blocked ? "gated" : "live",
-        routingLast4: blocked ? "----" : "0210",
-      },
-      financialAccount: {
-        providerAccountId: blocked ? "financial-account-provider-contract-required" : "financial-account-live",
-        status: blocked ? "blocked" : "opened",
-      },
-      kyc: {
-        providerApplicationId: blocked ? "kyc-provider-contract-required" : "kyc-provider-application-live",
-        status: blocked ? "blocked" : "started",
-      },
+      card,
+      customer,
+      directDeposit,
+      financialAccount,
+      kyc,
       liveMoney: liveGate,
       message: liveGate.ok
         ? "Onboarding started with the configured provider."
@@ -3416,13 +3863,11 @@ export async function savePaycheckDetectionRule(payload, env = process.env) {
 
 function getMoneyRailReadiness(env = process.env) {
   const neobank = getCoreReadiness(env, { coreOnline: true });
+  const providerAdapter = getProviderAdapterConfig(env);
   const plaidConfigured = envPresent(env, "PLAID_CLIENT_ID") && envPresent(env, "PLAID_SECRET");
   const vault = tokenVaultReadiness(env);
   const transferConfigured =
-    envTrue(env, "PAYSHIELD_TRANSFER_ENABLED") &&
-    (envPresent(env, "PLAID_TRANSFER_CLIENT_ID") ||
-      envPresent(env, "PAYSHIELD_BAAS_API_KEY") ||
-      plaidConfigured);
+    envTrue(env, "PAYSHIELD_TRANSFER_ENABLED") && providerAdapter.ok;
   const tokenVaultConfigured = vault.keyConfigured;
   const providerWebhookSigningConfigured = envPresent(
     env,
@@ -3439,7 +3884,12 @@ function getMoneyRailReadiness(env = process.env) {
       ...(plaidConfigured ? [] : ["PLAID_CLIENT_ID", "PLAID_SECRET"]),
       ...(transferConfigured
         ? []
-        : ["PAYSHIELD_TRANSFER_ENABLED plus transfer/BaaS credentials"]),
+        : [
+            ...(envTrue(env, "PAYSHIELD_TRANSFER_ENABLED")
+              ? []
+              : ["PAYSHIELD_TRANSFER_ENABLED"]),
+            ...providerAdapter.missing,
+          ]),
       ...(plaidConfigured && !vault.keyConfigured
         ? ["PAYSHIELD_TOKEN_VAULT_KEY_ID"]
         : []),
@@ -3455,6 +3905,8 @@ function getMoneyRailReadiness(env = process.env) {
     ],
     plaidConfigured,
     plaidEnv: env.PLAID_ENV?.trim() || "sandbox",
+    providerAdapterConfigured: providerAdapter.ok,
+    providerAdapterMissing: providerAdapter.missing,
     providerWebhookSigningConfigured,
     tokenVaultConfigured,
     tokenVaultStoreReady: vault.webhookReady,
@@ -4356,16 +4808,32 @@ export async function createTransferIntent(payload, env = process.env) {
   const idempotencyKey =
     cleanText(payload?.idempotencyKey, 120) ||
     `transfer-${payload.sourceBucketId}-${destinationPayeeId}-${amountCents}`;
-  const providerTransfer = {
-    providerTransferId:
-      readiness.liveMoneyReady && readiness.transferConfigured
-        ? "transfer-provider-live"
-        : "transfer-provider-contract-required",
-    status:
-      readiness.liveMoneyReady && readiness.transferConfigured
-        ? "created"
-        : "blocked",
+  let providerTransfer = {
+    providerTransferId: "transfer-provider-contract-required",
+    status: "blocked",
   };
+
+  if (readiness.liveMoneyReady && readiness.transferConfigured) {
+    try {
+      providerTransfer = await providerCreateAchTransfer(env, {
+        amountCents,
+        destinationPayeeId,
+        idempotencyKey,
+        sourceBucketId: payload.sourceBucketId,
+      });
+    } catch (error) {
+      const result = providerErrorResult(error, "payshield-transfer-intents");
+
+      return {
+        body: {
+          ...result.body,
+          readiness,
+        },
+        status: result.status,
+      };
+    }
+  }
+
   const transferStatus = providerTransfer.status === "created" ? "submitted" : "blocked";
   const persistence = await persistTransferIntent(
     {
@@ -4519,17 +4987,37 @@ export async function createBillPayment(payload, env = process.env) {
     scheduledFor,
   });
   const readiness = getCoreReadiness(env, { coreOnline: true });
-  const providerBillPayment = decision.accepted
+  const payee = controls.payees.find((candidate) => candidate.id === payeeId);
+  let providerBillPayment = decision.accepted
     ? {
-        providerBillPaymentId: readiness.liveMoneyReady
-          ? "bill-pay-live"
-          : "bill-pay-provider-contract-required",
-        status: readiness.liveMoneyReady ? "created" : "blocked",
+        providerBillPaymentId: "bill-pay-provider-contract-required",
+        status: "blocked",
       }
     : {
         providerBillPaymentId: "bill-pay-not-scheduled",
         status: "blocked",
       };
+
+  if (decision.accepted && readiness.liveMoneyReady && payee) {
+    try {
+      providerBillPayment = await providerCreateBillPayment(env, {
+        amountCents,
+        idempotencyKey,
+        payee,
+      });
+    } catch (error) {
+      const result = providerErrorResult(error, "payshield-bill-payments");
+
+      return {
+        body: {
+          ...result.body,
+          readiness,
+        },
+        status: result.status,
+      };
+    }
+  }
+
   const postedEntry = decision.accepted
     ? book.findByIdempotencyKey(idempotencyKey)
     : null;
@@ -4791,23 +5279,6 @@ export async function authorizeCard(payload, env = process.env) {
   };
   const readiness = getCoreReadiness(env, { coreOnline: true });
 
-  if (readiness.liveMoneyReady) {
-    return {
-      body: {
-        decision: {
-          approved: false,
-          approvedAmountCents: 0,
-          code: "live_money_gated",
-          reason:
-            "No live provider adapter is configured. Use the PayShield ledger decision path before enabling card gateway responses.",
-        },
-        mode: "provider_gateway",
-        readiness,
-      },
-      status: 200,
-    };
-  }
-
   const controls = await loadOperationalControls(env, actor);
 
   if (controls.error) {
@@ -4859,7 +5330,9 @@ export async function authorizeCard(payload, env = process.env) {
       merchantCategoryCode: input.merchantCategoryCode || null,
       merchantName: input.merchantName,
       payeeId: input.payeeId || null,
-      providerStatus: "simulation",
+      providerStatus: readiness.liveMoneyReady
+        ? "provider_gateway"
+        : "simulation",
       reason: decision.reason,
     },
     env,
@@ -4894,7 +5367,7 @@ export async function authorizeCard(payload, env = process.env) {
         source: ledger.ledgerSource,
       },
       ledgerEntries: book.allEntries(),
-      mode: "simulation",
+      mode: readiness.liveMoneyReady ? "provider_gateway" : "simulation",
       readiness,
       service: "payshield-card-authorization",
     },

@@ -79,12 +79,12 @@ const commercialProductionGroups = [
   {
     endpoint: "POST /api/app/transfers",
     key: "money_movement",
-    required: ["PAYSHIELD_TRANSFER_ENABLED", "PAYSHIELD_BAAS_PROVIDER"],
-    alternatives: [
-      {
-        anyOf: ["PAYSHIELD_BAAS_API_KEY", "PLAID_TRANSFER_CLIENT_ID"],
-        label: "PAYSHIELD_BAAS_API_KEY or PLAID_TRANSFER_CLIENT_ID",
-      },
+    required: [
+      "PAYSHIELD_TRANSFER_ENABLED",
+      "PAYSHIELD_BAAS_PROVIDER",
+      "PAYSHIELD_BAAS_ADAPTER",
+      "PAYSHIELD_BAAS_API_BASE_URL",
+      "PAYSHIELD_BAAS_API_KEY",
     ],
     title: "Movement rail",
     unlocks:
@@ -95,6 +95,8 @@ const commercialProductionGroups = [
     key: "live_control",
     required: [
       "PAYSHIELD_BAAS_CONTRACT_APPROVED",
+      "PAYSHIELD_BAAS_ADAPTER",
+      "PAYSHIELD_BAAS_API_BASE_URL",
       "PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED",
       "PAYSHIELD_REGULATED_COUNSEL_SIGNOFF",
       "PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED",

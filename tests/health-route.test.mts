@@ -9,6 +9,7 @@ async function parseJson(response: Response) {
     siteUrl?: unknown;
     neobank?: {
       backendConfigured?: unknown;
+      liveMoneyReady?: unknown;
       postgresConfigured?: unknown;
       postgresSchemaVerified?: unknown;
       postgresSchemaVersion?: unknown;
@@ -30,7 +31,10 @@ async function parseJson(response: Response) {
       paycheckDetectionReady?: unknown;
       tokenVaultConfigured?: unknown;
       tokenVaultStoreReady?: unknown;
+      providerAdapterConfigured?: unknown;
+      providerAdapterMissing?: unknown;
       providerWebhookSigningConfigured?: unknown;
+      remainingGates?: unknown;
       transferReady?: unknown;
     };
     waitlist?: {
@@ -49,6 +53,8 @@ async function parseJson(response: Response) {
 }
 
 beforeEach(() => {
+  delete process.env.CLERK_SECRET_KEY;
+  delete process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
   delete process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK;
   delete process.env.PAYSHIELD_WAITLIST_STORAGE;
   delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET;
@@ -65,6 +71,16 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL;
   delete process.env.PLAID_CLIENT_ID;
   delete process.env.PLAID_SECRET;
+  delete process.env.PAYSHIELD_BAAS_ADAPTER;
+  delete process.env.PAYSHIELD_BAAS_API_BASE_URL;
+  delete process.env.PAYSHIELD_BAAS_API_KEY;
+  delete process.env.PAYSHIELD_BAAS_CONTRACT_APPROVED;
+  delete process.env.PAYSHIELD_BAAS_PROVIDER;
+  delete process.env.PAYSHIELD_LIVE_MONEY_ENABLED;
+  delete process.env.PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED;
+  delete process.env.PAYSHIELD_REGULATED_COUNSEL_SIGNOFF;
+  delete process.env.PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED;
+  delete process.env.PAYSHIELD_TRANSFER_ENABLED;
   delete process.env.PAYSHIELD_COMMERCIAL_PRICE_ID;
   delete process.env.PAYSHIELD_COMMERCIAL_PRICE_LABEL;
   delete process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL;
@@ -394,4 +410,45 @@ test("commercial checkout does not pass production readiness with test Stripe as
     commercialGates.includes("Stripe live-mode checkout asset"),
     true,
   );
+});
+
+test("live money remains blocked until the provider adapter URL is configured", async () => {
+  process.env.CLERK_SECRET_KEY = "clerk-secret";
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test";
+  process.env.PAYSHIELD_BAAS_API_KEY = "baas-key";
+  process.env.PAYSHIELD_BAAS_CONTRACT_APPROVED = "true";
+  process.env.PAYSHIELD_BAAS_PROVIDER = "marqeta";
+  process.env.PAYSHIELD_CORE_API_URL = "https://core.payshield.test";
+  process.env.PAYSHIELD_LEDGER_DATABASE_URL =
+    "postgres://payshield:secret@example.invalid:5432/ledger";
+  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
+  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0010";
+  process.env.PAYSHIELD_LIVE_MONEY_ENABLED = "true";
+  process.env.PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED = "true";
+  process.env.PAYSHIELD_REGULATED_COUNSEL_SIGNOFF = "true";
+  process.env.PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED = "true";
+  process.env.PAYSHIELD_TRANSFER_ENABLED = "true";
+
+  const missingAdapter = GET();
+  const missingAdapterBody = await parseJson(missingAdapter);
+  const missingGates = missingAdapterBody.neobank?.remainingGates as string[];
+  const railGates = missingAdapterBody.moneyRails?.remainingGates as string[];
+
+  assert.equal(missingAdapterBody.neobank?.liveMoneyReady, false);
+  assert.equal(missingAdapterBody.moneyRails?.providerAdapterConfigured, false);
+  assert.equal(missingGates.includes("provider_adapter"), true);
+  assert.equal(railGates.includes("PAYSHIELD_BAAS_ADAPTER=http_json"), true);
+  assert.equal(railGates.includes("PAYSHIELD_BAAS_API_BASE_URL"), true);
+
+  process.env.PAYSHIELD_BAAS_ADAPTER = "http_json";
+  process.env.PAYSHIELD_BAAS_API_BASE_URL = "http://127.0.0.1:8081";
+
+  const configuredAdapter = GET();
+  const configuredAdapterBody = await parseJson(configuredAdapter);
+  const configuredGates = configuredAdapterBody.neobank?.remainingGates as string[];
+
+  assert.equal(configuredAdapterBody.neobank?.liveMoneyReady, true);
+  assert.equal(configuredAdapterBody.moneyRails?.providerAdapterConfigured, true);
+  assert.equal(configuredAdapterBody.moneyRails?.transferReady, true);
+  assert.equal(configuredGates.includes("provider_adapter"), false);
 });

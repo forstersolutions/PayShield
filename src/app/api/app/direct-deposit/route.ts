@@ -7,7 +7,10 @@ import {
 } from "../../../lib/neobank/auth.ts";
 import { forwardCoreRequest } from "../../../lib/neobank/core-client.ts";
 import { createNeobankSnapshot } from "../../../lib/neobank/demo-state.ts";
-import { getBankingProvider } from "../../../lib/neobank/provider.ts";
+import {
+  getBankingProvider,
+  ProviderAdapterError,
+} from "../../../lib/neobank/provider.ts";
 import { assertLiveMoneyReady } from "../../../lib/neobank/readiness.ts";
 
 function cleanText(value: unknown, maxLength: number) {
@@ -54,13 +57,30 @@ export async function POST(request: NextRequest) {
 
     const snapshot = createNeobankSnapshot();
     const liveMoney = assertLiveMoneyReady(snapshot.readiness);
+    const providerAccountId = cleanText(payload.providerAccountId, 160);
+
+    if (liveMoney.ok && !providerAccountId) {
+      return NextResponse.json(
+        {
+          error:
+            "providerAccountId is required before live direct-deposit instructions can be requested.",
+          liveMoney,
+          readiness: snapshot.readiness,
+          service: "payshield-direct-deposit-setup",
+        },
+        {
+          headers: {
+            "cache-control": "no-store",
+          },
+          status: 400,
+        },
+      );
+    }
+
     const provider = getBankingProvider();
     const directDeposit = await provider.createDirectDepositInstructions({
       providerAccountId:
-        cleanText(payload.providerAccountId, 160) ||
-        (liveMoney.ok
-          ? "financial-account-live"
-          : "financial-account-provider-contract-required"),
+        providerAccountId || "financial-account-provider-contract-required",
     });
 
     return NextResponse.json(
@@ -85,7 +105,7 @@ export async function POST(request: NextRequest) {
           idempotencyKey:
             cleanText(payload.idempotencyKey, 120) ||
             `direct-deposit-${session.userId}`,
-          providerAccountId: cleanText(payload.providerAccountId, 160) || null,
+          providerAccountId: providerAccountId || null,
           providerCustomerId: cleanText(payload.providerCustomerId, 160) || null,
           providerName: cleanText(payload.providerName, 40) || "payshield",
           providerStatus: directDeposit.providerStatus,
@@ -101,6 +121,21 @@ export async function POST(request: NextRequest) {
       },
     );
   } catch (error) {
+    if (error instanceof ProviderAdapterError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          service: "payshield-direct-deposit-setup",
+        },
+        {
+          headers: {
+            "cache-control": "no-store",
+          },
+          status: 502,
+        },
+      );
+    }
+
     return appSessionErrorResponse(error) ?? unauthorizedAppResponse();
   }
 }

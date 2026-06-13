@@ -7,7 +7,10 @@ import {
 } from "../../../../lib/neobank/auth.ts";
 import { forwardCoreRequest } from "../../../../lib/neobank/core-client.ts";
 import { createNeobankSnapshot } from "../../../../lib/neobank/demo-state.ts";
-import { getBankingProvider } from "../../../../lib/neobank/provider.ts";
+import {
+  getBankingProvider,
+  ProviderAdapterError,
+} from "../../../../lib/neobank/provider.ts";
 import { assertLiveMoneyReady } from "../../../../lib/neobank/readiness.ts";
 
 export async function POST() {
@@ -72,6 +75,21 @@ export async function POST() {
       },
     );
   } catch (error) {
+    if (error instanceof ProviderAdapterError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          service: "payshield-provider-onboarding",
+        },
+        {
+          headers: {
+            "cache-control": "no-store",
+          },
+          status: 502,
+        },
+      );
+    }
+
     return appSessionErrorResponse(error) ?? unauthorizedAppResponse();
   }
 }

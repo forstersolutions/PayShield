@@ -9,6 +9,8 @@ import { replayJournalEntriesForBalances } from "../services/core/product.mjs";
 const coreEnvKeys = [
   "CLERK_SECRET_KEY",
   "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+  "PAYSHIELD_BAAS_ADAPTER",
+  "PAYSHIELD_BAAS_API_BASE_URL",
   "PAYSHIELD_BAAS_API_KEY",
   "PAYSHIELD_BAAS_CONTRACT_APPROVED",
   "PAYSHIELD_BAAS_PROVIDER",

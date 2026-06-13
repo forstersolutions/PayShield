@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { getProviderAdapterConfig } from "./provider-adapter.ts";
 import { getNeobankReadiness } from "./readiness.ts";
 import type { BucketId } from "./types.ts";
 
@@ -169,14 +170,12 @@ async function storePlaidAccessToken(input: {
 
 export function getMoneyRailReadiness() {
   const neobank = getNeobankReadiness();
+  const providerAdapter = getProviderAdapterConfig();
   const plaidConfigured =
     envPresent("PLAID_CLIENT_ID") && envPresent("PLAID_SECRET");
   const vault = tokenVaultReadiness();
   const transferConfigured =
-    envTrue("PAYSHIELD_TRANSFER_ENABLED") &&
-    (envPresent("PLAID_TRANSFER_CLIENT_ID") ||
-      envPresent("PAYSHIELD_BAAS_API_KEY") ||
-      plaidConfigured);
+    envTrue("PAYSHIELD_TRANSFER_ENABLED") && providerAdapter.ok;
   const tokenVaultConfigured = vault.keyConfigured;
   const providerWebhookSigningConfigured = envPresent(
     "PAYSHIELD_PROVIDER_WEBHOOK_SECRET",
@@ -188,7 +187,11 @@ export function getMoneyRailReadiness() {
   }
 
   if (!transferConfigured) {
-    missing.push("PAYSHIELD_TRANSFER_ENABLED plus transfer/BaaS credentials");
+    if (!envTrue("PAYSHIELD_TRANSFER_ENABLED")) {
+      missing.push("PAYSHIELD_TRANSFER_ENABLED");
+    }
+
+    missing.push(...providerAdapter.missing);
   }
 
   if (plaidConfigured && !vault.webhookReady) {
@@ -217,6 +220,8 @@ export function getMoneyRailReadiness() {
     providerWebhookSigningConfigured,
     liveMoneyReady: neobank.liveMoneyReady,
     missing,
+    providerAdapterConfigured: providerAdapter.ok,
+    providerAdapterMissing: providerAdapter.missing,
     plaidConfigured,
     plaidEnv: process.env.PLAID_ENV?.trim() || "sandbox",
     tokenVaultConfigured,

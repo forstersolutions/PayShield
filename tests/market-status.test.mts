@@ -105,6 +105,8 @@ function commercialHealthReady() {
       detectionMode: "plaid_transactions_sync",
       paycheckDetectionReady: true,
       plaidConfigured: true,
+      providerAdapterConfigured: true,
+      providerAdapterMissing: [],
       remainingGates: [],
       tokenVaultConfigured: true,
       tokenVaultStoreReady: true,

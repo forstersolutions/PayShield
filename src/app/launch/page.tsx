@@ -420,6 +420,8 @@ export default function LaunchConsolePage() {
       env: [
         "PAYSHIELD_TRANSFER_ENABLED=true",
         "PAYSHIELD_BAAS_PROVIDER",
+        "PAYSHIELD_BAAS_ADAPTER=http_json",
+        "PAYSHIELD_BAAS_API_BASE_URL",
         "PAYSHIELD_BAAS_API_KEY",
         "PAYSHIELD_LIVE_MONEY_ENABLED=true after gates pass",
       ],
@@ -762,6 +764,7 @@ export default function LaunchConsolePage() {
           <p className="max-w-5xl text-sm leading-6 text-[#aab3c2]">
             PAYSHIELD_LIVE_MONEY_ENABLED can only be true after
             PAYSHIELD_BAAS_CONTRACT_APPROVED, PAYSHIELD_BAAS_PROVIDER,
+            PAYSHIELD_BAAS_ADAPTER, PAYSHIELD_BAAS_API_BASE_URL,
             PAYSHIELD_BAAS_API_KEY, PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED,
             PAYSHIELD_REGULATED_COUNSEL_SIGNOFF,
             PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED,

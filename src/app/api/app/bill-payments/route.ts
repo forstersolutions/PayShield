@@ -10,7 +10,10 @@ import {
   neobankPayees,
   simulateBillPayment,
 } from "../../../lib/neobank/demo-state.ts";
-import { getBankingProvider } from "../../../lib/neobank/provider.ts";
+import {
+  getBankingProvider,
+  ProviderAdapterError,
+} from "../../../lib/neobank/provider.ts";
 
 function cleanText(value: unknown, maxLength: number) {
   return typeof value === "string"
@@ -132,6 +135,21 @@ export async function POST(request: NextRequest) {
 
     if (sessionErrorResponse) {
       return sessionErrorResponse;
+    }
+
+    if (error instanceof ProviderAdapterError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          service: "payshield-bill-payments",
+        },
+        {
+          headers: {
+            "cache-control": "no-store",
+          },
+          status: 502,
+        },
+      );
     }
 
     if (error instanceof Error) {

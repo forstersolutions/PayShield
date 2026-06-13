@@ -108,6 +108,7 @@ export type NeobankReadinessGate = {
   id:
     | "provider_contract"
     | "provider_credentials"
+    | "provider_adapter"
     | "sponsor_disclosures"
     | "counsel_signoff"
     | "operations_runbooks"

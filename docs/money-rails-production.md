@@ -12,6 +12,9 @@ PayShield becomes usable and revenue-ready through four connected systems:
 4. Protected ledger actions in the core service: paycheck detection, bucket
    splits, transfer intents, bill-pay controls, unlock records, card decisions,
    and audit export.
+5. A configured BaaS/card provider adapter that can receive live JSON API calls
+   for customer, account, direct-deposit, card, transfer, bill-pay, and card
+   authorization operations.
 
 ## Required Production Variables
 
@@ -56,7 +59,7 @@ PAYSHIELD_CORE_API_URL=
 PAYSHIELD_CORE_SERVICE_TOKEN=
 PAYSHIELD_LEDGER_DATABASE_URL=
 PAYSHIELD_LEDGER_SCHEMA_VERIFIED=true
-PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0009
+PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0010
 ```
 
 Bank connection and transaction detection:
@@ -80,12 +83,22 @@ Transfer/provider activation:
 ```bash
 PAYSHIELD_TRANSFER_ENABLED=true
 PAYSHIELD_BAAS_PROVIDER=
+PAYSHIELD_BAAS_ADAPTER=http_json
+PAYSHIELD_BAAS_API_BASE_URL=https://your-provider-adapter.example
 PAYSHIELD_BAAS_API_KEY=
+PAYSHIELD_BAAS_TIMEOUT_MS=8000
 PAYSHIELD_BAAS_CONTRACT_APPROVED=true
 PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED=true
 PAYSHIELD_REGULATED_COUNSEL_SIGNOFF=true
 PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED=true
 ```
+
+The `http_json` adapter sends signed server-side JSON `POST` requests to the
+configured provider base URL. Defaults are `/customers`, `/kyc/applications`,
+`/financial-accounts`, `/direct-deposit-instructions`, `/cards`,
+`/ach-transfers`, `/bill-payments`, and `/card-authorizations`; override the
+`PAYSHIELD_BAAS_*_PATH` variables only after the provider contract specifies a
+different gateway shape.
 
 ## Bank Link Flow
 

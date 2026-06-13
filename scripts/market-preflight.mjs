@@ -178,6 +178,8 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "PAYSHIELD_LEDGER_DATABASE_URL",
   "PAYSHIELD_LIVE_MONEY_ENABLED",
   "PAYSHIELD_BAAS_PROVIDER",
+  "PAYSHIELD_BAAS_ADAPTER",
+  "PAYSHIELD_BAAS_API_BASE_URL",
   "PAYSHIELD_BAAS_API_KEY",
   "PAYSHIELD_BAAS_CONTRACT_APPROVED",
   "PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED",
@@ -847,12 +849,17 @@ requireText("src/app/api/health/route.ts", "storageProvider");
 requireText("src/app/api/health/route.ts", "liveMoneyReady");
 requireText("src/app/api/health/route.ts", "postgresSchemaVerified");
 requireText("src/app/api/health/route.ts", "remainingGates");
+requireText("src/app/lib/neobank/provider-adapter.ts", "PAYSHIELD_BAAS_ADAPTER");
+requireText("src/app/lib/neobank/provider-adapter.ts", "PAYSHIELD_BAAS_API_BASE_URL");
+requireText("src/app/lib/neobank/readiness.ts", "provider_adapter");
 requireText("src/proxy.ts", "clerkMiddleware");
 requireText("src/proxy.ts", 'pathname === "/api/app"');
 requireText("services/core/server.mjs", "payshield-core");
 requireText("services/core/server.mjs", 'path === "/card/authorize"');
 requireText("services/core/server.mjs", "PAYSHIELD_CORE_SERVICE_TOKEN");
 requireText("services/core/product.mjs", "getCoreReadiness");
+requireText("services/core/product.mjs", "provider_adapter");
+requireText("services/core/product.mjs", "providerAdapterRequest");
 requireText("services/core/product.mjs", "saveBucketProfile");
 requireText("services/core/product.mjs", "authorizeCard");
 requireText("services/core/product.mjs", "handleProviderWebhook");
@@ -882,6 +889,8 @@ requireText("scripts/vercel-env-audit.mjs", "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY")
 requireText("scripts/vercel-env-audit.mjs", "PLAID_SECRET");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_BAAS_API_KEY");
+requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_BAAS_ADAPTER");
+requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_BAAS_API_BASE_URL");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_LIVE_MONEY_ENABLED");
 requireText("scripts/smoke-deploy.mjs", "/api/health");
 requireText("scripts/waitlist-webhook-receiver.mjs", "verifyPayShieldSignature");

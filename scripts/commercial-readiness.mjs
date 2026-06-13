@@ -189,8 +189,14 @@ export function evaluateCommercialReadiness({
   record(
     result,
     moneyRails.transferConfigured === true,
-    "transfer/BaaS credentials are configured",
+    "BaaS/card provider adapter is configured for movement",
     "transfer_credentials",
+  );
+  record(
+    result,
+    moneyRails.providerAdapterConfigured === true,
+    "provider adapter endpoint is configured",
+    "provider_adapter",
   );
   record(
     result,

@@ -19,6 +19,8 @@ function readyHealth(overrides: Record<string, unknown> = {}) {
       detectionMode: "plaid_transactions_sync",
       paycheckDetectionReady: true,
       plaidConfigured: true,
+      providerAdapterConfigured: true,
+      providerAdapterMissing: [],
       remainingGates: [],
       tokenVaultConfigured: true,
       tokenVaultStoreReady: true,
@@ -86,10 +88,20 @@ test("commercial readiness fails with actionable gates for current architecture-
         detectionMode: "manual_or_provider_webhook",
         paycheckDetectionReady: false,
         plaidConfigured: false,
+        providerAdapterConfigured: false,
+        providerAdapterMissing: [
+          "PAYSHIELD_BAAS_ADAPTER=http_json",
+          "PAYSHIELD_BAAS_API_BASE_URL",
+          "PAYSHIELD_BAAS_API_KEY",
+          "PAYSHIELD_BAAS_PROVIDER",
+        ],
         remainingGates: [
           "PLAID_CLIENT_ID",
           "PLAID_SECRET",
-          "PAYSHIELD_TRANSFER_ENABLED plus transfer/BaaS credentials",
+          "PAYSHIELD_TRANSFER_ENABLED",
+          "PAYSHIELD_BAAS_ADAPTER=http_json",
+          "PAYSHIELD_BAAS_API_BASE_URL",
+          "PAYSHIELD_BAAS_API_KEY",
         ],
         tokenVaultConfigured: false,
         tokenVaultStoreReady: false,
@@ -108,6 +120,7 @@ test("commercial readiness fails with actionable gates for current architecture-
         remainingGates: [
           "provider_contract",
           "provider_credentials",
+          "provider_adapter",
           "sponsor_disclosures",
           "counsel_signoff",
           "operations_runbooks",
@@ -134,12 +147,17 @@ test("commercial readiness fails with actionable gates for current architecture-
   assert.equal(result.remainingGates.includes("clerk_auth"), true);
   assert.equal(result.remainingGates.includes("postgres_ledger"), true);
   assert.equal(result.remainingGates.includes("provider_credentials"), true);
+  assert.equal(result.remainingGates.includes("provider_adapter"), true);
   assert.equal(
     result.providerReportedGates.includes("STRIPE_WEBHOOK_SECRET"),
     true,
   );
   assert.equal(
     result.providerReportedGates.includes("provider_contract"),
+    true,
+  );
+  assert.equal(
+    result.providerReportedGates.includes("provider_adapter"),
     true,
   );
 });

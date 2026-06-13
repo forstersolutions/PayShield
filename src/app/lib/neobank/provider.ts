@@ -11,19 +11,26 @@ import {
   classifyProviderEvent,
   type ProviderEventClassification,
 } from "./provider-events.ts";
+import {
+  getProviderAdapterConfig,
+  joinProviderPath,
+} from "./provider-adapter.ts";
 
 export type ProviderCustomer = {
   providerCustomerId: string;
+  providerRequestId?: string;
   status: "blocked" | "created";
 };
 
 export type ProviderKycSession = {
   providerApplicationId: string;
+  providerRequestId?: string;
   status: "blocked" | "started";
 };
 
 export type ProviderFinancialAccount = {
   providerAccountId: string;
+  providerRequestId?: string;
   status: "blocked" | "opened";
 };
 
@@ -82,58 +89,54 @@ export class GatedBankingProvider implements BankingProvider {
 
   async createCustomer(user: PayShieldUser) {
     void user;
-    const gate = this.blocked();
+    void this.blocked();
 
     return {
-      providerCustomerId: gate ? "provider-contract-required" : "provider-customer-live",
-      status: gate ? "blocked" : "created",
+      providerCustomerId: "provider-contract-required",
+      status: "blocked",
     } as ProviderCustomer;
   }
 
   async startKyc(user: PayShieldUser) {
     void user;
-    const gate = this.blocked();
+    void this.blocked();
 
     return {
-      providerApplicationId: gate
-        ? "kyc-provider-contract-required"
-        : "kyc-provider-application-live",
-      status: gate ? "blocked" : "started",
+      providerApplicationId: "kyc-provider-contract-required",
+      status: "blocked",
     } as ProviderKycSession;
   }
 
   async openFinancialAccount(input: { providerCustomerId: string }) {
     void input;
-    const gate = this.blocked();
+    void this.blocked();
 
     return {
-      providerAccountId: gate
-        ? "financial-account-provider-contract-required"
-        : "financial-account-live",
-      status: gate ? "blocked" : "opened",
+      providerAccountId: "financial-account-provider-contract-required",
+      status: "blocked",
     } as ProviderFinancialAccount;
   }
 
   async createDirectDepositInstructions(input: { providerAccountId: string }) {
     void input;
-    const gate = this.blocked();
+    void this.blocked();
 
     return {
-      accountLast4: gate ? "----" : "4421",
+      accountLast4: "----",
       accountName: "PayShield protected paycheck account",
-      providerStatus: gate ? "gated" : "live",
-      routingLast4: gate ? "----" : "0210",
+      providerStatus: "gated",
+      routingLast4: "----",
     } as DirectDepositInstructions;
   }
 
   async issueCard(input: { providerAccountId: string; userId: string }) {
     void input;
-    const gate = this.blocked();
+    void this.blocked();
 
     return {
-      cardLast4: gate ? "----" : "9244",
-      providerCardId: gate ? "card-provider-contract-required" : "card-live",
-      status: gate ? "blocked" : "issued",
+      cardLast4: "----",
+      providerCardId: "card-provider-contract-required",
+      status: "blocked",
     } as const;
   }
 
@@ -144,13 +147,11 @@ export class GatedBankingProvider implements BankingProvider {
     sourceBucketId: string;
   }) {
     void input;
-    const gate = this.blocked();
+    void this.blocked();
 
     return {
-      providerTransferId: gate
-        ? "ach-provider-contract-required"
-        : "ach-transfer-live",
-      status: gate ? "blocked" : "created",
+      providerTransferId: "ach-provider-contract-required",
+      status: "blocked",
     } as const;
   }
 
@@ -160,13 +161,11 @@ export class GatedBankingProvider implements BankingProvider {
     payee: Payee;
   }) {
     void input;
-    const gate = this.blocked();
+    void this.blocked();
 
     return {
-      providerBillPaymentId: gate
-        ? "bill-pay-provider-contract-required"
-        : "bill-pay-live",
-      status: gate ? "blocked" : "created",
+      providerBillPaymentId: "bill-pay-provider-contract-required",
+      status: "blocked",
     } as const;
   }
 
@@ -220,6 +219,307 @@ export class GatedBankingProvider implements BankingProvider {
   }
 }
 
+function textField(value: unknown, maxLength = 240) {
+  return typeof value === "string" && value.trim()
+    ? value.trim().replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").slice(0, maxLength)
+    : "";
+}
+
+function providerRequestId(payload: Record<string, unknown>) {
+  return (
+    textField(payload.providerRequestId) ||
+    textField(payload.requestId) ||
+    textField(payload.id)
+  );
+}
+
+function cardDecisionCode(value: unknown, approved: boolean): CardAuthorizationDecision["code"] {
+  const code = textField(value, 80);
+
+  if (
+    code === "approved" ||
+    code === "payee_not_allowed" ||
+    code === "insufficient_safe_spend" ||
+    code === "live_money_gated"
+  ) {
+    return code;
+  }
+
+  return approved ? "approved" : "live_money_gated";
+}
+
+export class ProviderAdapterError extends Error {
+  constructor(message = "Configured provider adapter request failed.") {
+    super(message);
+    this.name = "ProviderAdapterError";
+  }
+}
+
+class HttpJsonBankingProvider implements BankingProvider {
+  private readonly config = getProviderAdapterConfig();
+
+  private async request(
+    operation: string,
+    path: string,
+    body: Record<string, unknown>,
+  ) {
+    let response: Response;
+
+    try {
+      response = await fetch(joinProviderPath(this.config.apiBaseUrl, path), {
+        body: JSON.stringify({
+          ...body,
+          operation,
+          providerName: this.config.providerName,
+        }),
+        cache: "no-store",
+        headers: {
+          "authorization": `Bearer ${process.env.PAYSHIELD_BAAS_API_KEY?.trim()}`,
+          "content-type": "application/json",
+          "x-payshield-provider": this.config.providerName,
+          "x-payshield-provider-operation": operation,
+        },
+        method: "POST",
+        signal: AbortSignal.timeout(this.config.timeoutMs),
+      });
+    } catch (error) {
+      throw new ProviderAdapterError(
+        error instanceof Error
+          ? `Provider ${operation} request failed: ${error.message}`
+          : `Provider ${operation} request failed.`,
+      );
+    }
+
+    const payload = (await response.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    >;
+
+    if (!response.ok) {
+      throw new ProviderAdapterError(
+        textField(payload.error, 180) ||
+          textField(payload.message, 180) ||
+          `Provider ${operation} request failed with status ${response.status}.`,
+      );
+    }
+
+    return payload;
+  }
+
+  async createCustomer(user: PayShieldUser) {
+    const payload = await this.request(
+      "createCustomer",
+      this.config.endpoints.customer,
+      {
+        email: user.email,
+        idempotencyKey: `customer:${user.id}`,
+        name: user.name,
+        userId: user.id,
+      },
+    );
+    const providerCustomerId =
+      textField(payload.providerCustomerId) ||
+      textField(payload.customerId);
+
+    if (!providerCustomerId) {
+      throw new ProviderAdapterError("Provider customer response did not include a customer id.");
+    }
+
+    return {
+      providerCustomerId,
+      providerRequestId: providerRequestId(payload),
+      status: "created" as const,
+    };
+  }
+
+  async startKyc(user: PayShieldUser) {
+    const payload = await this.request("startKyc", this.config.endpoints.kyc, {
+      email: user.email,
+      idempotencyKey: `kyc:${user.id}`,
+      name: user.name,
+      userId: user.id,
+    });
+    const providerApplicationId =
+      textField(payload.providerApplicationId) ||
+      textField(payload.applicationId);
+
+    if (!providerApplicationId) {
+      throw new ProviderAdapterError("Provider KYC response did not include an application id.");
+    }
+
+    return {
+      providerApplicationId,
+      providerRequestId: providerRequestId(payload),
+      status: "started" as const,
+    };
+  }
+
+  async openFinancialAccount(input: { providerCustomerId: string }) {
+    const payload = await this.request(
+      "openFinancialAccount",
+      this.config.endpoints.financialAccount,
+      {
+        idempotencyKey: `financial-account:${input.providerCustomerId}`,
+        providerCustomerId: input.providerCustomerId,
+      },
+    );
+    const providerAccountId =
+      textField(payload.providerAccountId) ||
+      textField(payload.accountId);
+
+    if (!providerAccountId) {
+      throw new ProviderAdapterError("Provider account response did not include an account id.");
+    }
+
+    return {
+      providerAccountId,
+      providerRequestId: providerRequestId(payload),
+      status: "opened" as const,
+    };
+  }
+
+  async createDirectDepositInstructions(input: { providerAccountId: string }) {
+    const payload = await this.request(
+      "createDirectDepositInstructions",
+      this.config.endpoints.directDeposit,
+      {
+        idempotencyKey: `direct-deposit:${input.providerAccountId}`,
+        providerAccountId: input.providerAccountId,
+      },
+    );
+    const accountLast4 = textField(payload.accountLast4, 4);
+    const routingLast4 = textField(payload.routingLast4, 4);
+
+    if (!/^\d{4}$/.test(accountLast4) || !/^\d{4}$/.test(routingLast4)) {
+      throw new ProviderAdapterError(
+        "Provider direct-deposit response did not include masked routing details.",
+      );
+    }
+
+    return {
+      accountLast4,
+      accountName:
+        textField(payload.accountName, 80) ||
+        "PayShield protected paycheck account",
+      providerStatus: "live" as const,
+      routingLast4,
+    };
+  }
+
+  async issueCard(input: { providerAccountId: string; userId: string }) {
+    const payload = await this.request("issueCard", this.config.endpoints.cardIssue, {
+      idempotencyKey: `card:${input.userId}:${input.providerAccountId}`,
+      providerAccountId: input.providerAccountId,
+      userId: input.userId,
+    });
+    const cardLast4 = textField(payload.cardLast4, 4);
+    const providerCardId =
+      textField(payload.providerCardId) ||
+      textField(payload.cardId);
+
+    if (!providerCardId || !/^\d{4}$/.test(cardLast4)) {
+      throw new ProviderAdapterError("Provider card response did not include card identifiers.");
+    }
+
+    return {
+      cardLast4,
+      providerCardId,
+      status: "issued" as const,
+    };
+  }
+
+  async createAchTransfer(input: {
+    amountCents: number;
+    destinationPayeeId: string;
+    idempotencyKey: string;
+    sourceBucketId: string;
+  }) {
+    const payload = await this.request(
+      "createAchTransfer",
+      this.config.endpoints.transfer,
+      input,
+    );
+    const providerTransferId =
+      textField(payload.providerTransferId) ||
+      textField(payload.transferId);
+
+    if (!providerTransferId) {
+      throw new ProviderAdapterError("Provider transfer response did not include a transfer id.");
+    }
+
+    return {
+      providerTransferId,
+      status: "created" as const,
+    };
+  }
+
+  async createBillPayment(input: {
+    amountCents: number;
+    idempotencyKey: string;
+    payee: Payee;
+  }) {
+    const payload = await this.request(
+      "createBillPayment",
+      this.config.endpoints.billPayment,
+      input,
+    );
+    const providerBillPaymentId =
+      textField(payload.providerBillPaymentId) ||
+      textField(payload.billPaymentId);
+
+    if (!providerBillPaymentId) {
+      throw new ProviderAdapterError(
+        "Provider bill-payment response did not include a bill payment id.",
+      );
+    }
+
+    return {
+      providerBillPaymentId,
+      status: "created" as const,
+    };
+  }
+
+  async handleProviderWebhook(input: unknown) {
+    return new GatedBankingProvider().handleProviderWebhook(input);
+  }
+
+  async respondToCardAuthorization(input: CardAuthorizationInput) {
+    const payload = await this.request(
+      "respondToCardAuthorization",
+      this.config.endpoints.cardAuthorization,
+      input as unknown as Record<string, unknown>,
+    );
+    const approvedAmountCents =
+      typeof payload.approvedAmountCents === "number"
+        ? payload.approvedAmountCents
+        : 0;
+
+    if (
+      !Number.isInteger(approvedAmountCents) ||
+      approvedAmountCents < 0 ||
+      approvedAmountCents > input.amountCents
+    ) {
+      throw new ProviderAdapterError(
+        "Provider card authorization response included an invalid approved amount.",
+      );
+    }
+
+    return {
+      approved: payload.approved === true,
+      approvedAmountCents: payload.approved === true ? approvedAmountCents : 0,
+      code: cardDecisionCode(payload.code, payload.approved === true),
+      reason: textField(payload.reason, 240) || "Provider decision returned.",
+    };
+  }
+}
+
 export function getBankingProvider() {
-  return new GatedBankingProvider();
+  const readiness = getNeobankReadiness();
+  const adapter = getProviderAdapterConfig();
+
+  if (readiness.liveMoneyReady && adapter.ok) {
+    return new HttpJsonBankingProvider();
+  }
+
+  return new GatedBankingProvider(readiness);
 }

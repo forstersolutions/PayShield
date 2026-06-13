@@ -121,10 +121,9 @@ test("commercial profile reports the revenue, access, bank, detection, movement,
     "PAYSHIELD_COMMERCIAL_PRICE_ID or PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL",
   ]);
   assert.equal(bank?.missing.includes("PLAID_SECRET"), true);
-  assert.equal(
-    movement?.missing.includes("PAYSHIELD_BAAS_API_KEY or PLAID_TRANSFER_CLIENT_ID"),
-    true,
-  );
+  assert.equal(movement?.missing.includes("PAYSHIELD_BAAS_ADAPTER"), true);
+  assert.equal(movement?.missing.includes("PAYSHIELD_BAAS_API_BASE_URL"), true);
+  assert.equal(movement?.missing.includes("PAYSHIELD_BAAS_API_KEY"), true);
   assert.equal(
     result.setupCommands.includes(
       "npx vercel env add PAYSHIELD_BAAS_API_KEY production",
@@ -156,6 +155,8 @@ test("commercial profile passes when production revenue and money-rail variables
       PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION  Encrypted           Production          1m ago
       PAYSHIELD_TRANSFER_ENABLED                Encrypted           Production          1m ago
       PAYSHIELD_BAAS_PROVIDER                   Encrypted           Production          1m ago
+      PAYSHIELD_BAAS_ADAPTER                    Encrypted           Production          1m ago
+      PAYSHIELD_BAAS_API_BASE_URL               Encrypted           Production          1m ago
       PAYSHIELD_BAAS_API_KEY                    Encrypted           Production          1m ago
       PAYSHIELD_BAAS_CONTRACT_APPROVED          Encrypted           Production          1m ago
       PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED    Encrypted           Production          1m ago

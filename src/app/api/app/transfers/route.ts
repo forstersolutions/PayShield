@@ -10,7 +10,10 @@ import {
   createNeobankSnapshot,
   isBucketId,
 } from "../../../lib/neobank/demo-state.ts";
-import { getBankingProvider } from "../../../lib/neobank/provider.ts";
+import {
+  getBankingProvider,
+  ProviderAdapterError,
+} from "../../../lib/neobank/provider.ts";
 import { buildTransferIntent } from "../../../lib/neobank/money-rails.ts";
 
 function cleanText(value: unknown, maxLength: number) {
@@ -182,6 +185,21 @@ export async function POST(request: NextRequest) {
       },
     );
   } catch (error) {
+    if (error instanceof ProviderAdapterError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          service: "payshield-transfer-intents",
+        },
+        {
+          headers: {
+            "cache-control": "no-store",
+          },
+          status: 502,
+        },
+      );
+    }
+
     return appSessionErrorResponse(error) ?? unauthorizedAppResponse();
   }
 }

@@ -1,6 +1,7 @@
 import type { NeobankReadiness, NeobankReadinessGate } from "./types.ts";
 import { clerkAppConfigured } from "./app-access.ts";
 import { getCoreServiceConfig } from "./core-config.ts";
+import { getProviderAdapterConfig } from "./provider-adapter.ts";
 
 export const CORE_LEDGER_SCHEMA_VERSION = "0010";
 
@@ -14,6 +15,7 @@ function envPresent(name: string) {
 
 export function getNeobankReadiness(): NeobankReadiness {
   const coreService = getCoreServiceConfig();
+  const providerAdapter = getProviderAdapterConfig();
   const gates: NeobankReadinessGate[] = [
     {
       description: "Signed BaaS/card partner contract is recorded.",
@@ -26,6 +28,11 @@ export function getNeobankReadiness(): NeobankReadiness {
       ok:
         envPresent("PAYSHIELD_BAAS_PROVIDER") &&
         envPresent("PAYSHIELD_BAAS_API_KEY"),
+    },
+    {
+      description: "Configured BaaS/card provider adapter can receive live API calls.",
+      id: "provider_adapter",
+      ok: providerAdapter.ok,
     },
     {
       description: "Sponsor-bank and pass-through wording is counsel-approved.",
@@ -94,7 +101,7 @@ export function assertLiveMoneyReady(readiness = getNeobankReadiness()) {
     return {
       ok: false as const,
       reason:
-        "Live money is blocked until provider, ledger, auth, counsel, disclosure, and operations gates are complete.",
+        "Live money is blocked until provider adapter, ledger, auth, counsel, disclosure, and operations gates are complete.",
       missing,
       readiness,
     };
