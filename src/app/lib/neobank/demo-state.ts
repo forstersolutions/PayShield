@@ -187,6 +187,10 @@ export function simulateUnlock(input: UnlockInput) {
   };
 }
 
+function isCustomBucketId(value: unknown): value is `custom_${string}` {
+  return typeof value === "string" && /^custom_[a-z0-9][a-z0-9_]{0,47}$/.test(value);
+}
+
 export function isBucketId(value: unknown): value is BucketId {
-  return neobankBuckets.some((bucket) => bucket.id === value);
+  return neobankBuckets.some((bucket) => bucket.id === value) || isCustomBucketId(value);
 }

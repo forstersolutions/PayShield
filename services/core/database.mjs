@@ -99,6 +99,16 @@ function bucketFromRow(row) {
   };
 }
 
+function payeeFromRow(row) {
+  return {
+    allowedBucketId: row.allowed_bucket_id,
+    id: row.id,
+    maxCents: centsNumber(row.max_cents),
+    name: row.name,
+    status: row.status,
+  };
+}
+
 function bucketRuleForProtection(protection) {
   if (protection === "bill_only") {
     return {
@@ -156,7 +166,7 @@ async function readBucketProfile(client, householdId) {
   return result.rows.map(bucketFromRow);
 }
 
-async function ensureHouseholdIdentity(client, input) {
+async function ensureHousehold(client, input) {
   await client.query(
     `
       INSERT INTO households (id, beta_access_status)
@@ -166,6 +176,10 @@ async function ensureHouseholdIdentity(client, input) {
     `,
     [input.householdId, input.betaAccessStatus || "approved"],
   );
+}
+
+async function ensureHouseholdIdentity(client, input) {
+  await ensureHousehold(client, input);
 
   await client.query(
     `
@@ -193,6 +207,133 @@ async function ensureHouseholdIdentity(client, input) {
       input.kycStatus || "provider_pending",
     ],
   );
+}
+
+function payeeIdFor(input) {
+  if (input.id) {
+    return input.id;
+  }
+
+  const slug =
+    input.name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 48) || "payee";
+
+  return `payee_modeled_${slug}`;
+}
+
+export async function loadPayees(householdId, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return {
+      ...persistenceSkipped("payees"),
+      payees: null,
+      payeesFound: false,
+    };
+  }
+
+  try {
+    const result = await pool.query(
+      `
+        SELECT
+          id,
+          allowed_bucket_id,
+          name,
+          max_cents,
+          status
+        FROM payees
+        WHERE household_id = $1
+        ORDER BY created_at ASC, name ASC
+      `,
+      [householdId],
+    );
+    const payees = result.rows.map(payeeFromRow);
+
+    return {
+      payees,
+      payeesFound: payees.length > 0,
+      persisted: payees.length > 0,
+      persistence: "postgres",
+    };
+  } catch (error) {
+    return {
+      ...persistenceFailed(error),
+      payees: null,
+      payeesFound: false,
+    };
+  }
+}
+
+export async function persistPayee(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return persistenceSkipped("payee");
+  }
+
+  let client = null;
+  const id = payeeIdFor(input);
+
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+    await ensureHouseholdIdentity(client, input);
+
+    const result = await client.query(
+      `
+        INSERT INTO payees (
+          id,
+          household_id,
+          allowed_bucket_id,
+          name,
+          max_cents,
+          status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (id) DO UPDATE SET
+          household_id = EXCLUDED.household_id,
+          allowed_bucket_id = EXCLUDED.allowed_bucket_id,
+          name = EXCLUDED.name,
+          max_cents = EXCLUDED.max_cents,
+          status = EXCLUDED.status
+        RETURNING id, allowed_bucket_id, name, max_cents, status
+      `,
+      [
+        id,
+        input.householdId,
+        input.allowedBucketId,
+        input.name,
+        input.maxCents,
+        input.status,
+      ],
+    );
+
+    await client.query("COMMIT");
+
+    return {
+      payee: payeeFromRow(result.rows[0]),
+      persisted: true,
+      persistence: "postgres",
+      postgresId: id,
+      replayed: false,
+    };
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Ignore rollback failures; the original error is more useful.
+      }
+    }
+
+    return persistenceFailed(error);
+  } finally {
+    client?.release();
+  }
 }
 
 async function ensurePayees(client, input) {

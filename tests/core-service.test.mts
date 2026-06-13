@@ -400,6 +400,10 @@ test("core payee and onboarding routes remain provider-gated until live gates pa
     assert.equal(payeeResult.response.status, 200);
     assert.equal(payee.allowedBucketId, "rent");
     assert.equal(payee.status, "provider_pending");
+    assert.equal(
+      (payeeResult.body.persistence as Record<string, unknown>).persistence,
+      "memory",
+    );
 
     const onboarding = await getJson(
       baseUrl,
@@ -412,6 +416,49 @@ test("core payee and onboarding routes remain provider-gated until live gates pa
     assert.equal(onboarding.response.status, 423);
     assert.equal(liveMoney.ok, false);
     assert.equal(card.status, "blocked");
+  });
+});
+
+test("core payee route accepts custom protected bucket controls", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(
+      baseUrl,
+      "/api/app/payees",
+      jsonPost({
+        allowedBucketId: "custom_childcare",
+        maxCents: 125_000,
+        name: "Childcare center",
+      }),
+    );
+    const payee = body.payee as Record<string, unknown>;
+
+    assert.equal(response.status, 200);
+    assert.equal(payee.allowedBucketId, "custom_childcare");
+    assert.equal(payee.id, "payee_modeled_childcare_center");
+    assert.equal(payee.status, "provider_pending");
+  });
+});
+
+test("core payee route fails closed when durable persistence fails", async () => {
+  process.env.PAYSHIELD_LEDGER_DATABASE_URL =
+    "postgres://payshield:secret@127.0.0.1:1/ledger";
+  process.env.PAYSHIELD_CORE_DB_CONNECT_TIMEOUT_MS = "100";
+
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(
+      baseUrl,
+      "/api/app/payees",
+      jsonPost({
+        allowedBucketId: "rent",
+        maxCents: 95_000,
+        name: "New landlord",
+      }),
+    );
+    const persistence = body.persistence as Record<string, unknown>;
+
+    assert.equal(response.status, 503);
+    assert.equal(body.error, "Payee could not be persisted.");
+    assert.equal(persistence.persistence, "postgres_error");
   });
 });
 
@@ -498,15 +545,21 @@ test("core money operations fail closed when configured ledger persistence fails
     );
 
     assert.equal(paycheck.response.status, 503);
-    assert.equal(paycheck.body.error, "Paycheck detection could not be persisted.");
     assert.equal(
-      (paycheck.body.persistence as Record<string, unknown>).persistence,
+      paycheck.body.error,
+      "Operational controls could not be loaded from durable core storage.",
+    );
+    assert.equal(
+      (paycheck.body.bucketPersistence as Record<string, unknown>).persistence,
       "postgres_error",
     );
     assert.equal(transfer.response.status, 503);
-    assert.equal(transfer.body.error, "Transfer intent could not be persisted.");
     assert.equal(
-      (transfer.body.persistence as Record<string, unknown>).persistence,
+      transfer.body.error,
+      "Operational controls could not be loaded from durable core storage.",
+    );
+    assert.equal(
+      (transfer.body.bucketPersistence as Record<string, unknown>).persistence,
       "postgres_error",
     );
   });

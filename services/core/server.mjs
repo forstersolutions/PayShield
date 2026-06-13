@@ -166,7 +166,7 @@ export function createCoreServer() {
       }
 
       if (request.method === "GET" && path === "/app/balances") {
-        json(response, 200, getBalances());
+        await writeResult(response, getBalances());
         return;
       }
 

@@ -1,10 +1,12 @@
 import {
   databaseConfigured,
   loadBucketProfile,
+  loadPayees,
   persistBucketProfile,
   persistBankConnection,
   persistCommercialBillingEvent,
   persistMoneyRailEvent,
+  persistPayee,
   persistPaycheckDetection,
   persistTransferIntent,
 } from "./database.mjs";
@@ -481,10 +483,10 @@ function postPaycheckDeposit(book, buckets, input) {
   });
 }
 
-function createDemoLedgerBook(amountCents = 300_000) {
+function createDemoLedgerBook(amountCents = 300_000, buckets = neobankBuckets) {
   const book = new LedgerBook();
 
-  postPaycheckDeposit(book, neobankBuckets, {
+  postPaycheckDeposit(book, buckets, {
     amountCents,
     employerName: "Payroll deposit",
     idempotencyKey: `demo-paycheck-${amountCents}`,
@@ -755,11 +757,13 @@ function unlockProtectedFunds(book, input) {
   return result;
 }
 
-function createNeobankSnapshot(book = createDemoLedgerBook(), env = process.env) {
+function createNeobankSnapshot(book = createDemoLedgerBook(), env = process.env, controls = {}) {
   const readiness = getCoreReadiness(env, { coreOnline: true });
+  const buckets = controls.buckets || neobankBuckets;
+  const payees = controls.payees || neobankPayees;
 
   return {
-    buckets: buildBucketBalances(book, neobankBuckets),
+    buckets: buildBucketBalances(book, buckets),
     card: {
       authorizationMode: readiness.liveMoneyReady ? "provider_gateway" : "simulation",
       cardLast4: readiness.liveMoneyReady ? "9244" : "----",
@@ -773,14 +777,86 @@ function createNeobankSnapshot(book = createDemoLedgerBook(), env = process.env)
     },
     householdId: demoUser.householdId,
     ledgerEntries: book.allEntries(),
-    payees: neobankPayees,
+    payees,
     readiness,
     user: demoUser,
   };
 }
 
+function isCustomBucketId(value) {
+  return typeof value === "string" && /^custom_[a-z0-9][a-z0-9_]{0,47}$/.test(value);
+}
+
 export function isBucketId(value) {
-  return typeof value === "string" && neobankBuckets.some((bucket) => bucket.id === value);
+  return (
+    typeof value === "string" &&
+    (neobankBuckets.some((bucket) => bucket.id === value) || isCustomBucketId(value))
+  );
+}
+
+function withSafeSpendingBucket(buckets) {
+  const safeSpend = neobankBuckets.find((bucket) => bucket.id === "safe_spending");
+  const byId = new Map();
+  let maxProtectedPriority = 0;
+
+  for (const bucket of buckets) {
+    if (bucket.id !== "safe_spending") {
+      maxProtectedPriority = Math.max(maxProtectedPriority, bucket.priority);
+      byId.set(bucket.id, bucket);
+    }
+  }
+
+  if (safeSpend) {
+    byId.set("safe_spending", {
+      ...safeSpend,
+      priority: Math.max(safeSpend.priority, maxProtectedPriority + 10),
+    });
+  }
+
+  return [...byId.values()].sort((a, b) => a.priority - b.priority);
+}
+
+function mergePayees(defaultPayees, persistedPayees) {
+  const byId = new Map(defaultPayees.map((payee) => [payee.id, payee]));
+
+  for (const payee of persistedPayees || []) {
+    byId.set(payee.id, payee);
+  }
+
+  return [...byId.values()];
+}
+
+async function loadOperationalControls(env = process.env) {
+  const [bucketPersistence, payeePersistence] = await Promise.all([
+    loadBucketProfile(demoUser.householdId, env),
+    loadPayees(demoUser.householdId, env),
+  ]);
+
+  if (persistenceFailed(bucketPersistence) || persistenceFailed(payeePersistence)) {
+    return {
+      error: {
+        body: {
+          bucketPersistence,
+          error: "Operational controls could not be loaded from durable core storage.",
+          payeePersistence,
+          readiness: getCoreReadiness(env, { coreOnline: true }),
+          service: "payshield-operational-controls",
+        },
+        status: 503,
+      },
+    };
+  }
+
+  const buckets = bucketPersistence.profileFound
+    ? withSafeSpendingBucket(bucketPersistence.profile)
+    : neobankBuckets;
+
+  return {
+    bucketPersistence,
+    buckets,
+    payeePersistence,
+    payees: mergePayees(neobankPayees, payeePersistence.payees),
+  };
 }
 
 function cleanText(value, maxLength = 120) {
@@ -1112,19 +1188,33 @@ export function getProfile(env = process.env) {
   };
 }
 
-export function getBalances(env = process.env) {
-  const snapshot = createNeobankSnapshot(undefined, env);
+export async function getBalances(env = process.env) {
+  const controls = await loadOperationalControls(env);
+
+  if (controls.error) {
+    return controls.error;
+  }
+
+  const book = createDemoLedgerBook(300_000, controls.buckets);
+  const snapshot = createNeobankSnapshot(book, env, controls);
   const safeSpend = snapshot.buckets.find((bucket) => bucket.id === "safe_spending");
 
   return {
-    buckets: snapshot.buckets,
-    card: snapshot.card,
-    directDeposit: snapshot.directDeposit,
-    protectedCents: snapshot.buckets
-      .filter((bucket) => bucket.id !== "safe_spending")
-      .reduce((sum, bucket) => sum + bucket.availableCents, 0),
-    readiness: snapshot.readiness,
-    safeToSpendCents: safeSpend?.availableCents ?? 0,
+    body: {
+      buckets: snapshot.buckets,
+      card: snapshot.card,
+      directDeposit: snapshot.directDeposit,
+      persistence: {
+        bucketProfile: controls.bucketPersistence,
+        payees: controls.payeePersistence,
+      },
+      protectedCents: snapshot.buckets
+        .filter((bucket) => bucket.id !== "safe_spending")
+        .reduce((sum, bucket) => sum + bucket.availableCents, 0),
+      readiness: snapshot.readiness,
+      safeToSpendCents: safeSpend?.availableCents ?? 0,
+    },
+    status: 200,
   };
 }
 
@@ -1145,11 +1235,12 @@ export async function getBucketProfile(env = process.env) {
   }
 
   if (persistence.profileFound) {
-    const book = createDemoLedgerBook();
+    const buckets = withSafeSpendingBucket(persistence.profile);
+    const book = createDemoLedgerBook(300_000, buckets);
 
     return {
       body: {
-        buckets: buildBucketBalances(book, persistence.profile),
+        buckets: buildBucketBalances(book, buckets),
         message: "Household bucket profile loaded from durable core controls.",
         persisted: true,
         persistence,
@@ -1371,7 +1462,11 @@ export function startOnboarding(env = process.env) {
   };
 }
 
-export function createPayee(payload, env = process.env) {
+function modeledPayeeId(name) {
+  return `payee_modeled_${name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
+}
+
+export async function createPayee(payload, env = process.env) {
   const name = cleanText(payload?.name, 80);
   const maxCents = toIntegerCents(payload?.maxCents, { min: 1 });
 
@@ -1394,17 +1489,54 @@ export function createPayee(payload, env = process.env) {
   }
 
   const readiness = getCoreReadiness(env, { coreOnline: true });
+  const status = readiness.liveMoneyReady ? "approved" : "provider_pending";
+  const modeledPayee = {
+    allowedBucketId: payload.allowedBucketId,
+    id: modeledPayeeId(name),
+    maxCents,
+    name,
+    status,
+  };
+  const persistence = await persistPayee(
+    {
+      actorUserId: demoUser.id,
+      allowedBucketId: modeledPayee.allowedBucketId,
+      betaAccessStatus: demoUser.profileAccess,
+      householdId: demoUser.householdId,
+      id: modeledPayee.id,
+      kycStatus: demoUser.kycStatus,
+      maxCents,
+      name,
+      status,
+      userEmail: demoUser.email,
+      userName: demoUser.name,
+    },
+    env,
+  );
+
+  if (persistenceFailed(persistence)) {
+    return {
+      body: {
+        error: "Payee could not be persisted.",
+        payee: modeledPayee,
+        persistence,
+        readiness,
+        service: "payshield-payees",
+      },
+      status: 503,
+    };
+  }
+
+  const persisted = persistence.persistence === "postgres";
 
   return {
     body: {
-      message: "Payee modeled. Provider approval is required before real bill routing.",
-      payee: {
-        allowedBucketId: payload.allowedBucketId,
-        id: `payee_modeled_${name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`,
-        maxCents,
-        name,
-        status: readiness.liveMoneyReady ? "approved" : "provider_pending",
-      },
+      message: persisted
+        ? "Payee saved to durable core controls for protected bill routing."
+        : "Payee modeled. Provider approval is required before real bill routing.",
+      payee: persistence.payee || modeledPayee,
+      persisted,
+      persistence,
       readiness,
     },
     status: 200,
@@ -1465,8 +1597,14 @@ export async function detectPaycheck(payload, env = process.env) {
     };
   }
 
+  const controls = await loadOperationalControls(env);
+
+  if (controls.error) {
+    return controls.error;
+  }
+
   const book = new LedgerBook();
-  const entry = postPaycheckDeposit(book, neobankBuckets, {
+  const entry = postPaycheckDeposit(book, controls.buckets, {
     amountCents,
     employerName,
     idempotencyKey:
@@ -1474,7 +1612,7 @@ export async function detectPaycheck(payload, env = process.env) {
       `paycheck-${employerName.toLowerCase().replace(/[^a-z0-9]+/g, "_")}-${amountCents}`,
     receivedAt: cleanText(payload?.receivedAt, 32) || new Date().toISOString(),
   });
-  const balances = buildBucketBalances(book, neobankBuckets);
+  const balances = buildBucketBalances(book, controls.buckets);
   const safeToSpendCents =
     balances.find((bucket) => bucket.id === "safe_spending")?.availableCents ??
     0;
@@ -1543,6 +1681,10 @@ export async function detectPaycheck(payload, env = process.env) {
     body: {
       auditPersistence,
       balances,
+      controlPersistence: {
+        bucketProfile: controls.bucketPersistence,
+        payees: controls.payeePersistence,
+      },
       detection: {
         amountCents,
         employerName,
@@ -1582,8 +1724,15 @@ export async function createTransferIntent(payload, env = process.env) {
     };
   }
 
-  const snapshot = createNeobankSnapshot(undefined, env);
-  const sourceBucket = snapshot.buckets.find(
+  const controls = await loadOperationalControls(env);
+
+  if (controls.error) {
+    return controls.error;
+  }
+
+  const book = createDemoLedgerBook(300_000, controls.buckets);
+  const balances = buildBucketBalances(book, controls.buckets);
+  const sourceBucket = balances.find(
     (bucket) => bucket.id === payload.sourceBucketId,
   );
 
@@ -1677,6 +1826,10 @@ export async function createTransferIntent(payload, env = process.env) {
         amountCents,
         destinationPayeeId,
         idempotencyKey,
+        controlPersistence: {
+          bucketProfile: controls.bucketPersistence,
+          payees: controls.payeePersistence,
+        },
         providerStatus: providerTransfer.status,
         readiness,
         sourceBucketId: payload.sourceBucketId,
@@ -1703,7 +1856,7 @@ function cleanScheduledDate(value) {
   return scheduledFor;
 }
 
-export function createBillPayment(payload, env = process.env) {
+export async function createBillPayment(payload, env = process.env) {
   const amountCents = toIntegerCents(payload?.amountCents, { min: 1 });
   const payeeId = cleanText(payload?.payeeId, 120);
   const scheduledFor = cleanScheduledDate(payload?.scheduledFor);
@@ -1717,8 +1870,14 @@ export function createBillPayment(payload, env = process.env) {
     };
   }
 
-  const book = createDemoLedgerBook();
-  const decision = scheduleBillPayment(book, neobankPayees, {
+  const controls = await loadOperationalControls(env);
+
+  if (controls.error) {
+    return controls.error;
+  }
+
+  const book = createDemoLedgerBook(300_000, controls.buckets);
+  const decision = scheduleBillPayment(book, controls.payees, {
     amountCents,
     idempotencyKey:
       cleanText(payload?.idempotencyKey, 120) ||
@@ -1742,7 +1901,11 @@ export function createBillPayment(payload, env = process.env) {
 
   return {
     body: {
-      balances: buildBucketBalances(book, neobankBuckets),
+      balances: buildBucketBalances(book, controls.buckets),
+      controlPersistence: {
+        bucketProfile: controls.bucketPersistence,
+        payees: controls.payeePersistence,
+      },
       decision: {
         ...decision,
         providerStatus: providerBillPayment.status,
@@ -1763,7 +1926,7 @@ function isUnlockMode(value) {
   return value === "slow_free" || value === "instant_fixed_fee";
 }
 
-export function createUnlock(payload, env = process.env) {
+export async function createUnlock(payload, env = process.env) {
   const amountCents = toIntegerCents(payload?.amountCents, { min: 1, max: 200_000 });
   const reason = cleanText(payload?.reason, 140);
 
@@ -1789,12 +1952,33 @@ export function createUnlock(payload, env = process.env) {
     mode: payload.mode,
     reason,
   };
-  const book = createDemoLedgerBook();
+  const controls = await loadOperationalControls(env);
+
+  if (controls.error) {
+    return controls.error;
+  }
+
+  const bucket = controls.buckets.find((candidate) => candidate.id === payload.bucketId);
+
+  if (!bucket || bucket.id === "safe_spending") {
+    return {
+      body: {
+        error: "Provide a protected bucket that exists in the household control profile.",
+      },
+      status: 400,
+    };
+  }
+
+  const book = createDemoLedgerBook(300_000, controls.buckets);
   const result = unlockProtectedFunds(book, input);
 
   return {
     body: {
-      balances: buildBucketBalances(book, neobankBuckets),
+      balances: buildBucketBalances(book, controls.buckets),
+      controlPersistence: {
+        bucketProfile: controls.bucketPersistence,
+        payees: controls.payeePersistence,
+      },
       ledgerEntries: book.allEntries(),
       message: "Recovery plan created. Provider execution requires active money-movement controls.",
       mode: "simulation",
@@ -1805,7 +1989,7 @@ export function createUnlock(payload, env = process.env) {
   };
 }
 
-export function authorizeCard(payload, env = process.env) {
+export async function authorizeCard(payload, env = process.env) {
   const amountCents = toIntegerCents(payload?.amountCents, { min: 1 });
 
   if (amountCents === null) {
@@ -1845,12 +2029,22 @@ export function authorizeCard(payload, env = process.env) {
     };
   }
 
-  const book = createDemoLedgerBook();
-  const decision = authorizeCardTransaction(book, neobankPayees, input);
+  const controls = await loadOperationalControls(env);
+
+  if (controls.error) {
+    return controls.error;
+  }
+
+  const book = createDemoLedgerBook(300_000, controls.buckets);
+  const decision = authorizeCardTransaction(book, controls.payees, input);
 
   return {
     body: {
-      balances: buildBucketBalances(book, neobankBuckets),
+      balances: buildBucketBalances(book, controls.buckets),
+      controlPersistence: {
+        bucketProfile: controls.bucketPersistence,
+        payees: controls.payeePersistence,
+      },
       decision,
       ledgerEntries: book.allEntries(),
       mode: "simulation",
