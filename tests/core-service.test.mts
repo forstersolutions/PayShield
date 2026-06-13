@@ -22,6 +22,8 @@ const coreEnvKeys = [
   "PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION",
   "PAYSHIELD_LIVE_MONEY_ENABLED",
   "PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED",
+  "PAYSHIELD_PROVIDER_WEBHOOK_REPLAY_TOLERANCE_SECONDS",
+  "PAYSHIELD_PROVIDER_WEBHOOK_SECRET",
   "PAYSHIELD_REGULATED_COUNSEL_SIGNOFF",
   "PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED",
   "PAYSHIELD_TRANSFER_ENABLED",
@@ -108,6 +110,26 @@ function signedJsonPost(
     headers: {
       "content-type": "application/json",
       "x-payshield-signature": `t=${timestamp},v1=${signature}`,
+    },
+    method: "POST",
+  };
+}
+
+function signedProviderJsonPost(
+  payload: unknown,
+  secret: string,
+  timestamp = Math.floor(Date.now() / 1000).toString(),
+): RequestInit {
+  const body = JSON.stringify(payload);
+  const signature = createHmac("sha256", secret)
+    .update(`${timestamp}.${body}`)
+    .digest("hex");
+
+  return {
+    body,
+    headers: {
+      "content-type": "application/json",
+      "x-payshield-provider-signature": `t=${timestamp},v1=${signature}`,
     },
     method: "POST",
   };
@@ -926,47 +948,49 @@ test("core provider webhook accepts object events but rejects invalid JSON shape
 test("core provider webhook posts income transactions into paycheck split flow", async () => {
   process.env.PLAID_CLIENT_ID = "plaid-client";
   process.env.PLAID_SECRET = "plaid-secret";
+  process.env.PAYSHIELD_PROVIDER_WEBHOOK_SECRET = "provider-webhook-secret";
   process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "http://127.0.0.1/vault";
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
 
   await withCoreServer(async (baseUrl) => {
+    const payload = {
+      eventId: "evt_income_sync",
+      providerName: "plaid",
+      transactions: [
+        {
+          account_id: "acc_payroll",
+          amount: -1875.42,
+          date: "2026-06-12",
+          item_id: "item_payroll",
+          name: "ACME PAYROLL",
+          pending: false,
+          personal_finance_category: {
+            detailed: "INCOME_WAGES",
+            primary: "INCOME",
+          },
+          transaction_id: "txn_payroll_001",
+        },
+        {
+          account_id: "acc_payroll",
+          amount: 42.99,
+          date: "2026-06-12",
+          item_id: "item_payroll",
+          name: "Coffee shop",
+          pending: false,
+          personal_finance_category: {
+            detailed: "FOOD_AND_DRINK_COFFEE",
+            primary: "FOOD_AND_DRINK",
+          },
+          transaction_id: "txn_debit_001",
+        },
+      ],
+      type: "transactions.sync",
+    };
     const { body, response } = await getJson(
       baseUrl,
       "/api/provider/webhooks",
-      jsonPost({
-        eventId: "evt_income_sync",
-        providerName: "plaid",
-        transactions: [
-          {
-            account_id: "acc_payroll",
-            amount: -1875.42,
-            date: "2026-06-12",
-            item_id: "item_payroll",
-            name: "ACME PAYROLL",
-            pending: false,
-            personal_finance_category: {
-              detailed: "INCOME_WAGES",
-              primary: "INCOME",
-            },
-            transaction_id: "txn_payroll_001",
-          },
-          {
-            account_id: "acc_payroll",
-            amount: 42.99,
-            date: "2026-06-12",
-            item_id: "item_payroll",
-            name: "Coffee shop",
-            pending: false,
-            personal_finance_category: {
-              detailed: "FOOD_AND_DRINK_COFFEE",
-              primary: "FOOD_AND_DRINK",
-            },
-            transaction_id: "txn_debit_001",
-          },
-        ],
-        type: "transactions.sync",
-      }),
+      signedProviderJsonPost(payload, "provider-webhook-secret"),
     );
     const detections = body.detections as Array<Record<string, unknown>>;
     const eventPersistence = body.eventPersistence as Record<string, unknown>;
@@ -982,9 +1006,7 @@ test("core provider webhook posts income transactions into paycheck split flow",
   });
 });
 
-test("core provider webhook blocks durable income events without provider account references", async () => {
-  process.env.PAYSHIELD_LEDGER_DATABASE_URL =
-    "postgres://payshield:payshield@127.0.0.1:1/payshield";
+test("core provider webhook requires signing before linked-bank detection can run", async () => {
   process.env.PLAID_CLIENT_ID = "plaid-client";
   process.env.PLAID_SECRET = "plaid-secret";
   process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
@@ -996,21 +1018,105 @@ test("core provider webhook blocks durable income events without provider accoun
       baseUrl,
       "/api/provider/webhooks",
       jsonPost({
-        eventId: "evt_income_missing_provider_refs",
+        eventId: "evt_unsigned_income_sync",
         providerName: "plaid",
         transactions: [
           {
+            account_id: "acc_payroll",
             amount: -1550,
+            item_id: "item_payroll",
             name: "Payroll deposit",
             pending: false,
             personal_finance_category: {
-              detailed: "INCOME_WAGES",
               primary: "INCOME",
             },
-            transaction_id: "txn_missing_provider_refs",
+            transaction_id: "txn_unsigned_payroll",
           },
         ],
       }),
+    );
+
+    assert.equal(response.status, 503);
+    assert.equal(body.accepted, false);
+    assert.match(String(body.error), /PAYSHIELD_PROVIDER_WEBHOOK_SECRET/);
+  });
+});
+
+test("core provider webhook rejects invalid provider signatures", async () => {
+  process.env.PLAID_CLIENT_ID = "plaid-client";
+  process.env.PLAID_SECRET = "plaid-secret";
+  process.env.PAYSHIELD_PROVIDER_WEBHOOK_SECRET = "provider-webhook-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "http://127.0.0.1/vault";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
+
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(
+      baseUrl,
+      "/api/provider/webhooks",
+      jsonPost(
+        {
+          eventId: "evt_bad_signature_income_sync",
+          providerName: "plaid",
+          transactions: [
+            {
+              account_id: "acc_payroll",
+              amount: -1550,
+              item_id: "item_payroll",
+              name: "Payroll deposit",
+              pending: false,
+              personal_finance_category: {
+                primary: "INCOME",
+              },
+              transaction_id: "txn_bad_signature_payroll",
+            },
+          ],
+        },
+        {
+          headers: {
+            "x-payshield-provider-signature": "t=123,v1=bad",
+          },
+        },
+      ),
+    );
+
+    assert.equal(response.status, 401);
+    assert.equal(body.accepted, false);
+    assert.match(String(body.error), /timestamp|signature/i);
+  });
+});
+
+test("core provider webhook blocks durable income events without provider account references", async () => {
+  process.env.PAYSHIELD_LEDGER_DATABASE_URL =
+    "postgres://payshield:payshield@127.0.0.1:1/payshield";
+  process.env.PLAID_CLIENT_ID = "plaid-client";
+  process.env.PLAID_SECRET = "plaid-secret";
+  process.env.PAYSHIELD_PROVIDER_WEBHOOK_SECRET = "provider-webhook-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "http://127.0.0.1/vault";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
+
+  await withCoreServer(async (baseUrl) => {
+    const payload = {
+      eventId: "evt_income_missing_provider_refs",
+      providerName: "plaid",
+      transactions: [
+        {
+          amount: -1550,
+          name: "Payroll deposit",
+          pending: false,
+          personal_finance_category: {
+            detailed: "INCOME_WAGES",
+            primary: "INCOME",
+          },
+          transaction_id: "txn_missing_provider_refs",
+        },
+      ],
+    };
+    const { body, response } = await getJson(
+      baseUrl,
+      "/api/provider/webhooks",
+      signedProviderJsonPost(payload, "provider-webhook-secret"),
     );
 
     assert.equal(response.status, 202);

@@ -104,6 +104,14 @@ export async function forwardCoreRequest(input: ForwardCoreInput) {
     headers.set("content-type", "application/json");
   }
 
+  const providerSignature = input.request?.headers.get(
+    "x-payshield-provider-signature",
+  );
+
+  if (providerSignature) {
+    headers.set("x-payshield-provider-signature", providerSignature);
+  }
+
   if (config.serviceToken) {
     headers.set("authorization", `Bearer ${config.serviceToken}`);
   }

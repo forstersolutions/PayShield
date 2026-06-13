@@ -2173,6 +2173,14 @@ function tokenVaultReplayToleranceSeconds(env = process.env) {
     : 300;
 }
 
+function providerWebhookReplayToleranceSeconds(env = process.env) {
+  const parsed = Number(env.PAYSHIELD_PROVIDER_WEBHOOK_REPLAY_TOLERANCE_SECONDS);
+
+  return Number.isInteger(parsed) && parsed >= 30 && parsed <= 900
+    ? parsed
+    : 300;
+}
+
 function compareHexDigest(left, right) {
   if (!/^[a-f0-9]{64}$/i.test(left) || !/^[a-f0-9]{64}$/i.test(right)) {
     return false;
@@ -2241,6 +2249,101 @@ function verifyTokenVaultSignature(payload, env = process.env) {
   }
 
   return {
+    ok: true,
+  };
+}
+
+function providerWebhookSignatureRequired(env, readiness, moneyReadiness) {
+  return Boolean(
+    env.PAYSHIELD_PROVIDER_WEBHOOK_SECRET?.trim() ||
+      databaseConfigured(env) ||
+      readiness?.liveMoneyReady ||
+      (moneyReadiness?.plaidConfigured && moneyReadiness?.tokenVaultStoreReady),
+  );
+}
+
+function verifyProviderWebhookSignature(
+  payload,
+  env = process.env,
+  readiness,
+  moneyReadiness,
+) {
+  const required = providerWebhookSignatureRequired(env, readiness, moneyReadiness);
+  const secret = env.PAYSHIELD_PROVIDER_WEBHOOK_SECRET?.trim() || "";
+  const rawBody =
+    typeof payload.__payshieldProviderRawBody === "string"
+      ? payload.__payshieldProviderRawBody.slice(0, 64 * 1024)
+      : "";
+  const signatureHeader = safeString(
+    payload.__payshieldProviderSignature,
+    320,
+  );
+
+  if (!required && !secret) {
+    return {
+      mode: "not_required",
+      ok: true,
+    };
+  }
+
+  if (!secret) {
+    return {
+      error: "PAYSHIELD_PROVIDER_WEBHOOK_SECRET is required before provider webhooks can affect money controls.",
+      mode: "missing_secret",
+      ok: false,
+      status: 503,
+    };
+  }
+
+  if (!rawBody || !signatureHeader) {
+    return {
+      error: "Provider webhook requires a signed raw body.",
+      mode: "missing_signature",
+      ok: false,
+      status: 401,
+    };
+  }
+
+  const signature = parseTokenVaultSignature(signatureHeader);
+  const timestampSeconds = Number(signature.timestamp);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+
+  if (!Number.isInteger(timestampSeconds)) {
+    return {
+      error: "Provider webhook signature timestamp is invalid.",
+      mode: "invalid_timestamp",
+      ok: false,
+      status: 401,
+    };
+  }
+
+  if (
+    Math.abs(nowSeconds - timestampSeconds) >
+    providerWebhookReplayToleranceSeconds(env)
+  ) {
+    return {
+      error: "Provider webhook signature timestamp is outside replay tolerance.",
+      mode: "stale_signature",
+      ok: false,
+      status: 401,
+    };
+  }
+
+  const expected = createHmac("sha256", secret)
+    .update(`${signature.timestamp}.${rawBody}`)
+    .digest("hex");
+
+  if (!compareHexDigest(expected, signature.versionOne)) {
+    return {
+      error: "Provider webhook signature is invalid.",
+      mode: "invalid_signature",
+      ok: false,
+      status: 401,
+    };
+  }
+
+  return {
+    mode: "verified",
     ok: true,
   };
 }
@@ -3171,7 +3274,7 @@ function redactProviderWebhookPayload(value) {
   return Object.fromEntries(
     Object.entries(value).map(([key, item]) => [
       key,
-      /access[_-]?token|secret|authorization|password|credential/i.test(key)
+      /__payshield|access[_-]?token|authorization|credential|password|raw[_-]?body|secret|signature/i.test(key)
         ? "[redacted]"
         : redactProviderWebhookPayload(item),
     ]),
@@ -3444,6 +3547,27 @@ export async function handleProviderWebhook(payload, env = process.env) {
   const providerName = providerNameFromPayload(payload);
   const providerEventId = stableEventId(providerName, payload);
   const detections = extractProviderPaycheckDetections(payload, providerEventId);
+  const providerSignature = verifyProviderWebhookSignature(
+    payload,
+    env,
+    readiness,
+    moneyReadiness,
+  );
+
+  if (!providerSignature.ok) {
+    return {
+      body: {
+        accepted: false,
+        error: providerSignature.error,
+        mode: "blocked",
+        providerEventId,
+        providerWebhookAuthenticity: providerSignature.mode,
+        readiness,
+        service: "payshield-provider-webhook",
+      },
+      status: providerSignature.status,
+    };
+  }
 
   if (
     detections.length > 0 &&

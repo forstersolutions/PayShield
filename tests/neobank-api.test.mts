@@ -38,6 +38,8 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_LEDGER_DATABASE_URL;
   delete process.env.PAYSHIELD_LIVE_MONEY_ENABLED;
   delete process.env.PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED;
+  delete process.env.PAYSHIELD_PROVIDER_WEBHOOK_REPLAY_TOLERANCE_SECONDS;
+  delete process.env.PAYSHIELD_PROVIDER_WEBHOOK_SECRET;
   delete process.env.PAYSHIELD_TRANSFER_ENABLED;
   delete process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID;
   delete process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET;
@@ -70,6 +72,26 @@ function makeStripeWebhookRequest(payload: string, secret: string, timestamp: nu
     headers: {
       "content-type": "application/json",
       "stripe-signature": `t=${timestamp},v1=${signature}`,
+    },
+    method: "POST",
+  });
+}
+
+function makeProviderWebhookRequest(
+  payload: unknown,
+  secret: string,
+  timestamp = Math.floor(Date.now() / 1000).toString(),
+) {
+  const body = JSON.stringify(payload);
+  const signature = createHmac("sha256", secret)
+    .update(`${timestamp}.${body}`)
+    .digest("hex");
+
+  return new NextRequest(`${endpoint}/api/provider/webhooks`, {
+    body,
+    headers: {
+      "content-type": "application/json",
+      "x-payshield-provider-signature": `t=${timestamp},v1=${signature}`,
     },
     method: "POST",
   });
@@ -547,4 +569,35 @@ test("provider webhook route accepts events but reports blocked mode without pro
   assert.equal(response.status, 202);
   assert.equal(body.accepted, true);
   assert.equal(body.mode, "blocked");
+});
+
+test("provider webhook route requires signature when provider webhook secret is configured", async () => {
+  process.env.PAYSHIELD_PROVIDER_WEBHOOK_SECRET = "provider-webhook-secret";
+
+  const unsigned = await providerWebhook(
+    makeRequest("/api/provider/webhooks", {
+      eventId: "evt_unsigned_provider",
+      type: "transactions.sync",
+    }),
+  );
+  const unsignedBody = await parseJson(unsigned);
+
+  assert.equal(unsigned.status, 401);
+  assert.equal(unsignedBody.accepted, false);
+  assert.match(String(unsignedBody.error), /signed raw body/i);
+
+  const signed = await providerWebhook(
+    makeProviderWebhookRequest(
+      {
+        eventId: "evt_signed_provider",
+        type: "transactions.sync",
+      },
+      "provider-webhook-secret",
+    ),
+  );
+  const signedBody = await parseJson(signed);
+
+  assert.equal(signed.status, 202);
+  assert.equal(signedBody.accepted, true);
+  assert.equal(signedBody.mode, "blocked");
 });

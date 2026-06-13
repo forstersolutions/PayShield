@@ -178,6 +178,9 @@ export function getMoneyRailReadiness() {
       envPresent("PAYSHIELD_BAAS_API_KEY") ||
       plaidConfigured);
   const tokenVaultConfigured = vault.keyConfigured;
+  const providerWebhookSigningConfigured = envPresent(
+    "PAYSHIELD_PROVIDER_WEBHOOK_SECRET",
+  );
   const missing: string[] = [];
 
   if (!plaidConfigured) {
@@ -202,10 +205,16 @@ export function getMoneyRailReadiness() {
     }
   }
 
+  if (plaidConfigured && vault.webhookReady && !providerWebhookSigningConfigured) {
+    missing.push("PAYSHIELD_PROVIDER_WEBHOOK_SECRET");
+  }
+
   return {
     bankLinkReady: plaidConfigured && vault.webhookReady,
     detectionMode: plaidConfigured ? "plaid_transactions_sync" : "manual_or_provider_webhook",
-    paycheckDetectionReady: plaidConfigured && vault.webhookReady,
+    paycheckDetectionReady:
+      plaidConfigured && vault.webhookReady && providerWebhookSigningConfigured,
+    providerWebhookSigningConfigured,
     liveMoneyReady: neobank.liveMoneyReady,
     missing,
     plaidConfigured,

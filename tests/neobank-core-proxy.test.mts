@@ -12,6 +12,7 @@ import { GET as getBillingStatus } from "../src/app/api/app/billing/status/route
 import { POST as scheduleBillPayment } from "../src/app/api/app/bill-payments/route.ts";
 import { GET as getOperations } from "../src/app/api/app/operations/route.ts";
 import { POST as authorizeCard } from "../src/app/api/card/authorize/route.ts";
+import { POST as providerWebhook } from "../src/app/api/provider/webhooks/route.ts";
 
 const endpoint = "https://payshield.test";
 const envKeys = [
@@ -40,6 +41,17 @@ function makeRequest(path: string, payload: unknown) {
     body: JSON.stringify(payload),
     headers: {
       "content-type": "application/json",
+    },
+    method: "POST",
+  });
+}
+
+function makeProviderWebhookRequest(path: string, payload: unknown) {
+  return new NextRequest(`${endpoint}${path}`, {
+    body: JSON.stringify(payload),
+    headers: {
+      "content-type": "application/json",
+      "x-payshield-provider-signature": "t=1234567890,v1=abcdef",
     },
     method: "POST",
   });
@@ -480,6 +492,59 @@ test("bill payment route delegates request body to configured core service", asy
       assert.equal(captured.url, "/api/app/bill-payments");
       assert.equal(requestBody.payeeId, "payee_abc_apartments");
       assert.equal(decision.code, "scheduled");
+    },
+  );
+});
+
+test("provider webhook route forwards provider signature to configured core service", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    async (request, response) => {
+      captured.authorization = request.headers.authorization;
+      captured.body = await readRequestBody(request);
+      captured.method = request.method;
+      captured.providerSignature =
+        request.headers["x-payshield-provider-signature"];
+      captured.url = request.url;
+
+      response.writeHead(202, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          accepted: true,
+          coreDelegated: true,
+          mode: "processed",
+          service: "payshield-provider-webhook",
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-provider-secret";
+
+      const response = await providerWebhook(
+        makeProviderWebhookRequest("/api/provider/webhooks", {
+          eventId: "evt_provider_proxy",
+          type: "transactions.sync",
+        }),
+      );
+      const body = await parseJson(response);
+      const requestBody = JSON.parse(String(captured.body)) as Record<
+        string,
+        unknown
+      >;
+
+      assert.equal(response.status, 202);
+      assert.equal(response.headers.get("x-payshield-core-proxied"), "true");
+      assert.equal(body.coreDelegated, true);
+      assert.equal(captured.authorization, "Bearer core-provider-secret");
+      assert.equal(captured.method, "POST");
+      assert.equal(captured.providerSignature, "t=1234567890,v1=abcdef");
+      assert.equal(captured.url, "/api/provider/webhooks");
+      assert.equal(requestBody.eventId, "evt_provider_proxy");
     },
   );
 });

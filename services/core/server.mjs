@@ -176,6 +176,34 @@ async function withSignedJsonBody(request, response, handler) {
   json(response, result.status, result.body);
 }
 
+async function withProviderWebhookBody(request, response, handler) {
+  const parsed = await readJson(request);
+
+  if (parsed.error) {
+    json(response, parsed.status, {
+      error: parsed.error,
+      service: "payshield-core",
+    });
+    return;
+  }
+
+  const value =
+    parsed.value && typeof parsed.value === "object" && !Array.isArray(parsed.value)
+      ? {
+          ...parsed.value,
+          __payshieldActor: requestActor(request),
+          __payshieldProviderRawBody: parsed.rawBody,
+          __payshieldProviderSignature: cleanHeader(
+            request.headers["x-payshield-provider-signature"],
+            320,
+          ),
+        }
+      : parsed.value;
+  const result = await handler(value);
+
+  json(response, result.status, result.body);
+}
+
 async function writeResult(response, result) {
   const resolved = await result;
 
@@ -204,7 +232,7 @@ export function createCoreServer() {
 
     if (request.method === "OPTIONS") {
       response.writeHead(204, {
-        "access-control-allow-headers": "authorization, content-type, x-payshield-signature",
+        "access-control-allow-headers": "authorization, content-type, x-payshield-provider-signature, x-payshield-signature",
         "access-control-allow-methods": "GET,POST,OPTIONS",
         "cache-control": "no-store",
       });
@@ -318,7 +346,7 @@ export function createCoreServer() {
       }
 
       if (request.method === "POST" && path === "/provider/webhooks") {
-        await withJsonBody(request, response, handleProviderWebhook);
+        await withProviderWebhookBody(request, response, handleProviderWebhook);
         return;
       }
 

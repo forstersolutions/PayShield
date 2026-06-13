@@ -54,6 +54,8 @@ export function GET() {
         paycheckDetectionReady: moneyRails.paycheckDetectionReady,
         plaidConfigured: moneyRails.plaidConfigured,
         plaidEnv: moneyRails.plaidEnv,
+        providerWebhookSigningConfigured:
+          moneyRails.providerWebhookSigningConfigured,
         remainingGates: moneyRails.missing,
         tokenVaultConfigured: moneyRails.tokenVaultConfigured,
         tokenVaultStoreReady: moneyRails.tokenVaultStoreReady,

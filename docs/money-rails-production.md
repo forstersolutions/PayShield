@@ -84,6 +84,12 @@ AES-256-GCM, and writes only encrypted token material to
 `provider_token_secrets`. Without Postgres and
 `PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY`, the receiver fails closed.
 
+Provider transaction webhooks use a separate PayShield HMAC gate:
+`PAYSHIELD_PROVIDER_WEBHOOK_SECRET` signs the raw body with
+`x-payshield-provider-signature: t=<unix>,v1=<sha256>`. Linked-bank paycheck
+detection is not ready until Plaid credentials, the token vault handoff, and
+provider webhook signing are configured.
+
 ## Paycheck Detection And Movement
 
 Linked-bank transaction detection uses the token vault reference plus Plaid

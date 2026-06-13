@@ -182,6 +182,10 @@ function friendlyGateLabel(gate: string) {
     return "Token vault";
   }
 
+  if (gate.includes("PROVIDER_WEBHOOK")) {
+    return "Provider webhook signing";
+  }
+
   if (gate.includes("TRANSFER") || gate.includes("transfer")) {
     return "Transfer rail";
   }
