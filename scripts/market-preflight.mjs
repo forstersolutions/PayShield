@@ -87,6 +87,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/components/site-footer.tsx",
   "src/app/components/waitlist-form.tsx",
   "src/app/components/bucket-control-panel.tsx",
+  "src/app/components/money-setup-console.tsx",
   "src/app/components/neobank-dashboard.tsx",
   "src/app/lib/brand.ts",
   "src/app/lib/pilot-analytics.ts",
@@ -262,6 +263,20 @@ requireText("src/app/components/money-operations-panel.tsx", "Manage billing");
 requireText("src/app/components/money-operations-panel.tsx", "/api/app/billing/portal");
 requireText("src/app/components/money-operations-panel.tsx", "/api/app/paychecks/rules");
 requireText("src/app/components/money-operations-panel.tsx", "/api/app/direct-deposit");
+requireText("src/app/components/money-setup-console.tsx", "Money setup console");
+requireText("src/app/components/money-setup-console.tsx", "/api/app/activation");
+requireText(
+  "src/app/components/money-setup-console.tsx",
+  "The shortest route from subscription to protected paycheck.",
+);
+requireText("src/app/components/money-setup-console.tsx", "Next executable move");
+requireText("src/app/components/money-setup-console.tsx", "Remaining gates");
+requireText("src/app/components/money-setup-console.tsx", "Proof commands");
+requireText("src/app/components/household-command-center.tsx", "MoneySetupConsole");
+requireText(
+  "src/app/components/household-command-center.tsx",
+  "createHouseholdActivationPacket",
+);
 requireText("src/app/api/app/activation/route.ts", "/api/app/activation");
 requireText("src/app/api/app/activation/route.ts", "createHouseholdActivationPacket");
 requireText("src/app/lib/neobank/operations.ts", "payshield-activation-console");

@@ -4,6 +4,7 @@ import { test } from "node:test";
 
 const customerFacingFiles = [
   "src/app/components/household-command-center.tsx",
+  "src/app/components/money-setup-console.tsx",
   "src/app/components/money-operations-panel.tsx",
   "src/app/api/app/billing/checkout/route.ts",
   "src/app/api/app/billing/portal/route.ts",
@@ -43,16 +44,24 @@ test("app command center exposes a guided real-money setup surface", async () =>
     "src/app/components/household-command-center.tsx",
     "utf8",
   );
+  const setupConsole = await readFile(
+    "src/app/components/money-setup-console.tsx",
+    "utf8",
+  );
 
   assert.match(appPage, /HouseholdCommandCenter/);
   assert.match(commandCenter, /getCommercialReadiness/);
   assert.match(commandCenter, /getMoneyRailReadiness/);
-  assert.match(commandCenter, /Operator activation console/);
-  assert.match(commandCenter, /How PayShield earns and controls money/);
-  assert.match(commandCenter, /Per household access/);
-  assert.match(commandCenter, /Checkout plus webhook activation/);
-  assert.match(commandCenter, /Setup/);
-  assert.match(commandCenter, /Proof/);
+  assert.match(commandCenter, /MoneySetupConsole/);
+  assert.match(commandCenter, /createHouseholdActivationPacket/);
+  assert.match(setupConsole, /Money setup console/);
+  assert.match(setupConsole, /\/api\/app\/activation/);
+  assert.match(setupConsole, /The shortest route from subscription to protected paycheck/);
+  assert.match(setupConsole, /Next executable move/);
+  assert.match(setupConsole, /Remaining gates/);
+  assert.match(setupConsole, /Proof commands/);
+  assert.match(setupConsole, /Per household access/);
+  assert.match(setupConsole, /Endpoint backed/);
   assert.match(commandCenter, /Household setup/);
   assert.match(commandCenter, /Next best action/);
   assert.match(commandCenter, /Turn on paid access/);
