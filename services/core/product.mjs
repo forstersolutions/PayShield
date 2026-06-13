@@ -923,6 +923,100 @@ async function loadOperationalControls(env = process.env, actorInput = demoUser)
   };
 }
 
+function sortedJournalEntries(entries = []) {
+  return [...entries].sort((left, right) => {
+    const leftTime = Date.parse(left.createdAt || "");
+    const rightTime = Date.parse(right.createdAt || "");
+
+    if (Number.isFinite(leftTime) && Number.isFinite(rightTime)) {
+      return leftTime - rightTime;
+    }
+
+    return String(left.id || "").localeCompare(String(right.id || ""));
+  });
+}
+
+function replayJournalEntries(entries = []) {
+  return new LedgerBook(
+    sortedJournalEntries(entries).map((entry) => ({
+      createdAt: entry.createdAt || new Date().toISOString(),
+      id: safeString(entry.id, 160) || entryId(entry.type || "journal", entry.idempotencyKey || "entry"),
+      idempotencyKey: safeString(entry.idempotencyKey, 160) || safeString(entry.id, 160),
+      lines: Array.isArray(entry.lines)
+        ? entry.lines.map((line) => ({
+            accountId: safeString(line.accountId, 160),
+            amountCents: cents(line.amountCents),
+          }))
+        : [],
+      memo: safeString(entry.memo, 240),
+      metadata: safeObject(entry.metadata),
+      reversedEntryId: safeString(entry.reversedEntryId, 160) || undefined,
+      type: safeString(entry.type, 80) || "paycheck_deposit",
+    })),
+  );
+}
+
+function shouldUseDurableLedger(operationalAudit) {
+  return (
+    operationalAudit?.persistence === "postgres" &&
+    Array.isArray(operationalAudit.audit?.journalEntries) &&
+    operationalAudit.audit.journalEntries.length > 0
+  );
+}
+
+async function loadHouseholdLedger(env = process.env, actorInput = demoUser, controls = {}) {
+  const actor = normalizeActor(actorInput);
+  const operationalAudit = await loadOperationalAudit(actor.householdId, env);
+
+  if (persistenceFailed(operationalAudit)) {
+    return {
+      error: {
+        body: {
+          error: "Operational ledger records could not be loaded from durable core storage.",
+          operationalAudit,
+          readiness: getCoreReadiness(env, { coreOnline: true }),
+          service: "payshield-household-ledger",
+        },
+        status: 503,
+      },
+    };
+  }
+
+  const durableAudit = operationalAudit.audit ?? emptyOperationalAudit();
+
+  if (shouldUseDurableLedger(operationalAudit)) {
+    return {
+      book: replayJournalEntries(durableAudit.journalEntries),
+      durableAudit,
+      ledgerSource: "postgres_journal",
+      operationalAudit,
+    };
+  }
+
+  if (databaseConfigured(env)) {
+    return {
+      book: new LedgerBook(),
+      durableAudit,
+      ledgerSource: "postgres_empty",
+      operationalAudit,
+    };
+  }
+
+  return {
+    book: createDemoLedgerBook(300_000, controls.buckets || neobankBuckets),
+    durableAudit,
+    ledgerSource: "control_model",
+    operationalAudit,
+  };
+}
+
+export function replayJournalEntriesForBalances(
+  journalEntries = [],
+  buckets = neobankBuckets,
+) {
+  return buildBucketBalances(replayJournalEntries(journalEntries), buckets);
+}
+
 function cleanText(value, maxLength = 120) {
   return typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, maxLength) : "";
 }
@@ -1282,7 +1376,13 @@ export async function getBalances(env = process.env, actorInput = demoUser) {
     return controls.error;
   }
 
-  const book = createDemoLedgerBook(300_000, controls.buckets);
+  const ledger = await loadHouseholdLedger(env, actor, controls);
+
+  if (ledger.error) {
+    return ledger.error;
+  }
+
+  const book = ledger.book;
   const snapshot = createNeobankSnapshot(book, env, controls, actor);
   const safeSpend = snapshot.buckets.find((bucket) => bucket.id === "safe_spending");
 
@@ -1294,6 +1394,10 @@ export async function getBalances(env = process.env, actorInput = demoUser) {
       persistence: {
         bucketProfile: controls.bucketPersistence,
         payees: controls.payeePersistence,
+      },
+      ledger: {
+        entryCount: snapshot.ledgerEntries.length,
+        source: ledger.ledgerSource,
       },
       protectedCents: snapshot.buckets
         .filter((bucket) => bucket.id !== "safe_spending")
@@ -1989,24 +2093,17 @@ async function buildHouseholdOperations(env = process.env, actorInput = demoUser
     return controls.error;
   }
 
-  const book = createDemoLedgerBook(300_000, controls.buckets);
-  const snapshot = createNeobankSnapshot(book, env, controls, actor);
-  const safeSpend = snapshot.buckets.find((bucket) => bucket.id === "safe_spending");
-  const operationalAudit = await loadOperationalAudit(actor.householdId, env);
+  const ledger = await loadHouseholdLedger(env, actor, controls);
 
-  if (persistenceFailed(operationalAudit)) {
-    return {
-      body: {
-        error: "Operational records could not be loaded from durable core storage.",
-        operationalAudit,
-        readiness: snapshot.readiness,
-        service: "payshield-household-operations",
-      },
-      status: 503,
-    };
+  if (ledger.error) {
+    return ledger.error;
   }
 
-  const durableAudit = operationalAudit.audit ?? emptyOperationalAudit();
+  const book = ledger.book;
+  const snapshot = createNeobankSnapshot(book, env, controls, actor);
+  const safeSpend = snapshot.buckets.find((bucket) => bucket.id === "safe_spending");
+  const operationalAudit = ledger.operationalAudit;
+  const durableAudit = ledger.durableAudit;
   const audit = {
     ...durableAudit,
     billingEvents: durableAudit.billingEvents.length
@@ -2054,6 +2151,11 @@ async function buildHouseholdOperations(env = process.env, actorInput = demoUser
         commercialAccess,
         moneyRails,
       ),
+      ledger: {
+        durableEntryCount: durableAudit.journalEntries.length,
+        entryCount: snapshot.ledgerEntries.length,
+        source: ledger.ledgerSource,
+      },
       moneyRails,
       operations: audit,
       operationalAudit,
@@ -2220,7 +2322,13 @@ export async function getHouseholdAuditExport(env = process.env, actorInput = de
       commercialAccess: body.commercialAccess,
       ledger: {
         entries: body.operations.journalEntries,
-        source: body.operationalAudit.auditFound ? "postgres" : "core_control_model",
+        entryCount: body.ledger.entryCount,
+        source:
+          body.ledger.source === "postgres_journal"
+            ? "postgres"
+            : body.ledger.source === "postgres_empty"
+              ? "postgres_empty"
+              : "core_control_model",
       },
       moneyRails: body.moneyRails,
       operations: body.operations,
@@ -3661,6 +3769,12 @@ export async function detectPaycheck(payload, env = process.env) {
     return controls.error;
   }
 
+  const ledger = await loadHouseholdLedger(env, actor, controls);
+
+  if (ledger.error) {
+    return ledger.error;
+  }
+
   const providerName = cleanText(payload?.providerName, 40).toLowerCase() || "plaid";
   const providerItemId = cleanText(payload?.providerItemId || payload?.itemId, 160);
   const providerAccountId = cleanText(
@@ -3683,7 +3797,8 @@ export async function detectPaycheck(payload, env = process.env) {
     return ruleMatch.error;
   }
 
-  const book = new LedgerBook();
+  const book =
+    ledger.ledgerSource === "control_model" ? new LedgerBook() : ledger.book;
   const entry = postPaycheckDeposit(book, controls.buckets, {
     amountCents,
     employerName,
@@ -3801,6 +3916,13 @@ export async function detectPaycheck(payload, env = process.env) {
       },
       ledgerEntry: entry,
       journalPersistence,
+      ledger: {
+        entryCount: book.allEntries().length,
+        source:
+          ledger.ledgerSource === "control_model"
+            ? "paycheck_event_preview"
+            : ledger.ledgerSource,
+      },
       message:
         "Paycheck detected and split by bucket priority before Safe to Spend is computed.",
       persistence,
@@ -3850,7 +3972,13 @@ export async function createTransferIntent(payload, env = process.env) {
     return controls.error;
   }
 
-  const book = createDemoLedgerBook(300_000, controls.buckets);
+  const ledger = await loadHouseholdLedger(env, actor, controls);
+
+  if (ledger.error) {
+    return ledger.error;
+  }
+
+  const book = ledger.book;
   const balances = buildBucketBalances(book, controls.buckets);
   const sourceBucket = balances.find(
     (bucket) => bucket.id === payload.sourceBucketId,
@@ -3954,6 +4082,10 @@ export async function createTransferIntent(payload, env = process.env) {
         readiness,
         sourceBucketId: payload.sourceBucketId,
       },
+      ledger: {
+        entryCount: book.allEntries().length,
+        source: ledger.ledgerSource,
+      },
       message:
         providerTransfer.status === "created"
           ? "Protected transfer created with the configured provider."
@@ -4007,11 +4139,17 @@ export async function createBillPayment(payload, env = process.env) {
     return controls.error;
   }
 
+  const ledger = await loadHouseholdLedger(env, actor, controls);
+
+  if (ledger.error) {
+    return ledger.error;
+  }
+
   const idempotencyKey =
     cleanText(payload?.idempotencyKey, 120) ||
     `bill-${payeeId}-${amountCents}-${scheduledFor}`;
   const memo = cleanText(payload?.memo, 120) || undefined;
-  const book = createDemoLedgerBook(300_000, controls.buckets);
+  const book = ledger.book;
   const decision = scheduleBillPayment(book, controls.payees, {
     amountCents,
     idempotencyKey,
@@ -4107,6 +4245,10 @@ export async function createBillPayment(payload, env = process.env) {
       ledgerEntries: book.allEntries(),
       decisionPersistence,
       journalPersistence,
+      ledger: {
+        entryCount: book.allEntries().length,
+        source: ledger.ledgerSource,
+      },
       message: decision.accepted
         ? "Bill payment scheduled in the protected bucket model. Provider execution requires active money-movement controls."
         : "Bill payment was not scheduled.",
@@ -4176,7 +4318,13 @@ export async function createUnlock(payload, env = process.env) {
     };
   }
 
-  const book = createDemoLedgerBook(300_000, controls.buckets);
+  const ledger = await loadHouseholdLedger(env, actor, controls);
+
+  if (ledger.error) {
+    return ledger.error;
+  }
+
+  const book = ledger.book;
   const result = unlockProtectedFunds(book, input);
   const postedEntry = book.findByIdempotencyKey(input.idempotencyKey);
   const journalPersistence = await persistOperationalJournal(postedEntry, env, actor);
@@ -4234,6 +4382,10 @@ export async function createUnlock(payload, env = process.env) {
       },
       decisionPersistence,
       ledgerEntries: book.allEntries(),
+      ledger: {
+        entryCount: book.allEntries().length,
+        source: ledger.ledgerSource,
+      },
       journalPersistence,
       message: "Recovery plan created. Provider execution requires active money-movement controls.",
       mode: "simulation",
@@ -4301,7 +4453,13 @@ export async function authorizeCard(payload, env = process.env) {
     return controls.error;
   }
 
-  const book = createDemoLedgerBook(300_000, controls.buckets);
+  const ledger = await loadHouseholdLedger(env, actor, controls);
+
+  if (ledger.error) {
+    return ledger.error;
+  }
+
+  const book = ledger.book;
   const decision = authorizeCardTransaction(book, controls.payees, input);
   const postedEntry = decision.approved
     ? book.findByIdempotencyKey(input.idempotencyKey)
@@ -4370,6 +4528,10 @@ export async function authorizeCard(payload, env = process.env) {
       decision,
       decisionPersistence,
       journalPersistence,
+      ledger: {
+        entryCount: book.allEntries().length,
+        source: ledger.ledgerSource,
+      },
       ledgerEntries: book.allEntries(),
       mode: "simulation",
       readiness,

@@ -4,6 +4,7 @@ import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, test } from "node:test";
 import { createCoreServer } from "../services/core/server.mjs";
+import { replayJournalEntriesForBalances } from "../services/core/product.mjs";
 
 const coreEnvKeys = [
   "CLERK_SECRET_KEY",
@@ -260,6 +261,77 @@ test("core balances endpoint mirrors protected paycheck model", async () => {
     assert.equal(body.protectedCents, 155_000);
     assert.equal(Array.isArray(body.buckets), true);
   });
+});
+
+test("core ledger replay uses posted journal entries as balance source", () => {
+  const balances = replayJournalEntriesForBalances([
+    {
+      createdAt: "2026-06-12T12:00:00.000Z",
+      id: "journal_paycheck",
+      idempotencyKey: "paycheck-001",
+      lines: [
+        {
+          accountId: "asset:program_cash",
+          amountCents: 300_000,
+        },
+        {
+          accountId: "liability:bucket:rent",
+          amountCents: -50_000,
+        },
+        {
+          accountId: "liability:bucket:vehicle",
+          amountCents: -30_000,
+        },
+        {
+          accountId: "liability:bucket:insurance",
+          amountCents: -50_000,
+        },
+        {
+          accountId: "liability:bucket:kids",
+          amountCents: -5_000,
+        },
+        {
+          accountId: "liability:bucket:vacation",
+          amountCents: -10_000,
+        },
+        {
+          accountId: "liability:bucket:emergency",
+          amountCents: -10_000,
+        },
+        {
+          accountId: "liability:bucket:safe_spending",
+          amountCents: -145_000,
+        },
+      ],
+      memo: "Paycheck deposit from Acme Payroll",
+      metadata: {},
+      type: "paycheck_deposit",
+    },
+    {
+      createdAt: "2026-06-12T12:05:00.000Z",
+      id: "journal_card",
+      idempotencyKey: "card-001",
+      lines: [
+        {
+          accountId: "liability:bucket:safe_spending",
+          amountCents: 20_000,
+        },
+        {
+          accountId: "liability:card_settlement",
+          amountCents: -20_000,
+        },
+      ],
+      memo: "Card authorization: Grocery",
+      metadata: {},
+      type: "card_authorization",
+    },
+  ]) as Array<Record<string, unknown>>;
+
+  const rent = balances.find((bucket) => bucket.id === "rent");
+  const safeSpend = balances.find((bucket) => bucket.id === "safe_spending");
+
+  assert.equal(rent?.availableCents, 50_000);
+  assert.equal(safeSpend?.availableCents, 125_000);
 });
 
 test("core postgres gate requires verified ledger schema version", async () => {
