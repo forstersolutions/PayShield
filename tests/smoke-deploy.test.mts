@@ -36,6 +36,22 @@ function html(siteUrl: string) {
   ].join("");
 }
 
+function appHtml() {
+  return [
+    "<html><head>",
+    '<meta name="robots" content="noindex,nofollow">',
+    "</head><body>",
+    "Household command center",
+    "Safe to Spend",
+    "Command queue",
+    "Money path",
+    "Ledger journal",
+    "Bucket control studio",
+    "Bill routing",
+    "</body></html>",
+  ].join("");
+}
+
 function send(
   response: ServerResponse,
   status: number,
@@ -67,6 +83,11 @@ async function startSmokeTarget() {
 
     if (url.pathname === "/") {
       send(response, 200, html(siteUrl), { "content-type": "text/html" });
+      return;
+    }
+
+    if (url.pathname === "/app") {
+      send(response, 200, appHtml(), { "content-type": "text/html" });
       return;
     }
 

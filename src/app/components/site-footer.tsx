@@ -47,8 +47,11 @@ export function SiteFooter() {
           <Link className="hover:text-white" href="/terms">
             Terms
           </Link>
+          <Link className="hover:text-white" href="/app">
+            App
+          </Link>
           <Link className="hover:text-white" href="/#product">
-            Dashboard
+            Product
           </Link>
         </nav>
       </div>

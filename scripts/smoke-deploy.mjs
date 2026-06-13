@@ -330,6 +330,16 @@ try {
   ]);
   expectSecurityHeaders(home.response, "/");
 
+  await expectText("/app", [
+    "Household command center",
+    "Safe to Spend",
+    "Command queue",
+    "Money path",
+    "Ledger journal",
+    "Bucket control studio",
+    "Bill routing",
+  ]);
+
   await expectText("/privacy", [
     "Privacy Notice",
     "PayShield is operated by Grayston Technologies.",

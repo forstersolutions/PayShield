@@ -13,6 +13,7 @@ import {
   Mail,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import Link from "next/link";
 import { BillPaymentPanel } from "@/app/components/bill-payment-panel";
 import { BucketControlPanel } from "@/app/components/bucket-control-panel";
 import { PayShieldHeaderLogo } from "@/app/components/pay-shield-mark";
@@ -145,13 +146,13 @@ export function NeobankDashboard() {
             >
               Gates
             </a>
-            <a
+            <Link
               className="pay-primary-nav-link pay-primary-nav-cta brand-button-primary gap-2 rounded-[8px] px-4 py-2 font-black"
-              href="#profile"
+              href="/app"
             >
-              Start profile
+              Open app
               <ArrowRight className="size-4" aria-hidden="true" />
-            </a>
+            </Link>
           </nav>
         </header>
 
