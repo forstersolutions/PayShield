@@ -214,6 +214,24 @@ export async function POST(request: NextRequest) {
       },
     );
   }
+
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return NextResponse.json(
+      {
+        accepted: false,
+        error: "Provider webhook payload must be a JSON object.",
+        mode: "blocked",
+        service: "payshield-provider-webhook",
+      },
+      {
+        headers: {
+          "cache-control": "no-store",
+        },
+        status: 400,
+      },
+    );
+  }
+
   const provider = getBankingProvider();
   const result = await provider.handleProviderWebhook(payload);
 

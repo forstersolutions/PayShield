@@ -99,6 +99,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/lib/neobank/core-config.ts",
   "src/app/lib/neobank/demo-state.ts",
   "src/app/lib/neobank/ledger.ts",
+  "src/app/lib/neobank/provider-events.ts",
   "src/app/lib/neobank/provider.ts",
   "src/app/lib/neobank/readiness.ts",
   "src/app/lib/neobank/types.ts",
@@ -347,6 +348,9 @@ requireText("src/app/lib/neobank/core-config.ts", "VERCEL_ENV");
 requireText("src/app/lib/neobank/core-client.ts", "x-payshield-provider-signature");
 requireText("src/app/lib/commercial/billing.ts", "requirePaidAccessForFallback");
 requireText("src/app/lib/neobank/money-rails.ts", "providerWebhookSigningConfigured");
+requireText("src/app/lib/neobank/provider-events.ts", "classifyProviderEvent");
+requireText("src/app/lib/neobank/provider-events.ts", "redactProviderEventPayload");
+requireText("src/app/lib/neobank/provider.ts", "classifyProviderEvent");
 requireText("src/app/api/provider/webhooks/route.ts", "providerWebhookSignatureRequired");
 requireText("src/app/api/provider/webhooks/route.ts", 'process.env.VERCEL_ENV === "production"');
 requireText(

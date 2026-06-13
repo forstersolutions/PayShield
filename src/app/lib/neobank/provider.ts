@@ -7,6 +7,10 @@ import type {
   PayShieldUser,
 } from "./types.ts";
 import { assertLiveMoneyReady, getNeobankReadiness } from "./readiness.ts";
+import {
+  classifyProviderEvent,
+  type ProviderEventClassification,
+} from "./provider-events.ts";
 
 export type ProviderCustomer = {
   providerCustomerId: string;
@@ -21,6 +25,12 @@ export type ProviderKycSession = {
 export type ProviderFinancialAccount = {
   providerAccountId: string;
   status: "blocked" | "opened";
+};
+
+export type ProviderWebhookResult = ProviderEventClassification & {
+  accepted: boolean;
+  mode: "blocked" | "processed";
+  reason?: string;
 };
 
 export type BankingProvider = {
@@ -39,11 +49,7 @@ export type BankingProvider = {
   createDirectDepositInstructions(input: {
     providerAccountId: string;
   }): Promise<DirectDepositInstructions>;
-  handleProviderWebhook(input: unknown): Promise<{
-    accepted: boolean;
-    mode: "blocked" | "processed";
-    reason?: string;
-  }>;
+  handleProviderWebhook(input: unknown): Promise<ProviderWebhookResult>;
   issueCard(input: {
     providerAccountId: string;
     userId: string;
@@ -165,20 +171,27 @@ export class GatedBankingProvider implements BankingProvider {
   }
 
   async handleProviderWebhook(input: unknown) {
-    void input;
+    const classification = classifyProviderEvent(input);
     const gate = this.blocked();
 
     if (gate) {
       return {
+        ...classification,
         accepted: true,
         mode: "blocked" as const,
-        reason: gate.reason,
+        reason: classification.detectionCount
+          ? "Provider paycheck events were classified, but live money movement is blocked until provider, ledger, auth, counsel, disclosure, and operations gates are complete."
+          : gate.reason,
       };
     }
 
     return {
+      ...classification,
       accepted: true,
       mode: "processed" as const,
+      reason: classification.detectionCount
+        ? "Provider paycheck events were classified and are ready for the ledger processing path."
+        : "Provider webhook accepted; no paycheck-like transactions were present.",
     };
   }
 

@@ -1011,7 +1011,24 @@ test("provider webhook route accepts events but reports blocked mode without pro
   assert.equal(response.status, 202);
   assert.equal(body.accepted, true);
   assert.equal(body.mode, "blocked");
+  assert.equal(body.eventType, "deposit.posted");
+  assert.equal(body.detectionCount, 0);
   assert.equal(body.providerWebhookAuthenticity, "not_required");
+
+  const providerEvent = body.providerEvent as Record<string, unknown>;
+
+  assert.equal(providerEvent.eventId, "evt_demo");
+  assert.equal(providerEvent.providerName, "provider");
+});
+
+test("provider webhook route rejects invalid JSON shapes", async () => {
+  const response = await providerWebhook(makeRequest("/api/provider/webhooks", []));
+  const body = await parseJson(response);
+
+  assert.equal(response.status, 400);
+  assert.equal(body.accepted, false);
+  assert.equal(body.mode, "blocked");
+  assert.match(String(body.error), /JSON object/);
 });
 
 test("provider webhook route fails closed in production without signing secret", async () => {
@@ -1050,16 +1067,94 @@ test("provider webhook route requires signature when provider webhook secret is 
   const signed = await providerWebhook(
     makeProviderWebhookRequest(
       {
-        eventId: "evt_signed_provider",
+        access_token: "access-token-should-not-return",
+        eventId: "evt_signed_income_provider",
+        processor_token: "processor-token-should-not-return",
+        providerName: "plaid",
+        routing_number: "021000021",
+        transactions: [
+          {
+            account_id: "acc_payroll",
+            account_number: "123456789",
+            amount: -1875.42,
+            date: "2026-06-12",
+            item_id: "item_payroll",
+            name: "ACME PAYROLL",
+            pending: false,
+            personal_finance_category: {
+              detailed: "INCOME_WAGES",
+              primary: "INCOME",
+            },
+            transaction_id: "txn_payroll_001",
+          },
+          {
+            account_id: "acc_payroll",
+            amount: 42.99,
+            date: "2026-06-12",
+            item_id: "item_payroll",
+            name: "Coffee shop",
+            pending: false,
+            personal_finance_category: {
+              detailed: "FOOD_AND_DRINK_COFFEE",
+              primary: "FOOD_AND_DRINK",
+            },
+            transaction_id: "txn_debit_001",
+          },
+          {
+            account_id: "acc_payroll",
+            amount: -25_000,
+            date: "2026-06-12",
+            item_id: "item_payroll",
+            name: "OVERSIZED PAYROLL",
+            pending: false,
+            personal_finance_category: {
+              detailed: "INCOME_WAGES",
+              primary: "INCOME",
+            },
+            transaction_id: "txn_payroll_too_large",
+          },
+        ],
         type: "transactions.sync",
       },
       "provider-webhook-secret",
     ),
   );
   const signedBody = await parseJson(signed);
+  const detections = signedBody.detections as Record<string, unknown>[];
+  const skipped = signedBody.skipped as Record<string, unknown>[];
+  const providerEvent = signedBody.providerEvent as Record<string, unknown>;
+  const redactedPayload = providerEvent.redactedPayload as Record<string, unknown>;
+  const redactedTransactions = redactedPayload.transactions as Record<
+    string,
+    unknown
+  >[];
 
   assert.equal(signed.status, 202);
   assert.equal(signedBody.accepted, true);
   assert.equal(signedBody.mode, "blocked");
   assert.equal(signedBody.providerWebhookAuthenticity, "verified");
+  assert.equal(signedBody.eventType, "transactions.sync");
+  assert.equal(signedBody.detectionCount, 1);
+  assert.equal(signedBody.skippedCount, 1);
+  assert.equal(providerEvent.eventId, "evt_signed_income_provider");
+  assert.equal(providerEvent.providerName, "plaid");
+  assert.equal(detections[0]?.amountCents, 187542);
+  assert.equal(detections[0]?.employerName, "ACME PAYROLL");
+  assert.equal(detections[0]?.providerTransactionId, "txn_payroll_001");
+  assert.equal(
+    detections[0]?.idempotencyKey,
+    "provider:evt_signed_income_provider:txn_payroll_001",
+  );
+  assert.equal(skipped[0]?.reasonCode, "paycheck_detection_rejected");
+  assert.equal(skipped[0]?.providerTransactionId, "txn_payroll_too_large");
+  assert.equal(redactedPayload.access_token, "[redacted]");
+  assert.equal(redactedPayload.processor_token, "[redacted]");
+  assert.equal(redactedPayload.routing_number, "[redacted]");
+  assert.equal(redactedTransactions[0]?.account_number, "[redacted]");
+  assert.equal(JSON.stringify(signedBody).includes("access-token-should-not-return"), false);
+  assert.equal(
+    JSON.stringify(signedBody).includes("processor-token-should-not-return"),
+    false,
+  );
+  assert.equal(JSON.stringify(signedBody).includes("021000021"), false);
 });
