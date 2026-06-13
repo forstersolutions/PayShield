@@ -81,8 +81,63 @@ export async function POST(request: NextRequest) {
     const sourceBucket = snapshot.buckets.find(
       (bucket) => bucket.id === payload.sourceBucketId,
     );
+    const destinationPayee = snapshot.payees.find(
+      (payee) => payee.id === destinationPayeeId,
+    );
 
-    if (!sourceBucket || amountCents > sourceBucket.availableCents) {
+    if (sourceBucket?.id === "safe_spending") {
+      return NextResponse.json(
+        {
+          error: "Protected transfers cannot release Safe to Spend funds.",
+          sourceBucket,
+        },
+        { status: 400 },
+      );
+    }
+
+    if (!sourceBucket) {
+      return NextResponse.json(
+        {
+          error: "Transfer amount exceeds the selected bucket balance.",
+          sourceBucket,
+        },
+        { status: 400 },
+      );
+    }
+
+    if (!destinationPayee || destinationPayee.status !== "approved") {
+      return NextResponse.json(
+        {
+          error:
+            "Protected transfers require an approved destination for the selected bucket.",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (destinationPayee.allowedBucketId !== sourceBucket.id) {
+      return NextResponse.json(
+        {
+          destinationPayee,
+          error:
+            "Protected transfers can only release to a payee assigned to the source bucket.",
+          sourceBucket,
+        },
+        { status: 400 },
+      );
+    }
+
+    if (amountCents > destinationPayee.maxCents) {
+      return NextResponse.json(
+        {
+          destinationPayee,
+          error: "Transfer amount exceeds the approved destination limit.",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (amountCents > sourceBucket.availableCents) {
       return NextResponse.json(
         {
           error: "Transfer amount exceeds the selected bucket balance.",
@@ -115,6 +170,7 @@ export async function POST(request: NextRequest) {
           providerTransfer.status === "created"
             ? "Protected transfer created with the configured provider."
             : "Transfer intent validated. Provider execution remains locked until approved money-rail credentials are active.",
+        destinationPayee,
         providerTransfer,
         sourceBucket,
       },

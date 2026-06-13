@@ -3983,8 +3983,63 @@ export async function createTransferIntent(payload, env = process.env) {
   const sourceBucket = balances.find(
     (bucket) => bucket.id === payload.sourceBucketId,
   );
+  const destinationPayee = controls.payees.find(
+    (payee) => payee.id === destinationPayeeId,
+  );
 
-  if (!sourceBucket || amountCents > sourceBucket.availableCents) {
+  if (sourceBucket?.id === "safe_spending") {
+    return {
+      body: {
+        error: "Protected transfers cannot release Safe to Spend funds.",
+        sourceBucket,
+      },
+      status: 400,
+    };
+  }
+
+  if (!sourceBucket) {
+    return {
+      body: {
+        error: "Transfer amount exceeds the selected bucket balance.",
+        sourceBucket,
+      },
+      status: 400,
+    };
+  }
+
+  if (!destinationPayee || destinationPayee.status !== "approved") {
+    return {
+      body: {
+        error:
+          "Protected transfers require an approved destination for the selected bucket.",
+      },
+      status: 400,
+    };
+  }
+
+  if (destinationPayee.allowedBucketId !== sourceBucket.id) {
+    return {
+      body: {
+        destinationPayee,
+        error:
+          "Protected transfers can only release to a payee assigned to the source bucket.",
+        sourceBucket,
+      },
+      status: 400,
+    };
+  }
+
+  if (amountCents > destinationPayee.maxCents) {
+    return {
+      body: {
+        destinationPayee,
+        error: "Transfer amount exceeds the approved destination limit.",
+      },
+      status: 400,
+    };
+  }
+
+  if (amountCents > sourceBucket.availableCents) {
     return {
       body: {
         error: "Transfer amount exceeds the selected bucket balance.",
@@ -4043,6 +4098,7 @@ export async function createTransferIntent(payload, env = process.env) {
       payload: {
         amountCents,
         destinationPayeeId,
+        destinationPayeeName: destinationPayee.name,
         idempotencyKey,
         providerTransfer,
         sourceBucketId: payload.sourceBucketId,
@@ -4073,6 +4129,7 @@ export async function createTransferIntent(payload, env = process.env) {
       intent: {
         amountCents,
         destinationPayeeId,
+        destinationPayeeName: destinationPayee.name,
         idempotencyKey,
         controlPersistence: {
           bucketProfile: controls.bucketPersistence,
@@ -4090,6 +4147,7 @@ export async function createTransferIntent(payload, env = process.env) {
         providerTransfer.status === "created"
           ? "Protected transfer created with the configured provider."
           : "Transfer intent validated. Provider execution remains locked until approved money-rail credentials are active.",
+      destinationPayee,
       persistence,
       providerTransfer,
       sourceBucket,

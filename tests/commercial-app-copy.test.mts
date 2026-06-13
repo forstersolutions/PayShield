@@ -91,6 +91,12 @@ test("money operations surface shows revenue, rails, records, and export", async
   assert.match(moneyOperations, /Connect banks/);
   assert.match(moneyOperations, /Detect paychecks/);
   assert.match(moneyOperations, /Move protected funds/);
+  assert.match(moneyOperations, /Approved destination/);
+  assert.match(
+    moneyOperations,
+    /Only payees approved for the selected protected bucket appear\s+here/,
+  );
+  assert.match(moneyOperations, /Approve a payee for this bucket/);
 });
 
 test("bill routing workspace exposes protected payee setup before scheduling", async () => {

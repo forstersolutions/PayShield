@@ -275,6 +275,19 @@ requireText("src/app/components/money-operations-panel.tsx", "Manage billing");
 requireText("src/app/components/money-operations-panel.tsx", "/api/app/billing/portal");
 requireText("src/app/components/money-operations-panel.tsx", "/api/app/paychecks/rules");
 requireText("src/app/components/money-operations-panel.tsx", "/api/app/direct-deposit");
+requireText("src/app/components/money-operations-panel.tsx", "Approved destination");
+requireText(
+  "src/app/components/money-operations-panel.tsx",
+  "Only payees approved for the selected protected bucket appear here.",
+);
+requireText(
+  "src/app/api/app/transfers/route.ts",
+  "Protected transfers can only release to a payee assigned to the source bucket.",
+);
+requireText(
+  "services/core/product.mjs",
+  "Protected transfers can only release to a payee assigned to the source bucket.",
+);
 requireText("src/app/components/money-setup-console.tsx", "Money setup console");
 requireText("src/app/components/money-setup-console.tsx", "/api/app/activation");
 requireText(

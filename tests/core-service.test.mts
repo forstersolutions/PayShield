@@ -1265,6 +1265,54 @@ test("core transfer route validates bucket funds and provider status", async () 
     );
 
     assert.equal(rejected.response.status, 400);
+
+    const wrongBucket = await getJson(
+      baseUrl,
+      "/api/app/transfers",
+      jsonPost({
+        amountCents: 25_000,
+        destinationPayeeId: "payee_abc_apartments",
+        sourceBucketId: "vehicle",
+      }),
+    );
+
+    assert.equal(wrongBucket.response.status, 400);
+    assert.equal(
+      wrongBucket.body.error,
+      "Protected transfers can only release to a payee assigned to the source bucket.",
+    );
+
+    const safeSpend = await getJson(
+      baseUrl,
+      "/api/app/transfers",
+      jsonPost({
+        amountCents: 25_000,
+        destinationPayeeId: "payee_abc_apartments",
+        sourceBucketId: "safe_spending",
+      }),
+    );
+
+    assert.equal(safeSpend.response.status, 400);
+    assert.equal(
+      safeSpend.body.error,
+      "Protected transfers cannot release Safe to Spend funds.",
+    );
+
+    const overLimit = await getJson(
+      baseUrl,
+      "/api/app/transfers",
+      jsonPost({
+        amountCents: 90_000,
+        destinationPayeeId: "payee_auto_lender",
+        sourceBucketId: "vehicle",
+      }),
+    );
+
+    assert.equal(overLimit.response.status, 400);
+    assert.equal(
+      overLimit.body.error,
+      "Transfer amount exceeds the approved destination limit.",
+    );
   });
 });
 

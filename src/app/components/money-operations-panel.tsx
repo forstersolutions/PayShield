@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { BucketBalance, Payee } from "@/app/lib/neobank/types.ts";
+import type { BucketBalance, BucketId, Payee } from "@/app/lib/neobank/types.ts";
 
 type ActionState =
   | { status: "idle"; message: string }
@@ -473,15 +473,53 @@ export function MoneyOperationsPanel({
   const [ruleMaximumAmount, setRuleMaximumAmount] = useState("");
   const [ruleFrequency, setRuleFrequency] = useState("biweekly");
   const [transferAmount, setTransferAmount] = useState("250");
-  const [sourceBucketId, setSourceBucketId] = useState("rent");
+  const protectedTransferBuckets = useMemo(
+    () => buckets.filter((bucket) => bucket.id !== "safe_spending"),
+    [buckets],
+  );
+  const [sourceBucketId, setSourceBucketId] = useState<BucketId>(
+    protectedTransferBuckets[0]?.id ?? "rent",
+  );
   const [destinationPayeeId, setDestinationPayeeId] = useState(
-    payees[0]?.id ?? "linked_household_account",
+    payees.find(
+      (payee) =>
+        payee.status === "approved" &&
+        payee.allowedBucketId === (protectedTransferBuckets[0]?.id ?? "rent"),
+    )?.id ?? "",
   );
   const [depositResult, setDepositResult] = useState<{
     protectedCents?: number;
     safeToSpendCents?: number;
   } | null>(null);
-  const selectedBucket = buckets.find((bucket) => bucket.id === sourceBucketId);
+  const selectedBucket =
+    protectedTransferBuckets.find((bucket) => bucket.id === sourceBucketId) ??
+    protectedTransferBuckets[0];
+  const approvedPayees = useMemo(
+    () => payees.filter((payee) => payee.status === "approved"),
+    [payees],
+  );
+  const bucketPayees = useMemo(
+    () =>
+      selectedBucket
+        ? approvedPayees.filter(
+            (payee) => payee.allowedBucketId === selectedBucket.id,
+          )
+        : [],
+    [approvedPayees, selectedBucket],
+  );
+  const validDestinationPayee =
+    bucketPayees.find((payee) => payee.id === destinationPayeeId) ??
+    bucketPayees[0];
+  const transferAmountCents = dollarsToCents(transferAmount);
+  const transferLimitCents = Math.min(
+    selectedBucket?.availableCents ?? 0,
+    validDestinationPayee?.maxCents ?? 0,
+  );
+  const transferReady =
+    transferAmountCents > 0 &&
+    transferAmountCents <= transferLimitCents &&
+    Boolean(selectedBucket && validDestinationPayee) &&
+    transferState.status !== "loading";
   const ruleMinimumCents = dollarsToCents(ruleMinimumAmount);
   const ruleMaximumCents = ruleMaximumAmount
     ? dollarsToCents(ruleMaximumAmount)
@@ -501,13 +539,15 @@ export function MoneyOperationsPanel({
   const openExceptionCount = reconciliationExceptions.filter(
     (exception) => exception.status === "open",
   ).length;
-  const connectedPayees = useMemo(
-    () => [
-      ...payees.map((payee) => ({ id: payee.id, name: payee.name })),
-      { id: "linked_household_account", name: "Linked household account" },
-    ],
-    [payees],
-  );
+
+  function changeTransferSource(nextBucketId: BucketId) {
+    setSourceBucketId(nextBucketId);
+    setDestinationPayeeId(
+      approvedPayees.find((payee) => payee.allowedBucketId === nextBucketId)
+        ?.id ?? "",
+    );
+  }
+
   useEffect(() => {
     let cancelled = false;
 
@@ -1054,7 +1094,39 @@ export function MoneyOperationsPanel({
   }
 
   async function createTransfer() {
-    const amountCents = dollarsToCents(transferAmount);
+    const amountCents = transferAmountCents;
+
+    if (!selectedBucket || !validDestinationPayee) {
+      setTransferState({
+        message:
+          "Approve a destination for this bucket before protected money can be released.",
+        status: "error",
+      });
+      appendOperation({
+        amountCents,
+        detail: selectedBucket?.name ?? "Protected bucket",
+        label: "Transfer intent",
+        rail: "transfer",
+        status: "rejected",
+      });
+      return;
+    }
+
+    if (amountCents > transferLimitCents) {
+      setTransferState({
+        message:
+          "Transfer amount exceeds the selected bucket balance or approved destination limit.",
+        status: "error",
+      });
+      appendOperation({
+        amountCents,
+        detail: `${selectedBucket.name} -> ${validDestinationPayee.name}`,
+        label: "Transfer intent",
+        rail: "transfer",
+        status: "rejected",
+      });
+      return;
+    }
 
     setTransferState({
       message: "Validating protected transfer intent...",
@@ -1065,9 +1137,9 @@ export function MoneyOperationsPanel({
       const response = await fetch("/api/app/transfers", {
         body: JSON.stringify({
           amountCents,
-          destinationPayeeId,
+          destinationPayeeId: validDestinationPayee.id,
           idempotencyKey: `ui-transfer-${crypto.randomUUID()}`,
-          sourceBucketId,
+          sourceBucketId: selectedBucket.id,
         }),
         headers: { "content-type": "application/json" },
         method: "POST",
@@ -1085,7 +1157,7 @@ export function MoneyOperationsPanel({
         });
         appendOperation({
           amountCents,
-          detail: `${sourceBucketId} -> ${destinationPayeeId}`,
+          detail: `${selectedBucket.name} -> ${validDestinationPayee.name}`,
           label: "Transfer intent",
           rail: "transfer",
           status: "rejected",
@@ -1101,7 +1173,7 @@ export function MoneyOperationsPanel({
       });
       appendOperation({
         amountCents,
-        detail: `${sourceBucketId} -> ${destinationPayeeId}`,
+        detail: `${selectedBucket.name} -> ${validDestinationPayee.name}`,
         label: "Transfer intent",
         rail: "transfer",
         status: payload.providerTransfer?.status || "blocked",
@@ -1113,7 +1185,7 @@ export function MoneyOperationsPanel({
       });
       appendOperation({
         amountCents,
-        detail: `${sourceBucketId} -> ${destinationPayeeId}`,
+        detail: `${selectedBucket.name} -> ${validDestinationPayee.name}`,
         label: "Transfer intent",
         rail: "transfer",
         status: "error",
@@ -1761,10 +1833,12 @@ export function MoneyOperationsPanel({
                 Source bucket
                 <select
                   className="h-11 rounded-[8px] border border-white/10 bg-black/45 px-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
-                  onChange={(event) => setSourceBucketId(event.target.value)}
-                  value={sourceBucketId}
+                  onChange={(event) =>
+                    changeTransferSource(event.target.value as BucketId)
+                  }
+                  value={selectedBucket?.id ?? ""}
                 >
-                  {buckets.map((bucket) => (
+                  {protectedTransferBuckets.map((bucket) => (
                     <option key={bucket.id} value={bucket.id}>
                       {bucket.name}
                     </option>
@@ -1775,10 +1849,11 @@ export function MoneyOperationsPanel({
                 Destination
                 <select
                   className="h-11 rounded-[8px] border border-white/10 bg-black/45 px-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
+                  disabled={!bucketPayees.length}
                   onChange={(event) => setDestinationPayeeId(event.target.value)}
-                  value={destinationPayeeId}
+                  value={validDestinationPayee?.id ?? ""}
                 >
-                  {connectedPayees.map((payee) => (
+                  {bucketPayees.map((payee) => (
                     <option key={payee.id} value={payee.id}>
                       {payee.name}
                     </option>
@@ -1791,6 +1866,7 @@ export function MoneyOperationsPanel({
                   className="h-11 rounded-[8px] border border-white/10 bg-black/45 px-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
                   inputMode="decimal"
                   min="0"
+                  max={transferLimitCents / 100}
                   onChange={(event) => setTransferAmount(event.target.value)}
                   type="number"
                   value={transferAmount}
@@ -1802,14 +1878,25 @@ export function MoneyOperationsPanel({
                   {formatMoney(selectedBucket?.availableCents ?? 0)}
                 </p>
               </div>
+              <div className="rounded-[8px] border border-white/10 bg-black/35 p-3 sm:col-span-2">
+                <p className="brand-kicker">Approved destination</p>
+                <p className="mt-2 text-lg font-black text-white">
+                  {validDestinationPayee
+                    ? `${validDestinationPayee.name} - ${formatMoney(
+                        validDestinationPayee.maxCents,
+                      )} limit`
+                    : "Approve a payee for this bucket"}
+                </p>
+                <p className="mt-2 text-xs font-bold leading-5 text-[#aab3c2]">
+                  Only payees approved for the selected protected bucket appear
+                  here.
+                </p>
+              </div>
             </div>
 
             <button
               className="brand-button-blue mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={
-                dollarsToCents(transferAmount) <= 0 ||
-                transferState.status === "loading"
-              }
+              disabled={!transferReady}
               onClick={createTransfer}
               type="button"
             >

@@ -771,6 +771,51 @@ test("transfer route validates bucket funds and returns provider gate", async ()
   );
 
   assert.equal(rejected.status, 400);
+
+  const wrongBucket = await createTransfer(
+    makeRequest("/api/app/transfers", {
+      amountCents: 25_000,
+      destinationPayeeId: "payee_abc_apartments",
+      sourceBucketId: "vehicle",
+    }),
+  );
+  const wrongBucketBody = await parseJson(wrongBucket);
+
+  assert.equal(wrongBucket.status, 400);
+  assert.equal(
+    wrongBucketBody.error,
+    "Protected transfers can only release to a payee assigned to the source bucket.",
+  );
+
+  const safeSpend = await createTransfer(
+    makeRequest("/api/app/transfers", {
+      amountCents: 25_000,
+      destinationPayeeId: "payee_abc_apartments",
+      sourceBucketId: "safe_spending",
+    }),
+  );
+  const safeSpendBody = await parseJson(safeSpend);
+
+  assert.equal(safeSpend.status, 400);
+  assert.equal(
+    safeSpendBody.error,
+    "Protected transfers cannot release Safe to Spend funds.",
+  );
+
+  const overLimit = await createTransfer(
+    makeRequest("/api/app/transfers", {
+      amountCents: 90_000,
+      destinationPayeeId: "payee_auto_lender",
+      sourceBucketId: "vehicle",
+    }),
+  );
+  const overLimitBody = await parseJson(overLimit);
+
+  assert.equal(overLimit.status, 400);
+  assert.equal(
+    overLimitBody.error,
+    "Transfer amount exceeds the approved destination limit.",
+  );
 });
 
 test("card authorization route approves safe-spend purchase in simulation mode", async () => {
