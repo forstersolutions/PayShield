@@ -339,11 +339,16 @@ test("core card authorization approves safe spend and declines protected overrea
       }),
     );
     const approvedDecision = approved.body.decision as Record<string, unknown>;
+    const approvedJournal = approved.body.journalPersistence as Record<
+      string,
+      unknown
+    >;
 
     assert.equal(approved.response.status, 200);
     assert.equal(approved.body.mode, "simulation");
     assert.equal(approvedDecision.approved, true);
     assert.equal(approvedDecision.bucketId, "safe_spending");
+    assert.equal(approvedJournal.persistence, "memory");
 
     const declined = await getJson(
       baseUrl,
@@ -355,10 +360,15 @@ test("core card authorization approves safe spend and declines protected overrea
       }),
     );
     const declinedDecision = declined.body.decision as Record<string, unknown>;
+    const declinedJournal = declined.body.journalPersistence as Record<
+      string,
+      unknown
+    >;
 
     assert.equal(declined.response.status, 200);
     assert.equal(declinedDecision.approved, false);
     assert.equal(declinedDecision.code, "insufficient_safe_spend");
+    assert.equal(declinedJournal.persistence, "not_posted");
   });
 });
 
@@ -376,9 +386,14 @@ test("core unlock route creates a recovery plan without mutating protected rules
       }),
     );
     const result = body.result as Record<string, unknown>;
+    const journalPersistence = body.journalPersistence as Record<
+      string,
+      unknown
+    >;
 
     assert.equal(response.status, 200);
     assert.equal(body.mode, "simulation");
+    assert.equal(journalPersistence.persistence, "memory");
     assert.equal(result.unlockedCents, 20_000);
     assert.equal(result.recoveryPerCheckCents, 10_000);
   });
@@ -476,9 +491,14 @@ test("core paycheck detection posts bucket split before safe spend", async () =>
     );
     const auditPersistence = body.auditPersistence as Record<string, unknown>;
     const entry = body.ledgerEntry as Record<string, unknown>;
+    const journalPersistence = body.journalPersistence as Record<
+      string,
+      unknown
+    >;
 
     assert.equal(response.status, 200);
     assert.equal(auditPersistence.persistence, "memory");
+    assert.equal(journalPersistence.persistence, "memory");
     assert.equal(body.protectedCents, 155_000);
     assert.equal(body.safeToSpendCents, 145_000);
     assert.equal(entry.type, "paycheck_deposit");
@@ -583,11 +603,16 @@ test("core bill payment route schedules approved payee from protected bucket", a
       string,
       unknown
     >;
+    const journalPersistence = body.journalPersistence as Record<
+      string,
+      unknown
+    >;
 
     assert.equal(response.status, 200);
     assert.equal(decision.accepted, true);
     assert.equal(decision.code, "scheduled");
     assert.equal(decision.bucketId, "rent");
+    assert.equal(journalPersistence.persistence, "memory");
     assert.equal(providerBillPayment.status, "blocked");
     assert.equal(Array.isArray(body.ledgerEntries), true);
   });

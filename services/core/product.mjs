@@ -5,6 +5,7 @@ import {
   persistBucketProfile,
   persistBankConnection,
   persistCommercialBillingEvent,
+  persistJournalEntry,
   persistMoneyRailEvent,
   persistPayee,
   persistPaycheckDetection,
@@ -1581,6 +1582,17 @@ function persistenceFailed(result) {
   return result?.persistence === "postgres_error";
 }
 
+async function persistOperationalJournal(entry, env = process.env) {
+  return persistJournalEntry(
+    {
+      betaAccessStatus: demoUser.profileAccess,
+      entry,
+      householdId: demoUser.householdId,
+    },
+    env,
+  );
+}
+
 export async function detectPaycheck(payload, env = process.env) {
   const amountCents = toIntegerCents(payload?.amountCents, {
     max: 2_000_000,
@@ -1621,13 +1633,27 @@ export async function detectPaycheck(payload, env = process.env) {
     .reduce((sum, bucket) => sum + bucket.availableCents, 0);
 
   const readiness = getMoneyRailReadiness(env);
+  const journalPersistence = await persistOperationalJournal(entry, env);
+
+  if (persistenceFailed(journalPersistence)) {
+    return {
+      body: {
+        error: "Paycheck ledger entry could not be persisted.",
+        journalPersistence,
+        readiness,
+        service: "payshield-paycheck-detection",
+      },
+      status: 503,
+    };
+  }
+
   const persistence = await persistPaycheckDetection(
     {
       amountCents,
       employerName,
       householdId: demoUser.householdId,
       idempotencyKey: entry.idempotencyKey,
-      journalEntryId: entry.id,
+      journalEntryId: journalPersistence.postgresId || entry.id,
       providerEventId: cleanText(payload?.providerEventId, 120) || null,
       providerTransactionId: cleanText(payload?.providerTransactionId, 120) || null,
       receivedAt: entry.metadata?.receivedAt,
@@ -1692,6 +1718,7 @@ export async function detectPaycheck(payload, env = process.env) {
         receivedAt: entry.metadata?.receivedAt,
       },
       ledgerEntry: entry,
+      journalPersistence,
       message:
         "Paycheck detected and split by bucket priority before Safe to Spend is computed.",
       persistence,
@@ -1898,6 +1925,32 @@ export async function createBillPayment(payload, env = process.env) {
         providerBillPaymentId: "bill-pay-not-scheduled",
         status: "blocked",
       };
+  const postedEntry = decision.accepted
+    ? book.findByIdempotencyKey(
+        cleanText(payload?.idempotencyKey, 120) ||
+          `bill-${payeeId}-${amountCents}-${scheduledFor}`,
+      )
+    : null;
+  const journalPersistence = postedEntry
+    ? await persistOperationalJournal(postedEntry, env)
+    : {
+        persisted: false,
+        persistence: "not_posted",
+        persistenceReason: "Rejected bill payments do not create ledger entries.",
+      };
+
+  if (persistenceFailed(journalPersistence)) {
+    return {
+      body: {
+        decision,
+        error: "Bill payment ledger entry could not be persisted.",
+        journalPersistence,
+        readiness,
+        service: "payshield-bill-payments",
+      },
+      status: 503,
+    };
+  }
 
   return {
     body: {
@@ -1911,6 +1964,7 @@ export async function createBillPayment(payload, env = process.env) {
         providerStatus: providerBillPayment.status,
       },
       ledgerEntries: book.allEntries(),
+      journalPersistence,
       message: decision.accepted
         ? "Bill payment scheduled in the protected bucket model. Provider execution requires active money-movement controls."
         : "Bill payment was not scheduled.",
@@ -1971,6 +2025,21 @@ export async function createUnlock(payload, env = process.env) {
 
   const book = createDemoLedgerBook(300_000, controls.buckets);
   const result = unlockProtectedFunds(book, input);
+  const postedEntry = book.findByIdempotencyKey(input.idempotencyKey);
+  const journalPersistence = await persistOperationalJournal(postedEntry, env);
+
+  if (persistenceFailed(journalPersistence)) {
+    return {
+      body: {
+        error: "Unlock ledger entry could not be persisted.",
+        journalPersistence,
+        readiness: getCoreReadiness(env, { coreOnline: true }),
+        result,
+        service: "payshield-unlocks",
+      },
+      status: 503,
+    };
+  }
 
   return {
     body: {
@@ -1980,6 +2049,7 @@ export async function createUnlock(payload, env = process.env) {
         payees: controls.payeePersistence,
       },
       ledgerEntries: book.allEntries(),
+      journalPersistence,
       message: "Recovery plan created. Provider execution requires active money-movement controls.",
       mode: "simulation",
       readiness: getCoreReadiness(env, { coreOnline: true }),
@@ -2037,6 +2107,29 @@ export async function authorizeCard(payload, env = process.env) {
 
   const book = createDemoLedgerBook(300_000, controls.buckets);
   const decision = authorizeCardTransaction(book, controls.payees, input);
+  const postedEntry = decision.approved
+    ? book.findByIdempotencyKey(input.idempotencyKey)
+    : null;
+  const journalPersistence = postedEntry
+    ? await persistOperationalJournal(postedEntry, env)
+    : {
+        persisted: false,
+        persistence: "not_posted",
+        persistenceReason: "Declined card authorizations do not create ledger entries.",
+      };
+
+  if (persistenceFailed(journalPersistence)) {
+    return {
+      body: {
+        decision,
+        error: "Card authorization ledger entry could not be persisted.",
+        journalPersistence,
+        readiness,
+        service: "payshield-card-authorization",
+      },
+      status: 503,
+    };
+  }
 
   return {
     body: {
@@ -2046,6 +2139,7 @@ export async function authorizeCard(payload, env = process.env) {
         payees: controls.payeePersistence,
       },
       decision,
+      journalPersistence,
       ledgerEntries: book.allEntries(),
       mode: "simulation",
       readiness,

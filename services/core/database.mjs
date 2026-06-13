@@ -99,6 +99,14 @@ function bucketFromRow(row) {
   };
 }
 
+function bucketIdFromLedgerAccount(accountId) {
+  const prefix = "liability:bucket:";
+
+  return typeof accountId === "string" && accountId.startsWith(prefix)
+    ? accountId.slice(prefix.length)
+    : null;
+}
+
 function payeeFromRow(row) {
   return {
     allowedBucketId: row.allowed_bucket_id,
@@ -106,6 +114,32 @@ function payeeFromRow(row) {
     maxCents: centsNumber(row.max_cents),
     name: row.name,
     status: row.status,
+  };
+}
+
+function ledgerAccountShape(householdId, accountId) {
+  const bucketId = bucketIdFromLedgerAccount(accountId);
+
+  if (bucketId) {
+    return {
+      accountType: "liability",
+      bucketId,
+      id: recordId("ledger_bucket", householdId, bucketId),
+    };
+  }
+
+  if (accountId === "asset:program_cash") {
+    return {
+      accountType: "asset",
+      bucketId: null,
+      id: recordId("ledger_asset", householdId, "program_cash"),
+    };
+  }
+
+  return {
+    accountType: accountId.startsWith("asset:") ? "asset" : "liability",
+    bucketId: null,
+    id: recordId("ledger_account", householdId, accountId),
   };
 }
 
@@ -319,6 +353,164 @@ export async function persistPayee(input, env = process.env) {
       persisted: true,
       persistence: "postgres",
       postgresId: id,
+      replayed: false,
+    };
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Ignore rollback failures; the original error is more useful.
+      }
+    }
+
+    return persistenceFailed(error);
+  } finally {
+    client?.release();
+  }
+}
+
+async function ensureLedgerAccount(client, householdId, accountId) {
+  const shape = ledgerAccountShape(householdId, accountId);
+
+  if (shape.bucketId) {
+    const existing = await client.query(
+      `
+        SELECT id
+        FROM ledger_accounts
+        WHERE household_id = $1
+          AND bucket_id = $2
+        LIMIT 1
+      `,
+      [householdId, shape.bucketId],
+    );
+
+    if (existing.rows[0]?.id) {
+      return existing.rows[0].id;
+    }
+  }
+
+  await client.query(
+    `
+      INSERT INTO ledger_accounts (
+        id,
+        household_id,
+        account_type,
+        bucket_id
+      )
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (id) DO UPDATE SET
+        household_id = EXCLUDED.household_id,
+        account_type = EXCLUDED.account_type,
+        bucket_id = EXCLUDED.bucket_id
+    `,
+    [shape.id, householdId, shape.accountType, shape.bucketId],
+  );
+
+  return shape.id;
+}
+
+export async function persistJournalEntry(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return persistenceSkipped("journal entry");
+  }
+
+  let client = null;
+  const entry = input.entry;
+
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+    await ensureHousehold(client, input);
+
+    const existing = await client.query(
+      `
+        SELECT id
+        FROM journal_entries
+        WHERE household_id = $1
+          AND idempotency_key = $2
+        LIMIT 1
+      `,
+      [input.householdId, entry.idempotencyKey],
+    );
+
+    if (existing.rows[0]?.id) {
+      await client.query("COMMIT");
+
+      return {
+        persisted: true,
+        persistence: "postgres",
+        postgresId: existing.rows[0].id,
+        replayed: true,
+      };
+    }
+
+    const entryId = recordId(
+      "journal_entry",
+      input.householdId,
+      entry.type,
+      entry.idempotencyKey,
+    );
+    const accountIds = new Map();
+
+    for (const line of entry.lines) {
+      if (!accountIds.has(line.accountId)) {
+        accountIds.set(
+          line.accountId,
+          await ensureLedgerAccount(client, input.householdId, line.accountId),
+        );
+      }
+    }
+
+    await client.query(
+      `
+        INSERT INTO journal_entries (
+          id,
+          household_id,
+          idempotency_key,
+          entry_type,
+          memo,
+          metadata,
+          reversed_entry_id,
+          created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8::timestamptz)
+      `,
+      [
+        entryId,
+        input.householdId,
+        entry.idempotencyKey,
+        entry.type,
+        entry.memo,
+        JSON.stringify(entry.metadata || {}),
+        entry.reversedEntryId || null,
+        entry.createdAt,
+      ],
+    );
+
+    for (const line of entry.lines) {
+      await client.query(
+        `
+          INSERT INTO journal_lines (
+            journal_entry_id,
+            ledger_account_id,
+            amount_cents
+          )
+          VALUES ($1, $2, $3)
+        `,
+        [entryId, accountIds.get(line.accountId), line.amountCents],
+      );
+    }
+
+    await client.query("COMMIT");
+
+    return {
+      lineCount: entry.lines.length,
+      persisted: true,
+      persistence: "postgres",
+      postgresId: entryId,
       replayed: false,
     };
   } catch (error) {
