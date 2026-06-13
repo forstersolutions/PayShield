@@ -37,9 +37,10 @@ function formBody(input: Record<string, string>) {
 
 export function getCommercialReadiness() {
   const webhook = getStripeWebhookReadiness();
-  const paymentLinkUrl = process.env.PAYSHIELD_BETA_PAYMENT_LINK_URL?.trim() || "";
+  const paymentLinkUrl =
+    process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL?.trim() || "";
   const stripeSecretConfigured = envPresent("STRIPE_SECRET_KEY");
-  const stripePriceConfigured = envPresent("PAYSHIELD_BETA_PRICE_ID");
+  const stripePriceConfigured = envPresent("PAYSHIELD_COMMERCIAL_PRICE_ID");
   const checkoutConfigured =
     Boolean(paymentLinkUrl) || (stripeSecretConfigured && stripePriceConfigured);
   const missing: string[] = [];
@@ -50,7 +51,9 @@ export function getCommercialReadiness() {
     }
 
     if (!stripePriceConfigured && !paymentLinkUrl) {
-      missing.push("PAYSHIELD_BETA_PRICE_ID or PAYSHIELD_BETA_PAYMENT_LINK_URL");
+      missing.push(
+        "PAYSHIELD_COMMERCIAL_PRICE_ID or PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL",
+      );
     }
   }
 
@@ -62,7 +65,9 @@ export function getCommercialReadiness() {
     checkoutConfigured,
     missing,
     mode: paymentLinkUrl ? "payment_link" : stripeSecretConfigured ? "checkout" : "not_configured",
-    priceLabel: process.env.PAYSHIELD_BETA_PRICE_LABEL?.trim() || "$19/month",
+    priceLabel:
+      process.env.PAYSHIELD_COMMERCIAL_PRICE_LABEL?.trim() ||
+      "$19/month",
     paidAccessReady: checkoutConfigured && webhook.signingSecretConfigured,
     stripePriceConfigured,
     stripeSecretConfigured,
@@ -71,7 +76,7 @@ export function getCommercialReadiness() {
   };
 }
 
-export async function createPaidBetaCheckoutSession(input: {
+export async function createCommercialCheckoutSession(input: {
   cancelPath?: string;
   email?: string;
   origin: string;
@@ -79,7 +84,8 @@ export async function createPaidBetaCheckoutSession(input: {
   userId: string;
 }) {
   const readiness = getCommercialReadiness();
-  const paymentLinkUrl = process.env.PAYSHIELD_BETA_PAYMENT_LINK_URL?.trim();
+  const paymentLinkUrl =
+    process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL?.trim();
 
   if (paymentLinkUrl) {
     return {
@@ -108,13 +114,15 @@ export async function createPaidBetaCheckoutSession(input: {
       "allow_promotion_codes": "true",
       "client_reference_id": input.userId,
       "customer_email": input.email || "",
-      "line_items[0][price]": process.env.PAYSHIELD_BETA_PRICE_ID?.trim() || "",
+      "line_items[0][price]":
+        process.env.PAYSHIELD_COMMERCIAL_PRICE_ID?.trim() || "",
       "line_items[0][quantity]": "1",
       "metadata[grayston_product]": "PayShield",
-      "metadata[payshield_access]": "paid_beta",
+      "metadata[payshield_access]": "commercial",
       "metadata[payshield_user_id]": input.userId,
       "mode": "subscription",
       "subscription_data[metadata][grayston_product]": "PayShield",
+      "subscription_data[metadata][payshield_access]": "commercial",
       "subscription_data[metadata][payshield_user_id]": input.userId,
       "success_url": successUrl.toString(),
       "cancel_url": cancelUrl.toString(),

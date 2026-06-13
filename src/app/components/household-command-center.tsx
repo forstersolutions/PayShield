@@ -32,10 +32,10 @@ import { formatCents } from "@/app/lib/neobank/ledger.ts";
 
 const commandActions = [
   {
-    body: "Launch paid household access through Stripe Checkout or a configured payment link.",
+    body: "Activate paid household access through Stripe Checkout or a configured payment link.",
     href: "#money-operations",
     icon: BadgeDollarSign,
-    label: "Start paid access",
+    label: "Activate access",
   },
   {
     body: "Initialize external account connection for transaction detection and transfer handoff.",
@@ -70,7 +70,7 @@ const commandActions = [
 ];
 
 const moneyPath = [
-  "Paid access",
+  "Commercial access",
   "Bank connection",
   "Income intake",
   "Priority split",
@@ -194,7 +194,7 @@ export function HouseholdCommandCenter() {
                 <span className="rounded-[8px] border border-[#ffb237]/35 bg-[#ffb237]/10 px-3 py-2 text-sm font-black text-[#ffe1a3]">
                   {snapshot.card.status === "live"
                     ? "Gateway active"
-                    : "Simulation controls"}
+                    : "Ledger controls"}
                 </span>
               </div>
 
@@ -225,7 +225,7 @@ export function HouseholdCommandCenter() {
                 <StatusMetric
                   icon={CreditCard}
                   label="Card mode"
-                  value={snapshot.card.authorizationMode === "simulation" ? "Simulated" : "Gateway"}
+                  value={snapshot.card.authorizationMode === "simulation" ? "Ledger" : "Gateway"}
                 />
               </div>
             </div>
@@ -301,12 +301,12 @@ export function HouseholdCommandCenter() {
           <div className="brand-panel rounded-[8px] p-5">
             <p className="brand-kicker">Readiness state</p>
             <h2 className="mt-2 text-3xl font-black text-white">
-              Live-money controls remain gated.
+              Activation gates protect the money path.
             </h2>
             <p className="mt-4 text-sm leading-6 text-[#c9d0da]">
-              {REGULATED_PARTNER_DISCLOSURE} The app can still model household
+              {REGULATED_PARTNER_DISCLOSURE} The app can still enforce household
               rules, validate decisions, and collect support requests while
-              provider activation remains locked.
+              provider activation remains controlled.
             </p>
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
               <StatusMetric

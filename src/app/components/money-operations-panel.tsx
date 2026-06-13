@@ -138,7 +138,7 @@ export function MoneyOperationsPanel({
     status: "idle",
   });
   const [paycheckAmount, setPaycheckAmount] = useState("3000");
-  const [employerName, setEmployerName] = useState("Demo payroll");
+  const [employerName, setEmployerName] = useState("Payroll deposit");
   const [transferAmount, setTransferAmount] = useState("250");
   const [sourceBucketId, setSourceBucketId] = useState("rent");
   const [destinationPayeeId, setDestinationPayeeId] = useState(
@@ -396,13 +396,13 @@ export function MoneyOperationsPanel({
               Money operations
             </p>
             <h2 className="mt-4 text-3xl font-black leading-tight text-white sm:text-4xl">
-              Revenue, account connection, detection, and protected transfers.
+              Revenue, bank connection, paycheck detection, and protected transfers.
             </h2>
             <p className="mt-4 max-w-2xl text-base leading-7 text-[#c9d0da]">
-              This is the operating lane for commercial access and real-world
-              paycheck control: charge for access, connect a funding source,
-              detect income, split it by rules, and validate transfer intents
-              against the protected ledger.
+              This is the operating lane for real-world paycheck control:
+              activate paid access, connect the household source, identify
+              income, split it by rules, and validate transfer requests against
+              the protected ledger.
             </p>
           </div>
 
@@ -410,16 +410,16 @@ export function MoneyOperationsPanel({
             <div className="brand-panel rounded-[8px] p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="brand-kicker">Paid access</p>
+                  <p className="brand-kicker">Commercial access</p>
                   <h3 className="mt-1 text-xl font-black text-white">
-                    Start household billing.
+                    Activate household billing.
                   </h3>
                 </div>
                 <BadgeDollarSign className="size-6 text-[#ffb237]" aria-hidden="true" />
               </div>
               <p className="mt-3 text-sm leading-6 text-[#aab3c2]">
-                Stripe Checkout turns PayShield into a paid beta product
-                without storing card data in the app.
+                Stripe Checkout runs paid access without storing card data in
+                PayShield.
               </p>
               <button
                 className="brand-button-primary mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
@@ -432,7 +432,7 @@ export function MoneyOperationsPanel({
                 ) : (
                   <BadgeDollarSign className="size-4" aria-hidden="true" />
                 )}
-                Start paid access
+                Activate paid access
               </button>
               <div className="mt-3">
                 <StateMessage state={billingState} />
@@ -450,8 +450,8 @@ export function MoneyOperationsPanel({
                 <Link2 className="size-6 text-[#39e8ff]" aria-hidden="true" />
               </div>
               <p className="mt-3 text-sm leading-6 text-[#aab3c2]">
-                Plaid Link initializes external account access for transaction
-                detection and transfer-provider handoff.
+                Plaid Link creates the user-approved connection for income
+                detection and transfer handoff.
               </p>
               <button
                 className="brand-button-blue mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
@@ -479,7 +479,7 @@ export function MoneyOperationsPanel({
               <div>
                 <p className="brand-kicker">Paycheck detection</p>
                 <h3 className="mt-1 text-xl font-black text-white">
-                  Detect income and split it first.
+                  Identify income and split it first.
                 </h3>
               </div>
               <Radar className="size-6 text-[#39e8ff]" aria-hidden="true" />
@@ -625,8 +625,8 @@ export function MoneyOperationsPanel({
             <div className="mt-3 flex items-start gap-3 rounded-[8px] border border-[#ffb237]/25 bg-[#ffb237]/10 p-3">
               <ShieldAlert className="mt-0.5 size-5 shrink-0 text-[#ffcf72]" aria-hidden="true" />
               <p className="text-sm leading-6 text-[#ffe4ad]">
-                Provider execution stays locked until transfer credentials,
-                ledger persistence, support runbooks, and approvals are active.
+                Transfer execution requires active credentials, ledger
+                persistence, support runbooks, and approvals.
               </p>
             </div>
           </div>

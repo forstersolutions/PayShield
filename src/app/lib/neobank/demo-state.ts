@@ -118,7 +118,7 @@ export function createDemoLedgerBook(amountCents = 300_000) {
 
   postPaycheckDeposit(book, neobankBuckets, {
     amountCents,
-    employerName: "Demo payroll",
+    employerName: "Payroll deposit",
     idempotencyKey: `demo-paycheck-${amountCents}`,
     receivedAt: "2026-06-12T12:00:00.000Z",
   });

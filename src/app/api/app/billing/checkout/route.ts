@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server.js";
-import { createPaidBetaCheckoutSession } from "../../../../lib/commercial/billing.ts";
+import { createCommercialCheckoutSession } from "../../../../lib/commercial/billing.ts";
 import { getAppSession } from "../../../../lib/neobank/auth.ts";
 import { demoUser } from "../../../../lib/neobank/demo-state.ts";
 
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       cancelPath?: unknown;
       successPath?: unknown;
     };
-    const result = await createPaidBetaCheckoutSession({
+    const result = await createCommercialCheckoutSession({
       cancelPath: cleanPath(payload.cancelPath, "/app?billing=cancelled"),
       email: demoUser.email,
       origin: request.nextUrl.origin,
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
         : {
             error:
               result.error ||
-              "Paid beta checkout is not configured. Add Stripe Checkout or a Stripe Payment Link.",
+              "Commercial checkout is not configured. Add Stripe Checkout or a Stripe Payment Link.",
             readiness: result.readiness,
           },
       {

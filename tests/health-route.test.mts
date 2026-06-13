@@ -53,7 +53,9 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID;
   delete process.env.PLAID_CLIENT_ID;
   delete process.env.PLAID_SECRET;
-  delete process.env.PAYSHIELD_BETA_PRICE_ID;
+  delete process.env.PAYSHIELD_COMMERCIAL_PRICE_ID;
+  delete process.env.PAYSHIELD_COMMERCIAL_PRICE_LABEL;
+  delete process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL;
   delete process.env.STRIPE_SECRET_KEY;
   delete process.env.STRIPE_WEBHOOK_SECRET;
   delete process.env.BLOB_READ_WRITE_TOKEN;
@@ -308,7 +310,7 @@ test("reports commercial and money rail readiness gates", async () => {
 
   process.env.STRIPE_SECRET_KEY = "sk_test";
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
-  process.env.PAYSHIELD_BETA_PRICE_ID = "price_test";
+  process.env.PAYSHIELD_COMMERCIAL_PRICE_ID = "price_test";
   process.env.PLAID_CLIENT_ID = "plaid-client";
   process.env.PLAID_SECRET = "plaid-secret";
   process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";

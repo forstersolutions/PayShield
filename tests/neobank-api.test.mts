@@ -28,8 +28,8 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_BAAS_API_KEY;
   delete process.env.PAYSHIELD_BAAS_CONTRACT_APPROVED;
   delete process.env.PAYSHIELD_BAAS_PROVIDER;
-  delete process.env.PAYSHIELD_BETA_PAYMENT_LINK_URL;
-  delete process.env.PAYSHIELD_BETA_PRICE_ID;
+  delete process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL;
+  delete process.env.PAYSHIELD_COMMERCIAL_PRICE_ID;
   delete process.env.PAYSHIELD_CORE_API_URL;
   delete process.env.PAYSHIELD_LEDGER_DATABASE_URL;
   delete process.env.PAYSHIELD_LIVE_MONEY_ENABLED;
@@ -174,7 +174,8 @@ test("paid access checkout reports missing Stripe configuration", async () => {
 });
 
 test("paid access checkout can return a configured payment link", async () => {
-  process.env.PAYSHIELD_BETA_PAYMENT_LINK_URL = "https://buy.stripe.com/test_123";
+  process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL =
+    "https://buy.stripe.com/test_123";
 
   const response = await startCheckout(
     makeRequest("/api/app/billing/checkout", {
