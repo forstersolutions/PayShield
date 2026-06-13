@@ -11,6 +11,7 @@ import {
   persistBillPaymentSchedule,
   persistCardAuthorizationDecision,
   persistCommercialBillingEvent,
+  persistCommercialCheckoutIntent,
   persistDirectDepositSetup,
   persistJournalEntry,
   persistMoneyRailEvent,
@@ -23,7 +24,7 @@ import {
 } from "./database.mjs";
 
 const serviceName = "payshield-core";
-export const coreLedgerSchemaVersion = "0008";
+export const coreLedgerSchemaVersion = "0009";
 
 const gateDefinitions = [
   {
@@ -169,6 +170,7 @@ export const demoUser = {
 };
 
 const commercialBillingEvents = new Map();
+const commercialCheckoutIntents = new Map();
 
 const protectionValues = new Set([
   "bill_only",
@@ -260,6 +262,7 @@ export function getCoreHealth(env = process.env) {
       "POST /app/bank-link/exchange",
       "POST /app/bank-connections",
       "POST /app/bill-payments",
+      "POST /app/billing/checkout",
       "POST /app/direct-deposit",
       "POST /commercial/billing-events",
       "POST /app/onboarding/start",
@@ -1306,6 +1309,7 @@ function emptyOperationalAudit() {
     billingEvents: [],
     billPayments: [],
     cardDecisions: [],
+    checkoutIntents: [],
     commercialSubscriptions: [],
     directDepositSetups: [],
     journalEntries: [],
@@ -1314,6 +1318,105 @@ function emptyOperationalAudit() {
     paycheckDetections: [],
     transferIntents: [],
     unlockRequests: [],
+  };
+}
+
+function normalizeCheckoutIntentStatus(value) {
+  return [
+    "requested",
+    "created",
+    "payment_link",
+    "provider_error",
+    "blocked",
+  ].includes(value)
+    ? value
+    : "requested";
+}
+
+function normalizeCheckoutMode(value) {
+  return ["checkout", "payment_link", "not_configured"].includes(value)
+    ? value
+    : "not_configured";
+}
+
+export async function recordCommercialCheckoutIntent(payload = {}, env = process.env) {
+  const actor = actorFromPayload(payload);
+  const readiness = {
+    checkoutConfigured: commercialBillingConfigured(env),
+    mode: env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL?.trim()
+      ? "payment_link"
+      : env.STRIPE_SECRET_KEY?.trim()
+        ? "checkout"
+        : "not_configured",
+    priceLabel: env.PAYSHIELD_COMMERCIAL_PRICE_LABEL?.trim() || "$19/month",
+  };
+  const status = normalizeCheckoutIntentStatus(payload.status);
+  const checkoutMode = normalizeCheckoutMode(payload.checkoutMode || readiness.mode);
+  const idempotencyKey =
+    cleanText(payload.idempotencyKey, 120) ||
+    `checkout-${actor.householdId}-${new Date().toISOString().slice(0, 10)}`;
+  const now = new Date().toISOString();
+  const intent = {
+    checkoutMode,
+    checkoutUrlPresent: Boolean(payload.checkoutUrlPresent),
+    createdAt: now,
+    errorCode: cleanText(payload.errorCode, 80) || null,
+    householdId: actor.householdId,
+    idempotencyKey,
+    metadata: {
+      checkoutConfigured: readiness.checkoutConfigured,
+      source: "payshield_app",
+      updatedBy: actor.id,
+    },
+    priceLabel: cleanText(payload.priceLabel, 80) || readiness.priceLabel,
+    providerCheckoutId: cleanText(payload.providerCheckoutId, 160) || null,
+    providerName: cleanText(payload.providerName, 40).toLowerCase() || "stripe",
+    status,
+    updatedAt: now,
+    userId: actor.id,
+  };
+  const persistence = await persistCommercialCheckoutIntent(intent, env);
+
+  if (persistenceFailed(persistence)) {
+    return {
+      body: {
+        error: "Checkout intent could not be persisted.",
+        persistence,
+        readiness,
+        service: "payshield-checkout-intent",
+      },
+      status: 503,
+    };
+  }
+
+  const storedIntent = {
+    ...checkoutIntentShape(intent),
+    ...(persistence.intent || {}),
+  };
+
+  commercialCheckoutIntents.set(
+    `${actor.householdId}:${idempotencyKey}`,
+    {
+      ...intent,
+      ...storedIntent,
+      householdId: actor.householdId,
+      updatedAt: now,
+    },
+  );
+
+  return {
+    body: {
+      checkoutIntent: storedIntent,
+      message:
+        status === "created" || status === "payment_link"
+          ? "Checkout intent recorded for household paid access."
+          : "Checkout intent recorded.",
+      persisted: persistence.persistence === "postgres",
+      persistence,
+      readiness,
+      service: "payshield-checkout-intent",
+    },
+    status: 200,
   };
 }
 
@@ -1331,6 +1434,41 @@ function latestCommercialBillingEvents(householdId) {
       providerName: event.providerName,
       providerSubscriptionId: event.subscriptionId,
     }));
+}
+
+function checkoutIntentShape(intent) {
+  return {
+    checkoutMode: intent.checkoutMode,
+    checkoutUrlPresent: Boolean(intent.checkoutUrlPresent),
+    createdAt: intent.createdAt || new Date().toISOString(),
+    errorCode: intent.errorCode || null,
+    id: intent.id || intent.idempotencyKey,
+    idempotencyKey: intent.idempotencyKey,
+    priceLabel: intent.priceLabel || null,
+    providerCheckoutId: intent.providerCheckoutId || null,
+    providerName: intent.providerName || "stripe",
+    status: intent.status,
+    updatedAt: intent.updatedAt || intent.createdAt || new Date().toISOString(),
+    userId: intent.userId || null,
+  };
+}
+
+function latestCommercialCheckoutIntents(householdId) {
+  return [...commercialCheckoutIntents.values()]
+    .filter((intent) => !householdId || intent.householdId === householdId)
+    .sort((left, right) =>
+      String(right.updatedAt || right.createdAt || "").localeCompare(
+        String(left.updatedAt || left.createdAt || ""),
+      ),
+    )
+    .slice(0, 25)
+    .map((intent) => checkoutIntentShape(intent));
+}
+
+function latestCheckoutIntent(audit) {
+  const intents = audit.checkoutIntents || [];
+
+  return intents[0] || null;
 }
 
 function latestCommercialSubscription(audit) {
@@ -1363,10 +1501,16 @@ function latestCommercialSubscription(audit) {
 
 function commercialAccessStatus(env, audit) {
   const subscription = latestCommercialSubscription(audit);
+  const checkoutIntent = latestCheckoutIntent(audit);
   const configured = commercialBillingConfigured(env);
+  const checkoutStarted =
+    checkoutIntent &&
+    ["created", "payment_link", "requested"].includes(checkoutIntent.status);
 
   return {
     cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd ?? false,
+    checkoutIntentId: checkoutIntent?.idempotencyKey ?? null,
+    checkoutIntentStatus: checkoutIntent?.status ?? null,
     currentPeriodEnd: subscription?.currentPeriodEnd ?? null,
     mode: env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL?.trim()
       ? "payment_link"
@@ -1375,10 +1519,13 @@ function commercialAccessStatus(env, audit) {
         : "not_configured",
     priceLabel: env.PAYSHIELD_COMMERCIAL_PRICE_LABEL?.trim() || "$19/month",
     providerCustomerId: subscription?.providerCustomerId ?? null,
+    providerCheckoutId: checkoutIntent?.providerCheckoutId ?? null,
     providerName: subscription?.providerName ?? "stripe",
     providerSubscriptionId: subscription?.providerSubscriptionId ?? null,
     readyForCheckout: configured,
-    state: subscription?.accessStatus ?? (configured ? "ready" : "needs_setup"),
+    state:
+      subscription?.accessStatus ??
+      (checkoutStarted ? "checkout_started" : configured ? "ready" : "needs_setup"),
     subscriptionStatus: subscription?.subscriptionStatus ?? null,
   };
 }
@@ -1430,6 +1577,9 @@ async function requireActivePaidAccess(env, actorInput, operation) {
     billingEvents: durableAudit.billingEvents.length
       ? durableAudit.billingEvents
       : latestCommercialBillingEvents(actor.householdId),
+    checkoutIntents: durableAudit.checkoutIntents.length
+      ? durableAudit.checkoutIntents
+      : latestCommercialCheckoutIntents(actor.householdId),
   };
   const commercialAccess = commercialAccessStatus(env, audit);
 
@@ -1456,6 +1606,15 @@ async function requireActivePaidAccess(env, actorInput, operation) {
 
 function operationTimeline(audit, snapshot) {
   const items = [
+    ...audit.checkoutIntents.map((intent) => ({
+      amountCents: null,
+      at: intent.updatedAt ?? intent.createdAt,
+      detail: intent.priceLabel || intent.checkoutMode,
+      id: intent.idempotencyKey,
+      label: "Checkout intent",
+      rail: "billing",
+      status: intent.status,
+    })),
     ...audit.billingEvents.map((event) => ({
       amountCents: event.amountPaidCents ?? null,
       at: event.processedAt,
@@ -1588,6 +1747,9 @@ async function buildHouseholdOperations(env = process.env, actorInput = demoUser
     billingEvents: durableAudit.billingEvents.length
       ? durableAudit.billingEvents
       : latestCommercialBillingEvents(actor.householdId),
+    checkoutIntents: durableAudit.checkoutIntents.length
+      ? durableAudit.checkoutIntents
+      : latestCommercialCheckoutIntents(actor.householdId),
     journalEntries: durableAudit.journalEntries.length
       ? durableAudit.journalEntries
       : snapshot.ledgerEntries,

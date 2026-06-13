@@ -147,6 +147,7 @@ test("core health exposes product operation routes and fail-closed readiness", a
     assert.equal(readiness.liveMoneyReady, false);
     assert.equal(readiness.backendConfigured, true);
     assert.equal(routes.includes("POST /app/bill-payments"), true);
+    assert.equal(routes.includes("POST /app/billing/checkout"), true);
     assert.equal(routes.includes("POST /token-vault/plaid"), true);
     assert.equal(routes.includes("POST /app/bank-link/token"), true);
     assert.equal(routes.includes("POST /app/bank-link/exchange"), true);
@@ -228,7 +229,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
 
     assert.equal(urlOnlyReadiness.postgresConfigured, true);
     assert.equal(urlOnlyReadiness.postgresSchemaVerified, false);
-    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0008");
+    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0009");
     assert.equal(postgresGate?.ok, false);
 
     process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
@@ -246,7 +247,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
       false,
     );
 
-    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0008";
+    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0009";
 
     const verified = await getJson(baseUrl, "/health");
     const verifiedReadiness = verified.body.readiness as Record<
@@ -321,6 +322,56 @@ test("core commercial billing event intake is idempotent", async () => {
     assert.equal(commercialAccess.state, "active");
     assert.equal(commercialAccess.providerSubscriptionId, "sub_test");
     assert.equal(commercialAccess.subscriptionStatus, "active");
+  });
+});
+
+test("core checkout route records paid-access intent before webhook activation", async () => {
+  process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL =
+    "https://buy.stripe.com/test_paid_access";
+  const checkoutActor = {
+    "x-payshield-user-id": "user_checkout_intent_001",
+  };
+
+  await withCoreServer(async (baseUrl) => {
+    const intent = await getJson(
+      baseUrl,
+      "/api/app/billing/checkout",
+      jsonPost({
+        checkoutMode: "payment_link",
+        checkoutUrlPresent: true,
+        idempotencyKey: "core-checkout-primary",
+        priceLabel: "$19/month",
+        status: "payment_link",
+      }, { headers: checkoutActor }),
+    );
+    const checkoutIntent = intent.body.checkoutIntent as Record<string, unknown>;
+
+    assert.equal(intent.response.status, 200);
+    assert.equal(intent.body.service, "payshield-checkout-intent");
+    assert.equal(intent.body.persisted, false);
+    assert.equal(checkoutIntent.status, "payment_link");
+    assert.equal(checkoutIntent.idempotencyKey, "core-checkout-primary");
+
+    const operations = await getJson(
+      baseUrl,
+      "/api/app/operations",
+      { headers: checkoutActor },
+    );
+    const commercialAccess = operations.body.commercialAccess as Record<
+      string,
+      unknown
+    >;
+    const records = operations.body.operations as Record<string, unknown[]>;
+    const timeline = operations.body.timeline as Array<Record<string, unknown>>;
+
+    assert.equal(operations.response.status, 200);
+    assert.equal(commercialAccess.state, "checkout_started");
+    assert.equal(commercialAccess.checkoutIntentStatus, "payment_link");
+    assert.equal(records.checkoutIntents.length, 1);
+    assert.equal(
+      timeline.some((item) => item.label === "Checkout intent"),
+      true,
+    );
   });
 });
 

@@ -105,6 +105,14 @@ type DirectDepositSetup = {
   status?: string;
 };
 
+type CheckoutIntent = {
+  checkoutMode?: string;
+  idempotencyKey?: string;
+  priceLabel?: string | null;
+  providerCheckoutId?: string | null;
+  status?: string;
+};
+
 type OperationsPacket = {
   balances?: {
     protectedCents?: number;
@@ -112,6 +120,8 @@ type OperationsPacket = {
     totalCents?: number;
   };
   commercialAccess?: {
+    checkoutIntentId?: string | null;
+    checkoutIntentStatus?: string | null;
     currentPeriodEnd?: string | null;
     mode?: string;
     priceLabel?: string;
@@ -510,12 +520,14 @@ export function MoneyOperationsPanel({
       const response = await fetch("/api/app/billing/checkout", {
         body: JSON.stringify({
           cancelPath: "/app?billing=cancelled",
+          idempotencyKey: `ui-checkout-${crypto.randomUUID()}`,
           successPath: "/app?billing=active",
         }),
         headers: { "content-type": "application/json" },
         method: "POST",
       });
       const payload = (await response.json().catch(() => ({}))) as {
+        checkoutIntent?: CheckoutIntent;
         error?: string;
         readiness?: { missing?: string[] };
         url?: string;
@@ -530,22 +542,22 @@ export function MoneyOperationsPanel({
         });
         appendOperation({
           detail: payload.error || "Stripe configuration required",
-          label: "Paid access",
+          label: "Checkout intent",
           rail: "billing",
-          status: "needs_setup",
+          status: payload.checkoutIntent?.status || "needs_setup",
         });
         return;
       }
 
       setBillingState({
-        message: "Redirecting to checkout.",
+        message: "Checkout intent recorded. Redirecting to checkout.",
         status: "ready",
       });
       appendOperation({
-        detail: "Checkout session created",
-        label: "Paid access",
+        detail: payload.checkoutIntent?.priceLabel || "Paid access",
+        label: "Checkout intent",
         rail: "billing",
-        status: "checkout_ready",
+        status: payload.checkoutIntent?.status || "checkout_ready",
       });
       window.location.href = payload.url;
     } catch {
@@ -1312,7 +1324,7 @@ export function MoneyOperationsPanel({
             </a>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-4">
+          <div className="mt-5 grid gap-3 md:grid-cols-3 xl:grid-cols-5">
             {(operations?.statusCards ?? [
               {
                 key: "paid_access",
@@ -1361,7 +1373,7 @@ export function MoneyOperationsPanel({
                 </p>
                 <p
                   className={`mt-2 text-lg font-black ${
-                    ["active", "connected", "ready", "recorded"].includes(
+                    ["active", "checkout_started", "connected", "ready", "recorded"].includes(
                       card.state,
                     )
                       ? "text-[#68f0c2]"

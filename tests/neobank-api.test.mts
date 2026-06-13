@@ -247,9 +247,12 @@ test("paid access checkout reports missing Stripe configuration", async () => {
   );
   const body = await parseJson(response);
   const readiness = body.readiness as Record<string, unknown>;
+  const checkoutIntent = body.checkoutIntent as Record<string, unknown>;
 
   assert.equal(response.status, 424);
   assert.equal(readiness.checkoutConfigured, false);
+  assert.equal(checkoutIntent.status, "blocked");
+  assert.equal(checkoutIntent.errorCode, "checkout_not_configured");
   assert.equal(Array.isArray(readiness.missing), true);
 });
 
@@ -264,9 +267,12 @@ test("paid access checkout can return a configured payment link", async () => {
     }),
   );
   const body = await parseJson(response);
+  const checkoutIntent = body.checkoutIntent as Record<string, unknown>;
 
   assert.equal(response.status, 200);
   assert.equal(body.url, "https://buy.stripe.com/test_123");
+  assert.equal(checkoutIntent.status, "payment_link");
+  assert.equal(checkoutIntent.checkoutUrlPresent, true);
 });
 
 test("paid access checkout session uses the authenticated customer identity", async () => {

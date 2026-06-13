@@ -25,6 +25,7 @@ test("core migrations are ordered and include money rail migration", async () =>
     "0006_provider_token_vault.sql",
     "0007_paycheck_detection_rules.sql",
     "0008_direct_deposit_setups.sql",
+    "0009_commercial_checkout_intents.sql",
   ]);
 });
 
@@ -144,12 +145,30 @@ test("direct deposit setup migration stores masked routing state", async () => {
   assert.doesNotMatch(sql, /TRUNCATE/i);
 });
 
+test("commercial checkout intent migration stores paid access attempts", async () => {
+  const sql = await readFile(
+    `${migrationsDir}/0009_commercial_checkout_intents.sql`,
+    "utf8",
+  );
+
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS commercial_checkout_intents/);
+  assert.match(sql, /provider_checkout_id TEXT/);
+  assert.match(sql, /checkout_mode TEXT NOT NULL/);
+  assert.match(sql, /checkout_url_present BOOLEAN NOT NULL DEFAULT false/);
+  assert.match(sql, /UNIQUE \(household_id, idempotency_key\)/);
+  assert.match(sql, /commercial_checkout_intents_household_status_idx/);
+  assert.doesNotMatch(sql, /card_number/i);
+  assert.doesNotMatch(sql, /payment_method/i);
+  assert.doesNotMatch(sql, /DROP\s+TABLE/i);
+  assert.doesNotMatch(sql, /TRUNCATE/i);
+});
+
 test("core migration planner emits ordered checksummed evidence", async () => {
   const plan = await buildMigrationPlan();
 
   assert.equal(plan.ok, true);
   assert.equal(plan.service, "payshield-core-migrations");
-  assert.equal(plan.migrations.length, 8);
+  assert.equal(plan.migrations.length, 9);
   assert.equal(plan.migrations[0]?.file, "0001_neobank_core.sql");
   assert.equal(plan.migrations[1]?.file, "0002_household_bucket_controls.sql");
   assert.equal(plan.migrations[2]?.file, "0003_ledger_integrity.sql");
@@ -158,11 +177,12 @@ test("core migration planner emits ordered checksummed evidence", async () => {
   assert.equal(plan.migrations[5]?.file, "0006_provider_token_vault.sql");
   assert.equal(plan.migrations[6]?.file, "0007_paycheck_detection_rules.sql");
   assert.equal(plan.migrations[7]?.file, "0008_direct_deposit_setups.sql");
-  assert.equal(plan.latestVersion, "0008");
+  assert.equal(plan.migrations[8]?.file, "0009_commercial_checkout_intents.sql");
+  assert.equal(plan.latestVersion, "0009");
   assert.equal(plan.migrationLedgerTable, "core_schema_migrations");
-  assert.match(plan.migrations[7]?.checksumSha256 ?? "", /^[a-f0-9]{64}$/);
+  assert.match(plan.migrations[8]?.checksumSha256 ?? "", /^[a-f0-9]{64}$/);
   assert.match(plan.schemaFingerprintSha256 ?? "", /^[a-f0-9]{64}$/);
-  assert.equal(plan.migrations[7]?.destructivePatterns.length, 0);
+  assert.equal(plan.migrations[8]?.destructivePatterns.length, 0);
   assert.equal(plan.applyCommand.includes("<postgres-url>"), true);
   assert.equal(plan.verifyCommand.includes("<postgres-url>"), true);
   assert.equal(JSON.stringify(plan).includes("postgres://"), false);
@@ -180,7 +200,7 @@ test("core migration state identifies pending and checksum drift", async () => {
 
   assert.equal(partial.ok, false);
   assert.equal(partial.appliedCount, 1);
-  assert.equal(partial.pendingCount, 7);
+  assert.equal(partial.pendingCount, 8);
   assert.equal(partial.pending[0]?.version, "0002");
 
   const drift = evaluateAppliedMigrationState(plan, [
@@ -210,7 +230,7 @@ test("core migration CLI check outputs redacted JSON plan", async () => {
   >;
 
   assert.equal(plan.ok, true);
-  assert.equal(plan.migrations.length, 8);
+  assert.equal(plan.migrations.length, 9);
   assert.equal(plan.migrationLedgerTable, "core_schema_migrations");
   assert.equal(stdout.includes("PAYSHIELD_LEDGER_DATABASE_URL"), true);
   assert.equal(stdout.includes("://"), false);

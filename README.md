@@ -96,6 +96,9 @@ records and links posted paycheck detections back to the matched payroll rule.
 `services/core/migrations/0008_direct_deposit_setups.sql` stores masked
 paycheck-routing setup records and adds direct-deposit rail events without
 storing raw account or routing numbers.
+`services/core/migrations/0009_commercial_checkout_intents.sql` records
+household checkout attempts before Stripe webhooks arrive, using idempotent
+commercial intent metadata without storing payment card data.
 
 The app exposes the planned API surface now:
 

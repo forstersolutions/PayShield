@@ -23,6 +23,7 @@ import {
   receiveTokenVaultHandoff,
   recordBankConnection,
   recordCommercialBillingEvent,
+  recordCommercialCheckoutIntent,
   saveBucketProfile,
   startOnboarding,
 } from "./product.mjs";
@@ -294,6 +295,11 @@ export function createCoreServer() {
 
       if (request.method === "POST" && path === "/app/bill-payments") {
         await withJsonBody(request, response, createBillPayment);
+        return;
+      }
+
+      if (request.method === "POST" && path === "/app/billing/checkout") {
+        await withJsonBody(request, response, recordCommercialCheckoutIntent);
         return;
       }
 

@@ -34,6 +34,13 @@ Without the dedicated core service, Vercel fallback routes fail closed once
 commercial billing is enabled because they cannot prove household subscription
 state.
 
+`POST /api/app/billing/checkout` records an idempotent checkout intent before
+the household is redirected to Stripe Checkout or a configured payment link. The
+record stores provider checkout id, checkout mode, price label, status, and
+whether a checkout URL was created. It does not store card data or raw payment
+method details. Stripe webhooks remain the source of truth for activating paid
+access after payment succeeds.
+
 Authentication and core service:
 
 ```bash
@@ -43,7 +50,7 @@ PAYSHIELD_CORE_API_URL=
 PAYSHIELD_CORE_SERVICE_TOKEN=
 PAYSHIELD_LEDGER_DATABASE_URL=
 PAYSHIELD_LEDGER_SCHEMA_VERIFIED=true
-PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0008
+PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0009
 ```
 
 Bank connection and transaction detection:
@@ -167,4 +174,4 @@ npm run market:status -- https://payshield-lime.vercel.app --expect-site-url htt
 - Bank linking.
 - Paycheck detection.
 - Transfer/provider readiness.
-- Core backend, Clerk auth, and Postgres ledger schema `0008`.
+- Core backend, Clerk auth, and Postgres ledger schema `0009`.

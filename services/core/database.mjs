@@ -251,6 +251,23 @@ function directDepositSetupFromRow(row = {}) {
   };
 }
 
+function commercialCheckoutIntentFromRow(row = {}) {
+  return {
+    checkoutMode: row.checkout_mode || "not_configured",
+    checkoutUrlPresent: Boolean(row.checkout_url_present),
+    createdAt: timestampString(row.created_at),
+    errorCode: row.error_code || null,
+    id: row.id,
+    idempotencyKey: row.idempotency_key,
+    priceLabel: row.price_label || null,
+    providerCheckoutId: row.provider_checkout_id || null,
+    providerName: row.provider_name || "stripe",
+    status: row.status || "blocked",
+    updatedAt: timestampString(row.updated_at),
+    userId: row.user_id || null,
+  };
+}
+
 function ledgerAccountShape(householdId, accountId) {
   const bucketId = bucketIdFromLedgerAccount(accountId);
 
@@ -1342,6 +1359,122 @@ export async function persistCommercialBillingEvent(input, env = process.env) {
   }
 }
 
+export async function persistCommercialCheckoutIntent(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return {
+      ...persistenceSkipped("checkout intent"),
+      intent: {
+        checkoutMode: input.checkoutMode,
+        checkoutUrlPresent: Boolean(input.checkoutUrlPresent),
+        errorCode: input.errorCode || null,
+        id: input.id,
+        idempotencyKey: input.idempotencyKey,
+        priceLabel: input.priceLabel || null,
+        providerCheckoutId: input.providerCheckoutId || null,
+        providerName: input.providerName,
+        status: input.status,
+        userId: input.userId,
+      },
+    };
+  }
+
+  let client = null;
+
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+    await ensureHouseholdIdentity(client, {
+      actorUserId: input.userId,
+      betaAccessStatus: "approved",
+      householdId: input.householdId,
+    });
+
+    const id =
+      input.id ||
+      recordId("checkout_intent", input.householdId, input.idempotencyKey);
+    const result = await client.query(
+      `
+        INSERT INTO commercial_checkout_intents (
+          id,
+          household_id,
+          user_id,
+          provider_name,
+          provider_checkout_id,
+          checkout_mode,
+          checkout_url_present,
+          price_label,
+          status,
+          idempotency_key,
+          error_code,
+          metadata
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb)
+        ON CONFLICT (household_id, idempotency_key)
+        DO UPDATE SET
+          provider_name = EXCLUDED.provider_name,
+          provider_checkout_id = COALESCE(EXCLUDED.provider_checkout_id, commercial_checkout_intents.provider_checkout_id),
+          checkout_mode = EXCLUDED.checkout_mode,
+          checkout_url_present = EXCLUDED.checkout_url_present,
+          price_label = EXCLUDED.price_label,
+          status = EXCLUDED.status,
+          error_code = EXCLUDED.error_code,
+          metadata = commercial_checkout_intents.metadata || EXCLUDED.metadata,
+          updated_at = now()
+        RETURNING
+          id,
+          user_id,
+          provider_name,
+          provider_checkout_id,
+          checkout_mode,
+          checkout_url_present,
+          price_label,
+          status,
+          idempotency_key,
+          error_code,
+          created_at,
+          updated_at
+      `,
+      [
+        id,
+        input.householdId,
+        input.userId,
+        input.providerName,
+        input.providerCheckoutId || null,
+        input.checkoutMode,
+        Boolean(input.checkoutUrlPresent),
+        input.priceLabel || null,
+        input.status,
+        input.idempotencyKey,
+        input.errorCode || null,
+        JSON.stringify(input.metadata || {}),
+      ],
+    );
+
+    await client.query("COMMIT");
+
+    return {
+      intent: commercialCheckoutIntentFromRow(result.rows[0]),
+      persisted: true,
+      persistence: "postgres",
+      postgresId: result.rows[0]?.id ?? id,
+    };
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Ignore rollback failures; the original error is more useful.
+      }
+    }
+
+    return persistenceFailed(error);
+  } finally {
+    client?.release();
+  }
+}
+
 export async function persistMoneyRailEvent(input, env = process.env) {
   const pool = poolFor(env);
 
@@ -2095,6 +2228,7 @@ export async function loadOperationalAudit(householdId, env = process.env) {
   try {
     const [
       bankConnections,
+      checkoutIntents,
       directDepositSetups,
       paycheckDetectionRules,
       commercialSubscriptions,
@@ -2121,6 +2255,28 @@ export async function loadOperationalAudit(householdId, env = process.env) {
             created_at,
             updated_at
           FROM bank_connections
+          WHERE household_id = $1
+          ORDER BY updated_at DESC, created_at DESC
+          LIMIT 25
+        `,
+        [householdId],
+      ),
+      pool.query(
+        `
+          SELECT
+            id,
+            user_id,
+            provider_name,
+            provider_checkout_id,
+            checkout_mode,
+            checkout_url_present,
+            price_label,
+            status,
+            idempotency_key,
+            error_code,
+            created_at,
+            updated_at
+          FROM commercial_checkout_intents
           WHERE household_id = $1
           ORDER BY updated_at DESC, created_at DESC
           LIMIT 25
@@ -2411,6 +2567,9 @@ export async function loadOperationalAudit(householdId, env = process.env) {
         updatedAt: timestampString(row.updated_at),
         userId: row.user_id,
       })),
+      checkoutIntents: checkoutIntents.rows.map((row) =>
+        commercialCheckoutIntentFromRow(row),
+      ),
       directDepositSetups: directDepositSetups.rows.map((row) =>
         directDepositSetupFromRow(row),
       ),
