@@ -241,6 +241,7 @@ export async function createCommercialCheckoutSession(input: {
   cancelPath?: string;
   email?: string;
   origin: string;
+  requireCheckoutSession?: boolean;
   successPath?: string;
   userId: string;
 }) {
@@ -261,6 +262,17 @@ export async function createCommercialCheckoutSession(input: {
       error:
         "Commercial checkout is gated until webhook activation, core persistence, and live Stripe mode are ready.",
       errorCode: "checkout_activation_not_ready",
+      readiness,
+      status: 424,
+      url: "",
+    };
+  }
+
+  if (input.requireCheckoutSession && readiness.paymentLinkUrl) {
+    return {
+      error:
+        "Public checkout requires Stripe Checkout Session mode so PayShield can attach household identity metadata. Configure STRIPE_SECRET_KEY and PAYSHIELD_COMMERCIAL_PRICE_ID instead of a static payment link.",
+      errorCode: "checkout_session_required",
       readiness,
       status: 424,
       url: "",

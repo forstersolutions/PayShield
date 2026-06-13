@@ -81,6 +81,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/api/launch/activation/route.ts",
   "src/app/api/app/bill-payments/route.ts",
   "src/app/api/app/billing/portal/route.ts",
+  "src/app/api/public/billing/checkout/route.ts",
   "src/app/api/app/direct-deposit/route.ts",
   "src/app/api/app/paychecks/rules/route.ts",
   "src/app/api/health/route.ts",
@@ -91,6 +92,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/components/money-engine-console.tsx",
   "src/app/components/money-setup-console.tsx",
   "src/app/components/neobank-dashboard.tsx",
+  "src/app/components/public-checkout-form.tsx",
   "src/app/lib/brand.ts",
   "src/app/lib/pilot-analytics.ts",
   "src/app/lib/neobank/auth.ts",
@@ -98,6 +100,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/lib/neobank/core-client.ts",
   "src/app/lib/neobank/core-config.ts",
   "src/app/lib/neobank/demo-state.ts",
+  "src/app/lib/neobank/identity.ts",
   "src/app/lib/neobank/ledger.ts",
   "src/app/lib/neobank/provider-events.ts",
   "src/app/lib/neobank/provider.ts",
@@ -251,6 +254,16 @@ requireText("src/app/components/neobank-dashboard.tsx", "support@graystontechnol
 requireText("src/app/page.tsx", "NeobankDashboard");
 requireText("src/app/app/page.tsx", 'dynamic = "force-dynamic"');
 requireText("src/app/components/waitlist-form.tsx", "Contact Grayston support");
+requireText("src/app/components/neobank-dashboard.tsx", "PublicCheckoutForm");
+requireText("src/app/components/public-checkout-form.tsx", "/api/public/billing/checkout");
+requireText("src/app/components/public-checkout-form.tsx", "Start protected access");
+requireText("src/app/api/public/billing/checkout/route.ts", "payShieldUserIdForEmail");
+requireText("src/app/api/public/billing/checkout/route.ts", "requireCheckoutSession: true");
+requireText("src/app/lib/neobank/identity.ts", "payShieldUserIdForEmail");
+requireText("src/app/lib/neobank/auth.ts", "payShieldUserIdForEmail");
+requireText("src/app/lib/neobank/core-client.ts", "x-payshield-clerk-subject");
+requireText("services/core/server.mjs", "x-payshield-clerk-subject");
+requireText("src/app/lib/commercial/stripe-webhook.ts", "customerEmail");
 requireText("src/app/components/bucket-control-panel.tsx", "Add bucket");
 requireText("src/app/components/bucket-control-panel.tsx", "Save bucket profile");
 requireText("src/app/components/bucket-control-panel.tsx", "/api/app/buckets");
@@ -346,6 +359,7 @@ requireText("src/app/api/health/route.ts", "appAccess");
 requireText("src/app/lib/neobank/core-config.ts", "PAYSHIELD_CORE_API_URL");
 requireText("src/app/lib/neobank/core-config.ts", "VERCEL_ENV");
 requireText("src/app/lib/neobank/core-client.ts", "x-payshield-provider-signature");
+requireText("src/app/lib/commercial/billing.ts", "requireCheckoutSession");
 requireText("src/app/lib/commercial/billing.ts", "requirePaidAccessForFallback");
 requireText("src/app/lib/neobank/money-rails.ts", "providerWebhookSigningConfigured");
 requireText("src/app/lib/neobank/provider-events.ts", "classifyProviderEvent");

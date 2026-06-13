@@ -17,6 +17,7 @@ import Link from "next/link";
 import { BillRoutingWorkspace } from "@/app/components/bill-routing-workspace";
 import { BucketControlPanel } from "@/app/components/bucket-control-panel";
 import { PayShieldHeaderLogo } from "@/app/components/pay-shield-mark";
+import { PublicCheckoutForm } from "@/app/components/public-checkout-form";
 import { WaitlistForm } from "@/app/components/waitlist-form";
 import { REGULATED_PARTNER_DISCLOSURE } from "@/app/lib/brand";
 import { createNeobankSnapshot } from "@/app/lib/neobank/demo-state.ts";
@@ -451,7 +452,10 @@ export function NeobankDashboard() {
             </div>
           </div>
 
-          <WaitlistForm />
+          <div className="grid gap-4">
+            <PublicCheckoutForm />
+            <WaitlistForm />
+          </div>
         </div>
       </div>
     </section>

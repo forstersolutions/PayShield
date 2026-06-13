@@ -120,8 +120,13 @@ export async function forwardCoreRequest(input: ForwardCoreInput) {
     headers.set("x-payshield-auth-mode", input.session.authMode);
     headers.set("x-payshield-user-id", input.session.userId);
 
+    const clerkSubject = cleanHeaderValue(input.session.clerkSubject, 160);
     const email = cleanHeaderValue(input.session.email, 160);
     const name = cleanHeaderValue(input.session.name, 120);
+
+    if (clerkSubject) {
+      headers.set("x-payshield-clerk-subject", clerkSubject);
+    }
 
     if (email) {
       headers.set("x-payshield-user-email", email);

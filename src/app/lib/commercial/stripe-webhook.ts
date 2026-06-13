@@ -7,6 +7,7 @@ export type StripeBillingEventSummary = {
   amountPaidCents: number | null;
   cancelAtPeriodEnd: boolean;
   checkoutSessionId: string | null;
+  customerEmail: string | null;
   customerId: string | null;
   eventId: string;
   eventType: string;
@@ -148,6 +149,17 @@ function checkoutPriceId(object: Record<string, unknown>) {
   const price = objectValue(firstLine.price);
 
   return stringValue(price.id) || metadataValue(object, "price_id");
+}
+
+function checkoutCustomerEmail(object: Record<string, unknown>) {
+  const customerDetails = objectValue(object.customer_details);
+  const customer = objectValue(object.customer);
+
+  return (
+    stringValue(object.customer_email) ||
+    stringValue(customerDetails.email) ||
+    stringValue(customer.email)
+  );
 }
 
 function accessStatusFor(eventType: string, object: Record<string, unknown>) {
@@ -345,6 +357,7 @@ export function summarizeStripeBillingEvent(event: StripeWebhookEvent): StripeBi
     amountPaidCents,
     cancelAtPeriodEnd: booleanValue(object.cancel_at_period_end),
     checkoutSessionId,
+    customerEmail: checkoutCustomerEmail(object),
     customerId,
     currentPeriodEnd: unixSecondsToIso(object.current_period_end),
     eventId: stringValue(event.id) ?? "",

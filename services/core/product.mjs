@@ -362,6 +362,8 @@ function normalizeActor(value = {}) {
   const userId = safeString(value.userId || value.id, 160) || demoUser.id;
 
   return {
+    authMode: safeString(value.authMode, 40) || "demo",
+    clerkSubject: safeString(value.clerkSubject, 160) || null,
     email: safeString(value.email, 160) || demoUser.email,
     householdId:
       safeString(value.householdId, 160) || householdIdForUser(userId),
@@ -1165,6 +1167,7 @@ export async function recordCommercialBillingEvent(payload, env = process.env) {
         : null,
     cancelAtPeriodEnd: summary.cancelAtPeriodEnd === true,
     checkoutSessionId: safeString(summary.checkoutSessionId, 160) || null,
+    customerEmail: safeString(summary.customerEmail, 160) || null,
     customerId: safeString(summary.customerId, 160) || null,
     currentPeriodEnd: safeString(summary.currentPeriodEnd, 40) || null,
     duplicate: false,
@@ -1192,6 +1195,7 @@ export async function recordCommercialBillingEvent(payload, env = process.env) {
       metadata: {
         amountPaidCents: record.amountPaidCents,
         checkoutSessionId: record.checkoutSessionId,
+        customerEmail: record.customerEmail,
         invoiceId: record.invoiceId,
         userId: record.userId,
       },
@@ -1204,6 +1208,7 @@ export async function recordCommercialBillingEvent(payload, env = process.env) {
       subscriptionId: record.subscriptionId,
       subscriptionStatus: record.subscriptionStatus,
       userId: record.userId,
+      userEmail: record.customerEmail,
     },
     env,
   );
@@ -1466,11 +1471,13 @@ export async function recordCommercialCheckoutIntent(payload = {}, env = process
   const intent = {
     checkoutMode,
     checkoutUrlPresent: Boolean(payload.checkoutUrlPresent),
+    clerkSubject: actor.clerkSubject,
     createdAt: now,
     errorCode: cleanText(payload.errorCode, 80) || null,
     householdId: actor.householdId,
     idempotencyKey,
     metadata: {
+      authMode: actor.authMode,
       checkoutConfigured: readiness.checkoutConfigured,
       source: "payshield_app",
       updatedBy: actor.id,
@@ -1480,7 +1487,9 @@ export async function recordCommercialCheckoutIntent(payload = {}, env = process
     providerName: cleanText(payload.providerName, 40).toLowerCase() || "stripe",
     status,
     updatedAt: now,
+    userEmail: actor.email,
     userId: actor.id,
+    userName: actor.name,
   };
   const persistence = await persistCommercialCheckoutIntent(intent, env);
 
@@ -2577,6 +2586,7 @@ export async function saveBucketProfile(payload, env = process.env) {
         actorUserId: actor.id,
         betaAccessStatus: actor.profileAccess,
         buckets: profile,
+        clerkSubject: actor.clerkSubject,
         householdId: actor.householdId,
         idempotencyKey: cleanText(payload.idempotencyKey, 120),
         kycStatus: actor.kycStatus,
@@ -2650,6 +2660,7 @@ export async function saveBucketProfile(payload, env = process.env) {
       actorUserId: actor.id,
       betaAccessStatus: actor.profileAccess,
       buckets: modeledBuckets.filter((bucket) => bucket.id !== "safe_spending"),
+      clerkSubject: actor.clerkSubject,
       householdId: actor.householdId,
       idempotencyKey:
         cleanText(payload.idempotencyKey, 120) || `bucket-target-${payload.bucketId}-${targetCents}`,
@@ -2908,6 +2919,7 @@ export async function createPayee(payload, env = process.env) {
       actorUserId: actor.id,
       allowedBucketId: modeledPayee.allowedBucketId,
       betaAccessStatus: actor.profileAccess,
+      clerkSubject: actor.clerkSubject,
       householdId: actor.householdId,
       id: modeledPayee.id,
       kycStatus: actor.kycStatus,

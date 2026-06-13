@@ -4,6 +4,7 @@ import { beforeEach, test } from "node:test";
 import { NextRequest } from "next/server.js";
 import { POST as authorizeCard } from "../src/app/api/card/authorize/route.ts";
 import { POST as startCheckout } from "../src/app/api/app/billing/checkout/route.ts";
+import { POST as startPublicCheckout } from "../src/app/api/public/billing/checkout/route.ts";
 import { POST as openBillingPortal } from "../src/app/api/app/billing/portal/route.ts";
 import { POST as billingWebhook } from "../src/app/api/app/billing/webhook/route.ts";
 import { POST as createBankLinkToken } from "../src/app/api/app/bank-link/token/route.ts";
@@ -538,6 +539,165 @@ test("paid access checkout session uses the authenticated customer identity", as
   }
 });
 
+test("public checkout requires valid email before collecting payment", async () => {
+  const response = await startPublicCheckout(
+    makeRequest("/api/public/billing/checkout", {
+      email: "not-an-email",
+    }),
+  );
+  const body = await parseJson(response);
+
+  assert.equal(response.status, 400);
+  assert.match(String(body.error), /valid email/i);
+});
+
+test("public checkout rejects static payment links that cannot carry household identity", async () => {
+  process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL =
+    "https://buy.stripe.com/live_public";
+  process.env.PAYSHIELD_CORE_API_URL = "https://core.payshield.test";
+  process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-secret";
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (_input, init) => {
+    const requestBody = JSON.parse(String(init?.body ?? "{}")) as Record<
+      string,
+      unknown
+    >;
+
+    return new Response(
+      JSON.stringify({
+        checkoutIntent: {
+          checkoutMode: requestBody.checkoutMode ?? "not_configured",
+          checkoutUrlPresent: Boolean(requestBody.checkoutUrlPresent),
+          errorCode: requestBody.errorCode || null,
+          idempotencyKey: requestBody.idempotencyKey,
+          priceLabel: requestBody.priceLabel ?? "$19/month",
+          providerCheckoutId: requestBody.providerCheckoutId ?? null,
+          providerName: "stripe",
+          status: requestBody.status,
+          userId: "email_public",
+        },
+        persistence: {
+          persisted: true,
+          persistence: "postgres",
+        },
+        service: "payshield-checkout-intent",
+      }),
+      {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      },
+    );
+  };
+
+  try {
+    const response = await startPublicCheckout(
+      makeRequest("/api/public/billing/checkout", {
+        email: "buyer@example.com",
+      }),
+    );
+    const body = await parseJson(response);
+    const checkoutIntent = body.checkoutIntent as Record<string, unknown>;
+
+    assert.equal(response.status, 424);
+    assert.equal(checkoutIntent.status, "blocked");
+    assert.equal(checkoutIntent.errorCode, "checkout_session_required");
+    assert.match(String(body.error), /Checkout Session mode/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("public checkout creates Stripe session with email-stable PayShield identity", async () => {
+  process.env.PAYSHIELD_COMMERCIAL_PRICE_ID = "price_public_access";
+  process.env.PAYSHIELD_CORE_API_URL = "https://core.payshield.test";
+  process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-secret";
+  process.env.STRIPE_SECRET_KEY = "sk_test_public_checkout";
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+  const originalFetch = globalThis.fetch;
+  const coreBodies: Record<string, unknown>[] = [];
+  let stripeBody = "";
+
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+
+    if (url === "https://api.stripe.com/v1/checkout/sessions") {
+      stripeBody = String(init?.body ?? "");
+
+      return new Response(
+        JSON.stringify({
+          id: "cs_test_public_household",
+          url: "https://checkout.stripe.com/c/pay/cs_test_public_household",
+        }),
+        {
+          headers: { "content-type": "application/json" },
+          status: 200,
+        },
+      );
+    }
+
+    const requestBody = JSON.parse(String(init?.body ?? "{}")) as Record<
+      string,
+      unknown
+    >;
+
+    coreBodies.push(requestBody);
+
+    return new Response(
+      JSON.stringify({
+        checkoutIntent: {
+          checkoutMode: requestBody.checkoutMode ?? "not_configured",
+          checkoutUrlPresent: Boolean(requestBody.checkoutUrlPresent),
+          errorCode: requestBody.errorCode || null,
+          idempotencyKey: requestBody.idempotencyKey,
+          priceLabel: requestBody.priceLabel ?? "$19/month",
+          providerCheckoutId: requestBody.providerCheckoutId ?? null,
+          providerName: "stripe",
+          status: requestBody.status,
+          userId: "email_public",
+        },
+        persistence: {
+          persisted: true,
+          persistence: "postgres",
+        },
+        service: "payshield-checkout-intent",
+      }),
+      {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      },
+    );
+  };
+
+  try {
+    const response = await startPublicCheckout(
+      makeRequest("/api/public/billing/checkout", {
+        email: "Buyer@Example.com",
+        name: "Buyer Household",
+      }),
+    );
+    const body = await parseJson(response);
+    const form = new URLSearchParams(stripeBody);
+    const userId = String(form.get("client_reference_id") ?? "");
+
+    assert.equal(response.status, 200);
+    assert.equal(body.url, "https://checkout.stripe.com/c/pay/cs_test_public_household");
+    assert.equal(coreBodies.length, 2);
+    assert.equal(coreBodies[0]?.status, "requested");
+    assert.equal(coreBodies[1]?.status, "created");
+    assert.equal(form.get("customer_email"), "buyer@example.com");
+    assert.match(userId, /^email_[a-f0-9]{32}$/);
+    assert.equal(form.get("metadata[payshield_user_id]"), userId);
+    assert.equal(
+      form.get("subscription_data[metadata][payshield_user_id]"),
+      userId,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("billing webhook fails closed without Stripe signing secret", async () => {
   const payload = JSON.stringify({
     data: { object: { id: "cs_test_missing_secret" } },
@@ -561,6 +721,9 @@ test("billing webhook verifies Stripe signature and summarizes paid access", asy
       object: {
         amount_total: 1900,
         client_reference_id: "user_demo_001",
+        customer_details: {
+          email: "payer@example.com",
+        },
         customer: "cus_test",
         id: "cs_test_paid",
         mode: "subscription",
@@ -582,6 +745,7 @@ test("billing webhook verifies Stripe signature and summarizes paid access", asy
   assert.equal(body.received, true);
   assert.equal(body.persisted, false);
   assert.equal(summary.accessStatus, "active");
+  assert.equal(summary.customerEmail, "payer@example.com");
   assert.equal(summary.customerId, "cus_test");
   assert.equal(summary.subscriptionId, "sub_test");
   assert.equal(summary.subscriptionStatus, "active");

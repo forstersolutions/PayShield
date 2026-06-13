@@ -6,9 +6,11 @@ import {
   reviewAppAccessAllowed,
 } from "./app-access.ts";
 import { demoUser } from "./demo-state.ts";
+import { payShieldUserIdForEmail } from "./identity.ts";
 
 export type AppSession = {
-  authMode: "clerk" | "demo";
+  authMode: "clerk" | "demo" | "public_checkout";
+  clerkSubject?: string;
   email: string;
   name: string;
   userId: string;
@@ -107,9 +109,10 @@ export async function getAppSession(): Promise<AppSession> {
 
   return {
     authMode: "clerk",
+    clerkSubject: session.userId,
     email,
     name,
-    userId: session.userId,
+    userId: payShieldUserIdForEmail(email) || session.userId,
   };
 }
 

@@ -89,6 +89,7 @@ function cleanHeader(value, maxLength = 160) {
 function requestActor(request) {
   return {
     authMode: cleanHeader(request.headers["x-payshield-auth-mode"], 40),
+    clerkSubject: cleanHeader(request.headers["x-payshield-clerk-subject"], 160),
     email: cleanHeader(request.headers["x-payshield-user-email"], 160),
     name: cleanHeader(request.headers["x-payshield-user-name"], 120),
     userId: cleanHeader(request.headers["x-payshield-user-id"], 160),

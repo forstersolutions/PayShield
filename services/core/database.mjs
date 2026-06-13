@@ -399,6 +399,7 @@ async function ensureHouseholdIdentity(client, input) {
       VALUES ($1, $2, $3, $4, $5, $6)
       ON CONFLICT (id) DO UPDATE SET
         household_id = EXCLUDED.household_id,
+        clerk_subject = COALESCE(EXCLUDED.clerk_subject, app_users.clerk_subject),
         email = EXCLUDED.email,
         name = EXCLUDED.name,
         kyc_status = EXCLUDED.kyc_status
@@ -1259,6 +1260,8 @@ export async function persistCommercialBillingEvent(input, env = process.env) {
         actorUserId: input.userId,
         betaAccessStatus: input.accessStatus === "active" ? "approved" : "pending",
         householdId: input.householdId,
+        userEmail: input.userEmail,
+        userName: input.userName,
       });
     } else if (input.householdId) {
       await ensureHousehold(client, {
@@ -1408,7 +1411,10 @@ export async function persistCommercialCheckoutIntent(input, env = process.env) 
     await ensureHouseholdIdentity(client, {
       actorUserId: input.userId,
       betaAccessStatus: "approved",
+      clerkSubject: input.clerkSubject,
       householdId: input.householdId,
+      userEmail: input.userEmail,
+      userName: input.userName,
     });
 
     const id =
