@@ -23,10 +23,12 @@ const coreEnvKeys = [
   "PAYSHIELD_REGULATED_COUNSEL_SIGNOFF",
   "PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED",
   "PAYSHIELD_TRANSFER_ENABLED",
+  "PAYSHIELD_TOKEN_VAULT_KEY_ID",
   "PLAID_CLIENT_ID",
   "PLAID_SECRET",
   "PLAID_TRANSFER_CLIENT_ID",
   "STRIPE_SECRET_KEY",
+  "STRIPE_WEBHOOK_SECRET",
 ];
 
 beforeEach(() => {
@@ -96,6 +98,8 @@ test("core health exposes product operation routes and fail-closed readiness", a
     assert.equal(readiness.liveMoneyReady, false);
     assert.equal(readiness.backendConfigured, true);
     assert.equal(routes.includes("POST /app/bill-payments"), true);
+    assert.equal(routes.includes("POST /app/bank-connections"), true);
+    assert.equal(routes.includes("POST /commercial/billing-events"), true);
     assert.equal(routes.includes("POST /card/authorize"), true);
     assert.equal(routes.includes("POST /app/onboarding/start"), true);
     assert.equal(routes.includes("POST /app/paychecks/detect"), true);
@@ -131,7 +135,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
 
     assert.equal(urlOnlyReadiness.postgresConfigured, true);
     assert.equal(urlOnlyReadiness.postgresSchemaVerified, false);
-    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0003");
+    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0004");
     assert.equal(postgresGate?.ok, false);
 
     process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
@@ -149,7 +153,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
       false,
     );
 
-    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0003";
+    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0004";
 
     const verified = await getJson(baseUrl, "/health");
     const verifiedReadiness = verified.body.readiness as Record<
@@ -166,6 +170,84 @@ test("core postgres gate requires verified ledger schema version", async () => {
       verifiedGates.find((gate) => gate.id === "postgres_ledger")?.ok,
       true,
     );
+  });
+});
+
+test("core commercial billing event intake is idempotent", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const payload = {
+      event: {
+        data: {
+          object: {
+            customer: "cus_test",
+            id: "cs_test_paid",
+            subscription: "sub_test",
+          },
+        },
+        id: "evt_core_paid",
+        type: "checkout.session.completed",
+      },
+      providerName: "stripe",
+      summary: {
+        accessStatus: "active",
+        amountPaidCents: 1900,
+        checkoutSessionId: "cs_test_paid",
+        customerId: "cus_test",
+        eventId: "evt_core_paid",
+        eventType: "checkout.session.completed",
+        handled: true,
+        subscriptionId: "sub_test",
+        subscriptionStatus: "complete",
+        userId: "user_demo_001",
+      },
+    };
+    const first = await getJson(
+      baseUrl,
+      "/api/commercial/billing-events",
+      jsonPost(payload),
+    );
+    const replay = await getJson(
+      baseUrl,
+      "/api/commercial/billing-events",
+      jsonPost(payload),
+    );
+
+    assert.equal(first.response.status, 200);
+    assert.equal(first.body.accepted, true);
+    assert.equal(first.body.accessStatus, "active");
+    assert.equal(first.body.persistence, "memory");
+    assert.equal(replay.response.status, 200);
+    assert.equal(replay.body.duplicate, true);
+  });
+});
+
+test("core bank connection route records Plaid rail readiness", async () => {
+  process.env.PLAID_CLIENT_ID = "plaid-client";
+  process.env.PLAID_SECRET = "plaid-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
+
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(
+      baseUrl,
+      "/api/app/bank-connections",
+      jsonPost({
+        accountId: "acc_test",
+        accountMask: "1234",
+        accountName: "Household checking",
+        institutionName: "Test Bank",
+        itemId: "item_test",
+        providerName: "plaid",
+        tokenSecretRef: "vault://plaid/item_test",
+      }),
+    );
+    const readiness = body.readiness as Record<string, unknown>;
+    const bankConnection = body.bankConnection as Record<string, unknown>;
+    const persistence = body.persistence as Record<string, unknown>;
+
+    assert.equal(response.status, 200);
+    assert.equal(readiness.bankLinkReady, true);
+    assert.equal(bankConnection.status, "connected");
+    assert.equal(persistence.persistence, "memory");
   });
 });
 

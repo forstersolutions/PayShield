@@ -14,6 +14,17 @@ async function parseJson(response: Response) {
       postgresSchemaVersion?: unknown;
       remainingGates?: unknown;
     };
+    commercial?: {
+      paidAccessReady?: unknown;
+      remainingGates?: unknown;
+      webhookSigningSecretConfigured?: unknown;
+    };
+    moneyRails?: {
+      bankLinkReady?: unknown;
+      paycheckDetectionReady?: unknown;
+      tokenVaultConfigured?: unknown;
+      transferReady?: unknown;
+    };
     waitlist?: {
       mode?: unknown;
       paidTrafficReady?: unknown;
@@ -39,6 +50,12 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_LEDGER_SCHEMA_FINGERPRINT;
   delete process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED;
   delete process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION;
+  delete process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID;
+  delete process.env.PLAID_CLIENT_ID;
+  delete process.env.PLAID_SECRET;
+  delete process.env.PAYSHIELD_BETA_PRICE_ID;
+  delete process.env.STRIPE_SECRET_KEY;
+  delete process.env.STRIPE_WEBHOOK_SECRET;
   delete process.env.BLOB_READ_WRITE_TOKEN;
   delete process.env.UPSTASH_REDIS_REST_TOKEN;
   delete process.env.UPSTASH_REDIS_REST_URL;
@@ -261,11 +278,11 @@ test("does not count a Postgres URL as ready until ledger schema is verified", a
 
   assert.equal(urlOnlyBody.neobank?.postgresConfigured, true);
   assert.equal(urlOnlyBody.neobank?.postgresSchemaVerified, false);
-  assert.equal(urlOnlyBody.neobank?.postgresSchemaVersion, "0003");
+  assert.equal(urlOnlyBody.neobank?.postgresSchemaVersion, "0004");
   assert.equal(urlOnlyRemaining.includes("postgres_ledger"), true);
 
   process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
-  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0003";
+  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0004";
 
   const verified = GET();
   const verifiedBody = await parseJson(verified);
@@ -274,4 +291,37 @@ test("does not count a Postgres URL as ready until ledger schema is verified", a
   assert.equal(verifiedBody.neobank?.postgresConfigured, true);
   assert.equal(verifiedBody.neobank?.postgresSchemaVerified, true);
   assert.equal(verifiedRemaining.includes("postgres_ledger"), false);
+});
+
+test("reports commercial and money rail readiness gates", async () => {
+  const missing = GET();
+  const missingBody = await parseJson(missing);
+  const commercialGates = missingBody.commercial?.remainingGates as string[];
+
+  assert.equal(missingBody.commercial?.paidAccessReady, false);
+  assert.equal(
+    commercialGates.includes("STRIPE_WEBHOOK_SECRET"),
+    true,
+  );
+  assert.equal(missingBody.moneyRails?.bankLinkReady, false);
+  assert.equal(missingBody.moneyRails?.transferReady, false);
+
+  process.env.STRIPE_SECRET_KEY = "sk_test";
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+  process.env.PAYSHIELD_BETA_PRICE_ID = "price_test";
+  process.env.PLAID_CLIENT_ID = "plaid-client";
+  process.env.PLAID_SECRET = "plaid-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
+
+  const configured = GET();
+  const configuredBody = await parseJson(configured);
+
+  assert.equal(configuredBody.commercial?.paidAccessReady, true);
+  assert.equal(
+    configuredBody.commercial?.webhookSigningSecretConfigured,
+    true,
+  );
+  assert.equal(configuredBody.moneyRails?.bankLinkReady, true);
+  assert.equal(configuredBody.moneyRails?.paycheckDetectionReady, true);
+  assert.equal(configuredBody.moneyRails?.tokenVaultConfigured, true);
 });

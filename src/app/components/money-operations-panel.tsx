@@ -245,6 +245,8 @@ export function MoneyOperationsPanel({
           const exchange = await fetch("/api/app/bank-link/exchange", {
             body: JSON.stringify({
               accountId: metadata.account?.id,
+              accountMask: metadata.account?.mask,
+              accountName: metadata.account?.name,
               institutionName: metadata.institution?.name,
               publicToken,
             }),

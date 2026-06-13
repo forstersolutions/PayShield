@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server.js";
 import { getAppSession } from "../../../../lib/neobank/auth.ts";
+import { forwardCoreRequest } from "../../../../lib/neobank/core-client.ts";
 import { exchangeBankPublicToken } from "../../../../lib/neobank/money-rails.ts";
 
 function cleanText(value: unknown, maxLength: number) {
@@ -10,9 +11,11 @@ function cleanText(value: unknown, maxLength: number) {
 
 export async function POST(request: NextRequest) {
   try {
-    await getAppSession();
+    const session = await getAppSession();
     const payload = (await request.json().catch(() => ({}))) as {
       accountId?: unknown;
+      accountMask?: unknown;
+      accountName?: unknown;
       institutionName?: unknown;
       publicToken?: unknown;
     };
@@ -31,12 +34,37 @@ export async function POST(request: NextRequest) {
       publicToken,
     });
 
+    if (result.status === 200 && result.bankConnection) {
+      const bankConnection = result.bankConnection;
+      const coreResponse = await forwardCoreRequest({
+        body: {
+          accountId: bankConnection.accountId,
+          accountMask: cleanText(payload.accountMask, 16),
+          accountName: cleanText(payload.accountName, 80),
+          institutionName: bankConnection.institutionName,
+          itemId: bankConnection.itemId,
+          products: ["auth", "transactions"],
+          providerName: "plaid",
+          tokenSecretRef: bankConnection.tokenSecretRef,
+        },
+        method: "POST",
+        path: "/api/app/bank-connections",
+        session,
+      });
+
+      if (coreResponse) {
+        return coreResponse;
+      }
+    }
+
     return NextResponse.json(
       result.status === 200
         ? {
             bankConnection: result.bankConnection,
             message:
-              "Bank link completed. Persist the access token in the dedicated core secret store before background detection can run.",
+              result.bankConnection?.tokenVaultStatus === "ready"
+                ? "Bank link completed and vault reference is ready for background detection."
+                : "Bank link completed. Configure the dedicated core token vault before background detection can run.",
             readiness: result.readiness,
             requestId: result.requestId,
           }

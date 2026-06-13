@@ -39,16 +39,24 @@ export function GET() {
       commercial: {
         checkoutConfigured: commercial.checkoutConfigured,
         mode: commercial.mode,
+        paidAccessReady: commercial.paidAccessReady,
         remainingGates: commercial.missing,
         stripePriceConfigured: commercial.stripePriceConfigured,
         stripeSecretConfigured: commercial.stripeSecretConfigured,
+        webhookEndpointPath: commercial.webhookEndpointPath,
+        webhookSigningSecretConfigured:
+          commercial.webhookSigningSecretConfigured,
       },
       moneyRails: {
+        bankLinkReady: moneyRails.bankLinkReady,
         detectionMode: moneyRails.detectionMode,
+        paycheckDetectionReady: moneyRails.paycheckDetectionReady,
         plaidConfigured: moneyRails.plaidConfigured,
         plaidEnv: moneyRails.plaidEnv,
         remainingGates: moneyRails.missing,
+        tokenVaultConfigured: moneyRails.tokenVaultConfigured,
         transferConfigured: moneyRails.transferConfigured,
+        transferReady: moneyRails.transferReady,
       },
       neobank: {
         backendConfigured: neobank.backendConfigured,

@@ -1,5 +1,14 @@
+import {
+  databaseConfigured,
+  persistBankConnection,
+  persistCommercialBillingEvent,
+  persistMoneyRailEvent,
+  persistPaycheckDetection,
+  persistTransferIntent,
+} from "./database.mjs";
+
 const serviceName = "payshield-core";
-export const coreLedgerSchemaVersion = "0003";
+export const coreLedgerSchemaVersion = "0004";
 
 const gateDefinitions = [
   {
@@ -144,6 +153,8 @@ export const demoUser = {
   profileAccess: "approved",
 };
 
+const commercialBillingEvents = new Map();
+
 const protectionValues = new Set([
   "bill_only",
   "emergency",
@@ -226,7 +237,9 @@ export function getCoreHealth(env = process.env) {
       "GET /app/balances",
       "GET /app/buckets",
       "POST /app/buckets",
+      "POST /app/bank-connections",
       "POST /app/bill-payments",
+      "POST /commercial/billing-events",
       "POST /app/onboarding/start",
       "POST /app/payees",
       "POST /app/paychecks/detect",
@@ -291,6 +304,16 @@ function metadataString(entry, key) {
   const value = entry.metadata?.[key];
 
   return typeof value === "string" ? value : null;
+}
+
+function safeObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function safeString(value, maxLength = 160) {
+  return typeof value === "string" && value.trim()
+    ? value.trim().replace(/\s+/g, " ").slice(0, maxLength)
+    : "";
 }
 
 function bucketIdFromAccount(accountId) {
@@ -838,6 +861,220 @@ function providerBlockedResult(readiness) {
   return gate.ok ? null : gate;
 }
 
+function allowedAccessStatus(value) {
+  return ["active", "blocked", "canceled", "ignored", "past_due", "pending"].includes(value)
+    ? value
+    : "pending";
+}
+
+function allowedSubscriptionStatus(value) {
+  return [
+    "active",
+    "canceled",
+    "ignored",
+    "incomplete",
+    "incomplete_expired",
+    "past_due",
+    "paused",
+    "trialing",
+    "unpaid",
+    "unknown",
+  ].includes(value)
+    ? value
+    : "unknown";
+}
+
+export async function recordCommercialBillingEvent(payload, env = process.env) {
+  const providerName = safeString(payload?.providerName, 40) || "stripe";
+  const summary = safeObject(payload?.summary);
+  const event = safeObject(payload?.event);
+  const eventId = safeString(summary.eventId || event.id, 160);
+  const eventType = safeString(summary.eventType || event.type, 120);
+
+  if (!eventId || !eventType) {
+    return {
+      body: {
+        accepted: false,
+        error: "Billing event requires eventId and eventType.",
+        service: "payshield-commercial-billing",
+      },
+      status: 400,
+    };
+  }
+
+  const eventKey = `${providerName}:${eventId}`;
+  const existing = commercialBillingEvents.get(eventKey);
+
+  if (existing) {
+    return {
+      body: {
+        ...existing,
+        duplicate: true,
+        service: "payshield-commercial-billing",
+      },
+      status: 200,
+    };
+  }
+
+  const record = {
+    accepted: true,
+    accessStatus: allowedAccessStatus(summary.accessStatus),
+    amountPaidCents:
+      Number.isInteger(summary.amountPaidCents) && summary.amountPaidCents >= 0
+        ? summary.amountPaidCents
+        : null,
+    checkoutSessionId: safeString(summary.checkoutSessionId, 160) || null,
+    customerId: safeString(summary.customerId, 160) || null,
+    duplicate: false,
+    eventId,
+    eventType,
+    handled: summary.handled !== false,
+    invoiceId: safeString(summary.invoiceId, 160) || null,
+    persistenceConfigured: databaseConfigured(env),
+    priceId: safeString(summary.priceId, 160) || null,
+    providerName,
+    subscriptionId: safeString(summary.subscriptionId, 160) || null,
+    subscriptionStatus: allowedSubscriptionStatus(summary.subscriptionStatus),
+    userId: safeString(summary.userId, 160) || null,
+  };
+  const persistence = await persistCommercialBillingEvent(
+    {
+      accessStatus: record.accessStatus,
+      customerId: record.customerId,
+      eventId,
+      eventType,
+      payload: {
+        event,
+        summary: record,
+      },
+      providerName,
+      subscriptionId: record.subscriptionId,
+    },
+    env,
+  );
+
+  if (persistence.persistence === "postgres_error") {
+    return {
+      body: {
+        accepted: false,
+        eventId,
+        eventType,
+        providerName,
+        service: "payshield-commercial-billing",
+        ...persistence,
+      },
+      status: 503,
+    };
+  }
+
+  const body = {
+    ...record,
+    ...persistence,
+    message:
+      record.accessStatus === "active"
+        ? "Paid access event accepted. Household access can be activated from this billing record."
+        : "Billing event accepted.",
+    service: "payshield-commercial-billing",
+  };
+
+  commercialBillingEvents.set(eventKey, body);
+
+  return {
+    body,
+    status: 200,
+  };
+}
+
+export async function recordBankConnection(payload, env = process.env) {
+  const readiness = getMoneyRailReadiness(env);
+  const providerName = safeString(payload?.providerName, 40) || "plaid";
+  const providerItemId = safeString(payload?.providerItemId || payload?.itemId, 160);
+  const providerAccountId = safeString(payload?.providerAccountId || payload?.accountId, 160);
+  const institutionName = safeString(payload?.institutionName, 120) || "Linked institution";
+  const tokenSecretRef =
+    safeString(payload?.tokenSecretRef, 240) ||
+    (readiness.tokenVaultConfigured
+      ? `vault://${providerName}/${providerItemId || "pending"}`
+      : "requires_core_secret_store");
+
+  if (!providerItemId || !providerAccountId) {
+    return {
+      body: {
+        accepted: false,
+        error: "Bank connection requires providerItemId and providerAccountId.",
+        readiness,
+        service: "payshield-bank-connections",
+      },
+      status: 400,
+    };
+  }
+
+  const products = Array.isArray(payload?.products)
+    ? payload.products.filter((product) => typeof product === "string")
+    : ["auth", "transactions"];
+  const connection = {
+    accountMask: safeString(payload?.accountMask, 16) || null,
+    accountName: safeString(payload?.accountName, 80) || null,
+    householdId: demoUser.householdId,
+    institutionName,
+    products,
+    providerAccountId,
+    providerItemId,
+    providerName,
+    status: readiness.bankLinkReady ? "connected" : "error",
+    tokenSecretRef,
+    userId: demoUser.id,
+  };
+  const persistence = await persistBankConnection(connection, env);
+
+  if (persistence.persistence === "postgres_error") {
+    return {
+      body: {
+        bankConnection: connection,
+        message: "Bank connection could not be persisted.",
+        persistence,
+        readiness,
+        service: "payshield-bank-connections",
+      },
+      status: 503,
+    };
+  }
+
+  await persistMoneyRailEvent(
+    {
+      eventType: "bank_connection_recorded",
+      householdId: demoUser.householdId,
+      payload: {
+        accountMask: connection.accountMask,
+        accountName: connection.accountName,
+        institutionName: connection.institutionName,
+        products: connection.products,
+        providerAccountId,
+        providerItemId,
+        status: connection.status,
+        tokenSecretRef,
+      },
+      providerEventId: `bank_connection:${providerItemId}:${providerAccountId}`,
+      providerName,
+      rail: "bank_link",
+    },
+    env,
+  );
+
+  return {
+    body: {
+      bankConnection: connection,
+      message: readiness.bankLinkReady
+        ? "Bank connection recorded for paycheck detection and transfer handoff."
+        : "Bank connection shape recorded, but background detection needs a configured token vault.",
+      persistence,
+      readiness,
+      service: "payshield-bank-connections",
+    },
+    status: readiness.plaidConfigured ? 200 : 424,
+  };
+}
+
 export function getProfile(env = process.env) {
   const snapshot = createNeobankSnapshot(undefined, env);
 
@@ -1055,23 +1292,33 @@ function getMoneyRailReadiness(env = process.env) {
     (envPresent(env, "PLAID_TRANSFER_CLIENT_ID") ||
       envPresent(env, "PAYSHIELD_BAAS_API_KEY") ||
       plaidConfigured);
+  const tokenVaultConfigured =
+    envPresent(env, "PAYSHIELD_TOKEN_VAULT_KEY_ID") ||
+    envPresent(env, "PAYSHIELD_BAAS_API_KEY");
 
   return {
+    bankLinkReady: plaidConfigured && tokenVaultConfigured,
     detectionMode: plaidConfigured ? "plaid_transactions_sync" : "manual_or_provider_webhook",
+    paycheckDetectionReady: plaidConfigured && tokenVaultConfigured,
     liveMoneyReady: neobank.liveMoneyReady,
     missing: [
       ...(plaidConfigured ? [] : ["PLAID_CLIENT_ID", "PLAID_SECRET"]),
       ...(transferConfigured
         ? []
         : ["PAYSHIELD_TRANSFER_ENABLED plus transfer/BaaS credentials"]),
+      ...(plaidConfigured && !tokenVaultConfigured
+        ? ["PAYSHIELD_TOKEN_VAULT_KEY_ID or BaaS token vault"]
+        : []),
     ],
     plaidConfigured,
     plaidEnv: env.PLAID_ENV?.trim() || "sandbox",
+    tokenVaultConfigured,
     transferConfigured,
+    transferReady: neobank.liveMoneyReady && transferConfigured,
   };
 }
 
-export function detectPaycheck(payload, env = process.env) {
+export async function detectPaycheck(payload, env = process.env) {
   const amountCents = toIntegerCents(payload?.amountCents, {
     max: 2_000_000,
     min: 1,
@@ -1104,6 +1351,50 @@ export function detectPaycheck(payload, env = process.env) {
     .filter((bucket) => bucket.id !== "safe_spending")
     .reduce((sum, bucket) => sum + bucket.availableCents, 0);
 
+  const readiness = getMoneyRailReadiness(env);
+  const persistence = await persistPaycheckDetection(
+    {
+      amountCents,
+      employerName,
+      householdId: demoUser.householdId,
+      idempotencyKey: entry.idempotencyKey,
+      journalEntryId: entry.id,
+      providerEventId: cleanText(payload?.providerEventId, 120) || null,
+      providerTransactionId: cleanText(payload?.providerTransactionId, 120) || null,
+      receivedAt: entry.metadata?.receivedAt,
+      status: "split_posted",
+    },
+    env,
+  );
+  await persistMoneyRailEvent(
+    {
+      eventType: "paycheck_detected",
+      householdId: demoUser.householdId,
+      payload: {
+        amountCents,
+        employerName,
+        idempotencyKey: entry.idempotencyKey,
+        journalEntryId: entry.id,
+      },
+      providerEventId: `paycheck:${entry.idempotencyKey}`,
+      providerName: readiness.plaidConfigured ? "plaid" : "payshield",
+      rail: readiness.plaidConfigured ? "transaction_sync" : "provider_webhook",
+    },
+    env,
+  );
+
+  if (persistence.persistence === "postgres_error") {
+    return {
+      body: {
+        error: "Paycheck detection could not be persisted.",
+        persistence,
+        readiness,
+        service: "payshield-paycheck-detection",
+      },
+      status: 503,
+    };
+  }
+
   return {
     body: {
       balances,
@@ -1111,20 +1402,21 @@ export function detectPaycheck(payload, env = process.env) {
         amountCents,
         employerName,
         mode: getMoneyRailReadiness(env).detectionMode,
-        receivedAt: entry.metadata?.receivedAt,
+          receivedAt: entry.metadata?.receivedAt,
       },
       ledgerEntry: entry,
       message:
         "Paycheck detected and split by bucket priority before Safe to Spend is computed.",
+      persistence,
       protectedCents,
-      readiness: getMoneyRailReadiness(env),
+      readiness,
       safeToSpendCents,
     },
     status: 200,
   };
 }
 
-export function createTransferIntent(payload, env = process.env) {
+export async function createTransferIntent(payload, env = process.env) {
   const amountCents = toIntegerCents(payload?.amountCents, {
     max: 500_000,
     min: 1,
@@ -1174,6 +1466,50 @@ export function createTransferIntent(payload, env = process.env) {
         ? "created"
         : "blocked",
   };
+  const transferStatus = providerTransfer.status === "created" ? "submitted" : "blocked";
+  const persistence = await persistTransferIntent(
+    {
+      amountCents,
+      destinationPayeeId,
+      householdId: demoUser.householdId,
+      idempotencyKey,
+      providerName: readiness.transferConfigured ? env.PAYSHIELD_BAAS_PROVIDER || "configured_rail" : null,
+      providerStatus: providerTransfer.status,
+      providerTransferId: providerTransfer.providerTransferId,
+      sourceBucketId: payload.sourceBucketId,
+      status: transferStatus,
+    },
+    env,
+  );
+  await persistMoneyRailEvent(
+    {
+      eventType: "transfer_intent_created",
+      householdId: demoUser.householdId,
+      payload: {
+        amountCents,
+        destinationPayeeId,
+        idempotencyKey,
+        providerTransfer,
+        sourceBucketId: payload.sourceBucketId,
+      },
+      providerEventId: `transfer:${idempotencyKey}`,
+      providerName: readiness.transferConfigured ? env.PAYSHIELD_BAAS_PROVIDER || "configured_rail" : "payshield",
+      rail: "transfer",
+    },
+    env,
+  );
+
+  if (persistence.persistence === "postgres_error") {
+    return {
+      body: {
+        error: "Transfer intent could not be persisted.",
+        persistence,
+        readiness,
+        service: "payshield-transfer-intents",
+      },
+      status: 503,
+    };
+  }
 
   return {
     body: {
@@ -1189,6 +1525,7 @@ export function createTransferIntent(payload, env = process.env) {
         providerTransfer.status === "created"
           ? "Protected transfer created with the configured provider."
           : "Transfer intent validated. Provider execution remains locked until approved money-rail credentials are active.",
+      persistence,
       providerTransfer,
       sourceBucket,
     },

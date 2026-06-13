@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import { beforeEach, test } from "node:test";
 import { NextRequest } from "next/server.js";
 import { POST as authorizeCard } from "../src/app/api/card/authorize/route.ts";
 import { POST as startCheckout } from "../src/app/api/app/billing/checkout/route.ts";
+import { POST as billingWebhook } from "../src/app/api/app/billing/webhook/route.ts";
 import { POST as createBankLinkToken } from "../src/app/api/app/bank-link/token/route.ts";
 import { GET as getBalances } from "../src/app/api/app/balances/route.ts";
 import {
@@ -33,11 +35,13 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_LIVE_MONEY_ENABLED;
   delete process.env.PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED;
   delete process.env.PAYSHIELD_TRANSFER_ENABLED;
+  delete process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID;
   delete process.env.PLAID_CLIENT_ID;
   delete process.env.PLAID_SECRET;
   delete process.env.PAYSHIELD_REGULATED_COUNSEL_SIGNOFF;
   delete process.env.PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED;
   delete process.env.STRIPE_SECRET_KEY;
+  delete process.env.STRIPE_WEBHOOK_SECRET;
 });
 
 function makeRequest(path: string, payload: unknown) {
@@ -45,6 +49,21 @@ function makeRequest(path: string, payload: unknown) {
     body: JSON.stringify(payload),
     headers: {
       "content-type": "application/json",
+    },
+    method: "POST",
+  });
+}
+
+function makeStripeWebhookRequest(payload: string, secret: string, timestamp: number) {
+  const signature = createHmac("sha256", secret)
+    .update(`${timestamp}.${payload}`)
+    .digest("hex");
+
+  return new NextRequest(`${endpoint}/api/app/billing/webhook`, {
+    body: payload,
+    headers: {
+      "content-type": "application/json",
+      "stripe-signature": `t=${timestamp},v1=${signature}`,
     },
     method: "POST",
   });
@@ -167,6 +186,54 @@ test("paid access checkout can return a configured payment link", async () => {
 
   assert.equal(response.status, 200);
   assert.equal(body.url, "https://buy.stripe.com/test_123");
+});
+
+test("billing webhook fails closed without Stripe signing secret", async () => {
+  const payload = JSON.stringify({
+    data: { object: { id: "cs_test_missing_secret" } },
+    id: "evt_missing_secret",
+    type: "checkout.session.completed",
+  });
+  const response = await billingWebhook(
+    makeStripeWebhookRequest(payload, "whsec_test", Math.floor(Date.now() / 1000)),
+  );
+  const body = await parseJson(response);
+
+  assert.equal(response.status, 503);
+  assert.match(String(body.error), /signing secret/i);
+});
+
+test("billing webhook verifies Stripe signature and summarizes paid access", async () => {
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+
+  const payload = JSON.stringify({
+    data: {
+      object: {
+        amount_total: 1900,
+        client_reference_id: "user_demo_001",
+        customer: "cus_test",
+        id: "cs_test_paid",
+        mode: "subscription",
+        payment_status: "paid",
+        status: "complete",
+        subscription: "sub_test",
+      },
+    },
+    id: "evt_checkout_paid",
+    type: "checkout.session.completed",
+  });
+  const response = await billingWebhook(
+    makeStripeWebhookRequest(payload, "whsec_test", Math.floor(Date.now() / 1000)),
+  );
+  const body = await parseJson(response);
+  const summary = body.summary as Record<string, unknown>;
+
+  assert.equal(response.status, 200);
+  assert.equal(body.received, true);
+  assert.equal(body.persisted, false);
+  assert.equal(summary.accessStatus, "active");
+  assert.equal(summary.customerId, "cus_test");
+  assert.equal(summary.subscriptionId, "sub_test");
 });
 
 test("bank link token fails closed until Plaid is configured", async () => {

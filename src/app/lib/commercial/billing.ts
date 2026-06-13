@@ -1,3 +1,5 @@
+import { getStripeWebhookReadiness } from "./stripe-webhook.ts";
+
 const stripeApiVersion = "2026-02-25.clover";
 
 function envPresent(name: string) {
@@ -34,6 +36,7 @@ function formBody(input: Record<string, string>) {
 }
 
 export function getCommercialReadiness() {
+  const webhook = getStripeWebhookReadiness();
   const paymentLinkUrl = process.env.PAYSHIELD_BETA_PAYMENT_LINK_URL?.trim() || "";
   const stripeSecretConfigured = envPresent("STRIPE_SECRET_KEY");
   const stripePriceConfigured = envPresent("PAYSHIELD_BETA_PRICE_ID");
@@ -51,13 +54,20 @@ export function getCommercialReadiness() {
     }
   }
 
+  if (!webhook.signingSecretConfigured) {
+    missing.push("STRIPE_WEBHOOK_SECRET");
+  }
+
   return {
     checkoutConfigured,
     missing,
     mode: paymentLinkUrl ? "payment_link" : stripeSecretConfigured ? "checkout" : "not_configured",
     priceLabel: process.env.PAYSHIELD_BETA_PRICE_LABEL?.trim() || "$19/month",
+    paidAccessReady: checkoutConfigured && webhook.signingSecretConfigured,
     stripePriceConfigured,
     stripeSecretConfigured,
+    webhookEndpointPath: webhook.endpointPath,
+    webhookSigningSecretConfigured: webhook.signingSecretConfigured,
   };
 }
 
@@ -102,8 +112,10 @@ export async function createPaidBetaCheckoutSession(input: {
       "line_items[0][quantity]": "1",
       "metadata[grayston_product]": "PayShield",
       "metadata[payshield_access]": "paid_beta",
+      "metadata[payshield_user_id]": input.userId,
       "mode": "subscription",
       "subscription_data[metadata][grayston_product]": "PayShield",
+      "subscription_data[metadata][payshield_user_id]": input.userId,
       "success_url": successUrl.toString(),
       "cancel_url": cancelUrl.toString(),
     }),

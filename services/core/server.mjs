@@ -13,6 +13,8 @@ import {
   getCoreReadiness,
   getProfile,
   handleProviderWebhook,
+  recordBankConnection,
+  recordCommercialBillingEvent,
   saveBucketProfile,
   startOnboarding,
 } from "./product.mjs";
@@ -110,12 +112,14 @@ async function withJsonBody(request, response, handler) {
     return;
   }
 
-  const result = handler(parsed.value);
+  const result = await handler(parsed.value);
   json(response, result.status, result.body);
 }
 
-function writeResult(response, result) {
-  json(response, result.status, result.body);
+async function writeResult(response, result) {
+  const resolved = await result;
+
+  json(response, resolved.status, resolved.body);
 }
 
 export function createCoreServer() {
@@ -181,8 +185,18 @@ export function createCoreServer() {
         return;
       }
 
+      if (request.method === "POST" && path === "/app/bank-connections") {
+        await withJsonBody(request, response, recordBankConnection);
+        return;
+      }
+
+      if (request.method === "POST" && path === "/commercial/billing-events") {
+        await withJsonBody(request, response, recordCommercialBillingEvent);
+        return;
+      }
+
       if (request.method === "POST" && path === "/app/onboarding/start") {
-        writeResult(response, startOnboarding());
+        await writeResult(response, startOnboarding());
         return;
       }
 

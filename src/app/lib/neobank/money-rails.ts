@@ -82,6 +82,9 @@ export function getMoneyRailReadiness() {
     (envPresent("PLAID_TRANSFER_CLIENT_ID") ||
       envPresent("PAYSHIELD_BAAS_API_KEY") ||
       plaidConfigured);
+  const tokenVaultConfigured =
+    envPresent("PAYSHIELD_TOKEN_VAULT_KEY_ID") ||
+    envPresent("PAYSHIELD_BAAS_API_KEY");
   const missing: string[] = [];
 
   if (!plaidConfigured) {
@@ -92,13 +95,21 @@ export function getMoneyRailReadiness() {
     missing.push("PAYSHIELD_TRANSFER_ENABLED plus transfer/BaaS credentials");
   }
 
+  if (plaidConfigured && !tokenVaultConfigured) {
+    missing.push("PAYSHIELD_TOKEN_VAULT_KEY_ID or BaaS token vault");
+  }
+
   return {
+    bankLinkReady: plaidConfigured && tokenVaultConfigured,
     detectionMode: plaidConfigured ? "plaid_transactions_sync" : "manual_or_provider_webhook",
+    paycheckDetectionReady: plaidConfigured && tokenVaultConfigured,
     liveMoneyReady: neobank.liveMoneyReady,
     missing,
     plaidConfigured,
     plaidEnv: process.env.PLAID_ENV?.trim() || "sandbox",
+    tokenVaultConfigured,
     transferConfigured,
+    transferReady: neobank.liveMoneyReady && transferConfigured,
   };
 }
 
@@ -174,7 +185,13 @@ export async function exchangeBankPublicToken(input: {
       accountId: input.accountId || "selected_account",
       institutionName: input.institutionName || "Linked institution",
       itemId: payload.item_id,
-      tokenVaultStatus: "requires_core_secret_store",
+      tokenSecretRef:
+        process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID?.trim()
+          ? `vault://plaid/${payload.item_id}`
+          : "requires_core_secret_store",
+      tokenVaultStatus: readiness.bankLinkReady
+        ? "ready"
+        : "requires_core_secret_store",
     },
     readiness,
     requestId: payload.request_id,
