@@ -96,6 +96,15 @@ type PaycheckDetectionRule = {
   status?: string;
 };
 
+type DirectDepositSetup = {
+  accountLast4?: string;
+  accountName?: string;
+  idempotencyKey?: string;
+  providerStatus?: string;
+  routingLast4?: string;
+  status?: string;
+};
+
 type OperationsPacket = {
   balances?: {
     protectedCents?: number;
@@ -109,6 +118,12 @@ type OperationsPacket = {
     readyForCheckout?: boolean;
     state?: string;
     subscriptionStatus?: string | null;
+  };
+  directDeposit?: {
+    accountLast4?: string;
+    accountName?: string;
+    providerStatus?: string;
+    routingLast4?: string;
   };
   operationalAudit?: {
     auditFound?: boolean;
@@ -362,6 +377,10 @@ export function MoneyOperationsPanel({
     message: "",
     status: "idle",
   });
+  const [directDepositState, setDirectDepositState] = useState<ActionState>({
+    message: "",
+    status: "idle",
+  });
   const [depositState, setDepositState] = useState<ActionState>({
     message: "",
     status: "idle",
@@ -405,6 +424,10 @@ export function MoneyOperationsPanel({
   const detectionRules =
     (operations?.operations?.paycheckDetectionRules as
       | PaycheckDetectionRule[]
+      | undefined) ?? [];
+  const directDepositSetups =
+    (operations?.operations?.directDepositSetups as
+      | DirectDepositSetup[]
       | undefined) ?? [];
   const connectedPayees = useMemo(
     () => [
@@ -645,6 +668,86 @@ export function MoneyOperationsPanel({
             : "Bank connection request failed",
         label: "Bank connection",
         rail: "bank_link",
+        status: "error",
+      });
+    }
+  }
+
+  async function startDirectDepositSetup() {
+    setDirectDepositState({
+      message: "Preparing paycheck routing setup...",
+      status: "loading",
+    });
+
+    try {
+      const response = await fetch("/api/app/direct-deposit", {
+        body: JSON.stringify({
+          idempotencyKey: "ui-direct-deposit-primary",
+          providerName: "payshield",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        directDeposit?: DirectDepositSetup;
+        error?: string;
+        message?: string;
+        setup?: DirectDepositSetup;
+      };
+
+      if (!response.ok && response.status !== 423) {
+        setDirectDepositState({
+          message: payload.error || "Paycheck routing setup failed.",
+          status: "error",
+        });
+        appendOperation({
+          detail: payload.error || "Direct deposit setup",
+          label: "Paycheck routing",
+          rail: "direct_deposit",
+          status: "rejected",
+        });
+        return;
+      }
+
+      const setup =
+        payload.setup ??
+        ({
+          ...payload.directDeposit,
+          idempotencyKey: "ui-direct-deposit-primary",
+          status: response.ok ? "ready" : "blocked",
+        } satisfies DirectDepositSetup);
+
+      setOperations((current) => ({
+        ...(current ?? {}),
+        operations: {
+          ...(current?.operations ?? {}),
+          directDepositSetups: [
+            setup,
+            ...directDepositSetups.filter(
+              (item) => item.idempotencyKey !== setup.idempotencyKey,
+            ),
+          ],
+        },
+      }));
+      setDirectDepositState({
+        message: payload.message || "Paycheck routing setup recorded.",
+        status: "ready",
+      });
+      appendOperation({
+        detail: setup.accountName || "Paycheck routing",
+        label: "Paycheck routing",
+        rail: "direct_deposit",
+        status: setup.status || (response.ok ? "ready" : "blocked"),
+      });
+    } catch {
+      setDirectDepositState({
+        message: "Paycheck routing setup failed.",
+        status: "error",
+      });
+      appendOperation({
+        detail: "Paycheck routing request failed",
+        label: "Paycheck routing",
+        rail: "direct_deposit",
         status: "error",
       });
     }
@@ -907,12 +1010,13 @@ export function MoneyOperationsPanel({
             <p className="mt-4 max-w-2xl text-base leading-7 text-[#c9d0da]">
               This is how PayShield makes money and controls the paycheck:
               charge the household, bind that customer to an account, connect
-              the bank source, detect income, split the ledger, and validate
-              every transfer or card decision against protected funds.
+              the bank source, set paycheck routing, detect income, split the
+              ledger, and validate every transfer or card decision against
+              protected funds.
             </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <div className="brand-panel rounded-[8px] p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -1000,6 +1104,62 @@ export function MoneyOperationsPanel({
                 <StateMessage state={bankState} />
               </div>
             </div>
+
+            <div className="brand-panel rounded-[8px] p-4 md:col-span-2 xl:col-span-1">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="brand-kicker">Paycheck routing</p>
+                  <h3 className="mt-1 text-xl font-black text-white">
+                    Route payroll into protection.
+                  </h3>
+                </div>
+                <Landmark className="size-6 text-[#68f0c2]" aria-hidden="true" />
+              </div>
+              <p className="mt-3 text-sm leading-6 text-[#aab3c2]">
+                Paycheck-routing setup records the masked account state that lets
+                payroll land before bucket rules and Safe to Spend are computed.
+              </p>
+              <div className="mt-4 grid gap-2 rounded-[8px] border border-white/10 bg-black/35 p-3">
+                <div className="grid grid-cols-[6.5rem_1fr] gap-3 text-xs">
+                  <span className="font-black uppercase text-[#8f99aa]">
+                    Status
+                  </span>
+                  <span className="font-black capitalize text-[#d9dde5]">
+                    {(directDepositSetups[0]?.status ??
+                      operations?.directDeposit?.providerStatus ??
+                      "gated"
+                    ).replace(/_/g, " ")}
+                  </span>
+                </div>
+                <div className="grid grid-cols-[6.5rem_1fr] gap-3 text-xs">
+                  <span className="font-black uppercase text-[#8f99aa]">
+                    Account
+                  </span>
+                  <span className="font-bold text-[#d9dde5]">
+                    {directDepositSetups[0]?.accountLast4 &&
+                    directDepositSetups[0]?.accountLast4 !== "----"
+                      ? `*${directDepositSetups[0].accountLast4}`
+                      : "Provider gated"}
+                  </span>
+                </div>
+              </div>
+              <button
+                className="brand-button-blue mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={directDepositState.status === "loading"}
+                onClick={startDirectDepositSetup}
+                type="button"
+              >
+                {directDepositState.status === "loading" ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Landmark className="size-4" aria-hidden="true" />
+                )}
+                Set paycheck routing
+              </button>
+              <div className="mt-3">
+                <StateMessage state={directDepositState} />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1012,8 +1172,9 @@ export function MoneyOperationsPanel({
               </h3>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-[#aab3c2]">
                 This lane creates the revenue record, bank-link handoff,
-                recurring payroll rule, paycheck split, protected transfer
-                intent, and audit trail from one place.
+                paycheck-routing record, recurring payroll rule, paycheck
+                split, protected transfer intent, and audit trail from one
+                place.
               </p>
             </div>
             <div className="grid min-w-[12rem] gap-1 rounded-[8px] border border-[#48e6b2]/25 bg-[#48e6b2]/10 p-3">
@@ -1033,7 +1194,7 @@ export function MoneyOperationsPanel({
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
             <RuntimeLane
               actionLabel="Start checkout"
               body={`Customer billing runs through ${
@@ -1075,6 +1236,25 @@ export function MoneyOperationsPanel({
               }
               tone={readiness?.moneyRails?.bankLinkReady ? "ready" : "attention"}
               title="Connect banks"
+            />
+            <RuntimeLane
+              actionLabel="Set routing"
+              body="Paycheck routing records masked setup state before payroll events fund protected buckets."
+              icon={Landmark}
+              onAction={startDirectDepositSetup}
+              status={
+                directDepositSetups.length > 0
+                  ? "Routing recorded"
+                  : readiness?.neobank?.liveMoneyReady
+                    ? "Instructions ready"
+                    : "Provider gated"
+              }
+              tone={
+                directDepositSetups.length > 0 || readiness?.neobank?.liveMoneyReady
+                  ? "ready"
+                  : "attention"
+              }
+              title="Route paycheck"
             />
             <RuntimeLane
               actionLabel="Run detection"
@@ -1147,6 +1327,15 @@ export function MoneyOperationsPanel({
                 state: readiness?.moneyRails?.bankLinkReady
                   ? "ready"
                   : "needs_setup",
+              },
+              {
+                key: "direct_deposit",
+                label: "Paycheck routing",
+                state: directDepositSetups.length
+                  ? "recorded"
+                  : readiness?.neobank?.liveMoneyReady
+                    ? "ready"
+                    : "needs_setup",
               },
               {
                 key: "paycheck_detection",

@@ -48,6 +48,12 @@ const commandActions = [
     label: "Connect bank",
   },
   {
+    body: "Record the masked paycheck-routing setup used before protected splits run.",
+    href: "#money-operations",
+    icon: Landmark,
+    label: "Route paycheck",
+  },
+  {
     body: "Run payroll detection and split income into protected buckets before Safe to Spend.",
     href: "#money-operations",
     icon: Radar,
@@ -83,6 +89,7 @@ const commandActions = [
 const moneyPath = [
   "Commercial access",
   "Bank connection",
+  "Paycheck routing",
   "Income intake",
   "Priority split",
   "Safe-spend decision",
@@ -184,6 +191,15 @@ export function HouseholdCommandCenter() {
           ? "Vault needed"
           : "Plaid needed",
       title: "Connect the bank source",
+    },
+    {
+      body: "Paycheck-routing setup records the masked payroll destination before income events fund buckets.",
+      href: "#money-operations",
+      icon: Landmark,
+      label: "Routing",
+      ready: snapshot.readiness.liveMoneyReady,
+      status: snapshot.readiness.liveMoneyReady ? "Instructions" : "Provider gated",
+      title: "Set paycheck routing",
     },
     {
       body: "Custom bucket targets, payees, priorities, and unlock rules are set before a paycheck is split.",

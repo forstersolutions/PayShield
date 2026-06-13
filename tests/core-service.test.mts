@@ -151,6 +151,7 @@ test("core health exposes product operation routes and fail-closed readiness", a
     assert.equal(routes.includes("POST /app/bank-link/token"), true);
     assert.equal(routes.includes("POST /app/bank-link/exchange"), true);
     assert.equal(routes.includes("POST /app/bank-connections"), true);
+    assert.equal(routes.includes("POST /app/direct-deposit"), true);
     assert.equal(routes.includes("GET /app/billing/status"), true);
     assert.equal(routes.includes("POST /commercial/billing-events"), true);
     assert.equal(routes.includes("POST /card/authorize"), true);
@@ -227,7 +228,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
 
     assert.equal(urlOnlyReadiness.postgresConfigured, true);
     assert.equal(urlOnlyReadiness.postgresSchemaVerified, false);
-    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0007");
+    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0008");
     assert.equal(postgresGate?.ok, false);
 
     process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
@@ -245,7 +246,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
       false,
     );
 
-    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0007";
+    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0008";
 
     const verified = await getJson(baseUrl, "/health");
     const verifiedReadiness = verified.body.readiness as Record<
@@ -341,6 +342,14 @@ test("core paid access gates money workflows when commercial billing is configur
       "/api/app/bank-link/token",
       "bank linking",
       jsonPost({ origin: "https://payshield.test" }, { headers: unpaidActor }),
+    ],
+    [
+      "/api/app/direct-deposit",
+      "direct deposit setup",
+      jsonPost(
+        { idempotencyKey: "core-paid-gate-direct-deposit" },
+        { headers: unpaidActor },
+      ),
     ],
     [
       "/api/app/paychecks/rules",
@@ -529,6 +538,30 @@ test("core bank connection route records Plaid rail readiness", async () => {
     assert.equal(bankConnection.status, "connected");
     assert.equal(auditPersistence.persistence, "memory");
     assert.equal(persistence.persistence, "memory");
+  });
+});
+
+test("core direct deposit route records paycheck routing setup", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(
+      baseUrl,
+      "/api/app/direct-deposit",
+      jsonPost({
+        idempotencyKey: "core-direct-deposit-primary",
+      }),
+    );
+    const directDeposit = body.directDeposit as Record<string, unknown>;
+    const persistence = body.persistence as Record<string, unknown>;
+    const setup = body.setup as Record<string, unknown>;
+
+    assert.equal(response.status, 423);
+    assert.equal(body.service, "payshield-direct-deposit-setup");
+    assert.equal(body.persisted, false);
+    assert.equal(directDeposit.providerStatus, "gated");
+    assert.equal(directDeposit.accountLast4, "----");
+    assert.equal(persistence.persistence, "memory");
+    assert.equal(setup.status, "blocked");
+    assert.equal(setup.idempotencyKey, "core-direct-deposit-primary");
   });
 });
 

@@ -11,6 +11,7 @@ import {
   persistBillPaymentSchedule,
   persistCardAuthorizationDecision,
   persistCommercialBillingEvent,
+  persistDirectDepositSetup,
   persistJournalEntry,
   persistMoneyRailEvent,
   persistPayee,
@@ -22,7 +23,7 @@ import {
 } from "./database.mjs";
 
 const serviceName = "payshield-core";
-export const coreLedgerSchemaVersion = "0007";
+export const coreLedgerSchemaVersion = "0008";
 
 const gateDefinitions = [
   {
@@ -259,6 +260,7 @@ export function getCoreHealth(env = process.env) {
       "POST /app/bank-link/exchange",
       "POST /app/bank-connections",
       "POST /app/bill-payments",
+      "POST /app/direct-deposit",
       "POST /commercial/billing-events",
       "POST /app/onboarding/start",
       "POST /app/payees",
@@ -1305,6 +1307,7 @@ function emptyOperationalAudit() {
     billPayments: [],
     cardDecisions: [],
     commercialSubscriptions: [],
+    directDepositSetups: [],
     journalEntries: [],
     moneyRailEvents: [],
     paycheckDetectionRules: [],
@@ -1471,6 +1474,15 @@ function operationTimeline(audit, snapshot) {
       rail: "bank_link",
       status: connection.status,
     })),
+    ...audit.directDepositSetups.map((setup) => ({
+      amountCents: null,
+      at: setup.updatedAt ?? setup.createdAt,
+      detail: setup.accountName,
+      id: setup.idempotencyKey,
+      label: "Paycheck routing",
+      rail: "direct_deposit",
+      status: setup.status,
+    })),
     ...audit.paycheckDetections.map((detection) => ({
       amountCents: detection.amountCents,
       at: detection.receivedAt ?? detection.createdAt,
@@ -1626,6 +1638,13 @@ async function buildHouseholdOperations(env = process.env, actorInput = demoUser
           state: audit.bankConnections.some((connection) => connection.status === "connected")
             ? "connected"
             : gateState(moneyRails.bankLinkReady),
+        },
+        {
+          key: "direct_deposit",
+          label: "Paycheck routing",
+          state: audit.directDepositSetups.length > 0
+            ? "recorded"
+            : gateState(snapshot.readiness.liveMoneyReady),
         },
         {
           key: "paycheck_detection",
@@ -1917,8 +1936,129 @@ export async function saveBucketProfile(payload, env = process.env) {
   };
 }
 
+function directDepositInstructionsForReadiness(readiness) {
+  return {
+    accountLast4: readiness.liveMoneyReady ? "4421" : "----",
+    accountName: "PayShield protected paycheck account",
+    providerStatus: readiness.liveMoneyReady ? "live" : "gated",
+    routingLast4: readiness.liveMoneyReady ? "0210" : "----",
+  };
+}
+
 export function startOnboarding(env = process.env, actorInput = demoUser) {
   return startOnboardingWithPaidAccess(env, actorInput);
+}
+
+export async function createDirectDepositSetup(payload = {}, env = process.env) {
+  const readiness = getCoreReadiness(env, { coreOnline: true });
+  const liveGate = assertLiveMoneyReady(readiness);
+  const actor = actorFromPayload(payload);
+  const paidAccess = await requireActivePaidAccess(
+    env,
+    actor,
+    "direct deposit setup",
+  );
+
+  if (!paidAccess.ok) {
+    return paidAccess.result;
+  }
+
+  const providerName = cleanText(payload?.providerName, 40).toLowerCase() || "payshield";
+  const providerCustomerId = readiness.liveMoneyReady
+    ? cleanText(payload?.providerCustomerId, 160) || "provider-customer-live"
+    : null;
+  const providerAccountId = readiness.liveMoneyReady
+    ? cleanText(payload?.providerAccountId, 160) || "financial-account-live"
+    : "financial-account-provider-contract-required";
+  const idempotencyKey =
+    cleanText(payload?.idempotencyKey, 120) ||
+    `direct-deposit-${actor.householdId}`;
+  const directDeposit = directDepositInstructionsForReadiness(readiness);
+  const status = readiness.liveMoneyReady ? "ready" : "blocked";
+  const setup = {
+    accountLast4: directDeposit.accountLast4,
+    accountName: directDeposit.accountName,
+    householdId: actor.householdId,
+    idempotencyKey,
+    metadata: {
+      configuredBy: actor.id,
+      liveMoneyReady: readiness.liveMoneyReady,
+      source: "payshield_app",
+    },
+    providerAccountId,
+    providerCustomerId,
+    providerName,
+    providerStatus: directDeposit.providerStatus,
+    routingLast4: directDeposit.routingLast4,
+    status,
+    userId: actor.id,
+  };
+  const persistence = await persistDirectDepositSetup(setup, env);
+
+  if (persistenceFailed(persistence)) {
+    return {
+      body: {
+        directDeposit,
+        error: "Direct deposit setup could not be persisted.",
+        liveMoney: liveGate,
+        persistence,
+        readiness,
+        service: "payshield-direct-deposit-setup",
+      },
+      status: 503,
+    };
+  }
+
+  const auditPersistence = await persistMoneyRailEvent(
+    {
+      eventType: "direct_deposit_setup_requested",
+      householdId: actor.householdId,
+      payload: {
+        accountLast4: directDeposit.accountLast4,
+        accountName: directDeposit.accountName,
+        providerAccountId,
+        providerStatus: directDeposit.providerStatus,
+        routingLast4: directDeposit.routingLast4,
+        status,
+      },
+      providerEventId: `direct_deposit:${idempotencyKey}`,
+      providerName,
+      rail: "direct_deposit",
+    },
+    env,
+  );
+
+  if (persistenceFailed(auditPersistence)) {
+    return {
+      body: {
+        auditPersistence,
+        directDeposit,
+        error: "Direct deposit setup audit event could not be persisted.",
+        liveMoney: liveGate,
+        persistence,
+        readiness,
+        service: "payshield-direct-deposit-setup",
+      },
+      status: 503,
+    };
+  }
+
+  return {
+    body: {
+      auditPersistence,
+      directDeposit,
+      liveMoney: liveGate,
+      message: liveGate.ok
+        ? "Paycheck routing instructions are ready for the configured provider account."
+        : "Paycheck routing setup recorded. Provider activation is required before live instructions are released.",
+      persisted: persistence.persistence === "postgres",
+      persistence,
+      readiness,
+      service: "payshield-direct-deposit-setup",
+      setup: persistence.setup || setup,
+    },
+    status: liveGate.ok ? 200 : 423,
+  };
 }
 
 async function startOnboardingWithPaidAccess(env = process.env, actorInput = demoUser) {

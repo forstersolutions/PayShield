@@ -24,9 +24,10 @@ are active.
   Postgres ledger migrations for households, users, provider customers, ledger
   accounts, journal entries, journal lines, payees, provider events,
   reconciliation exceptions, household bucket profiles, bucket rules, and
-  bucket-change audit events. Payroll detection rules are durable and posted
-  paycheck detections retain the matched rule id for support review. The ledger
-  migrations include deferred Postgres
+  bucket-change audit events. Payroll detection rules are durable, posted
+  paycheck detections retain the matched rule id for support review, and
+  direct-deposit setup records store only masked paycheck-routing state. The
+  ledger migrations include deferred Postgres
   constraint triggers that require every journal entry to have at least two
   lines, balance to zero cents at transaction commit, and remain immutable after
   posting so corrections happen through reversal entries.
@@ -51,7 +52,7 @@ are active.
   `core_schema_migrations` ledger with checksums, and
   `npm run core:migrations:verify` output that returns the non-secret
   `PAYSHIELD_LEDGER_SCHEMA_VERIFIED=true` and
-  `PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0007` values only after the
+  `PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0008` values only after the
   required tables, triggers, functions, and migration checksums are present.
   The live-money Postgres gate does not pass from a database URL alone.
 - Core Docker smoke command that builds `Dockerfile.core`, starts the service
@@ -495,7 +496,7 @@ The go/no-go command fails if it detects those values.
 - Applied Postgres ledger schema verified with
   `npm run core:migrations:verify`; set
   `PAYSHIELD_LEDGER_SCHEMA_VERIFIED=true` and
-  `PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0007` only from that successful
+  `PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0008` only from that successful
   verification output.
 - ACH authorization flow, Reg E/error-resolution workflow, dispute operations,
   fee disclosures, privacy policy, and customer support procedures.

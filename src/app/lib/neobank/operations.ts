@@ -19,6 +19,7 @@ export function createHouseholdOperationsPacket(session?: AppSession) {
     billingEvents: [],
     billPayments: [],
     cardDecisions: [],
+    directDepositSetups: [],
     journalEntries: snapshot.ledgerEntries,
     moneyRailEvents: [],
     paycheckDetectionRules: [],

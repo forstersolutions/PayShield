@@ -93,6 +93,9 @@ stored only inside the dedicated core ledger database.
 `services/core/migrations/0007_paycheck_detection_rules.sql` makes recurring
 payroll detection rules durable, idempotent, provider-account-aware operational
 records and links posted paycheck detections back to the matched payroll rule.
+`services/core/migrations/0008_direct_deposit_setups.sql` stores masked
+paycheck-routing setup records and adds direct-deposit rail events without
+storing raw account or routing numbers.
 
 The app exposes the planned API surface now:
 
@@ -111,6 +114,7 @@ POST /api/app/bank-link/exchange
 POST /api/token-vault/plaid
 POST /api/app/buckets
 POST /api/app/bank-connections
+POST /api/app/direct-deposit
 POST /api/app/paychecks/rules
 POST /api/app/paychecks/detect
 POST /api/app/transfers

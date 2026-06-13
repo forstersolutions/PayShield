@@ -8,6 +8,7 @@ import { POST as billingWebhook } from "../src/app/api/app/billing/webhook/route
 import { POST as createBankLinkToken } from "../src/app/api/app/bank-link/token/route.ts";
 import { GET as exportAudit } from "../src/app/api/app/audit/export/route.ts";
 import { GET as getBalances } from "../src/app/api/app/balances/route.ts";
+import { POST as setupDirectDeposit } from "../src/app/api/app/direct-deposit/route.ts";
 import { GET as getBillingStatus } from "../src/app/api/app/billing/status/route.ts";
 import {
   GET as getBuckets,
@@ -381,6 +382,15 @@ test("money workflows require paid access when commercial billing is configured 
     ],
     ["provider onboarding", () => startOnboarding()],
     [
+      "direct deposit setup",
+      () =>
+        setupDirectDeposit(
+          makeRequest("/api/app/direct-deposit", {
+            idempotencyKey: "route-paid-gate-direct-deposit",
+          }),
+        ),
+    ],
+    [
       "paycheck detection setup",
       () =>
         savePaycheckRule(
@@ -497,6 +507,27 @@ test("bank link token requires signed token-vault handoff before Plaid Link", as
   assert.equal(readiness.tokenVaultStoreReady, false);
   assert.equal(missing.includes("PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL"), true);
   assert.equal(missing.includes("PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET"), true);
+});
+
+test("direct deposit route records paycheck routing setup", async () => {
+  const response = await setupDirectDeposit(
+    makeRequest("/api/app/direct-deposit", {
+      idempotencyKey: "route-direct-deposit-primary",
+    }),
+  );
+  const body = await parseJson(response);
+  const directDeposit = body.directDeposit as Record<string, unknown>;
+  const persistence = body.persistence as Record<string, unknown>;
+  const setup = body.setup as Record<string, unknown>;
+
+  assert.equal(response.status, 423);
+  assert.equal(body.service, "payshield-direct-deposit-setup");
+  assert.equal(body.persisted, false);
+  assert.equal(directDeposit.providerStatus, "gated");
+  assert.equal(directDeposit.routingLast4, "----");
+  assert.equal(persistence.persistence, "memory");
+  assert.equal(setup.status, "blocked");
+  assert.equal(setup.idempotencyKey, "route-direct-deposit-primary");
 });
 
 test("paycheck detection posts a split before safe spend", async () => {

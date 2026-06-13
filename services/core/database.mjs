@@ -234,6 +234,23 @@ function paycheckDetectionRuleFromRow(row = {}) {
   };
 }
 
+function directDepositSetupFromRow(row = {}) {
+  return {
+    accountLast4: row.account_last4 || "----",
+    accountName: row.account_name || "PayShield protected paycheck account",
+    createdAt: timestampString(row.created_at),
+    id: row.id,
+    idempotencyKey: row.idempotency_key,
+    providerAccountId: row.provider_account_id || null,
+    providerCustomerId: row.provider_customer_id || null,
+    providerName: row.provider_name || "payshield",
+    providerStatus: row.provider_status || "gated",
+    routingLast4: row.routing_last4 || "----",
+    status: row.status || "blocked",
+    updatedAt: timestampString(row.updated_at),
+  };
+}
+
 function ledgerAccountShape(householdId, accountId) {
   const bucketId = bucketIdFromLedgerAccount(accountId);
 
@@ -1912,6 +1929,104 @@ export async function persistPaycheckDetectionRule(input, env = process.env) {
   }
 }
 
+export async function persistDirectDepositSetup(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return {
+      ...persistenceSkipped("direct deposit setup"),
+      setup: {
+        accountLast4: input.accountLast4 || "----",
+        accountName: input.accountName,
+        id: input.id,
+        idempotencyKey: input.idempotencyKey,
+        providerAccountId: input.providerAccountId || null,
+        providerCustomerId: input.providerCustomerId || null,
+        providerName: input.providerName,
+        providerStatus: input.providerStatus,
+        routingLast4: input.routingLast4 || "----",
+        status: input.status,
+      },
+    };
+  }
+
+  try {
+    const id =
+      input.id ||
+      recordId("direct_deposit_setup", input.householdId, input.idempotencyKey);
+    const result = await pool.query(
+      `
+        INSERT INTO direct_deposit_setups (
+          id,
+          household_id,
+          user_id,
+          provider_name,
+          provider_customer_id,
+          provider_account_id,
+          account_name,
+          account_last4,
+          routing_last4,
+          status,
+          provider_status,
+          idempotency_key,
+          metadata
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)
+        ON CONFLICT (household_id, idempotency_key)
+        DO UPDATE SET
+          provider_name = EXCLUDED.provider_name,
+          provider_customer_id = EXCLUDED.provider_customer_id,
+          provider_account_id = EXCLUDED.provider_account_id,
+          account_name = EXCLUDED.account_name,
+          account_last4 = EXCLUDED.account_last4,
+          routing_last4 = EXCLUDED.routing_last4,
+          status = EXCLUDED.status,
+          provider_status = EXCLUDED.provider_status,
+          metadata = EXCLUDED.metadata,
+          updated_at = now()
+        RETURNING
+          id,
+          provider_name,
+          provider_customer_id,
+          provider_account_id,
+          account_name,
+          account_last4,
+          routing_last4,
+          status,
+          provider_status,
+          idempotency_key,
+          created_at,
+          updated_at
+      `,
+      [
+        id,
+        input.householdId,
+        input.userId,
+        input.providerName,
+        input.providerCustomerId || null,
+        input.providerAccountId || null,
+        input.accountName,
+        input.accountLast4 || "----",
+        input.routingLast4 || "----",
+        input.status,
+        input.providerStatus,
+        input.idempotencyKey,
+        JSON.stringify(input.metadata || {}),
+      ],
+    );
+    const row = result.rows[0];
+
+    return {
+      persisted: true,
+      persistence: "postgres",
+      postgresId: row?.id ?? id,
+      setup: directDepositSetupFromRow(row),
+    };
+  } catch (error) {
+    return persistenceFailed(error);
+  }
+}
+
 export async function persistTransferIntent(input, env = process.env) {
   const pool = poolFor(env);
 
@@ -1980,9 +2095,10 @@ export async function loadOperationalAudit(householdId, env = process.env) {
   try {
     const [
       bankConnections,
+      directDepositSetups,
+      paycheckDetectionRules,
       commercialSubscriptions,
       billingEvents,
-      paycheckDetectionRules,
       paycheckDetections,
       transferIntents,
       billPayments,
@@ -2007,6 +2123,28 @@ export async function loadOperationalAudit(householdId, env = process.env) {
           FROM bank_connections
           WHERE household_id = $1
           ORDER BY updated_at DESC, created_at DESC
+          LIMIT 25
+        `,
+        [householdId],
+      ),
+      pool.query(
+        `
+          SELECT
+            id,
+            provider_name,
+            provider_customer_id,
+            provider_account_id,
+            account_name,
+            account_last4,
+            routing_last4,
+            status,
+            provider_status,
+            idempotency_key,
+            created_at,
+            updated_at
+          FROM direct_deposit_setups
+          WHERE household_id = $1
+          ORDER BY created_at DESC
           LIMIT 25
         `,
         [householdId],
@@ -2273,6 +2411,9 @@ export async function loadOperationalAudit(householdId, env = process.env) {
         updatedAt: timestampString(row.updated_at),
         userId: row.user_id,
       })),
+      directDepositSetups: directDepositSetups.rows.map((row) =>
+        directDepositSetupFromRow(row),
+      ),
       billPayments: billPayments.rows.map((row) => ({
         amountCents: centsNumber(row.amount_cents),
         bucketId: row.bucket_id,

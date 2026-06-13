@@ -43,7 +43,7 @@ PAYSHIELD_CORE_API_URL=
 PAYSHIELD_CORE_SERVICE_TOKEN=
 PAYSHIELD_LEDGER_DATABASE_URL=
 PAYSHIELD_LEDGER_SCHEMA_VERIFIED=true
-PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0007
+PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0008
 ```
 
 Bank connection and transaction detection:
@@ -127,6 +127,13 @@ posted detections retain the matched rule id for audit and support review.
 Without the core, the Vercel route validates the shape but marks the rule as
 non-durable.
 
+`POST /api/app/direct-deposit` records the household's paycheck-routing setup.
+The route stores only masked account/routing metadata and an idempotent setup
+record. When provider gates are active, the configured provider supplies the
+instructions; until then, the setup is recorded as provider-gated so support can
+see that the household completed the routing step without exposing live account
+details.
+
 Transfers, bill payments, and card decisions remain gate controlled:
 
 - `POST /api/app/transfers` creates provider transfer intents only when the
@@ -160,4 +167,4 @@ npm run market:status -- https://payshield-lime.vercel.app --expect-site-url htt
 - Bank linking.
 - Paycheck detection.
 - Transfer/provider readiness.
-- Core backend, Clerk auth, and Postgres ledger schema `0007`.
+- Core backend, Clerk auth, and Postgres ledger schema `0008`.

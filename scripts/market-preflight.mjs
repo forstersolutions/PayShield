@@ -78,6 +78,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "docs/campaign-copy.md",
   "docs/legal-review-packet.md",
   "src/app/api/app/bill-payments/route.ts",
+  "src/app/api/app/direct-deposit/route.ts",
   "src/app/api/app/paychecks/rules/route.ts",
   "src/app/api/health/route.ts",
   "src/app/components/bill-payment-panel.tsx",
@@ -110,6 +111,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "services/core/migrations/0005_money_decision_records.sql",
   "services/core/migrations/0006_provider_token_vault.sql",
   "services/core/migrations/0007_paycheck_detection_rules.sql",
+  "services/core/migrations/0008_direct_deposit_setups.sql",
   "scripts/core-migrations.mjs",
   "SECURITY.md",
   ".dockerignore",
@@ -252,6 +254,8 @@ requireText("src/app/api/app/bill-payments/route.ts", "/api/app/bill-payments");
 requireText("src/app/api/app/bill-payments/route.ts", "simulateBillPayment");
 requireText("src/app/components/money-operations-panel.tsx", "Save detection rule");
 requireText("src/app/components/money-operations-panel.tsx", "/api/app/paychecks/rules");
+requireText("src/app/components/money-operations-panel.tsx", "/api/app/direct-deposit");
+requireText("src/app/api/app/direct-deposit/route.ts", "direct deposit setup");
 requireText("src/app/api/app/paychecks/rules/route.ts", "paycheck detection setup");
 requireText("src/app/lib/neobank/core-config.ts", "PAYSHIELD_CORE_API_URL");
 requireText("src/app/lib/neobank/core-config.ts", "VERCEL_ENV");
@@ -269,10 +273,13 @@ requireText("services/core/migrations/0006_provider_token_vault.sql", "ciphertex
 requireText("services/core/migrations/0007_paycheck_detection_rules.sql", "expected_frequency");
 requireText("services/core/migrations/0007_paycheck_detection_rules.sql", "idempotency_key");
 requireText("services/core/migrations/0007_paycheck_detection_rules.sql", "detection_rule_id");
+requireText("services/core/migrations/0008_direct_deposit_setups.sql", "direct_deposit_setups");
+requireText("services/core/migrations/0008_direct_deposit_setups.sql", "account_last4");
 requireText("services/core/server.mjs", "/token-vault/plaid");
 requireText("services/core/server.mjs", "x-payshield-provider-signature");
 requireText("services/core/product.mjs", "receiveTokenVaultHandoff");
 requireText("services/core/product.mjs", "requireActivePaidAccess");
+requireText("services/core/product.mjs", "createDirectDepositSetup");
 requireText("services/core/product.mjs", "savePaycheckDetectionRule");
 requireText("services/core/product.mjs", "Paycheck did not match an active payroll rule");
 requireText("services/core/product.mjs", "extractProviderPaycheckDetections");

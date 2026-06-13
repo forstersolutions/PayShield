@@ -2,8 +2,9 @@ import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import {
   authorizeCard,
-  createBillPayment,
   createBankLinkToken,
+  createBillPayment,
+  createDirectDepositSetup,
   createPayee,
   savePaycheckDetectionRule,
   createTransferIntent,
@@ -293,6 +294,11 @@ export function createCoreServer() {
 
       if (request.method === "POST" && path === "/app/bill-payments") {
         await withJsonBody(request, response, createBillPayment);
+        return;
+      }
+
+      if (request.method === "POST" && path === "/app/direct-deposit") {
+        await withJsonBody(request, response, createDirectDepositSetup);
         return;
       }
 
