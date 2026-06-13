@@ -245,16 +245,6 @@ function friendlyGateLabel(gate: string) {
   return gate.replace(/^PAYSHIELD_/, "").replace(/_/g, " ").toLowerCase();
 }
 
-function compactGateList(gates: string[] | undefined, fallback: string) {
-  if (!gates?.length) {
-    return fallback;
-  }
-
-  const labels = [...new Set(gates.map(friendlyGateLabel))];
-
-  return labels.slice(0, 2).join(", ") + (labels.length > 2 ? " +" : "");
-}
-
 function readLocalTimeline() {
   if (typeof window === "undefined") {
     return [];
@@ -325,58 +315,98 @@ function StateMessage({ state }: { state: ActionState }) {
   );
 }
 
-function RuntimeLane({
+function ActivationRail({
   actionLabel,
+  blockers,
   body,
   icon: Icon,
+  metric,
   onAction,
+  state,
   status,
   title,
   tone,
 }: {
   actionLabel: string;
+  blockers: string[];
   body: string;
   icon: LucideIcon;
+  metric: string;
   onAction: () => void | Promise<void>;
+  state: ActionState;
   status: string;
   title: string;
   tone: "attention" | "ready";
 }) {
   return (
-    <div className="rounded-[8px] border border-white/10 bg-black/40 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <span
-          className={`grid size-10 shrink-0 place-items-center rounded-[8px] border ${
-            tone === "ready"
-              ? "border-[#39e8ff]/25 bg-[#39e8ff]/10 text-[#39e8ff]"
-              : "border-[#ffb237]/30 bg-[#ffb237]/10 text-[#ffcf72]"
-          }`}
-        >
-          <Icon className="size-5" aria-hidden="true" />
+    <div
+      className={`grid gap-3 rounded-[8px] border p-4 transition sm:grid-cols-[2.75rem_minmax(0,1fr)_auto] ${
+        tone === "ready"
+          ? "border-[#68f0c2]/25 bg-[#68f0c2]/[0.07]"
+          : "border-[#ffb237]/25 bg-[#ffb237]/[0.075]"
+      }`}
+    >
+      <span
+        className={`grid size-11 place-items-center rounded-[8px] border ${
+          tone === "ready"
+            ? "border-[#68f0c2]/25 bg-black/30 text-[#68f0c2]"
+            : "border-[#ffb237]/25 bg-black/30 text-[#ffcf72]"
+        }`}
+      >
+        <Icon className="size-5" aria-hidden="true" />
+      </span>
+      <span className="min-w-0">
+        <span className="text-xs font-black uppercase text-[#8f99aa]">
+          {metric}
         </span>
+        <span className="mt-1 block text-base font-black text-white">
+          {title}
+        </span>
+        <span className="mt-1 block text-sm leading-6 text-[#c9d0da]">
+          {body}
+        </span>
+      </span>
+      <span className="grid gap-2 sm:min-w-[11rem]">
         <span
-          className={`rounded-[8px] px-2.5 py-1 text-xs font-black ${
+          className={`inline-flex min-h-8 items-center justify-center rounded-[8px] px-3 text-center text-xs font-black capitalize ${
             tone === "ready"
-              ? "bg-[#39e8ff]/10 text-[#dffaff]"
+              ? "bg-[#68f0c2]/10 text-[#9af7d5]"
               : "bg-[#ffb237]/10 text-[#ffe4ad]"
           }`}
         >
-          {status}
+          {status.replace(/_/g, " ")}
         </span>
+        <button
+          className={`inline-flex h-10 items-center justify-center gap-2 rounded-[8px] px-3 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50 ${
+            tone === "ready" ? "brand-button-blue" : "brand-button-primary"
+          }`}
+          disabled={state.status === "loading"}
+          onClick={() => {
+            void onAction();
+          }}
+          type="button"
+        >
+          {state.status === "loading" ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Icon className="size-4" aria-hidden="true" />
+          )}
+          {actionLabel}
+        </button>
+      </span>
+      <div className="grid gap-2 sm:col-span-3 sm:pl-[3.55rem]">
+        {blockers.length > 0 ? (
+          <p className="text-xs font-bold leading-5 text-[#ffe4ad]">
+            Needs {blockers.slice(0, 3).join(", ")}
+            {blockers.length > 3 ? " +" : ""}.
+          </p>
+        ) : (
+          <p className="text-xs font-bold leading-5 text-[#9af7d5]">
+            Ready to run from this screen.
+          </p>
+        )}
+        <StateMessage state={state} />
       </div>
-      <h4 className="mt-4 text-base font-black text-white">{title}</h4>
-      <p className="mt-2 min-h-[4.5rem] text-sm leading-6 text-[#aab3c2]">{body}</p>
-      <button
-        className={`mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] px-3 text-sm font-black ${
-          tone === "ready" ? "brand-button-blue" : "brand-button-primary"
-        }`}
-        onClick={() => {
-          void onAction();
-        }}
-        type="button"
-      >
-        {actionLabel}
-      </button>
     </div>
   );
 }
@@ -516,7 +546,7 @@ export function MoneyOperationsPanel({
     const nextItem = {
       ...item,
       at: new Date().toISOString(),
-      id: `ui-${item.rail}-${Date.now().toString(36)}`,
+      id: `ui-${item.rail}-${crypto.randomUUID()}`,
     };
 
     setLocalTimeline((current) => {
@@ -576,7 +606,7 @@ export function MoneyOperationsPanel({
         rail: "billing",
         status: payload.checkoutIntent?.status || "checkout_ready",
       });
-      window.location.href = payload.url;
+      window.location.assign(payload.url);
     } catch {
       setBillingState({
         message: "Checkout could not be started.",
@@ -637,7 +667,7 @@ export function MoneyOperationsPanel({
         rail: "billing",
         status: "created",
       });
-      window.location.href = payload.url;
+      window.location.assign(payload.url);
     } catch {
       setPortalState({
         message: "Billing management could not be opened.",
@@ -1081,6 +1111,130 @@ export function MoneyOperationsPanel({
     ...(operations?.timeline ?? []),
   ].slice(0, 8);
   const serverRecordCount = recordCount(operations);
+  const commercialGates = readiness?.commercial?.remainingGates ?? [];
+  const moneyRailGates = readiness?.moneyRails?.remainingGates ?? [];
+  const neobankGates = readiness?.neobank?.remainingGates ?? [];
+  const railStack = [
+    {
+      actionLabel: "Activate paid access",
+      blockers: readiness?.commercial?.paidAccessReady
+        ? []
+        : [...new Set(commercialGates.map(friendlyGateLabel))],
+      body: "Activate the paid household record first so every money-control workflow has a revenue gate.",
+      icon: BadgeDollarSign,
+      key: "commercial_access",
+      metric:
+        operations?.commercialAccess?.priceLabel ??
+        readiness?.commercial?.priceLabel ??
+        "$19/month",
+      onAction: startPaidAccess,
+      state: billingState,
+      status: readiness?.commercial?.paidAccessReady
+        ? "Paid access ready"
+        : readiness?.commercial?.checkoutConfigured
+          ? "Webhook pending"
+          : "Stripe setup needed",
+      title: "Make money",
+      tone: readiness?.commercial?.checkoutOperationalReady
+        ? "ready"
+        : "attention",
+    },
+    {
+      actionLabel: "Connect bank",
+      blockers: readiness?.moneyRails?.bankLinkReady
+        ? []
+        : [...new Set(moneyRailGates.map(friendlyGateLabel))],
+      body: "Launch Plaid Link when credentials and token custody are ready; the same route records the bank connection.",
+      icon: Link2,
+      key: "bank_connection",
+      metric: readiness?.moneyRails?.plaidEnv ?? "plaid",
+      onAction: startBankLink,
+      state: bankState,
+      status: readiness?.moneyRails?.bankLinkReady
+        ? "Bank link ready"
+        : readiness?.moneyRails?.plaidConfigured
+          ? "Token vault needed"
+          : "Plaid setup needed",
+      title: "Connect banks",
+      tone: readiness?.moneyRails?.bankLinkReady ? "ready" : "attention",
+    },
+    {
+      actionLabel: "Set routing",
+      blockers:
+        directDepositSetups.length > 0 || readiness?.neobank?.liveMoneyReady
+          ? []
+          : [...new Set(neobankGates.map(friendlyGateLabel))],
+      body: "Record the masked paycheck-routing setup used before incoming payroll funds protected buckets.",
+      icon: Landmark,
+      key: "direct_deposit",
+      metric: directDepositSetups[0]?.accountLast4
+        ? `*${directDepositSetups[0].accountLast4}`
+        : "routing",
+      onAction: startDirectDepositSetup,
+      state: directDepositState,
+      status:
+        directDepositSetups[0]?.status ??
+        (readiness?.neobank?.liveMoneyReady ? "Instructions ready" : "Provider gated"),
+      title: "Route paycheck",
+      tone:
+        directDepositSetups.length > 0 || readiness?.neobank?.liveMoneyReady
+          ? "ready"
+          : "attention",
+    },
+    {
+      actionLabel: "Run detection",
+      blockers: readiness?.moneyRails?.paycheckDetectionReady
+        ? []
+        : [...new Set(moneyRailGates.map(friendlyGateLabel))],
+      body: "Run a paycheck event now, or let signed provider events post the same split when configured.",
+      icon: Radar,
+      key: "paycheck_detection",
+      metric: `${detectionRules.length} rules`,
+      onAction: detectPaycheck,
+      state: depositState,
+      status: readiness?.moneyRails?.paycheckDetectionReady
+        ? "Auto detection ready"
+        : "Manual/provider events",
+      title: "Detect paychecks",
+      tone: "ready",
+    },
+    {
+      actionLabel: "Create intent",
+      blockers: readiness?.moneyRails?.transferReady
+        ? []
+        : [...new Set(moneyRailGates.map(friendlyGateLabel))],
+      body: "Validate bucket funds and create the provider handoff record before any protected money is released.",
+      icon: ArrowRightLeft,
+      key: "protected_transfer",
+      metric: selectedBucket ? formatMoney(selectedBucket.availableCents) : "bucket",
+      onAction: createTransfer,
+      state: transferState,
+      status: readiness?.moneyRails?.transferReady
+        ? "Transfers ready"
+        : readiness?.moneyRails?.transferConfigured
+          ? "Live gates pending"
+          : "Intent validation active",
+      title: "Move protected funds",
+      tone: readiness?.moneyRails?.transferReady ? "ready" : "attention",
+    },
+  ] satisfies Array<{
+    actionLabel: string;
+    blockers: string[];
+    body: string;
+    icon: LucideIcon;
+    key: string;
+    metric: string;
+    onAction: () => void | Promise<void>;
+    state: ActionState;
+    status: string;
+    title: string;
+    tone: "attention" | "ready";
+  }>;
+  const activeRailCount = railStack.filter((rail) => rail.tone === "ready").length;
+  const blockerCount = railStack.reduce(
+    (total, rail) => total + rail.blockers.length,
+    0,
+  );
 
   return (
     <section
@@ -1104,62 +1258,43 @@ export function MoneyOperationsPanel({
               ledger, and validate every transfer or card decision against
               protected funds.
             </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-[8px] border border-[#68f0c2]/25 bg-[#68f0c2]/10 p-3">
+                <p className="brand-kicker">Runnable lanes</p>
+                <p className="mt-2 text-3xl font-black text-white">
+                  {activeRailCount}/{railStack.length}
+                </p>
+              </div>
+              <div className="rounded-[8px] border border-[#ffb237]/25 bg-[#ffb237]/10 p-3">
+                <p className="brand-kicker">Setup blockers</p>
+                <p className="mt-2 text-3xl font-black text-white">
+                  {blockerCount}
+                </p>
+              </div>
+              <div className="rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 p-3">
+                <p className="brand-kicker">Audit records</p>
+                <p className="mt-2 text-3xl font-black text-white">
+                  {serverRecordCount + localTimeline.length}
+                </p>
+              </div>
+            </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <div className="brand-panel rounded-[8px] p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="brand-kicker">Commercial access</p>
-                  <h3 className="mt-1 text-xl font-black text-white">
-                    Activate household billing.
-                  </h3>
-                </div>
-                <BadgeDollarSign className="size-6 text-[#ffb237]" aria-hidden="true" />
-              </div>
-              <p className="mt-3 text-sm leading-6 text-[#aab3c2]">
-                Stripe Checkout runs paid access without storing card data in
-                PayShield.
-              </p>
-              <div className="mt-4 grid gap-2 rounded-[8px] border border-white/10 bg-black/35 p-3">
-                <div className="grid grid-cols-[6.5rem_1fr] gap-3 text-xs">
-                  <span className="font-black uppercase text-[#8f99aa]">
-                    Access
-                  </span>
-                  <span className="font-black capitalize text-[#d9dde5]">
-                    {(operations?.commercialAccess?.state ??
-                      (readiness?.commercial?.checkoutConfigured
-                        ? "ready"
-                        : "needs_setup")
-                    ).replace(/_/g, " ")}
-                  </span>
-                </div>
-                <div className="grid grid-cols-[6.5rem_1fr] gap-3 text-xs">
-                  <span className="font-black uppercase text-[#8f99aa]">
-                    Price
-                  </span>
-                  <span className="font-bold text-[#d9dde5]">
-                    {operations?.commercialAccess?.priceLabel ??
-                      readiness?.commercial?.priceLabel ??
-                      "$19/month"}
-                  </span>
-                </div>
+          <div className="brand-panel rounded-[8px] p-4 sm:p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="brand-kicker">Start here</p>
+                <h3 className="mt-1 text-2xl font-black text-white">
+                  Live rail stack.
+                </h3>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-[#c9d0da]">
+                  Each row is an executable part of the product. Use the action
+                  button, then read the exact blocker if credentials or custody
+                  are not configured yet.
+                </p>
               </div>
               <button
-                className="brand-button-primary mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={billingState.status === "loading"}
-                onClick={startPaidAccess}
-                type="button"
-              >
-                {billingState.status === "loading" ? (
-                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <BadgeDollarSign className="size-4" aria-hidden="true" />
-                )}
-                Activate paid access
-              </button>
-              <button
-                className="brand-button-blue mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
+                className="brand-button-blue inline-flex h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={portalState.status === "loading"}
                 onClick={openBillingPortal}
                 type="button"
@@ -1171,100 +1306,26 @@ export function MoneyOperationsPanel({
                 )}
                 Manage billing
               </button>
-              <div className="mt-3">
-                <StateMessage state={billingState} />
-              </div>
-              <div className="mt-3">
-                <StateMessage state={portalState} />
-              </div>
             </div>
-
-            <div className="brand-panel rounded-[8px] p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="brand-kicker">Bank connection</p>
-                  <h3 className="mt-1 text-xl font-black text-white">
-                    Connect the household source.
-                  </h3>
-                </div>
-                <Link2 className="size-6 text-[#39e8ff]" aria-hidden="true" />
-              </div>
-              <p className="mt-3 text-sm leading-6 text-[#aab3c2]">
-                Plaid Link creates the user-approved connection for income
-                detection and transfer handoff.
-              </p>
-              <button
-                className="brand-button-blue mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={bankState.status === "loading"}
-                onClick={startBankLink}
-                type="button"
-              >
-                {bankState.status === "loading" ? (
-                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <Link2 className="size-4" aria-hidden="true" />
-                )}
-                Connect bank
-              </button>
-              <div className="mt-3">
-                <StateMessage state={bankState} />
-              </div>
+            <div className="mt-5 grid gap-3">
+              {railStack.map((rail) => (
+                <ActivationRail
+                  actionLabel={rail.actionLabel}
+                  blockers={rail.blockers}
+                  body={rail.body}
+                  icon={rail.icon}
+                  key={rail.key}
+                  metric={rail.metric}
+                  onAction={rail.onAction}
+                  state={rail.state}
+                  status={rail.status}
+                  title={rail.title}
+                  tone={rail.tone}
+                />
+              ))}
             </div>
-
-            <div className="brand-panel rounded-[8px] p-4 md:col-span-2 xl:col-span-1">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="brand-kicker">Paycheck routing</p>
-                  <h3 className="mt-1 text-xl font-black text-white">
-                    Route payroll into protection.
-                  </h3>
-                </div>
-                <Landmark className="size-6 text-[#68f0c2]" aria-hidden="true" />
-              </div>
-              <p className="mt-3 text-sm leading-6 text-[#aab3c2]">
-                Paycheck-routing setup records the masked account state that lets
-                payroll land before bucket rules and Safe to Spend are computed.
-              </p>
-              <div className="mt-4 grid gap-2 rounded-[8px] border border-white/10 bg-black/35 p-3">
-                <div className="grid grid-cols-[6.5rem_1fr] gap-3 text-xs">
-                  <span className="font-black uppercase text-[#8f99aa]">
-                    Status
-                  </span>
-                  <span className="font-black capitalize text-[#d9dde5]">
-                    {(directDepositSetups[0]?.status ??
-                      operations?.directDeposit?.providerStatus ??
-                      "gated"
-                    ).replace(/_/g, " ")}
-                  </span>
-                </div>
-                <div className="grid grid-cols-[6.5rem_1fr] gap-3 text-xs">
-                  <span className="font-black uppercase text-[#8f99aa]">
-                    Account
-                  </span>
-                  <span className="font-bold text-[#d9dde5]">
-                    {directDepositSetups[0]?.accountLast4 &&
-                    directDepositSetups[0]?.accountLast4 !== "----"
-                      ? `*${directDepositSetups[0].accountLast4}`
-                      : "Provider gated"}
-                  </span>
-                </div>
-              </div>
-              <button
-                className="brand-button-blue mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={directDepositState.status === "loading"}
-                onClick={startDirectDepositSetup}
-                type="button"
-              >
-                {directDepositState.status === "loading" ? (
-                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <Landmark className="size-4" aria-hidden="true" />
-                )}
-                Set paycheck routing
-              </button>
-              <div className="mt-3">
-                <StateMessage state={directDepositState} />
-              </div>
+            <div className="mt-3">
+              <StateMessage state={portalState} />
             </div>
           </div>
         </div>
@@ -1300,109 +1361,42 @@ export function MoneyOperationsPanel({
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-            <RuntimeLane
-              actionLabel="Start checkout"
-              body={`Customer billing runs through ${
-                readiness?.commercial?.mode === "payment_link"
-                  ? "a Stripe payment link"
-                  : "Stripe Checkout"
-              } at ${
-                readiness?.commercial?.priceLabel ?? "$19/month"
-              }, then webhook and core activation must record access before money workflows unlock.`}
-              icon={BadgeDollarSign}
-              onAction={startPaidAccess}
-              status={
-                readiness?.commercial?.paidAccessReady
-                  ? "Revenue ready"
-                  : readiness?.commercial?.checkoutOperationalReady
-                    ? "Checkout ready"
-                    : readiness?.commercial?.checkoutConfigured
-                      ? compactGateList(
-                          readiness?.commercial?.remainingGates,
-                          "Activation setup needed",
-                        )
-                    : compactGateList(
-                        readiness?.commercial?.remainingGates,
-                        "Stripe setup needed",
-                      )
-              }
-              tone={
-                readiness?.commercial?.checkoutOperationalReady
-                  ? "ready"
-                  : "attention"
-              }
-              title="Make money"
-            />
-            <RuntimeLane
-              actionLabel="Connect bank"
-              body={`Plaid Link is the user-approved connection for income detection in ${
-                readiness?.moneyRails?.plaidEnv ?? "sandbox"
-              } mode.`}
-              icon={Link2}
-              onAction={startBankLink}
-              status={
-                readiness?.moneyRails?.bankLinkReady
-                  ? "Bank link ready"
-                  : readiness?.moneyRails?.plaidConfigured
-                    ? "Token vault needed"
-                    : compactGateList(
-                        readiness?.moneyRails?.remainingGates,
-                        "Plaid setup needed",
-                      )
-              }
-              tone={readiness?.moneyRails?.bankLinkReady ? "ready" : "attention"}
-              title="Connect banks"
-            />
-            <RuntimeLane
-              actionLabel="Set routing"
-              body="Paycheck routing records masked setup state before payroll events fund protected buckets."
-              icon={Landmark}
-              onAction={startDirectDepositSetup}
-              status={
-                directDepositSetups.length > 0
-                  ? "Routing recorded"
-                  : readiness?.neobank?.liveMoneyReady
-                    ? "Instructions ready"
-                    : "Provider gated"
-              }
-              tone={
-                directDepositSetups.length > 0 || readiness?.neobank?.liveMoneyReady
-                  ? "ready"
-                  : "attention"
-              }
-              title="Route paycheck"
-            />
-            <RuntimeLane
-              actionLabel="Run detection"
-              body="Income events split into protected buckets before Safe to Spend is recalculated."
-              icon={Radar}
-              onAction={detectPaycheck}
-              status={
-                readiness?.moneyRails?.paycheckDetectionReady
-                  ? "Auto detection ready"
-                  : readiness?.moneyRails?.detectionMode === "plaid_transactions_sync"
-                    ? "Vault needed"
-                    : "Manual/provider events"
-              }
-              tone="ready"
-              title="Detect paychecks"
-            />
-            <RuntimeLane
-              actionLabel="Create intent"
-              body="Transfers validate source bucket funds and produce a provider handoff record before execution."
-              icon={ArrowRightLeft}
-              onAction={createTransfer}
-              status={
-                readiness?.moneyRails?.transferReady
-                  ? "Transfers ready"
-                  : readiness?.moneyRails?.transferConfigured
-                    ? "Live gates pending"
-                    : "Intent validation active"
-              }
-              tone={readiness?.moneyRails?.transferReady ? "ready" : "attention"}
-              title="Move protected funds"
-            />
+          <div className="mt-5 grid gap-2 md:grid-cols-5">
+            {[
+              {
+                body: "Paid access creates the revenue record.",
+                label: "Collect",
+              },
+              {
+                body: "Bank link records the household funding source.",
+                label: "Connect",
+              },
+              {
+                body: "Routing setup captures masked payroll state.",
+                label: "Route",
+              },
+              {
+                body: "Paycheck events fund protected buckets first.",
+                label: "Split",
+              },
+              {
+                body: "Transfers and card decisions check Safe to Spend.",
+                label: "Release",
+              },
+            ].map((step, index) => (
+              <div
+                className="rounded-[8px] border border-white/10 bg-black/35 p-3"
+                key={step.label}
+              >
+                <span className="grid size-8 place-items-center rounded-[8px] bg-[#39e8ff] text-sm font-black text-[#050607]">
+                  {index + 1}
+                </span>
+                <p className="mt-3 text-sm font-black text-white">{step.label}</p>
+                <p className="mt-2 text-xs leading-5 text-[#aab3c2]">
+                  {step.body}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
 

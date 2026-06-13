@@ -62,6 +62,9 @@ test("money operations surface shows revenue, rails, records, and export", async
   );
 
   assert.match(moneyOperations, /The revenue and money-control operating lane/);
+  assert.match(moneyOperations, /Live rail stack/);
+  assert.match(moneyOperations, /Runnable lanes/);
+  assert.match(moneyOperations, /Setup blockers/);
   assert.match(moneyOperations, /Operations ledger/);
   assert.match(moneyOperations, /Export audit/);
   assert.match(moneyOperations, /Activate paid access/);
