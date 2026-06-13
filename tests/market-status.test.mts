@@ -90,6 +90,53 @@ const readyDeployment = {
   url: deploymentUrl,
 };
 
+function commercialHealthReady() {
+  return {
+    commercial: {
+      checkoutConfigured: true,
+      mode: "checkout",
+      paidAccessReady: true,
+      priceLabel: "$19/month",
+      remainingGates: [],
+      webhookSigningSecretConfigured: true,
+    },
+    moneyRails: {
+      bankLinkReady: true,
+      detectionMode: "plaid_transactions_sync",
+      paycheckDetectionReady: true,
+      plaidConfigured: true,
+      remainingGates: [],
+      tokenVaultConfigured: true,
+      transferConfigured: true,
+      transferReady: true,
+    },
+    neobank: {
+      backendConfigured: true,
+      clerkConfigured: true,
+      liveMoneyReady: true,
+      mode: "live_provider",
+      postgresSchemaVerified: true,
+      postgresSchemaVersion: "0005",
+      providerConfigured: true,
+      remainingGates: [],
+    },
+    ok: true,
+    service: "payshield-web-app",
+    siteUrl: targetUrl,
+    vercel: {
+      environment: "production",
+      gitCommitSha: commit,
+    },
+    waitlist: {
+      mode: "blob",
+      paidTrafficReady: true,
+      requireWebhook: true,
+      storageConfigured: true,
+      storageProvider: "blob",
+    },
+  };
+}
+
 test("selects the CI workflow instead of newer unrelated workflow runs", () => {
   const selected = selectLatestCiRun([
     {
@@ -127,6 +174,7 @@ test("summarizes current production status without marking market ready", () => 
 
   assert.equal(status.ok, true);
   assert.equal(status.marketReady, false);
+  assert.equal(status.commercialReady, false);
   assert.equal(status.paidTrafficReady, false);
   assert.equal(status.production.commitMatchesLocalGit, true);
   assert.equal(status.github.latestCiRun?.headSha, commit);
@@ -139,9 +187,97 @@ test("summarizes current production status without marking market ready", () => 
     status.remainingGates.includes("signedDurableProductionCapture"),
     true,
   );
+  assert.equal(status.remainingGates.includes("stripe_checkout"), true);
   assert.equal(status.issueSummaryMarkdown.includes(deploymentUrl), true);
+  assert.equal(status.issueSummaryMarkdown.includes("Commercial readiness"), true);
   assert.equal(status.issueSummaryMarkdown.includes("shared-secret"), false);
   assert.equal(status.findings.length, 0);
+});
+
+test("commercial readiness is required even when go/no-go evidence says ready", () => {
+  const status = summarizeMarketStatus({
+    generatedAt: "2026-06-05T15:45:00.000Z",
+    githubLatestCiRun: passingCiRun,
+    launchEvidence: {
+      ...launchEvidence,
+      ok: true,
+      paidTrafficReady: true,
+      production: {
+        ...launchEvidence.production,
+        health: {
+          ...launchEvidence.production.health,
+          waitlist: {
+            mode: "blob",
+            paidTrafficReady: true,
+            requireWebhook: true,
+            storageConfigured: true,
+            storageProvider: "blob",
+          },
+        },
+      },
+      remainingGates: [],
+    },
+    localGit: {
+      branch: "main",
+      commit,
+      dirty: false,
+      ok: true,
+    },
+    marketDecision: {
+      marketReady: true,
+      paidTrafficReady: true,
+      remainingGates: [],
+    },
+    targetUrl,
+    vercelDeployment: readyDeployment,
+  });
+
+  assert.equal(status.ok, true);
+  assert.equal(status.marketReady, false);
+  assert.equal(status.commercialReady, false);
+  assert.equal(status.remainingGates.includes("stripe_checkout"), true);
+  assert.equal(status.remainingGates.includes("live_money"), true);
+});
+
+test("market status can mark ready only when commercial and go/no-go gates both pass", () => {
+  const status = summarizeMarketStatus({
+    generatedAt: "2026-06-05T15:45:00.000Z",
+    githubLatestCiRun: passingCiRun,
+    launchEvidence: {
+      ...launchEvidence,
+      ok: true,
+      paidTrafficReady: true,
+      production: {
+        ...launchEvidence.production,
+        health: commercialHealthReady(),
+      },
+      remainingGates: [],
+      vercelEnv: {
+        configured: [],
+        missing: [],
+        ok: true,
+        wrongEnvironment: [],
+      },
+    },
+    localGit: {
+      branch: "main",
+      commit,
+      dirty: false,
+      ok: true,
+    },
+    marketDecision: {
+      marketReady: true,
+      paidTrafficReady: true,
+      remainingGates: [],
+    },
+    targetUrl,
+    vercelDeployment: readyDeployment,
+  });
+
+  assert.equal(status.ok, true);
+  assert.equal(status.marketReady, true);
+  assert.equal(status.commercialReady, true);
+  assert.equal(status.remainingGates.length, 0);
 });
 
 test("flags stale CI and a deployment that is not aliased to the target URL", () => {

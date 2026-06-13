@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { buildLaunchEvidence } from "./launch-evidence.mjs";
+import { evaluateCommercialReadiness } from "./commercial-readiness.mjs";
 import {
   scanEvidenceForSensitiveValues,
   summarizeMarketGoNoGo,
@@ -324,6 +325,7 @@ function addCheck(checks, name, ok, detail = undefined) {
 function buildIssueSummaryLines({
   branch,
   checks,
+  commercialReadiness,
   generatedAt,
   github,
   launchEvidence,
@@ -353,6 +355,7 @@ function buildIssueSummaryLines({
     `- Vercel deployment: ${deploymentUrl} is ${deploymentState} and aliases to ${targetUrl}.`,
     `- CI run: ${ciRun.url || `repository ${repository} branch ${branch}`} ${ciState} on commit \`${ciRun.headSha || "unknown"}\`.`,
     `- Launch evidence: \`ok: ${launchEvidence?.ok === true}\`, \`paidTrafficReady: ${launchEvidence?.paidTrafficReady === true}\`, remaining gates ${JSON.stringify(launchEvidence?.remainingGates ?? [])}.`,
+    `- Commercial readiness: \`ok: ${commercialReadiness?.ok === true}\`, remaining gates ${JSON.stringify(commercialReadiness?.remainingGates ?? [])}.`,
     `- Market go/no-go: \`marketReady: ${marketDecision?.marketReady === true}\`, remaining gates ${JSON.stringify(marketDecision?.remainingGates ?? [])}.`,
     `- Market status snapshot checks: ${failedChecks.length === 0 ? "all passed" : `failing ${JSON.stringify(failedChecks)}`}.`,
   ];
@@ -410,6 +413,10 @@ export function summarizeMarketStatus({
       launchEvidence,
       targetUrl: normalizedTargetUrl,
     });
+  const commercialReadiness = evaluateCommercialReadiness({
+    expectedSiteUrl: normalizedTargetUrl,
+    health,
+  });
   const checks = [];
 
   addCheck(checks, "productionHealthOk", health.ok === true);
@@ -456,6 +463,9 @@ export function summarizeMarketStatus({
     .map((check) => check.name);
   const remainingGates = unique([
     ...(Array.isArray(decision.remainingGates) ? decision.remainingGates : []),
+    ...(Array.isArray(commercialReadiness.remainingGates)
+      ? commercialReadiness.remainingGates
+      : []),
     ...(Array.isArray(launchEvidence?.remainingGates)
       ? launchEvidence.remainingGates
       : []),
@@ -469,6 +479,7 @@ export function summarizeMarketStatus({
   const issueSummaryLines = buildIssueSummaryLines({
     branch,
     checks,
+    commercialReadiness,
     generatedAt,
     github,
     launchEvidence,
@@ -480,6 +491,8 @@ export function summarizeMarketStatus({
   });
   const result = {
     checks,
+    commercialReady: commercialReadiness.ok === true,
+    commercialReadiness,
     generatedAt,
     github,
     issueSummaryMarkdown: issueSummaryLines.join("\n"),
@@ -496,7 +509,8 @@ export function summarizeMarketStatus({
       },
     },
     localGit,
-    marketReady: decision.marketReady === true,
+    marketReady:
+      decision.marketReady === true && commercialReadiness.ok === true,
     ok: checks.every((check) => check.ok === true),
     paidTrafficReady: launchEvidence?.paidTrafficReady === true,
     production: {
@@ -513,7 +527,8 @@ export function summarizeMarketStatus({
     },
     goNoGo: {
       gates: decision.gates ?? [],
-      marketReady: decision.marketReady === true,
+      marketReady:
+        decision.marketReady === true && commercialReadiness.ok === true,
       paidTrafficReady: decision.paidTrafficReady === true,
       remainingGates: decision.remainingGates ?? [],
     },
