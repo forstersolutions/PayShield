@@ -6,6 +6,7 @@ import { POST as authorizeCard } from "../src/app/api/card/authorize/route.ts";
 import { POST as startCheckout } from "../src/app/api/app/billing/checkout/route.ts";
 import { POST as billingWebhook } from "../src/app/api/app/billing/webhook/route.ts";
 import { POST as createBankLinkToken } from "../src/app/api/app/bank-link/token/route.ts";
+import { GET as exportAudit } from "../src/app/api/app/audit/export/route.ts";
 import { GET as getBalances } from "../src/app/api/app/balances/route.ts";
 import {
   GET as getBuckets,
@@ -14,6 +15,7 @@ import {
 import { POST as scheduleBillPayment } from "../src/app/api/app/bill-payments/route.ts";
 import { GET as getMe } from "../src/app/api/app/me/route.ts";
 import { POST as startOnboarding } from "../src/app/api/app/onboarding/start/route.ts";
+import { GET as getOperations } from "../src/app/api/app/operations/route.ts";
 import { POST as createPayee } from "../src/app/api/app/payees/route.ts";
 import { POST as detectPaycheck } from "../src/app/api/app/paychecks/detect/route.ts";
 import { POST as createTransfer } from "../src/app/api/app/transfers/route.ts";
@@ -97,6 +99,42 @@ test("balances endpoint exposes safe spend and protected buckets", async () => {
   assert.equal(body.safeToSpendCents, 145_000);
   assert.equal(body.protectedCents, 155_000);
   assert.equal(Array.isArray(body.buckets), true);
+});
+
+test("operations endpoint exposes the revenue and money-control record", async () => {
+  const response = await getOperations();
+  const body = await parseJson(response);
+  const balances = body.balances as Record<string, unknown>;
+  const statusCards = body.statusCards as Array<Record<string, unknown>>;
+  const timeline = body.timeline as Array<Record<string, unknown>>;
+
+  assert.equal(response.status, 200);
+  assert.equal(body.service, "payshield-household-operations");
+  assert.equal(balances.safeToSpendCents, 145_000);
+  assert.equal(balances.protectedCents, 155_000);
+  assert.equal(
+    statusCards.some((card) => card.key === "bank_connection"),
+    true,
+  );
+  assert.equal(timeline[0]?.rail, "ledger");
+});
+
+test("audit export returns a downloadable household operations packet", async () => {
+  const response = await exportAudit();
+  const body = await parseJson(response);
+  const ledger = body.ledger as Record<string, unknown>;
+
+  assert.equal(response.status, 200);
+  assert.equal(body.service, "payshield-audit-export");
+  assert.equal(body.exportVersion, "payshield-household-audit-v1");
+  assert.equal(
+    response.headers
+      .get("content-disposition")
+      ?.includes("payshield-household-audit.json"),
+    true,
+  );
+  assert.equal(ledger.source, "core_control_model");
+  assert.equal(Array.isArray(ledger.entries), true);
 });
 
 test("bucket endpoint loads editable household profile templates", async () => {

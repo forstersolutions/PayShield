@@ -87,6 +87,33 @@ function centsNumber(value) {
   return Number.isFinite(numberValue) ? numberValue : 0;
 }
 
+function timestampString(value) {
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  return typeof value === "string" ? value : null;
+}
+
+function redactAuditPayload(value) {
+  if (Array.isArray(value)) {
+    return value.map(redactAuditPayload);
+  }
+
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      /secret|token|authorization|password|credential/i.test(key)
+        ? "[redacted]"
+        : redactAuditPayload(item),
+    ]),
+  );
+}
+
 function bucketFromRow(row) {
   return {
     due: row.due_rule,
@@ -1341,5 +1368,349 @@ export async function persistTransferIntent(input, env = process.env) {
     };
   } catch (error) {
     return persistenceFailed(error);
+  }
+}
+
+export async function loadOperationalAudit(householdId, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return {
+      ...persistenceSkipped("operational audit"),
+      audit: null,
+      auditFound: false,
+    };
+  }
+
+  try {
+    const [
+      bankConnections,
+      billingEvents,
+      paycheckDetections,
+      transferIntents,
+      billPayments,
+      cardDecisions,
+      unlockRequests,
+      railEvents,
+      journalEntries,
+    ] = await Promise.all([
+      pool.query(
+        `
+          SELECT
+            provider_name,
+            provider_item_id,
+            provider_account_id,
+            institution_name,
+            account_name,
+            account_mask,
+            products,
+            status,
+            created_at,
+            updated_at
+          FROM bank_connections
+          WHERE household_id = $1
+          ORDER BY updated_at DESC, created_at DESC
+          LIMIT 25
+        `,
+        [householdId],
+      ),
+      pool.query(
+        `
+          SELECT
+            provider_name,
+            provider_event_id,
+            event_type,
+            provider_customer_id,
+            provider_subscription_id,
+            access_status,
+            processed_at
+          FROM commercial_billing_events
+          ORDER BY processed_at DESC
+          LIMIT 25
+        `,
+      ),
+      pool.query(
+        `
+          SELECT
+            provider_event_id,
+            provider_transaction_id,
+            employer_name,
+            amount_cents,
+            received_at,
+            journal_entry_id,
+            idempotency_key,
+            status,
+            created_at
+          FROM paycheck_detections
+          WHERE household_id = $1
+          ORDER BY created_at DESC
+          LIMIT 25
+        `,
+        [householdId],
+      ),
+      pool.query(
+        `
+          SELECT
+            source_bucket_id,
+            destination_payee_id,
+            amount_cents,
+            provider_name,
+            provider_transfer_id,
+            idempotency_key,
+            status,
+            provider_status,
+            failure_code,
+            created_at
+          FROM transfer_intents
+          WHERE household_id = $1
+          ORDER BY created_at DESC
+          LIMIT 25
+        `,
+        [householdId],
+      ),
+      pool.query(
+        `
+          SELECT
+            payee_id,
+            bucket_id,
+            amount_cents,
+            scheduled_for,
+            memo,
+            decision_code,
+            reason,
+            provider_bill_payment_id,
+            provider_status,
+            status,
+            created_at
+          FROM bill_payment_schedules
+          WHERE household_id = $1
+          ORDER BY created_at DESC
+          LIMIT 25
+        `,
+        [householdId],
+      ),
+      pool.query(
+        `
+          SELECT
+            merchant_name,
+            merchant_category_code,
+            payee_id,
+            bucket_id,
+            amount_cents,
+            approved,
+            approved_amount_cents,
+            decision_code,
+            reason,
+            provider_status,
+            created_at
+          FROM card_authorization_decisions
+          WHERE household_id = $1
+          ORDER BY created_at DESC
+          LIMIT 25
+        `,
+        [householdId],
+      ),
+      pool.query(
+        `
+          SELECT
+            bucket_id,
+            amount_cents,
+            unlocked_cents,
+            unlock_mode,
+            reason,
+            recovery_checks,
+            recovery_per_check_cents,
+            status,
+            created_at
+          FROM unlock_requests
+          WHERE household_id = $1
+          ORDER BY created_at DESC
+          LIMIT 25
+        `,
+        [householdId],
+      ),
+      pool.query(
+        `
+          SELECT
+            provider_name,
+            provider_event_id,
+            event_type,
+            rail,
+            payload,
+            processed_at,
+            created_at
+          FROM money_rail_events
+          WHERE household_id = $1
+          ORDER BY processed_at DESC, created_at DESC
+          LIMIT 50
+        `,
+        [householdId],
+      ),
+      pool.query(
+        `
+          SELECT
+            journal_entries.id,
+            journal_entries.idempotency_key,
+            journal_entries.entry_type,
+            journal_entries.memo,
+            journal_entries.metadata,
+            journal_entries.reversed_entry_id,
+            journal_entries.created_at,
+            json_agg(
+              json_build_object(
+                'accountType', ledger_accounts.account_type,
+                'bucketId', ledger_accounts.bucket_id,
+                'amountCents', journal_lines.amount_cents
+              )
+              ORDER BY journal_lines.id ASC
+            ) AS lines
+          FROM journal_entries
+          JOIN journal_lines
+            ON journal_lines.journal_entry_id = journal_entries.id
+          JOIN ledger_accounts
+            ON ledger_accounts.id = journal_lines.ledger_account_id
+          WHERE journal_entries.household_id = $1
+          GROUP BY journal_entries.id
+          ORDER BY journal_entries.created_at DESC
+          LIMIT 50
+        `,
+        [householdId],
+      ),
+    ]);
+
+    const accountIdForLine = (line) => {
+      if (line.bucketId) {
+        return `liability:bucket:${line.bucketId}`;
+      }
+
+      return line.accountType === "asset"
+        ? "asset:program_cash"
+        : "liability:card_settlement";
+    };
+
+    const audit = {
+      bankConnections: bankConnections.rows.map((row) => ({
+        accountMask: row.account_mask,
+        accountName: row.account_name,
+        connectedAt: timestampString(row.created_at),
+        institutionName: row.institution_name,
+        products: Array.isArray(row.products) ? row.products : [],
+        providerAccountId: row.provider_account_id,
+        providerItemId: row.provider_item_id,
+        providerName: row.provider_name,
+        status: row.status,
+        tokenSecretStatus: "redacted",
+        updatedAt: timestampString(row.updated_at),
+      })),
+      billingEvents: billingEvents.rows.map((row) => ({
+        accessStatus: row.access_status,
+        eventType: row.event_type,
+        processedAt: timestampString(row.processed_at),
+        providerCustomerId: row.provider_customer_id,
+        providerEventId: row.provider_event_id,
+        providerName: row.provider_name,
+        providerSubscriptionId: row.provider_subscription_id,
+      })),
+      billPayments: billPayments.rows.map((row) => ({
+        amountCents: centsNumber(row.amount_cents),
+        bucketId: row.bucket_id,
+        createdAt: timestampString(row.created_at),
+        decisionCode: row.decision_code,
+        memo: row.memo,
+        payeeId: row.payee_id,
+        providerBillPaymentId: row.provider_bill_payment_id,
+        providerStatus: row.provider_status,
+        reason: row.reason,
+        scheduledFor: timestampString(row.scheduled_for) ?? row.scheduled_for,
+        status: row.status,
+      })),
+      cardDecisions: cardDecisions.rows.map((row) => ({
+        amountCents: centsNumber(row.amount_cents),
+        approved: Boolean(row.approved),
+        approvedAmountCents: centsNumber(row.approved_amount_cents),
+        bucketId: row.bucket_id,
+        createdAt: timestampString(row.created_at),
+        decisionCode: row.decision_code,
+        merchantCategoryCode: row.merchant_category_code,
+        merchantName: row.merchant_name,
+        payeeId: row.payee_id,
+        providerStatus: row.provider_status,
+        reason: row.reason,
+      })),
+      journalEntries: journalEntries.rows.map((row) => ({
+        createdAt: timestampString(row.created_at),
+        id: row.id,
+        idempotencyKey: row.idempotency_key,
+        lines: (row.lines || []).map((line) => ({
+          accountId: accountIdForLine(line),
+          amountCents: centsNumber(line.amountCents),
+        })),
+        memo: row.memo,
+        metadata: redactAuditPayload(row.metadata || {}),
+        reversedEntryId: row.reversed_entry_id,
+        type: row.entry_type,
+      })),
+      moneyRailEvents: railEvents.rows.map((row) => ({
+        createdAt: timestampString(row.created_at),
+        eventType: row.event_type,
+        payload: redactAuditPayload(row.payload || {}),
+        processedAt: timestampString(row.processed_at),
+        providerEventId: row.provider_event_id,
+        providerName: row.provider_name,
+        rail: row.rail,
+      })),
+      paycheckDetections: paycheckDetections.rows.map((row) => ({
+        amountCents: centsNumber(row.amount_cents),
+        createdAt: timestampString(row.created_at),
+        employerName: row.employer_name,
+        idempotencyKey: row.idempotency_key,
+        journalEntryId: row.journal_entry_id,
+        providerEventId: row.provider_event_id,
+        providerTransactionId: row.provider_transaction_id,
+        receivedAt: timestampString(row.received_at),
+        status: row.status,
+      })),
+      transferIntents: transferIntents.rows.map((row) => ({
+        amountCents: centsNumber(row.amount_cents),
+        createdAt: timestampString(row.created_at),
+        destinationPayeeId: row.destination_payee_id,
+        failureCode: row.failure_code,
+        idempotencyKey: row.idempotency_key,
+        providerName: row.provider_name,
+        providerStatus: row.provider_status,
+        providerTransferId: row.provider_transfer_id,
+        sourceBucketId: row.source_bucket_id,
+        status: row.status,
+      })),
+      unlockRequests: unlockRequests.rows.map((row) => ({
+        amountCents: centsNumber(row.amount_cents),
+        bucketId: row.bucket_id,
+        createdAt: timestampString(row.created_at),
+        reason: row.reason,
+        recoveryChecks: Number(row.recovery_checks),
+        recoveryPerCheckCents: centsNumber(row.recovery_per_check_cents),
+        status: row.status,
+        unlockMode: row.unlock_mode,
+        unlockedCents: centsNumber(row.unlocked_cents),
+      })),
+    };
+
+    const auditCount = Object.values(audit).reduce(
+      (total, records) => total + (Array.isArray(records) ? records.length : 0),
+      0,
+    );
+
+    return {
+      audit,
+      auditFound: auditCount > 0,
+      persisted: true,
+      persistence: "postgres",
+    };
+  } catch (error) {
+    return {
+      ...persistenceFailed(error),
+      audit: null,
+      auditFound: false,
+    };
   }
 }

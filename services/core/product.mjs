@@ -1,5 +1,6 @@
 import {
   databaseConfigured,
+  loadOperationalAudit,
   loadBucketProfile,
   loadPayees,
   persistBucketProfile,
@@ -244,6 +245,8 @@ export function getCoreHealth(env = process.env) {
       "GET /app/me",
       "GET /app/balances",
       "GET /app/buckets",
+      "GET /app/operations",
+      "GET /app/audit/export",
       "POST /app/buckets",
       "POST /app/bank-connections",
       "POST /app/bill-payments",
@@ -1260,6 +1263,271 @@ export async function getBalances(env = process.env, actorInput = demoUser) {
         .reduce((sum, bucket) => sum + bucket.availableCents, 0),
       readiness: snapshot.readiness,
       safeToSpendCents: safeSpend?.availableCents ?? 0,
+    },
+    status: 200,
+  };
+}
+
+function emptyOperationalAudit() {
+  return {
+    bankConnections: [],
+    billingEvents: [],
+    billPayments: [],
+    cardDecisions: [],
+    journalEntries: [],
+    moneyRailEvents: [],
+    paycheckDetections: [],
+    transferIntents: [],
+    unlockRequests: [],
+  };
+}
+
+function latestCommercialBillingEvents() {
+  return [...commercialBillingEvents.values()]
+    .slice(-25)
+    .reverse()
+    .map((event) => ({
+      accessStatus: event.accessStatus,
+      eventType: event.eventType,
+      processedAt: null,
+      providerCustomerId: event.customerId,
+      providerEventId: event.eventId,
+      providerName: event.providerName,
+      providerSubscriptionId: event.subscriptionId,
+    }));
+}
+
+function operationTimeline(audit, snapshot) {
+  const items = [
+    ...audit.billingEvents.map((event) => ({
+      amountCents: event.amountPaidCents ?? null,
+      at: event.processedAt,
+      detail: event.accessStatus,
+      id: event.providerEventId,
+      label: event.eventType,
+      rail: "billing",
+      status: event.accessStatus,
+    })),
+    ...audit.bankConnections.map((connection) => ({
+      amountCents: null,
+      at: connection.updatedAt ?? connection.connectedAt,
+      detail: connection.institutionName,
+      id: connection.providerAccountId,
+      label: "Bank connection",
+      rail: "bank_link",
+      status: connection.status,
+    })),
+    ...audit.paycheckDetections.map((detection) => ({
+      amountCents: detection.amountCents,
+      at: detection.receivedAt ?? detection.createdAt,
+      detail: detection.employerName,
+      id: detection.idempotencyKey,
+      label: "Paycheck detected",
+      rail: "income",
+      status: detection.status,
+    })),
+    ...audit.transferIntents.map((transfer) => ({
+      amountCents: transfer.amountCents,
+      at: transfer.createdAt,
+      detail: `${transfer.sourceBucketId} -> ${transfer.destinationPayeeId}`,
+      id: transfer.idempotencyKey,
+      label: "Transfer intent",
+      rail: "transfer",
+      status: transfer.providerStatus,
+    })),
+    ...audit.billPayments.map((payment) => ({
+      amountCents: payment.amountCents,
+      at: payment.createdAt,
+      detail: payment.payeeId,
+      id: `${payment.payeeId}:${payment.scheduledFor}`,
+      label: "Bill payment",
+      rail: "bill_pay",
+      status: payment.status,
+    })),
+    ...audit.cardDecisions.map((decision) => ({
+      amountCents: decision.amountCents,
+      at: decision.createdAt,
+      detail: decision.merchantName,
+      id: `${decision.merchantName}:${decision.amountCents}:${decision.createdAt}`,
+      label: "Card decision",
+      rail: "card",
+      status: decision.approved ? "approved" : decision.decisionCode,
+    })),
+    ...audit.unlockRequests.map((unlock) => ({
+      amountCents: unlock.unlockedCents,
+      at: unlock.createdAt,
+      detail: unlock.bucketId,
+      id: `${unlock.bucketId}:${unlock.createdAt}`,
+      label: "Protected unlock",
+      rail: "unlock",
+      status: unlock.status,
+    })),
+  ];
+
+  if (items.length > 0) {
+    return items
+      .sort((left, right) => String(right.at || "").localeCompare(String(left.at || "")))
+      .slice(0, 30);
+  }
+
+  return snapshot.ledgerEntries
+    .slice(-6)
+    .reverse()
+    .map((entry) => ({
+      amountCents:
+        typeof entry.metadata?.amountCents === "number"
+          ? entry.metadata.amountCents
+          : null,
+      at: entry.createdAt,
+      detail: entry.memo,
+      id: entry.id,
+      label: entry.type.replace(/_/g, " "),
+      rail: "ledger",
+      status: "posted",
+    }));
+}
+
+function gateState(value) {
+  return value ? "ready" : "needs_setup";
+}
+
+async function buildHouseholdOperations(env = process.env, actorInput = demoUser) {
+  const actor = normalizeActor(actorInput);
+  const controls = await loadOperationalControls(env, actor);
+
+  if (controls.error) {
+    return controls.error;
+  }
+
+  const book = createDemoLedgerBook(300_000, controls.buckets);
+  const snapshot = createNeobankSnapshot(book, env, controls, actor);
+  const safeSpend = snapshot.buckets.find((bucket) => bucket.id === "safe_spending");
+  const operationalAudit = await loadOperationalAudit(actor.householdId, env);
+
+  if (persistenceFailed(operationalAudit)) {
+    return {
+      body: {
+        error: "Operational records could not be loaded from durable core storage.",
+        operationalAudit,
+        readiness: snapshot.readiness,
+        service: "payshield-household-operations",
+      },
+      status: 503,
+    };
+  }
+
+  const durableAudit = operationalAudit.audit ?? emptyOperationalAudit();
+  const audit = {
+    ...durableAudit,
+    billingEvents: durableAudit.billingEvents.length
+      ? durableAudit.billingEvents
+      : latestCommercialBillingEvents(),
+    journalEntries: durableAudit.journalEntries.length
+      ? durableAudit.journalEntries
+      : snapshot.ledgerEntries,
+  };
+  const moneyRails = getMoneyRailReadiness(env);
+  const protectedCents = snapshot.buckets
+    .filter((bucket) => bucket.id !== "safe_spending")
+    .reduce((sum, bucket) => sum + bucket.availableCents, 0);
+
+  return {
+    body: {
+      balances: {
+        protectedCents,
+        safeToSpendCents: safeSpend?.availableCents ?? 0,
+        totalCents: protectedCents + (safeSpend?.availableCents ?? 0),
+      },
+      buckets: snapshot.buckets,
+      card: snapshot.card,
+      controls: {
+        bucketPersistence: controls.bucketPersistence,
+        payeePersistence: controls.payeePersistence,
+        payees: controls.payees,
+      },
+      directDeposit: snapshot.directDeposit,
+      generatedAt: new Date().toISOString(),
+      household: {
+        householdId: actor.householdId,
+        kycStatus: actor.kycStatus,
+        profileAccess: actor.profileAccess,
+        userId: actor.id,
+      },
+      moneyRails,
+      operations: audit,
+      operationalAudit,
+      readiness: snapshot.readiness,
+      service: "payshield-household-operations",
+      statusCards: [
+        {
+          key: "paid_access",
+          label: "Paid access",
+          state: audit.billingEvents.some((event) => event.accessStatus === "active")
+            ? "active"
+            : gateState(Boolean(env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL?.trim() || env.STRIPE_SECRET_KEY?.trim())),
+        },
+        {
+          key: "bank_connection",
+          label: "Bank connection",
+          state: audit.bankConnections.some((connection) => connection.status === "connected")
+            ? "connected"
+            : gateState(moneyRails.bankLinkReady),
+        },
+        {
+          key: "paycheck_detection",
+          label: "Paycheck detection",
+          state: audit.paycheckDetections.length > 0 ? "recorded" : gateState(moneyRails.paycheckDetectionReady),
+        },
+        {
+          key: "protected_transfer",
+          label: "Protected transfer",
+          state: audit.transferIntents.length > 0 ? "recorded" : gateState(moneyRails.transferReady),
+        },
+      ],
+      support: {
+        contact: "support@graystontechnologies.com",
+        operator: "Grayston Technologies",
+      },
+      timeline: operationTimeline(audit, snapshot),
+    },
+    status: 200,
+  };
+}
+
+export async function getHouseholdOperations(env = process.env, actorInput = demoUser) {
+  return buildHouseholdOperations(env, actorInput);
+}
+
+export async function getHouseholdAuditExport(env = process.env, actorInput = demoUser) {
+  const result = await buildHouseholdOperations(env, actorInput);
+
+  if (result.status !== 200) {
+    return result;
+  }
+
+  const body = result.body;
+
+  return {
+    body: {
+      balances: body.balances,
+      buckets: body.buckets,
+      card: body.card,
+      controls: body.controls,
+      directDeposit: body.directDeposit,
+      exportVersion: "payshield-household-audit-v1",
+      generatedAt: body.generatedAt,
+      household: body.household,
+      ledger: {
+        entries: body.operations.journalEntries,
+        source: body.operationalAudit.auditFound ? "postgres" : "core_control_model",
+      },
+      moneyRails: body.moneyRails,
+      operations: body.operations,
+      readiness: body.readiness,
+      service: "payshield-audit-export",
+      statusCards: body.statusCards,
+      support: body.support,
+      timeline: body.timeline,
     },
     status: 200,
   };

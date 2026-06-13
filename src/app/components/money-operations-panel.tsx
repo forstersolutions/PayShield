@@ -6,11 +6,13 @@ import {
   CheckCircle2,
   CreditCard,
   Database,
+  FileDown,
   Landmark,
   Link2,
   Loader2,
   LockKeyhole,
   Radar,
+  ReceiptText,
   ShieldAlert,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -69,6 +71,35 @@ type OperationsReadiness = {
   };
 };
 
+type OperationTimelineItem = {
+  amountCents?: number | null;
+  at?: string | null;
+  detail?: string | null;
+  id: string;
+  label: string;
+  rail: string;
+  status: string;
+};
+
+type OperationsPacket = {
+  balances?: {
+    protectedCents?: number;
+    safeToSpendCents?: number;
+    totalCents?: number;
+  };
+  operationalAudit?: {
+    auditFound?: boolean;
+    persistence?: string;
+  };
+  operations?: Record<string, unknown[]>;
+  statusCards?: Array<{
+    key: string;
+    label: string;
+    state: string;
+  }>;
+  timeline?: OperationTimelineItem[];
+};
+
 declare global {
   interface Window {
     Plaid?: {
@@ -78,6 +109,7 @@ declare global {
 }
 
 let plaidScriptPromise: Promise<void> | null = null;
+const localOperationKey = "payshield.money-operations.timeline.v1";
 
 function loadPlaidScript() {
   if (window.Plaid) {
@@ -156,6 +188,48 @@ function compactGateList(gates: string[] | undefined, fallback: string) {
   const labels = [...new Set(gates.map(friendlyGateLabel))];
 
   return labels.slice(0, 2).join(", ") + (labels.length > 2 ? " +" : "");
+}
+
+function readLocalTimeline() {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const stored = window.localStorage.getItem(localOperationKey);
+    const parsed = stored ? JSON.parse(stored) : [];
+
+    return Array.isArray(parsed)
+      ? parsed.filter(
+          (item): item is OperationTimelineItem =>
+            item &&
+            typeof item === "object" &&
+            typeof item.id === "string" &&
+            typeof item.label === "string" &&
+            typeof item.rail === "string" &&
+            typeof item.status === "string",
+        )
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function recordCount(packet: OperationsPacket | null) {
+  if (!packet?.operations) {
+    return 0;
+  }
+
+  return Object.values(packet.operations).reduce(
+    (total, records) => total + (Array.isArray(records) ? records.length : 0),
+    0,
+  );
+}
+
+function timelineAmount(item: OperationTimelineItem) {
+  return typeof item.amountCents === "number" && item.amountCents > 0
+    ? ` · ${formatMoney(item.amountCents)}`
+    : "";
 }
 
 function dollarsToCents(value: string) {
@@ -321,6 +395,8 @@ export function MoneyOperationsPanel({
     status: "idle",
   });
   const [readiness, setReadiness] = useState<OperationsReadiness | null>(null);
+  const [operations, setOperations] = useState<OperationsPacket | null>(null);
+  const [localTimeline, setLocalTimeline] = useState<OperationTimelineItem[]>([]);
   const [paycheckAmount, setPaycheckAmount] = useState("3000");
   const [employerName, setEmployerName] = useState("Payroll deposit");
   const [transferAmount, setTransferAmount] = useState("250");
@@ -428,14 +504,25 @@ export function MoneyOperationsPanel({
 
     async function loadReadiness() {
       try {
-        const response = await fetch("/api/health", {
-          headers: { accept: "application/json" },
-        });
-        const payload = (await response.json().catch(() => ({}))) as
+        const [healthResponse, operationsResponse] = await Promise.all([
+          fetch("/api/health", {
+            headers: { accept: "application/json" },
+          }),
+          fetch("/api/app/operations", {
+            headers: { accept: "application/json" },
+          }),
+        ]);
+        const payload = (await healthResponse.json().catch(() => ({}))) as
           OperationsReadiness;
+        const operationsPayload = (await operationsResponse
+          .json()
+          .catch(() => ({}))) as OperationsPacket;
 
         if (!cancelled) {
           setReadiness(payload);
+          if (operationsResponse.ok) {
+            setOperations(operationsPayload);
+          }
         }
       } catch {
         if (!cancelled) {
@@ -450,6 +537,31 @@ export function MoneyOperationsPanel({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setLocalTimeline(readLocalTimeline());
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  function appendOperation(item: Omit<OperationTimelineItem, "at" | "id">) {
+    const nextItem = {
+      ...item,
+      at: new Date().toISOString(),
+      id: `ui-${item.rail}-${Date.now().toString(36)}`,
+    };
+
+    setLocalTimeline((current) => {
+      const next = [nextItem, ...current].slice(0, 12);
+
+      window.localStorage.setItem(localOperationKey, JSON.stringify(next));
+      return next;
+    });
+  }
 
   async function startPaidAccess() {
     setBillingState({
@@ -479,6 +591,12 @@ export function MoneyOperationsPanel({
             `Checkout is missing ${payload.readiness?.missing?.join(", ") || "Stripe configuration"}.`,
           status: "error",
         });
+        appendOperation({
+          detail: payload.error || "Stripe configuration required",
+          label: "Paid access",
+          rail: "billing",
+          status: "needs_setup",
+        });
         return;
       }
 
@@ -486,10 +604,22 @@ export function MoneyOperationsPanel({
         message: "Redirecting to checkout.",
         status: "ready",
       });
+      appendOperation({
+        detail: "Checkout session created",
+        label: "Paid access",
+        rail: "billing",
+        status: "checkout_ready",
+      });
       window.location.href = payload.url;
     } catch {
       setBillingState({
         message: "Checkout could not be started.",
+        status: "error",
+      });
+      appendOperation({
+        detail: "Checkout request failed",
+        label: "Paid access",
+        rail: "billing",
         status: "error",
       });
     }
@@ -518,6 +648,12 @@ export function MoneyOperationsPanel({
             payload.error ||
             `Bank connection is missing ${payload.readiness?.missing?.join(", ") || "Plaid configuration"}.`,
           status: "error",
+        });
+        appendOperation({
+          detail: payload.error || "Plaid configuration required",
+          label: "Bank connection",
+          rail: "bank_link",
+          status: "needs_setup",
         });
         return;
       }
@@ -567,6 +703,14 @@ export function MoneyOperationsPanel({
               `${exchangePayload.bankConnection?.institutionName || "Bank"} connected.`,
             status: "ready",
           });
+          appendOperation({
+            detail:
+              exchangePayload.bankConnection?.institutionName ||
+              "Linked institution",
+            label: "Bank connection",
+            rail: "bank_link",
+            status: "connected",
+          });
         },
         token: payload.linkToken,
       });
@@ -578,6 +722,15 @@ export function MoneyOperationsPanel({
           error instanceof Error
             ? error.message
             : "Bank connection could not be started.",
+        status: "error",
+      });
+      appendOperation({
+        detail:
+          error instanceof Error
+            ? error.message
+            : "Bank connection request failed",
+        label: "Bank connection",
+        rail: "bank_link",
         status: "error",
       });
     }
@@ -614,6 +767,13 @@ export function MoneyOperationsPanel({
           message: payload.error || "Paycheck was not detected.",
           status: "error",
         });
+        appendOperation({
+          amountCents,
+          detail: payload.error || employerName,
+          label: "Paycheck detection",
+          rail: "income",
+          status: "rejected",
+        });
         return;
       }
 
@@ -622,9 +782,23 @@ export function MoneyOperationsPanel({
         message: payload.message || "Paycheck detected.",
         status: "ready",
       });
+      appendOperation({
+        amountCents,
+        detail: employerName,
+        label: "Paycheck detection",
+        rail: "income",
+        status: "split_posted",
+      });
     } catch {
       setDepositState({
         message: "Paycheck detection failed.",
+        status: "error",
+      });
+      appendOperation({
+        amountCents,
+        detail: employerName,
+        label: "Paycheck detection",
+        rail: "income",
         status: "error",
       });
     }
@@ -660,6 +834,13 @@ export function MoneyOperationsPanel({
           message: payload.error || "Transfer intent was rejected.",
           status: "error",
         });
+        appendOperation({
+          amountCents,
+          detail: `${sourceBucketId} -> ${destinationPayeeId}`,
+          label: "Transfer intent",
+          rail: "transfer",
+          status: "rejected",
+        });
         return;
       }
 
@@ -669,13 +850,33 @@ export function MoneyOperationsPanel({
         }.`,
         status: "ready",
       });
+      appendOperation({
+        amountCents,
+        detail: `${sourceBucketId} -> ${destinationPayeeId}`,
+        label: "Transfer intent",
+        rail: "transfer",
+        status: payload.providerTransfer?.status || "blocked",
+      });
     } catch {
       setTransferState({
         message: "Transfer intent failed.",
         status: "error",
       });
+      appendOperation({
+        amountCents,
+        detail: `${sourceBucketId} -> ${destinationPayeeId}`,
+        label: "Transfer intent",
+        rail: "transfer",
+        status: "error",
+      });
     }
   }
+
+  const combinedTimeline = [
+    ...localTimeline,
+    ...(operations?.timeline ?? []),
+  ].slice(0, 8);
+  const serverRecordCount = recordCount(operations);
 
   return (
     <section
@@ -891,6 +1092,132 @@ export function MoneyOperationsPanel({
               tone={readiness?.moneyRails?.transferReady ? "ready" : "attention"}
               title="Move protected funds"
             />
+          </div>
+        </div>
+
+        <div className="brand-panel rounded-[8px] p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="brand-kicker">Operations ledger</p>
+              <h3 className="mt-1 text-2xl font-black text-white">
+                The money-control record lives here.
+              </h3>
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-[#aab3c2]">
+                This combines the revenue gate, bank connection state, paycheck
+                detections, protected transfer intents, bill routes, card
+                decisions, and unlock records into one support-ready view.
+              </p>
+            </div>
+            <a
+              className="brand-button-blue inline-flex h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black"
+              download="payshield-household-audit.json"
+              href="/api/app/audit/export"
+            >
+              <FileDown className="size-4" aria-hidden="true" />
+              Export audit
+            </a>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-4">
+            {(operations?.statusCards ?? [
+              {
+                key: "paid_access",
+                label: "Paid access",
+                state: readiness?.commercial?.checkoutConfigured
+                  ? "ready"
+                  : "needs_setup",
+              },
+              {
+                key: "bank_connection",
+                label: "Bank connection",
+                state: readiness?.moneyRails?.bankLinkReady
+                  ? "ready"
+                  : "needs_setup",
+              },
+              {
+                key: "paycheck_detection",
+                label: "Paycheck detection",
+                state: readiness?.moneyRails?.paycheckDetectionReady
+                  ? "ready"
+                  : "needs_setup",
+              },
+              {
+                key: "protected_transfer",
+                label: "Protected transfer",
+                state: readiness?.moneyRails?.transferReady
+                  ? "ready"
+                  : "needs_setup",
+              },
+            ]).map((card) => (
+              <div
+                className="rounded-[8px] border border-white/10 bg-black/35 p-3"
+                key={card.key}
+              >
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8f99aa]">
+                  {card.label}
+                </p>
+                <p
+                  className={`mt-2 text-lg font-black ${
+                    ["active", "connected", "ready", "recorded"].includes(
+                      card.state,
+                    )
+                      ? "text-[#68f0c2]"
+                      : "text-[#ffcf72]"
+                  }`}
+                >
+                  {card.state.replace(/_/g, " ")}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-[0.7fr_1.3fr]">
+            <div className="rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 p-4">
+              <ReceiptText className="size-5 text-[#39e8ff]" aria-hidden="true" />
+              <p className="mt-3 text-sm font-black uppercase tracking-[0.12em] text-[#dffaff]">
+                Recorded artifacts
+              </p>
+              <p className="mt-2 text-4xl font-black text-white">
+                {serverRecordCount + localTimeline.length}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-[#c9d0da]">
+                {operations?.operationalAudit?.auditFound
+                  ? "Loaded from durable core operations storage."
+                  : "Current control model plus this device's recent actions."}
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              {combinedTimeline.length ? (
+                combinedTimeline.map((item) => (
+                  <div
+                    className="grid gap-3 rounded-[8px] border border-white/10 bg-black/35 p-3 sm:grid-cols-[8rem_1fr_auto]"
+                    key={item.id}
+                  >
+                    <span className="font-mono text-xs font-black uppercase text-[#39e8ff]">
+                      {item.rail.replace(/_/g, " ")}
+                    </span>
+                    <span>
+                      <span className="block text-sm font-black capitalize text-white">
+                        {item.label}
+                        {timelineAmount(item)}
+                      </span>
+                      <span className="mt-1 block text-xs leading-5 text-[#8f99aa]">
+                        {item.detail || "Recorded by PayShield"}
+                      </span>
+                    </span>
+                    <span className="rounded-[8px] border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-black capitalize text-[#d9dde5]">
+                      {item.status.replace(/_/g, " ")}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-[8px] border border-white/10 bg-black/35 p-4 text-sm font-bold leading-6 text-[#aab3c2]">
+                  Run checkout, connect a bank, detect a paycheck, or create a
+                  transfer intent to populate the operating record.
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

@@ -102,9 +102,47 @@ test("core health exposes product operation routes and fail-closed readiness", a
     assert.equal(routes.includes("POST /app/bank-connections"), true);
     assert.equal(routes.includes("POST /commercial/billing-events"), true);
     assert.equal(routes.includes("POST /card/authorize"), true);
+    assert.equal(routes.includes("GET /app/operations"), true);
+    assert.equal(routes.includes("GET /app/audit/export"), true);
     assert.equal(routes.includes("POST /app/onboarding/start"), true);
     assert.equal(routes.includes("POST /app/paychecks/detect"), true);
     assert.equal(routes.includes("POST /app/transfers"), true);
+  });
+});
+
+test("core operations endpoint exposes household money-control records", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(baseUrl, "/api/app/operations");
+    const balances = body.balances as Record<string, unknown>;
+    const operations = body.operations as Record<string, unknown[]>;
+    const statusCards = body.statusCards as Array<Record<string, unknown>>;
+    const timeline = body.timeline as Array<Record<string, unknown>>;
+
+    assert.equal(response.status, 200);
+    assert.equal(body.service, "payshield-household-operations");
+    assert.equal(balances.safeToSpendCents, 145_000);
+    assert.equal(balances.protectedCents, 155_000);
+    assert.equal(Array.isArray(operations.journalEntries), true);
+    assert.equal(
+      statusCards.some((card) => card.key === "protected_transfer"),
+      true,
+    );
+    assert.equal(timeline[0]?.status, "posted");
+  });
+});
+
+test("core audit export packages ledger and operations for support handoff", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(baseUrl, "/api/app/audit/export");
+    const ledger = body.ledger as Record<string, unknown>;
+    const support = body.support as Record<string, unknown>;
+
+    assert.equal(response.status, 200);
+    assert.equal(body.service, "payshield-audit-export");
+    assert.equal(body.exportVersion, "payshield-household-audit-v1");
+    assert.equal(ledger.source, "core_control_model");
+    assert.equal(Array.isArray(ledger.entries), true);
+    assert.equal(support.contact, "support@graystontechnologies.com");
   });
 });
 
@@ -739,11 +777,18 @@ test("core service token protects internal operation routes when configured", as
 
   await withCoreServer(async (baseUrl) => {
     const blocked = await getJson(baseUrl, "/api/app/balances");
+    const blockedOperations = await getJson(baseUrl, "/api/app/operations");
 
     assert.equal(blocked.response.status, 401);
     assert.equal(blocked.body.error, "Unauthorized");
+    assert.equal(blockedOperations.response.status, 401);
 
     const authorized = await getJson(baseUrl, "/api/app/balances", {
+      headers: {
+        authorization: "Bearer core-test-token",
+      },
+    });
+    const authorizedOperations = await getJson(baseUrl, "/api/app/operations", {
       headers: {
         authorization: "Bearer core-test-token",
       },
@@ -751,6 +796,8 @@ test("core service token protects internal operation routes when configured", as
 
     assert.equal(authorized.response.status, 200);
     assert.equal(authorized.body.safeToSpendCents, 145_000);
+    assert.equal(authorizedOperations.response.status, 200);
+    assert.equal(authorizedOperations.body.service, "payshield-household-operations");
   });
 });
 

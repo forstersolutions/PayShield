@@ -51,4 +51,19 @@ test("app command center exposes a guided real-money setup surface", async () =>
   assert.match(commandCenter, /Turn on paid access/);
   assert.match(commandCenter, /Connect the bank source/);
   assert.match(commandCenter, /Detect the paycheck/);
+  assert.match(commandCenter, /Audit export/);
+});
+
+test("money operations surface shows revenue, rails, records, and export", async () => {
+  const moneyOperations = await readFile(
+    "src/app/components/money-operations-panel.tsx",
+    "utf8",
+  );
+
+  assert.match(moneyOperations, /The revenue and money-control operating lane/);
+  assert.match(moneyOperations, /Operations ledger/);
+  assert.match(moneyOperations, /Export audit/);
+  assert.match(moneyOperations, /Connect banks/);
+  assert.match(moneyOperations, /Detect paychecks/);
+  assert.match(moneyOperations, /Move protected funds/);
 });

@@ -5,6 +5,8 @@ const skeletonRows = [
   "Connect the bank source",
   "Build the rules",
   "Detect the paycheck",
+  "Create transfer intent",
+  "Export audit packet",
   "Approve or decline",
 ];
 
@@ -14,6 +16,7 @@ const moneyPath = [
   "Income intake",
   "Priority split",
   "Safe-spend decision",
+  "Audit export",
 ];
 
 export default function Loading() {
@@ -72,7 +75,7 @@ export default function Loading() {
                   </h2>
                 </div>
                 <span className="rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black text-[#dffaff]">
-                  3/6 active
+                  3/7 active
                 </span>
               </div>
 
@@ -113,16 +116,20 @@ export default function Loading() {
                 Jump straight to the tool.
               </h2>
               <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {["Activate access", "Connect bank", "Detect paycheck"].map(
-                  (item) => (
-                    <span
-                      className="grid min-h-16 place-items-center rounded-[8px] border border-white/10 bg-black/35 p-3 text-center text-sm font-black text-white"
-                      key={item}
-                    >
-                      {item}
-                    </span>
-                  ),
-                )}
+                {[
+                  "Activate access",
+                  "Connect bank",
+                  "Detect paycheck",
+                  "Transfer intent",
+                  "Audit export",
+                ].map((item) => (
+                  <span
+                    className="grid min-h-16 place-items-center rounded-[8px] border border-white/10 bg-black/35 p-3 text-center text-sm font-black text-white"
+                    key={item}
+                  >
+                    {item}
+                  </span>
+                ))}
               </div>
             </div>
 

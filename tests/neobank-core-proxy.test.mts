@@ -4,8 +4,10 @@ import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, test } from "node:test";
 import { NextRequest } from "next/server.js";
+import { GET as exportAudit } from "../src/app/api/app/audit/export/route.ts";
 import { GET as getBalances } from "../src/app/api/app/balances/route.ts";
 import { POST as scheduleBillPayment } from "../src/app/api/app/bill-payments/route.ts";
+import { GET as getOperations } from "../src/app/api/app/operations/route.ts";
 import { POST as authorizeCard } from "../src/app/api/card/authorize/route.ts";
 
 const endpoint = "https://payshield.test";
@@ -126,6 +128,91 @@ test("app API delegates balances to configured core service with token and sessi
       assert.equal(captured.userName, "PayShield household");
       assert.equal(captured.method, "GET");
       assert.equal(captured.url, "/api/app/balances");
+    },
+  );
+});
+
+test("operations API delegates household records to configured core service", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    (request, response) => {
+      captured.authorization = request.headers.authorization;
+      captured.method = request.method;
+      captured.url = request.url;
+      captured.userId = request.headers["x-payshield-user-id"];
+
+      response.writeHead(200, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          balances: { safeToSpendCents: 44_000 },
+          coreDelegated: true,
+          service: "payshield-household-operations",
+          timeline: [],
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-ops-secret";
+
+      const response = await getOperations();
+      const body = await parseJson(response);
+
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("x-payshield-core-proxied"), "true");
+      assert.equal(body.coreDelegated, true);
+      assert.equal(captured.authorization, "Bearer core-ops-secret");
+      assert.equal(captured.method, "GET");
+      assert.equal(captured.url, "/api/app/operations");
+      assert.equal(captured.userId, "user_demo_001");
+    },
+  );
+});
+
+test("audit export delegates to configured core service and remains downloadable", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    (request, response) => {
+      captured.authorization = request.headers.authorization;
+      captured.method = request.method;
+      captured.url = request.url;
+
+      response.writeHead(200, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          coreDelegated: true,
+          exportVersion: "payshield-household-audit-v1",
+          service: "payshield-audit-export",
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-audit-secret";
+
+      const response = await exportAudit();
+      const body = await parseJson(response);
+
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("x-payshield-core-proxied"), "true");
+      assert.equal(
+        response.headers
+          .get("content-disposition")
+          ?.includes("payshield-household-audit.json"),
+        true,
+      );
+      assert.equal(body.coreDelegated, true);
+      assert.equal(captured.authorization, "Bearer core-audit-secret");
+      assert.equal(captured.method, "GET");
+      assert.equal(captured.url, "/api/app/audit/export");
     },
   );
 });

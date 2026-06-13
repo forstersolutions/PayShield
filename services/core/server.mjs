@@ -11,6 +11,8 @@ import {
   getBucketProfile,
   getCoreHealth,
   getCoreReadiness,
+  getHouseholdAuditExport,
+  getHouseholdOperations,
   getProfile,
   handleProviderWebhook,
   recordBankConnection,
@@ -198,6 +200,16 @@ export function createCoreServer() {
 
       if (request.method === "GET" && path === "/app/buckets") {
         await writeResult(response, getBucketProfile(process.env, actor));
+        return;
+      }
+
+      if (request.method === "GET" && path === "/app/operations") {
+        await writeResult(response, getHouseholdOperations(process.env, actor));
+        return;
+      }
+
+      if (request.method === "GET" && path === "/app/audit/export") {
+        await writeResult(response, getHouseholdAuditExport(process.env, actor));
         return;
       }
 

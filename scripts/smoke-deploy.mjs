@@ -358,6 +358,8 @@ try {
     "Bank connection",
     "Paycheck detection",
     "Protected transfers",
+    "Operations ledger",
+    "Export audit",
     "Card authorization",
     "Recovery unlock",
     "Bucket control studio",

@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   CreditCard,
   Database,
+  FileDown,
   KeyRound,
   Landmark,
   LifeBuoy,
@@ -56,6 +57,13 @@ const commandActions = [
     href: "#card-authorization",
     icon: CreditCard,
     label: "Check a card swipe",
+  },
+  {
+    body: "Download the household operations packet for support and reconciliation.",
+    download: "payshield-household-audit.json",
+    href: "/api/app/audit/export",
+    icon: FileDown,
+    label: "Audit export",
   },
   {
     body: "Model emergency access with a per-check recovery plan.",
@@ -412,6 +420,7 @@ export function HouseholdCommandCenter() {
                   return (
                     <a
                       className="grid min-h-20 place-items-center gap-2 rounded-[8px] border border-white/10 bg-black/35 p-3 text-center text-sm font-black text-white transition hover:border-[#39e8ff]/35 hover:bg-[#39e8ff]/10"
+                      download={action.download}
                       href={action.href}
                       key={action.label}
                     >
