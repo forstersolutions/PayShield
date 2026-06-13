@@ -1,5 +1,7 @@
 import {
   databaseConfigured,
+  loadBucketProfile,
+  persistBucketProfile,
   persistBankConnection,
   persistCommercialBillingEvent,
   persistMoneyRailEvent,
@@ -1126,31 +1128,76 @@ export function getBalances(env = process.env) {
   };
 }
 
-export function getBucketProfile(env = process.env) {
+export async function getBucketProfile(env = process.env) {
   const snapshot = createNeobankSnapshot(undefined, env);
+  const persistence = await loadBucketProfile(demoUser.householdId, env);
+
+  if (persistenceFailed(persistence)) {
+    return {
+      body: {
+        message: "Bucket profile could not be loaded from durable core controls.",
+        persistence,
+        readiness: snapshot.readiness,
+        service: "payshield-bucket-controls",
+      },
+      status: 503,
+    };
+  }
+
+  if (persistence.profileFound) {
+    const book = createDemoLedgerBook();
+
+    return {
+      body: {
+        buckets: buildBucketBalances(book, persistence.profile),
+        message: "Household bucket profile loaded from durable core controls.",
+        persisted: true,
+        persistence,
+        profilePersistence: "durable_core",
+        profileSource: "postgres",
+        readiness: snapshot.readiness,
+        templates: [
+          "Rent",
+          "Mortgage",
+          "Utilities",
+          "Insurance",
+          "Vehicle",
+          "Childcare",
+          "Debt payoff",
+          "Emergency",
+          "Taxes",
+        ],
+      },
+      status: 200,
+    };
+  }
 
   return {
-    buckets: snapshot.buckets,
-    message: "Household bucket profile loaded from the core control model.",
-    persisted: false,
-    profilePersistence: "core_service_model",
-    profileSource: "core_control_model",
-    readiness: snapshot.readiness,
-    templates: [
-      "Rent",
-      "Mortgage",
-      "Utilities",
-      "Insurance",
-      "Vehicle",
-      "Childcare",
-      "Debt payoff",
-      "Emergency",
-      "Taxes",
-    ],
+    body: {
+      buckets: snapshot.buckets,
+      message: "Household bucket profile loaded from the core control model.",
+      persisted: false,
+      persistence,
+      profilePersistence: "core_service_model",
+      profileSource: "core_control_model",
+      readiness: snapshot.readiness,
+      templates: [
+        "Rent",
+        "Mortgage",
+        "Utilities",
+        "Insurance",
+        "Vehicle",
+        "Childcare",
+        "Debt payoff",
+        "Emergency",
+        "Taxes",
+      ],
+    },
+    status: 200,
   };
 }
 
-export function saveBucketProfile(payload, env = process.env) {
+export async function saveBucketProfile(payload, env = process.env) {
   if (payload?.action === "replace_profile") {
     const profile = normalizeBucketProfile(payload.buckets);
 
@@ -1164,15 +1211,47 @@ export function saveBucketProfile(payload, env = process.env) {
     }
 
     const protectedCents = profile.reduce((total, bucket) => total + bucket.targetCents, 0);
+    const persistence = await persistBucketProfile(
+      {
+        actorUserId: demoUser.id,
+        betaAccessStatus: demoUser.profileAccess,
+        buckets: profile,
+        householdId: demoUser.householdId,
+        idempotencyKey: cleanText(payload.idempotencyKey, 120),
+        kycStatus: demoUser.kycStatus,
+        userEmail: demoUser.email,
+        userName: demoUser.name,
+      },
+      env,
+    );
+
+    if (persistenceFailed(persistence)) {
+      return {
+        body: {
+          buckets: profile,
+          error: "Bucket profile could not be persisted.",
+          persistence,
+          protectedCents,
+          readiness: getCoreReadiness(env, { coreOnline: true }),
+          service: "payshield-bucket-controls",
+        },
+        status: 503,
+      };
+    }
+
+    const persisted = persistence.persistence === "postgres";
 
     return {
       body: {
         buckets: profile,
         message:
-          "Bucket profile validated by the core control model. Durable account sync requires Postgres-backed profile persistence.",
-        persisted: false,
-        profilePersistence: "core_service_model",
-        profileSource: "core_control_model",
+          persisted
+            ? "Bucket profile saved to durable core controls for protected money routing."
+            : "Bucket profile validated by the core control model. Durable account sync requires Postgres-backed profile persistence.",
+        persisted,
+        persistence,
+        profilePersistence: persisted ? "durable_core" : "core_service_model",
+        profileSource: persisted ? "postgres" : "core_control_model",
         protectedCents,
         readiness: getCoreReadiness(env, { coreOnline: true }),
         safeToSpendPreviewCents: Math.max(0, 300_000 - protectedCents),
@@ -1205,14 +1284,47 @@ export function saveBucketProfile(payload, env = process.env) {
   const modeledBuckets = neobankBuckets.map((bucket) =>
     bucket.id === payload.bucketId ? { ...bucket, targetCents } : bucket,
   );
+  const persistence = await persistBucketProfile(
+    {
+      actorUserId: demoUser.id,
+      betaAccessStatus: demoUser.profileAccess,
+      buckets: modeledBuckets.filter((bucket) => bucket.id !== "safe_spending"),
+      householdId: demoUser.householdId,
+      idempotencyKey:
+        cleanText(payload.idempotencyKey, 120) || `bucket-target-${payload.bucketId}-${targetCents}`,
+      kycStatus: demoUser.kycStatus,
+      payees: neobankPayees,
+      userEmail: demoUser.email,
+      userName: demoUser.name,
+    },
+    env,
+  );
+
+  if (persistenceFailed(persistence)) {
+    return {
+      body: {
+        bucket: modeledBuckets.find((bucket) => bucket.id === payload.bucketId),
+        error: "Bucket target could not be persisted.",
+        persistence,
+        readiness: getCoreReadiness(env, { coreOnline: true }),
+        service: "payshield-bucket-controls",
+      },
+      status: 503,
+    };
+  }
+
+  const persisted = persistence.persistence === "postgres";
 
   return {
     body: {
       bucket: modeledBuckets.find((bucket) => bucket.id === payload.bucketId),
-      message: "Bucket target validated for the household control model.",
-      persisted: false,
-      profilePersistence: "core_service_model",
-      profileSource: "core_control_model",
+      message: persisted
+        ? "Bucket target saved to durable core controls."
+        : "Bucket target validated for the household control model.",
+      persisted,
+      persistence,
+      profilePersistence: persisted ? "durable_core" : "core_service_model",
+      profileSource: persisted ? "postgres" : "core_control_model",
       readiness: getCoreReadiness(env, { coreOnline: true }),
     },
     status: 200,

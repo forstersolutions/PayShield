@@ -81,6 +81,420 @@ function persistenceFailed(error) {
   };
 }
 
+function centsNumber(value) {
+  const numberValue = Number(value);
+
+  return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function bucketFromRow(row) {
+  return {
+    due: row.due_rule,
+    id: row.slug,
+    name: row.name,
+    ...(row.payee_id ? { payeeId: row.payee_id } : {}),
+    priority: Number(row.priority),
+    protection: row.protection,
+    targetCents: centsNumber(row.target_cents),
+  };
+}
+
+function bucketRuleForProtection(protection) {
+  if (protection === "bill_only") {
+    return {
+      cardScope: "approved_payee",
+      unlockPolicy: "support_review",
+    };
+  }
+
+  if (protection === "emergency") {
+    return {
+      cardScope: "none",
+      unlockPolicy: "instant_allowed",
+    };
+  }
+
+  if (protection === "spendable") {
+    return {
+      cardScope: "safe_spend",
+      unlockPolicy: "slow_free",
+    };
+  }
+
+  if (protection === "soft_lock") {
+    return {
+      cardScope: "none",
+      unlockPolicy: "slow_free",
+    };
+  }
+
+  return {
+    cardScope: "none",
+    unlockPolicy: "support_review",
+  };
+}
+
+async function readBucketProfile(client, householdId) {
+  const result = await client.query(
+    `
+      SELECT
+        slug,
+        name,
+        target_cents,
+        priority,
+        protection,
+        due_rule,
+        payee_id
+      FROM household_buckets
+      WHERE household_id = $1
+        AND status = 'active'
+      ORDER BY priority ASC, created_at ASC
+    `,
+    [householdId],
+  );
+
+  return result.rows.map(bucketFromRow);
+}
+
+async function ensureHouseholdIdentity(client, input) {
+  await client.query(
+    `
+      INSERT INTO households (id, beta_access_status)
+      VALUES ($1, $2)
+      ON CONFLICT (id) DO UPDATE SET
+        beta_access_status = EXCLUDED.beta_access_status
+    `,
+    [input.householdId, input.betaAccessStatus || "approved"],
+  );
+
+  await client.query(
+    `
+      INSERT INTO app_users (
+        id,
+        household_id,
+        clerk_subject,
+        email,
+        name,
+        kyc_status
+      )
+      VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (id) DO UPDATE SET
+        household_id = EXCLUDED.household_id,
+        email = EXCLUDED.email,
+        name = EXCLUDED.name,
+        kyc_status = EXCLUDED.kyc_status
+    `,
+    [
+      input.actorUserId,
+      input.householdId,
+      input.clerkSubject || null,
+      input.userEmail || "private-household@example.com",
+      input.userName || "PayShield household",
+      input.kycStatus || "provider_pending",
+    ],
+  );
+}
+
+async function ensurePayees(client, input) {
+  for (const payee of input.payees || []) {
+    await client.query(
+      `
+        INSERT INTO payees (
+          id,
+          household_id,
+          allowed_bucket_id,
+          name,
+          max_cents,
+          status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (id) DO UPDATE SET
+          household_id = EXCLUDED.household_id,
+          allowed_bucket_id = EXCLUDED.allowed_bucket_id,
+          name = EXCLUDED.name,
+          max_cents = EXCLUDED.max_cents,
+          status = EXCLUDED.status
+      `,
+      [
+        payee.id,
+        input.householdId,
+        payee.allowedBucketId,
+        payee.name,
+        payee.maxCents,
+        payee.status,
+      ],
+    );
+  }
+}
+
+function profileIdempotencyKey(input) {
+  if (input.idempotencyKey) {
+    return input.idempotencyKey;
+  }
+
+  const digest = createHash("sha256")
+    .update(JSON.stringify(input.buckets))
+    .digest("hex")
+    .slice(0, 32);
+
+  return `bucket-profile:${digest}`;
+}
+
+export async function loadBucketProfile(householdId, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return {
+      ...persistenceSkipped("bucket profile"),
+      profile: null,
+      profileFound: false,
+    };
+  }
+
+  try {
+    const result = await pool.query(
+      `
+        SELECT
+          slug,
+          name,
+          target_cents,
+          priority,
+          protection,
+          due_rule,
+          payee_id
+        FROM household_buckets
+        WHERE household_id = $1
+          AND status = 'active'
+        ORDER BY priority ASC, created_at ASC
+      `,
+      [householdId],
+    );
+    const profile = result.rows.map(bucketFromRow);
+
+    return {
+      persisted: profile.length > 0,
+      persistence: "postgres",
+      profile,
+      profileFound: profile.length > 0,
+    };
+  } catch (error) {
+    return {
+      ...persistenceFailed(error),
+      profile: null,
+      profileFound: false,
+    };
+  }
+}
+
+export async function persistBucketProfile(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return persistenceSkipped("bucket profile");
+  }
+
+  let client = null;
+  const idempotencyKey = profileIdempotencyKey(input);
+
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    await ensureHouseholdIdentity(client, input);
+    await ensurePayees(client, input);
+
+    const replay = await client.query(
+      `
+        SELECT id, after_profile
+        FROM household_bucket_change_events
+        WHERE household_id = $1
+          AND idempotency_key = $2
+        LIMIT 1
+      `,
+      [input.householdId, idempotencyKey],
+    );
+
+    if (replay.rows[0]) {
+      await client.query("COMMIT");
+
+      return {
+        bucketCount: Array.isArray(replay.rows[0].after_profile)
+          ? replay.rows[0].after_profile.length
+          : 0,
+        persisted: true,
+        persistence: "postgres",
+        postgresId: replay.rows[0].id,
+        replayed: true,
+      };
+    }
+
+    const beforeProfile = await readBucketProfile(client, input.householdId);
+    const submittedSlugs = input.buckets.map((bucket) => bucket.id);
+
+    await client.query(
+      `
+        INSERT INTO ledger_accounts (
+          id,
+          household_id,
+          account_type,
+          bucket_id
+        )
+        VALUES ($1, $2, 'asset', NULL)
+        ON CONFLICT (id) DO UPDATE SET
+          household_id = EXCLUDED.household_id,
+          account_type = EXCLUDED.account_type
+      `,
+      [recordId("ledger_asset", input.householdId, "program_cash"), input.householdId],
+    );
+
+    for (const bucket of input.buckets) {
+      const bucketId = recordId("bucket", input.householdId, bucket.id);
+      const rule = bucketRuleForProtection(bucket.protection);
+      const ruleId = recordId("bucket_rule", bucketId);
+
+      await client.query(
+        `
+          INSERT INTO household_buckets (
+            id,
+            household_id,
+            slug,
+            name,
+            target_cents,
+            priority,
+            protection,
+            due_rule,
+            payee_id,
+            status
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active')
+          ON CONFLICT (household_id, slug) DO UPDATE SET
+            name = EXCLUDED.name,
+            target_cents = EXCLUDED.target_cents,
+            priority = EXCLUDED.priority,
+            protection = EXCLUDED.protection,
+            due_rule = EXCLUDED.due_rule,
+            payee_id = EXCLUDED.payee_id,
+            status = 'active',
+            updated_at = now()
+          RETURNING id
+        `,
+        [
+          bucketId,
+          input.householdId,
+          bucket.id,
+          bucket.name,
+          bucket.targetCents,
+          bucket.priority,
+          bucket.protection,
+          bucket.due,
+          bucket.payeeId || null,
+        ],
+      );
+
+      await client.query(
+        `
+          INSERT INTO ledger_accounts (
+            id,
+            household_id,
+            account_type,
+            bucket_id
+          )
+          VALUES ($1, $2, 'liability', $3)
+          ON CONFLICT (id) DO UPDATE SET
+            household_id = EXCLUDED.household_id,
+            account_type = EXCLUDED.account_type,
+            bucket_id = EXCLUDED.bucket_id
+        `,
+        [
+          recordId("ledger_bucket", input.householdId, bucket.id),
+          input.householdId,
+          bucket.id,
+        ],
+      );
+
+      await client.query(
+        `
+          INSERT INTO household_bucket_rules (
+            id,
+            bucket_id,
+            card_scope,
+            unlock_policy,
+            mcc_allowlist,
+            merchant_allowlist,
+            max_authorization_cents
+          )
+          VALUES ($1, $2, $3, $4, '[]'::jsonb, '[]'::jsonb, NULL)
+          ON CONFLICT (id) DO UPDATE SET
+            card_scope = EXCLUDED.card_scope,
+            unlock_policy = EXCLUDED.unlock_policy,
+            updated_at = now()
+        `,
+        [ruleId, bucketId, rule.cardScope, rule.unlockPolicy],
+      );
+    }
+
+    const archived = await client.query(
+      `
+        UPDATE household_buckets
+        SET status = 'archived',
+            updated_at = now()
+        WHERE household_id = $1
+          AND status = 'active'
+          AND NOT (slug = ANY($2::text[]))
+      `,
+      [input.householdId, submittedSlugs],
+    );
+
+    const eventId = recordId("bucket_change", input.householdId, idempotencyKey);
+
+    await client.query(
+      `
+        INSERT INTO household_bucket_change_events (
+          id,
+          household_id,
+          actor_user_id,
+          event_type,
+          before_profile,
+          after_profile,
+          idempotency_key
+        )
+        VALUES ($1, $2, $3, 'updated', $4::jsonb, $5::jsonb, $6)
+      `,
+      [
+        eventId,
+        input.householdId,
+        input.actorUserId,
+        JSON.stringify(beforeProfile),
+        JSON.stringify(input.buckets),
+        idempotencyKey,
+      ],
+    );
+
+    await client.query("COMMIT");
+
+    return {
+      archivedCount: archived.rowCount,
+      bucketCount: input.buckets.length,
+      persisted: true,
+      persistence: "postgres",
+      postgresId: eventId,
+      replayed: false,
+    };
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Ignore rollback failures; the original error is more useful.
+      }
+    }
+
+    return persistenceFailed(error);
+  } finally {
+    client?.release();
+  }
+}
+
 export async function persistCommercialBillingEvent(input, env = process.env) {
   const pool = poolFor(env);
 

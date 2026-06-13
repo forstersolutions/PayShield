@@ -171,7 +171,7 @@ export function createCoreServer() {
       }
 
       if (request.method === "GET" && path === "/app/buckets") {
-        json(response, 200, getBucketProfile());
+        await writeResult(response, getBucketProfile());
         return;
       }
 

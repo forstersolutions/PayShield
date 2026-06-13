@@ -283,6 +283,7 @@ test("core bucket profile route saves custom protected bucket rules", async () =
 
     assert.equal(response.status, 200);
     assert.equal(body.persisted, false);
+    assert.equal((body.persistence as Record<string, unknown>).persistence, "memory");
     assert.equal(body.protectedCents, 70_000);
     assert.equal(body.profilePersistence, "core_service_model");
     assert.equal(body.profileSource, "core_control_model");
@@ -293,6 +294,36 @@ test("core bucket profile route saves custom protected bucket rules", async () =
       body.safeSpendRule,
       "Safe to Spend is computed only after protected buckets fund.",
     );
+  });
+});
+
+test("core bucket profile route fails closed when durable persistence fails", async () => {
+  process.env.PAYSHIELD_LEDGER_DATABASE_URL =
+    "postgres://payshield:secret@127.0.0.1:1/ledger";
+  process.env.PAYSHIELD_CORE_DB_CONNECT_TIMEOUT_MS = "100";
+
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(
+      baseUrl,
+      "/api/app/buckets",
+      jsonPost({
+        action: "replace_profile",
+        buckets: [
+          {
+            due: "1st",
+            id: "rent",
+            name: "Rent",
+            protection: "bill_only",
+            targetCents: 50_000,
+          },
+        ],
+      }),
+    );
+    const persistence = body.persistence as Record<string, unknown>;
+
+    assert.equal(response.status, 503);
+    assert.equal(body.error, "Bucket profile could not be persisted.");
+    assert.equal(persistence.persistence, "postgres_error");
   });
 });
 
