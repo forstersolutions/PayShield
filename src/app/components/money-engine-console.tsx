@@ -127,9 +127,9 @@ export function MoneyEngineConsole({
           <ShieldCheck className="size-4" aria-hidden="true" />
           Money engine console
         </p>
-        <h1 className="mt-5 max-w-3xl text-4xl font-black leading-[1.02] text-white sm:text-5xl">
+        <h2 className="mt-5 max-w-3xl text-4xl font-black leading-[1.02] text-white sm:text-5xl">
           Charge the household. Then protect every paycheck.
-        </h1>
+        </h2>
         <p className="mt-5 max-w-2xl text-base leading-7 text-[#c9d0da]">
           This is the operating path that makes PayShield usable and sellable:
           subscription access, bank connection, paycheck detection, protected

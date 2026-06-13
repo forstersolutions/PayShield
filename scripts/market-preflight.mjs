@@ -309,6 +309,7 @@ requireText("src/app/components/money-engine-console.tsx", "Monthly recurring re
 requireText("src/app/components/money-engine-console.tsx", "Target households");
 requireText("src/app/components/money-engine-console.tsx", "Every row is an app action.");
 requireText("src/app/components/money-engine-console.tsx", "stage.primaryEndpoint");
+requireText("src/app/launch/page.tsx", "MoneyEngineConsole");
 requireText(
   "src/app/components/household-command-center.tsx",
   "createHouseholdActivationPacket",

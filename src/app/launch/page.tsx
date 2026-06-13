@@ -19,6 +19,7 @@ import {
   GraystonLogo,
   PayShieldHeaderLogo,
 } from "@/app/components/pay-shield-mark";
+import { MoneyEngineConsole } from "@/app/components/money-engine-console";
 import { SiteFooter } from "@/app/components/site-footer";
 import {
   GRAYSTON_SUPPORT_EMAIL,
@@ -391,6 +392,12 @@ export default function LaunchConsolePage() {
             >
               <a
                 className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
+                href="#money-engine"
+              >
+                Engine
+              </a>
+              <a
+                className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
                 href="#money"
               >
                 Money
@@ -416,6 +423,8 @@ export default function LaunchConsolePage() {
               </Link>
             </nav>
           </header>
+
+          <MoneyEngineConsole initialPacket={packet} />
 
           <div className="grid flex-1 gap-6 py-8 lg:grid-cols-[0.95fr_1.05fr]">
             <section className="brand-panel accent-rule rounded-[8px] p-5 sm:p-7">

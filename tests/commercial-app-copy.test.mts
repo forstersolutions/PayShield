@@ -153,6 +153,7 @@ test("launch console exposes the commercial money path outside locked app access
   assert.match(launchPage, /index: false/);
   assert.match(launchPage, /PayShield Revenue \+ Rails Console/);
   assert.match(launchPage, /Make the app earn, connect, detect, protect, and move/);
+  assert.match(launchPage, /MoneyEngineConsole/);
   assert.match(launchPage, /getCommercialReadiness/);
   assert.match(launchPage, /getMoneyRailReadiness/);
   assert.match(launchPage, /getAppAccessReadiness/);
