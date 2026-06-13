@@ -229,6 +229,8 @@ export function getCoreHealth(env = process.env) {
       "POST /app/bill-payments",
       "POST /app/onboarding/start",
       "POST /app/payees",
+      "POST /app/paychecks/detect",
+      "POST /app/transfers",
       "POST /app/unlocks",
       "POST /card/authorize",
       "POST /provider/webhooks",
@@ -1040,6 +1042,155 @@ export function createPayee(payload, env = process.env) {
         status: readiness.liveMoneyReady ? "approved" : "provider_pending",
       },
       readiness,
+    },
+    status: 200,
+  };
+}
+
+function getMoneyRailReadiness(env = process.env) {
+  const neobank = getCoreReadiness(env, { coreOnline: true });
+  const plaidConfigured = envPresent(env, "PLAID_CLIENT_ID") && envPresent(env, "PLAID_SECRET");
+  const transferConfigured =
+    envTrue(env, "PAYSHIELD_TRANSFER_ENABLED") &&
+    (envPresent(env, "PLAID_TRANSFER_CLIENT_ID") ||
+      envPresent(env, "PAYSHIELD_BAAS_API_KEY") ||
+      plaidConfigured);
+
+  return {
+    detectionMode: plaidConfigured ? "plaid_transactions_sync" : "manual_or_provider_webhook",
+    liveMoneyReady: neobank.liveMoneyReady,
+    missing: [
+      ...(plaidConfigured ? [] : ["PLAID_CLIENT_ID", "PLAID_SECRET"]),
+      ...(transferConfigured
+        ? []
+        : ["PAYSHIELD_TRANSFER_ENABLED plus transfer/BaaS credentials"]),
+    ],
+    plaidConfigured,
+    plaidEnv: env.PLAID_ENV?.trim() || "sandbox",
+    transferConfigured,
+  };
+}
+
+export function detectPaycheck(payload, env = process.env) {
+  const amountCents = toIntegerCents(payload?.amountCents, {
+    max: 2_000_000,
+    min: 1,
+  });
+  const employerName = cleanText(payload?.employerName, 80);
+
+  if (amountCents === null || !employerName) {
+    return {
+      body: {
+        error: "Provide employerName and integer amountCents.",
+      },
+      status: 400,
+    };
+  }
+
+  const book = new LedgerBook();
+  const entry = postPaycheckDeposit(book, neobankBuckets, {
+    amountCents,
+    employerName,
+    idempotencyKey:
+      cleanText(payload?.idempotencyKey, 120) ||
+      `paycheck-${employerName.toLowerCase().replace(/[^a-z0-9]+/g, "_")}-${amountCents}`,
+    receivedAt: cleanText(payload?.receivedAt, 32) || new Date().toISOString(),
+  });
+  const balances = buildBucketBalances(book, neobankBuckets);
+  const safeToSpendCents =
+    balances.find((bucket) => bucket.id === "safe_spending")?.availableCents ??
+    0;
+  const protectedCents = balances
+    .filter((bucket) => bucket.id !== "safe_spending")
+    .reduce((sum, bucket) => sum + bucket.availableCents, 0);
+
+  return {
+    body: {
+      balances,
+      detection: {
+        amountCents,
+        employerName,
+        mode: getMoneyRailReadiness(env).detectionMode,
+        receivedAt: entry.metadata?.receivedAt,
+      },
+      ledgerEntry: entry,
+      message:
+        "Paycheck detected and split by bucket priority before Safe to Spend is computed.",
+      protectedCents,
+      readiness: getMoneyRailReadiness(env),
+      safeToSpendCents,
+    },
+    status: 200,
+  };
+}
+
+export function createTransferIntent(payload, env = process.env) {
+  const amountCents = toIntegerCents(payload?.amountCents, {
+    max: 500_000,
+    min: 1,
+  });
+  const destinationPayeeId = cleanText(payload?.destinationPayeeId, 120);
+
+  if (
+    amountCents === null ||
+    !isBucketId(payload?.sourceBucketId) ||
+    !destinationPayeeId
+  ) {
+    return {
+      body: {
+        error:
+          "Provide sourceBucketId, destinationPayeeId, and integer amountCents.",
+      },
+      status: 400,
+    };
+  }
+
+  const snapshot = createNeobankSnapshot(undefined, env);
+  const sourceBucket = snapshot.buckets.find(
+    (bucket) => bucket.id === payload.sourceBucketId,
+  );
+
+  if (!sourceBucket || amountCents > sourceBucket.availableCents) {
+    return {
+      body: {
+        error: "Transfer amount exceeds the selected bucket balance.",
+        sourceBucket,
+      },
+      status: 400,
+    };
+  }
+
+  const readiness = getMoneyRailReadiness(env);
+  const idempotencyKey =
+    cleanText(payload?.idempotencyKey, 120) ||
+    `transfer-${payload.sourceBucketId}-${destinationPayeeId}-${amountCents}`;
+  const providerTransfer = {
+    providerTransferId:
+      readiness.liveMoneyReady && readiness.transferConfigured
+        ? "transfer-provider-live"
+        : "transfer-provider-contract-required",
+    status:
+      readiness.liveMoneyReady && readiness.transferConfigured
+        ? "created"
+        : "blocked",
+  };
+
+  return {
+    body: {
+      intent: {
+        amountCents,
+        destinationPayeeId,
+        idempotencyKey,
+        providerStatus: providerTransfer.status,
+        readiness,
+        sourceBucketId: payload.sourceBucketId,
+      },
+      message:
+        providerTransfer.status === "created"
+          ? "Protected transfer created with the configured provider."
+          : "Transfer intent validated. Provider execution remains locked until approved money-rail credentials are active.",
+      providerTransfer,
+      sourceBucket,
     },
     status: 200,
   };

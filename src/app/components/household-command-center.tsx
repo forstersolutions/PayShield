@@ -1,13 +1,15 @@
 import {
   ArrowRight,
-  CalendarClock,
+  BadgeDollarSign,
   CheckCircle2,
   CreditCard,
   Database,
   KeyRound,
   Landmark,
   LifeBuoy,
+  Link2,
   LockKeyhole,
+  Radar,
   ShieldAlert,
   Split,
   WalletCards,
@@ -16,7 +18,10 @@ import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { BillPaymentPanel } from "@/app/components/bill-payment-panel";
 import { BucketControlPanel } from "@/app/components/bucket-control-panel";
+import { CardAuthorizationPanel } from "@/app/components/card-authorization-panel";
+import { MoneyOperationsPanel } from "@/app/components/money-operations-panel";
 import { PayShieldHeaderLogo } from "@/app/components/pay-shield-mark";
+import { UnlockControlPanel } from "@/app/components/unlock-control-panel";
 import {
   GRAYSTON_SUPPORT_EMAIL,
   PAYSHIELD_OWNERSHIP_LINE,
@@ -27,22 +32,34 @@ import { formatCents } from "@/app/lib/neobank/ledger.ts";
 
 const commandActions = [
   {
-    body: "Tune bucket names, targets, priorities, due rules, and protection modes.",
-    href: "#bucket-studio",
-    icon: LockKeyhole,
-    label: "Edit buckets",
+    body: "Launch paid household access through Stripe Checkout or a configured payment link.",
+    href: "#money-operations",
+    icon: BadgeDollarSign,
+    label: "Start paid access",
   },
   {
-    body: "Schedule approved payees from assigned protected buckets.",
-    href: "#bill-routing",
-    icon: CalendarClock,
-    label: "Route a bill",
+    body: "Initialize external account connection for transaction detection and transfer handoff.",
+    href: "#money-operations",
+    icon: Link2,
+    label: "Connect bank",
   },
   {
-    body: "Review provider, auth, ledger, and operations gates before money controls activate.",
-    href: "#readiness",
+    body: "Run payroll detection and split income into protected buckets before Safe to Spend.",
+    href: "#money-operations",
+    icon: Radar,
+    label: "Detect paycheck",
+  },
+  {
+    body: "Run a purchase through the Safe to Spend decision model.",
+    href: "#card-authorization",
+    icon: CreditCard,
+    label: "Check a card swipe",
+  },
+  {
+    body: "Model emergency access with a per-check recovery plan.",
+    href: "#unlock-controls",
     icon: ShieldAlert,
-    label: "Readiness",
+    label: "Unlock funds",
   },
   {
     body: "Send operational requests to Grayston support.",
@@ -53,9 +70,10 @@ const commandActions = [
 ];
 
 const moneyPath = [
+  "Paid access",
+  "Bank connection",
   "Income intake",
   "Priority split",
-  "Protected bills",
   "Safe-spend decision",
   "Reconciliation",
 ];
@@ -114,15 +132,27 @@ export function HouseholdCommandCenter() {
             </a>
             <a
               className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
+              href="#money-operations"
+            >
+              Rails
+            </a>
+            <a
+              className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
               href="#bill-routing"
             >
               Bills
             </a>
             <a
               className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
-              href="#readiness"
+              href="#card-authorization"
             >
-              Readiness
+              Card
+            </a>
+            <a
+              className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
+              href="#unlock-controls"
+            >
+              Unlock
             </a>
             <Link
               className="pay-primary-nav-link pay-primary-nav-cta brand-button-primary gap-2 rounded-[8px] px-4 py-2 font-black"
@@ -146,9 +176,9 @@ export function HouseholdCommandCenter() {
               One operating screen for the paycheck.
             </h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-[#c9d0da]">
-              See the spendable number, protected obligations, bill routing,
-              ledger evidence, recovery state, and readiness gates without
-              mixing product operations into the public marketing page.
+              Sell access, connect funding sources, detect income, split the
+              ledger into protected buckets, route bills, and decide spending
+              from one reliable operating flow.
             </p>
 
             <div className="mt-7 rounded-[8px] border border-[#1588ff]/30 bg-[#07111f]/78 p-5">
@@ -375,8 +405,11 @@ export function HouseholdCommandCenter() {
         </section>
       </div>
 
+      <MoneyOperationsPanel buckets={snapshot.buckets} payees={snapshot.payees} />
       <BucketControlPanel buckets={snapshot.buckets} />
       <BillPaymentPanel buckets={snapshot.buckets} payees={snapshot.payees} />
+      <CardAuthorizationPanel safeSpendCents={safeSpend} />
+      <UnlockControlPanel buckets={snapshot.buckets} />
     </section>
   );
 }

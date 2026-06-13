@@ -133,53 +133,28 @@ textarea {
   align-self: flex-start;
   align-items: center;
   justify-content: center;
-  padding: 0.32rem 0.68rem 0.32rem 0.4rem;
-  border: 1px solid rgba(57, 232, 255, 0.2);
+  padding: 0.22rem 0.58rem 0.22rem 0.46rem;
+  border: 1px solid rgba(57, 232, 255, 0.26);
   border-radius: 8px;
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(21, 136, 255, 0.05)),
-    rgba(5, 6, 7, 0.76);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(233, 244, 255, 0.92)),
+    #f7fbff;
   box-shadow:
-    0 14px 34px rgba(0, 0, 0, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    0 16px 38px rgba(21, 136, 255, 0.16),
+    0 0 0 1px rgba(255, 255, 255, 0.12);
   text-decoration: none;
 }
 
-.pay-header-brand img {
-  filter:
-    drop-shadow(0 0 1px rgba(255, 255, 255, 0.7))
-    drop-shadow(0 10px 22px rgba(21, 136, 255, 0.2));
+.pay-header-logo {
+  display: block;
+  filter: drop-shadow(0 8px 14px rgba(21, 136, 255, 0.14));
 }
 
 .pay-header-brand:hover {
-  border-color: rgba(57, 232, 255, 0.36);
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.1), rgba(21, 136, 255, 0.08)),
-    rgba(5, 6, 7, 0.86);
-}
-
-.pay-brand-lockup {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.56rem;
-  white-space: nowrap;
-}
-
-.pay-brand-lockup-mark {
-  width: 2.35rem;
-  height: 2.35rem;
-}
-
-.pay-brand-lockup-word {
-  color: #f7fbff;
-  font-size: 1.18rem;
-  font-weight: 950;
-  line-height: 1;
-  text-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
-}
-
-.pay-brand-lockup-pay {
-  color: #28a9ff;
+  border-color: rgba(57, 232, 255, 0.45);
+  box-shadow:
+    0 18px 42px rgba(21, 136, 255, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.18);
 }
 
 .pay-primary-nav {

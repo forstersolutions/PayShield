@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server.js";
+import { getCommercialReadiness } from "../../lib/commercial/billing.ts";
+import { getMoneyRailReadiness } from "../../lib/neobank/money-rails.ts";
 import { getWaitlistCaptureConfig } from "../../lib/waitlist-capture-config.ts";
 import { getNeobankReadiness } from "../../lib/neobank/readiness.ts";
 
 export function GET() {
   const capture = getWaitlistCaptureConfig();
+  const commercial = getCommercialReadiness();
+  const moneyRails = getMoneyRailReadiness();
   const neobank = getNeobankReadiness();
   const ok =
     (!capture.requireWebhook || capture.paidTrafficReady) &&
@@ -31,6 +35,20 @@ export function GET() {
         webhookEndpointConfigured: capture.webhookEndpointConfigured,
         webhookMisconfigured: capture.webhookMisconfigured,
         webhookSigningConfigured: capture.webhookSigningConfigured,
+      },
+      commercial: {
+        checkoutConfigured: commercial.checkoutConfigured,
+        mode: commercial.mode,
+        remainingGates: commercial.missing,
+        stripePriceConfigured: commercial.stripePriceConfigured,
+        stripeSecretConfigured: commercial.stripeSecretConfigured,
+      },
+      moneyRails: {
+        detectionMode: moneyRails.detectionMode,
+        plaidConfigured: moneyRails.plaidConfigured,
+        plaidEnv: moneyRails.plaidEnv,
+        remainingGates: moneyRails.missing,
+        transferConfigured: moneyRails.transferConfigured,
       },
       neobank: {
         backendConfigured: neobank.backendConfigured,

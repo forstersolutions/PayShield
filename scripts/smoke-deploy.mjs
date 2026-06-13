@@ -336,6 +336,13 @@ try {
     "Command queue",
     "Money path",
     "Ledger journal",
+    "Money operations",
+    "Paid access",
+    "Bank connection",
+    "Paycheck detection",
+    "Protected transfers",
+    "Card authorization",
+    "Recovery unlock",
     "Bucket control studio",
     "Bill routing",
   ]);

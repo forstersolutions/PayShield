@@ -1,0 +1,44 @@
+import { NextRequest, NextResponse } from "next/server.js";
+import { getAppSession } from "../../../../lib/neobank/auth.ts";
+import { createBankLinkToken } from "../../../../lib/neobank/money-rails.ts";
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getAppSession();
+    const result = await createBankLinkToken({
+      origin: request.nextUrl.origin,
+      userId: session.userId,
+    });
+
+    return NextResponse.json(
+      result.status === 200
+        ? {
+            expiration: result.expiration,
+            linkToken: result.linkToken,
+            readiness: result.readiness,
+            requestId: result.requestId,
+          }
+        : {
+            error:
+              "Bank linking requires Plaid credentials before users can connect an external account.",
+            readiness: result.readiness,
+          },
+      {
+        headers: {
+          "cache-control": "no-store",
+        },
+        status: result.status,
+      },
+    );
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Bank link token could not be created.",
+      },
+      { status: 502 },
+    );
+  }
+}

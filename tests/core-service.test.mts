@@ -10,6 +10,8 @@ const coreEnvKeys = [
   "PAYSHIELD_BAAS_API_KEY",
   "PAYSHIELD_BAAS_CONTRACT_APPROVED",
   "PAYSHIELD_BAAS_PROVIDER",
+  "PAYSHIELD_BETA_PAYMENT_LINK_URL",
+  "PAYSHIELD_BETA_PRICE_ID",
   "PAYSHIELD_CORE_API_URL",
   "PAYSHIELD_CORE_SERVICE_TOKEN",
   "PAYSHIELD_LEDGER_DATABASE_URL",
@@ -20,6 +22,11 @@ const coreEnvKeys = [
   "PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED",
   "PAYSHIELD_REGULATED_COUNSEL_SIGNOFF",
   "PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED",
+  "PAYSHIELD_TRANSFER_ENABLED",
+  "PLAID_CLIENT_ID",
+  "PLAID_SECRET",
+  "PLAID_TRANSFER_CLIENT_ID",
+  "STRIPE_SECRET_KEY",
 ];
 
 beforeEach(() => {
@@ -91,6 +98,8 @@ test("core health exposes product operation routes and fail-closed readiness", a
     assert.equal(routes.includes("POST /app/bill-payments"), true);
     assert.equal(routes.includes("POST /card/authorize"), true);
     assert.equal(routes.includes("POST /app/onboarding/start"), true);
+    assert.equal(routes.includes("POST /app/paychecks/detect"), true);
+    assert.equal(routes.includes("POST /app/transfers"), true);
   });
 });
 
@@ -287,6 +296,58 @@ test("core payee and onboarding routes remain provider-gated until live gates pa
     assert.equal(onboarding.response.status, 423);
     assert.equal(liveMoney.ok, false);
     assert.equal(card.status, "blocked");
+  });
+});
+
+test("core paycheck detection posts bucket split before safe spend", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(
+      baseUrl,
+      "/api/app/paychecks/detect",
+      jsonPost({
+        amountCents: 300_000,
+        employerName: "Acme Payroll",
+        idempotencyKey: "core-paycheck-detect",
+        receivedAt: "2026-07-01T12:00:00.000Z",
+      }),
+    );
+    const entry = body.ledgerEntry as Record<string, unknown>;
+
+    assert.equal(response.status, 200);
+    assert.equal(body.protectedCents, 155_000);
+    assert.equal(body.safeToSpendCents, 145_000);
+    assert.equal(entry.type, "paycheck_deposit");
+  });
+});
+
+test("core transfer route validates bucket funds and provider status", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(
+      baseUrl,
+      "/api/app/transfers",
+      jsonPost({
+        amountCents: 25_000,
+        destinationPayeeId: "payee_abc_apartments",
+        idempotencyKey: "core-transfer-rent",
+        sourceBucketId: "rent",
+      }),
+    );
+    const providerTransfer = body.providerTransfer as Record<string, unknown>;
+
+    assert.equal(response.status, 200);
+    assert.equal(providerTransfer.status, "blocked");
+
+    const rejected = await getJson(
+      baseUrl,
+      "/api/app/transfers",
+      jsonPost({
+        amountCents: 999_999,
+        destinationPayeeId: "payee_abc_apartments",
+        sourceBucketId: "rent",
+      }),
+    );
+
+    assert.equal(rejected.response.status, 400);
   });
 });
 

@@ -1,0 +1,635 @@
+"use client";
+
+import {
+  ArrowRightLeft,
+  BadgeDollarSign,
+  CheckCircle2,
+  Landmark,
+  Link2,
+  Loader2,
+  Radar,
+  ShieldAlert,
+} from "lucide-react";
+import { useMemo, useState } from "react";
+import type { BucketBalance, Payee } from "@/app/lib/neobank/types.ts";
+
+type ActionState =
+  | { status: "idle"; message: string }
+  | { status: "loading"; message: string }
+  | { status: "ready"; message: string }
+  | { status: "error"; message: string };
+
+type PlaidMetadata = {
+  account?: { id?: string; mask?: string; name?: string };
+  institution?: { name?: string };
+};
+
+type PlaidHandler = {
+  exit(): void;
+  open(): void;
+};
+
+type PlaidCreateInput = {
+  onExit?: () => void;
+  onSuccess: (publicToken: string, metadata: PlaidMetadata) => void;
+  token: string;
+};
+
+declare global {
+  interface Window {
+    Plaid?: {
+      create(input: PlaidCreateInput): PlaidHandler;
+    };
+  }
+}
+
+let plaidScriptPromise: Promise<void> | null = null;
+
+function loadPlaidScript() {
+  if (window.Plaid) {
+    return Promise.resolve();
+  }
+
+  if (plaidScriptPromise) {
+    return plaidScriptPromise;
+  }
+
+  plaidScriptPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(
+      'script[src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"]',
+    );
+
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Plaid Link failed to load.")), {
+        once: true,
+      });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = "https://cdn.plaid.com/link/v2/stable/link-initialize.js";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Plaid Link failed to load."));
+    document.head.append(script);
+  });
+
+  return plaidScriptPromise;
+}
+
+function formatMoney(cents: number) {
+  return new Intl.NumberFormat("en-US", {
+    currency: "USD",
+    maximumFractionDigits: 0,
+    style: "currency",
+  }).format(cents / 100);
+}
+
+function dollarsToCents(value: string) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.round(parsed * 100));
+}
+
+function StateMessage({ state }: { state: ActionState }) {
+  if (!state.message) {
+    return null;
+  }
+
+  return (
+    <div
+      className={`rounded-[8px] border p-3 text-sm font-bold leading-6 ${
+        state.status === "error"
+          ? "border-[#ff6b35]/35 bg-[#ff6b35]/10 text-[#ffd2c2]"
+          : "border-[#39e8ff]/25 bg-[#39e8ff]/10 text-[#dffaff]"
+      }`}
+    >
+      {state.message}
+    </div>
+  );
+}
+
+export function MoneyOperationsPanel({
+  buckets,
+  payees,
+}: {
+  buckets: BucketBalance[];
+  payees: Payee[];
+}) {
+  const [billingState, setBillingState] = useState<ActionState>({
+    message: "",
+    status: "idle",
+  });
+  const [bankState, setBankState] = useState<ActionState>({
+    message: "",
+    status: "idle",
+  });
+  const [depositState, setDepositState] = useState<ActionState>({
+    message: "",
+    status: "idle",
+  });
+  const [transferState, setTransferState] = useState<ActionState>({
+    message: "",
+    status: "idle",
+  });
+  const [paycheckAmount, setPaycheckAmount] = useState("3000");
+  const [employerName, setEmployerName] = useState("Demo payroll");
+  const [transferAmount, setTransferAmount] = useState("250");
+  const [sourceBucketId, setSourceBucketId] = useState("rent");
+  const [destinationPayeeId, setDestinationPayeeId] = useState(
+    payees[0]?.id ?? "linked_household_account",
+  );
+  const [depositResult, setDepositResult] = useState<{
+    protectedCents?: number;
+    safeToSpendCents?: number;
+  } | null>(null);
+  const selectedBucket = buckets.find((bucket) => bucket.id === sourceBucketId);
+  const connectedPayees = useMemo(
+    () => [
+      ...payees.map((payee) => ({ id: payee.id, name: payee.name })),
+      { id: "linked_household_account", name: "Linked household account" },
+    ],
+    [payees],
+  );
+
+  async function startPaidAccess() {
+    setBillingState({
+      message: "Creating secure checkout...",
+      status: "loading",
+    });
+
+    try {
+      const response = await fetch("/api/app/billing/checkout", {
+        body: JSON.stringify({
+          cancelPath: "/app?billing=cancelled",
+          successPath: "/app?billing=active",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        readiness?: { missing?: string[] };
+        url?: string;
+      };
+
+      if (!response.ok || !payload.url) {
+        setBillingState({
+          message:
+            payload.error ||
+            `Checkout is missing ${payload.readiness?.missing?.join(", ") || "Stripe configuration"}.`,
+          status: "error",
+        });
+        return;
+      }
+
+      setBillingState({
+        message: "Redirecting to checkout.",
+        status: "ready",
+      });
+      window.location.href = payload.url;
+    } catch {
+      setBillingState({
+        message: "Checkout could not be started.",
+        status: "error",
+      });
+    }
+  }
+
+  async function startBankLink() {
+    setBankState({
+      message: "Preparing secure bank connection...",
+      status: "loading",
+    });
+
+    try {
+      const response = await fetch("/api/app/bank-link/token", {
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        linkToken?: string;
+        readiness?: { missing?: string[] };
+      };
+
+      if (!response.ok || !payload.linkToken) {
+        setBankState({
+          message:
+            payload.error ||
+            `Bank connection is missing ${payload.readiness?.missing?.join(", ") || "Plaid configuration"}.`,
+          status: "error",
+        });
+        return;
+      }
+
+      await loadPlaidScript();
+
+      if (!window.Plaid) {
+        throw new Error("Plaid Link was not available after loading.");
+      }
+
+      const handler = window.Plaid.create({
+        onExit: () => {
+          setBankState({
+            message: "Bank connection was closed before completion.",
+            status: "idle",
+          });
+        },
+        onSuccess: async (publicToken, metadata) => {
+          const exchange = await fetch("/api/app/bank-link/exchange", {
+            body: JSON.stringify({
+              accountId: metadata.account?.id,
+              institutionName: metadata.institution?.name,
+              publicToken,
+            }),
+            headers: { "content-type": "application/json" },
+            method: "POST",
+          });
+          const exchangePayload = (await exchange.json().catch(() => ({}))) as {
+            bankConnection?: { institutionName?: string };
+            error?: string;
+            message?: string;
+          };
+
+          if (!exchange.ok) {
+            setBankState({
+              message: exchangePayload.error || "Bank link exchange failed.",
+              status: "error",
+            });
+            return;
+          }
+
+          setBankState({
+            message:
+              exchangePayload.message ||
+              `${exchangePayload.bankConnection?.institutionName || "Bank"} connected.`,
+            status: "ready",
+          });
+        },
+        token: payload.linkToken,
+      });
+
+      handler.open();
+    } catch (error) {
+      setBankState({
+        message:
+          error instanceof Error
+            ? error.message
+            : "Bank connection could not be started.",
+        status: "error",
+      });
+    }
+  }
+
+  async function detectPaycheck() {
+    const amountCents = dollarsToCents(paycheckAmount);
+
+    setDepositState({
+      message: "Running paycheck detection and bucket split...",
+      status: "loading",
+    });
+
+    try {
+      const response = await fetch("/api/app/paychecks/detect", {
+        body: JSON.stringify({
+          amountCents,
+          employerName,
+          idempotencyKey: `ui-paycheck-${crypto.randomUUID()}`,
+          receivedAt: new Date().toISOString(),
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        protectedCents?: number;
+        safeToSpendCents?: number;
+      };
+
+      if (!response.ok) {
+        setDepositState({
+          message: payload.error || "Paycheck was not detected.",
+          status: "error",
+        });
+        return;
+      }
+
+      setDepositResult(payload);
+      setDepositState({
+        message: payload.message || "Paycheck detected.",
+        status: "ready",
+      });
+    } catch {
+      setDepositState({
+        message: "Paycheck detection failed.",
+        status: "error",
+      });
+    }
+  }
+
+  async function createTransfer() {
+    const amountCents = dollarsToCents(transferAmount);
+
+    setTransferState({
+      message: "Validating protected transfer intent...",
+      status: "loading",
+    });
+
+    try {
+      const response = await fetch("/api/app/transfers", {
+        body: JSON.stringify({
+          amountCents,
+          destinationPayeeId,
+          idempotencyKey: `ui-transfer-${crypto.randomUUID()}`,
+          sourceBucketId,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        providerTransfer?: { status?: string };
+      };
+
+      if (!response.ok) {
+        setTransferState({
+          message: payload.error || "Transfer intent was rejected.",
+          status: "error",
+        });
+        return;
+      }
+
+      setTransferState({
+        message: `${payload.message || "Transfer intent created."} Provider status: ${
+          payload.providerTransfer?.status || "blocked"
+        }.`,
+        status: "ready",
+      });
+    } catch {
+      setTransferState({
+        message: "Transfer intent failed.",
+        status: "error",
+      });
+    }
+  }
+
+  return (
+    <section
+      className="relative z-10 border-b border-white/10 bg-[#07090b]"
+      id="money-operations"
+    >
+      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:px-8">
+        <div className="grid gap-5 lg:grid-cols-[0.82fr_1.18fr]">
+          <div className="accent-rule pt-5">
+            <p className="inline-flex items-center gap-2 rounded-[8px] border border-[#39e8ff]/30 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black uppercase tracking-[0.14em] text-[#dffaff]">
+              <Landmark className="size-4" aria-hidden="true" />
+              Money operations
+            </p>
+            <h2 className="mt-4 text-3xl font-black leading-tight text-white sm:text-4xl">
+              Revenue, account connection, detection, and protected transfers.
+            </h2>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-[#c9d0da]">
+              This is the operating lane for commercial access and real-world
+              paycheck control: charge for access, connect a funding source,
+              detect income, split it by rules, and validate transfer intents
+              against the protected ledger.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="brand-panel rounded-[8px] p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="brand-kicker">Paid access</p>
+                  <h3 className="mt-1 text-xl font-black text-white">
+                    Start household billing.
+                  </h3>
+                </div>
+                <BadgeDollarSign className="size-6 text-[#ffb237]" aria-hidden="true" />
+              </div>
+              <p className="mt-3 text-sm leading-6 text-[#aab3c2]">
+                Stripe Checkout turns PayShield into a paid beta product
+                without storing card data in the app.
+              </p>
+              <button
+                className="brand-button-primary mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={billingState.status === "loading"}
+                onClick={startPaidAccess}
+                type="button"
+              >
+                {billingState.status === "loading" ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <BadgeDollarSign className="size-4" aria-hidden="true" />
+                )}
+                Start paid access
+              </button>
+              <div className="mt-3">
+                <StateMessage state={billingState} />
+              </div>
+            </div>
+
+            <div className="brand-panel rounded-[8px] p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="brand-kicker">Bank connection</p>
+                  <h3 className="mt-1 text-xl font-black text-white">
+                    Connect the household source.
+                  </h3>
+                </div>
+                <Link2 className="size-6 text-[#39e8ff]" aria-hidden="true" />
+              </div>
+              <p className="mt-3 text-sm leading-6 text-[#aab3c2]">
+                Plaid Link initializes external account access for transaction
+                detection and transfer-provider handoff.
+              </p>
+              <button
+                className="brand-button-blue mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={bankState.status === "loading"}
+                onClick={startBankLink}
+                type="button"
+              >
+                {bankState.status === "loading" ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Link2 className="size-4" aria-hidden="true" />
+                )}
+                Connect bank
+              </button>
+              <div className="mt-3">
+                <StateMessage state={bankState} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="brand-panel rounded-[8px] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="brand-kicker">Paycheck detection</p>
+                <h3 className="mt-1 text-xl font-black text-white">
+                  Detect income and split it first.
+                </h3>
+              </div>
+              <Radar className="size-6 text-[#39e8ff]" aria-hidden="true" />
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_0.65fr]">
+              <label className="grid gap-2 text-sm font-black text-white">
+                Employer
+                <input
+                  className="h-11 rounded-[8px] border border-white/10 bg-black/45 px-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
+                  maxLength={80}
+                  onChange={(event) => setEmployerName(event.target.value)}
+                  value={employerName}
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-black text-white">
+                Amount
+                <input
+                  className="h-11 rounded-[8px] border border-white/10 bg-black/45 px-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
+                  inputMode="decimal"
+                  min="0"
+                  onChange={(event) => setPaycheckAmount(event.target.value)}
+                  type="number"
+                  value={paycheckAmount}
+                />
+              </label>
+            </div>
+            <button
+              className="brand-button-primary mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={
+                !employerName ||
+                dollarsToCents(paycheckAmount) <= 0 ||
+                depositState.status === "loading"
+              }
+              onClick={detectPaycheck}
+              type="button"
+            >
+              {depositState.status === "loading" ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Radar className="size-4" aria-hidden="true" />
+              )}
+              Run detection
+            </button>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div className="brand-panel-soft rounded-[8px] p-3">
+                <p className="brand-kicker">Protected</p>
+                <p className="mt-2 text-2xl font-black text-white">
+                  {formatMoney(depositResult?.protectedCents ?? 0)}
+                </p>
+              </div>
+              <div className="brand-panel-soft rounded-[8px] p-3">
+                <p className="brand-kicker">Safe to Spend</p>
+                <p className="mt-2 text-2xl font-black text-white">
+                  {formatMoney(depositResult?.safeToSpendCents ?? 0)}
+                </p>
+              </div>
+            </div>
+            <div className="mt-3">
+              <StateMessage state={depositState} />
+            </div>
+          </div>
+
+          <div className="brand-panel rounded-[8px] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="brand-kicker">Protected transfers</p>
+                <h3 className="mt-1 text-xl font-black text-white">
+                  Validate funds before release.
+                </h3>
+              </div>
+              <ArrowRightLeft className="size-6 text-[#ffb237]" aria-hidden="true" />
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-2 text-sm font-black text-white">
+                Source bucket
+                <select
+                  className="h-11 rounded-[8px] border border-white/10 bg-black/45 px-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
+                  onChange={(event) => setSourceBucketId(event.target.value)}
+                  value={sourceBucketId}
+                >
+                  {buckets.map((bucket) => (
+                    <option key={bucket.id} value={bucket.id}>
+                      {bucket.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-2 text-sm font-black text-white">
+                Destination
+                <select
+                  className="h-11 rounded-[8px] border border-white/10 bg-black/45 px-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
+                  onChange={(event) => setDestinationPayeeId(event.target.value)}
+                  value={destinationPayeeId}
+                >
+                  {connectedPayees.map((payee) => (
+                    <option key={payee.id} value={payee.id}>
+                      {payee.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-2 text-sm font-black text-white">
+                Amount
+                <input
+                  className="h-11 rounded-[8px] border border-white/10 bg-black/45 px-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
+                  inputMode="decimal"
+                  min="0"
+                  onChange={(event) => setTransferAmount(event.target.value)}
+                  type="number"
+                  value={transferAmount}
+                />
+              </label>
+              <div className="rounded-[8px] border border-white/10 bg-black/35 p-3">
+                <p className="brand-kicker">Available</p>
+                <p className="mt-2 text-lg font-black text-white">
+                  {formatMoney(selectedBucket?.availableCents ?? 0)}
+                </p>
+              </div>
+            </div>
+
+            <button
+              className="brand-button-blue mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={
+                dollarsToCents(transferAmount) <= 0 ||
+                transferState.status === "loading"
+              }
+              onClick={createTransfer}
+              type="button"
+            >
+              {transferState.status === "loading" ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <CheckCircle2 className="size-4" aria-hidden="true" />
+              )}
+              Create transfer intent
+            </button>
+
+            <div className="mt-3">
+              <StateMessage state={transferState} />
+            </div>
+            <div className="mt-3 flex items-start gap-3 rounded-[8px] border border-[#ffb237]/25 bg-[#ffb237]/10 p-3">
+              <ShieldAlert className="mt-0.5 size-5 shrink-0 text-[#ffcf72]" aria-hidden="true" />
+              <p className="text-sm leading-6 text-[#ffe4ad]">
+                Provider execution stays locked until transfer credentials,
+                ledger persistence, support runbooks, and approvals are active.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

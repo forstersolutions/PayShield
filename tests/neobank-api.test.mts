@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 import { NextRequest } from "next/server.js";
 import { POST as authorizeCard } from "../src/app/api/card/authorize/route.ts";
+import { POST as startCheckout } from "../src/app/api/app/billing/checkout/route.ts";
+import { POST as createBankLinkToken } from "../src/app/api/app/bank-link/token/route.ts";
 import { GET as getBalances } from "../src/app/api/app/balances/route.ts";
 import {
   GET as getBuckets,
@@ -11,6 +13,8 @@ import { POST as scheduleBillPayment } from "../src/app/api/app/bill-payments/ro
 import { GET as getMe } from "../src/app/api/app/me/route.ts";
 import { POST as startOnboarding } from "../src/app/api/app/onboarding/start/route.ts";
 import { POST as createPayee } from "../src/app/api/app/payees/route.ts";
+import { POST as detectPaycheck } from "../src/app/api/app/paychecks/detect/route.ts";
+import { POST as createTransfer } from "../src/app/api/app/transfers/route.ts";
 import { POST as unlockBucket } from "../src/app/api/app/unlocks/route.ts";
 import { POST as providerWebhook } from "../src/app/api/provider/webhooks/route.ts";
 
@@ -22,12 +26,18 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_BAAS_API_KEY;
   delete process.env.PAYSHIELD_BAAS_CONTRACT_APPROVED;
   delete process.env.PAYSHIELD_BAAS_PROVIDER;
+  delete process.env.PAYSHIELD_BETA_PAYMENT_LINK_URL;
+  delete process.env.PAYSHIELD_BETA_PRICE_ID;
   delete process.env.PAYSHIELD_CORE_API_URL;
   delete process.env.PAYSHIELD_LEDGER_DATABASE_URL;
   delete process.env.PAYSHIELD_LIVE_MONEY_ENABLED;
   delete process.env.PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED;
+  delete process.env.PAYSHIELD_TRANSFER_ENABLED;
+  delete process.env.PLAID_CLIENT_ID;
+  delete process.env.PLAID_SECRET;
   delete process.env.PAYSHIELD_REGULATED_COUNSEL_SIGNOFF;
   delete process.env.PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED;
+  delete process.env.STRIPE_SECRET_KEY;
 });
 
 function makeRequest(path: string, payload: unknown) {
@@ -127,6 +137,92 @@ test("onboarding fails closed until live-money gates are configured", async () =
   assert.equal((body.liveMoney as Record<string, unknown>).ok, false);
   assert.equal((body.customer as Record<string, unknown>).status, "blocked");
   assert.equal((body.card as Record<string, unknown>).status, "blocked");
+});
+
+test("paid access checkout reports missing Stripe configuration", async () => {
+  const response = await startCheckout(
+    makeRequest("/api/app/billing/checkout", {
+      cancelPath: "/app?billing=cancelled",
+      successPath: "/app?billing=active",
+    }),
+  );
+  const body = await parseJson(response);
+  const readiness = body.readiness as Record<string, unknown>;
+
+  assert.equal(response.status, 424);
+  assert.equal(readiness.checkoutConfigured, false);
+  assert.equal(Array.isArray(readiness.missing), true);
+});
+
+test("paid access checkout can return a configured payment link", async () => {
+  process.env.PAYSHIELD_BETA_PAYMENT_LINK_URL = "https://buy.stripe.com/test_123";
+
+  const response = await startCheckout(
+    makeRequest("/api/app/billing/checkout", {
+      cancelPath: "/app?billing=cancelled",
+      successPath: "/app?billing=active",
+    }),
+  );
+  const body = await parseJson(response);
+
+  assert.equal(response.status, 200);
+  assert.equal(body.url, "https://buy.stripe.com/test_123");
+});
+
+test("bank link token fails closed until Plaid is configured", async () => {
+  const response = await createBankLinkToken(
+    makeRequest("/api/app/bank-link/token", {}),
+  );
+  const body = await parseJson(response);
+  const readiness = body.readiness as Record<string, unknown>;
+
+  assert.equal(response.status, 424);
+  assert.equal(readiness.plaidConfigured, false);
+  assert.equal(Array.isArray(readiness.missing), true);
+});
+
+test("paycheck detection posts a split before safe spend", async () => {
+  const response = await detectPaycheck(
+    makeRequest("/api/app/paychecks/detect", {
+      amountCents: 300_000,
+      employerName: "Acme Payroll",
+      idempotencyKey: "route-paycheck-detect",
+      receivedAt: "2026-07-01T12:00:00.000Z",
+    }),
+  );
+  const body = await parseJson(response);
+  const entry = body.ledgerEntry as Record<string, unknown>;
+
+  assert.equal(response.status, 200);
+  assert.equal(body.protectedCents, 155_000);
+  assert.equal(body.safeToSpendCents, 145_000);
+  assert.equal(entry.type, "paycheck_deposit");
+});
+
+test("transfer route validates bucket funds and returns provider gate", async () => {
+  const response = await createTransfer(
+    makeRequest("/api/app/transfers", {
+      amountCents: 25_000,
+      destinationPayeeId: "payee_abc_apartments",
+      idempotencyKey: "route-transfer-rent",
+      sourceBucketId: "rent",
+    }),
+  );
+  const body = await parseJson(response);
+  const providerTransfer = body.providerTransfer as Record<string, unknown>;
+
+  assert.equal(response.status, 200);
+  assert.equal(providerTransfer.status, "blocked");
+
+  const rejected = await createTransfer(
+    makeRequest("/api/app/transfers", {
+      amountCents: 999_999,
+      destinationPayeeId: "payee_abc_apartments",
+      sourceBucketId: "rent",
+    }),
+  );
+
+  assert.equal(rejected.status, 400);
 });
 
 test("card authorization route approves safe-spend purchase in simulation mode", async () => {

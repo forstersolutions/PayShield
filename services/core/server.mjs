@@ -4,7 +4,9 @@ import {
   authorizeCard,
   createBillPayment,
   createPayee,
+  createTransferIntent,
   createUnlock,
+  detectPaycheck,
   getBalances,
   getBucketProfile,
   getCoreHealth,
@@ -186,6 +188,16 @@ export function createCoreServer() {
 
       if (request.method === "POST" && path === "/app/payees") {
         await withJsonBody(request, response, createPayee);
+        return;
+      }
+
+      if (request.method === "POST" && path === "/app/paychecks/detect") {
+        await withJsonBody(request, response, detectPaycheck);
+        return;
+      }
+
+      if (request.method === "POST" && path === "/app/transfers") {
+        await withJsonBody(request, response, createTransferIntent);
         return;
       }
 

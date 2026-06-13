@@ -43,17 +43,18 @@ export function PayShieldLogo({
 }
 
 export function PayShieldHeaderLogo({
-  className = "",
+  className = "h-10 w-auto max-w-[12.5rem] sm:h-11 sm:max-w-[14rem]",
   priority = false,
 }: BrandImageProps) {
   return (
-    <span className={`pay-brand-lockup ${className}`}>
-      <PayShieldMark className="pay-brand-lockup-mark" priority={priority} />
-      <span className="pay-brand-lockup-word" aria-label="PayShield">
-        <span className="pay-brand-lockup-pay">Pay</span>
-        <span>Shield</span>
-      </span>
-    </span>
+    <Image
+      alt="PayShield"
+      className={`pay-header-logo object-contain ${className}`}
+      height={306}
+      priority={priority}
+      src="/images/payshield-logo-clean.png"
+      width={855}
+    />
   );
 }
 
