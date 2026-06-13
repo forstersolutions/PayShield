@@ -40,50 +40,72 @@ import {
 
 const commandActions = [
   {
-    body: "Activate paid household access through Stripe Checkout or a configured payment link.",
+    body: "Create the paid household access record before money controls unlock.",
+    endpoint: "POST /api/app/billing/checkout",
     href: "#money-operations",
     icon: BadgeDollarSign,
-    label: "Activate access",
+    label: "Start checkout",
   },
   {
-    body: "Initialize external account connection for transaction detection and transfer handoff.",
+    body: "Launch Plaid Link and exchange the public token into vault custody.",
+    endpoint: "POST /api/app/bank-link/token",
     href: "#money-operations",
     icon: Link2,
-    label: "Connect bank",
+    label: "Launch Plaid",
   },
   {
-    body: "Record the masked paycheck-routing setup used before protected splits run.",
+    body: "Record masked routing state for the protected paycheck landing zone.",
+    endpoint: "POST /api/app/direct-deposit",
     href: "#money-operations",
     icon: Landmark,
-    label: "Route paycheck",
+    label: "Set routing",
   },
   {
-    body: "Run payroll detection and split income into protected buckets before Safe to Spend.",
+    body: "Save the employer match, frequency, and amount thresholds.",
+    endpoint: "POST /api/app/paychecks/rules",
     href: "#money-operations",
     icon: Radar,
-    label: "Detect paycheck",
+    label: "Save rule",
+  },
+  {
+    body: "Post a paycheck event and split protected buckets before Safe to Spend.",
+    endpoint: "POST /api/app/paychecks/detect",
+    href: "#money-operations",
+    icon: Split,
+    label: "Run split",
+  },
+  {
+    body: "Validate a protected bucket transfer before any provider handoff.",
+    endpoint: "POST /api/app/transfers",
+    href: "#money-operations",
+    icon: Landmark,
+    label: "Move funds",
   },
   {
     body: "Run a purchase through the Safe to Spend decision model.",
+    endpoint: "POST /api/card/authorize",
     href: "#card-authorization",
     icon: CreditCard,
-    label: "Check a card swipe",
+    label: "Check swipe",
   },
   {
     body: "Download the household operations packet for support and reconciliation.",
     download: "payshield-household-audit.json",
+    endpoint: "GET /api/app/audit/export",
     href: "/api/app/audit/export",
     icon: FileDown,
     label: "Audit export",
   },
   {
     body: "Model emergency access with a per-check recovery plan.",
+    endpoint: "POST /api/app/unlocks",
     href: "#unlock-controls",
     icon: ShieldAlert,
     label: "Unlock funds",
   },
   {
     body: "Send operational requests to Grayston support.",
+    endpoint: GRAYSTON_SUPPORT_EMAIL,
     href: `mailto:${GRAYSTON_SUPPORT_EMAIL}`,
     icon: LifeBuoy,
     label: "Support",
@@ -91,13 +113,14 @@ const commandActions = [
 ];
 
 const moneyPath = [
-  "Commercial access",
-  "Bank connection",
+  "Stripe paid access",
+  "Clerk household",
+  "Plaid bank connection",
   "Paycheck routing",
-  "Income intake",
-  "Priority split",
-  "Safe-spend decision",
-  "Reconciliation",
+  "Payroll detection",
+  "Priority bucket split",
+  "Transfer/card decision",
+  "Audit and reconciliation",
 ];
 
 function stepTone(ready: boolean) {
@@ -327,6 +350,29 @@ export function HouseholdCommandCenter() {
               ledger into protected buckets, route bills, and decide spending
               from one reliable operating flow.
             </p>
+            <div className="mt-6 grid gap-2 sm:grid-cols-3">
+              <a
+                className="brand-button-primary inline-flex min-h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black"
+                href="#money-operations"
+              >
+                <BadgeDollarSign className="size-4" aria-hidden="true" />
+                Start paid access
+              </a>
+              <a
+                className="brand-button-blue inline-flex min-h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black"
+                href="#money-operations"
+              >
+                <Link2 className="size-4" aria-hidden="true" />
+                Connect bank
+              </a>
+              <a
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[8px] border border-[#ffb237]/30 bg-[#ffb237]/10 px-4 text-sm font-black text-[#ffe4ad] hover:bg-[#ffb237]/15"
+                href="#bucket-studio"
+              >
+                <Split className="size-4" aria-hidden="true" />
+                Protect funds
+              </a>
+            </div>
 
             <div className="mt-7 rounded-[8px] border border-[#1588ff]/30 bg-[#07111f]/78 p-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
@@ -470,19 +516,27 @@ export function HouseholdCommandCenter() {
                 </div>
                 <WalletCards className="size-6 text-[#39e8ff]" aria-hidden="true" />
               </div>
-              <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="mt-5 grid gap-2 sm:grid-cols-2">
                 {commandActions.map((action) => {
                   const Icon = action.icon;
 
                   return (
                     <a
-                      className="grid min-h-20 place-items-center gap-2 rounded-[8px] border border-white/10 bg-black/35 p-3 text-center text-sm font-black text-white transition hover:border-[#39e8ff]/35 hover:bg-[#39e8ff]/10"
+                      className="grid min-h-28 gap-2 rounded-[8px] border border-white/10 bg-black/35 p-3 text-left transition hover:border-[#39e8ff]/35 hover:bg-[#39e8ff]/10"
                       download={action.download}
                       href={action.href}
                       key={action.label}
                     >
-                      <Icon className="size-5 text-[#39e8ff]" aria-hidden="true" />
-                      {action.label}
+                      <span className="flex items-center gap-2 text-sm font-black text-white">
+                        <Icon className="size-5 text-[#39e8ff]" aria-hidden="true" />
+                        {action.label}
+                      </span>
+                      <span className="text-xs leading-5 text-[#aab3c2]">
+                        {action.body}
+                      </span>
+                      <span className="font-mono text-[0.68rem] font-black uppercase text-[#ffcf72]">
+                        {action.endpoint}
+                      </span>
                     </a>
                   );
                 })}

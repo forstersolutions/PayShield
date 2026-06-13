@@ -1,4 +1,5 @@
 import type { NeobankReadiness, NeobankReadinessGate } from "./types.ts";
+import { clerkAppConfigured } from "./app-access.ts";
 import { getCoreServiceConfig } from "./core-config.ts";
 
 export const CORE_LEDGER_SCHEMA_VERSION = "0010";
@@ -58,9 +59,7 @@ export function getNeobankReadiness(): NeobankReadiness {
     {
       description: "Clerk keys are configured for authenticated app access.",
       id: "clerk_auth",
-      ok:
-        envPresent("CLERK_SECRET_KEY") &&
-        envPresent("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"),
+      ok: clerkAppConfigured(process.env),
     },
   ];
   const liveMoneyReady =

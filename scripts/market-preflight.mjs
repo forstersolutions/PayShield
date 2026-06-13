@@ -92,6 +92,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/lib/brand.ts",
   "src/app/lib/pilot-analytics.ts",
   "src/app/lib/neobank/auth.ts",
+  "src/app/lib/neobank/app-access.ts",
   "src/app/lib/neobank/core-client.ts",
   "src/app/lib/neobank/core-config.ts",
   "src/app/lib/neobank/demo-state.ts",
@@ -164,6 +165,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "PAYSHIELD_SUPPORT_EMAIL",
   "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
   "CLERK_SECRET_KEY",
+  "PAYSHIELD_ALLOW_REVIEW_APP_ACCESS",
   "PAYSHIELD_CORE_API_URL",
   "PAYSHIELD_CORE_SERVICE_TOKEN",
   "PAYSHIELD_CORE_TIMEOUT_MS",
@@ -288,6 +290,13 @@ requireText("src/app/lib/commercial/billing.ts", "createCommercialPortalSession"
 requireText("src/app/lib/commercial/billing.ts", "billing_portal_provider_error");
 requireText("src/app/api/app/direct-deposit/route.ts", "direct deposit setup");
 requireText("src/app/api/app/paychecks/rules/route.ts", "paycheck detection setup");
+requireText("src/proxy.ts", "protectedAppUnavailableResponse");
+requireText("src/proxy.ts", "appAuthNotConfiguredBody");
+requireText("src/proxy.ts", "PAYSHIELD_ALLOW_REVIEW_APP_ACCESS=true");
+requireText("src/proxy.ts", 'pathname.startsWith("/api/app/")');
+requireText("src/app/lib/neobank/app-access.ts", "PAYSHIELD_ALLOW_REVIEW_APP_ACCESS");
+requireText("src/app/lib/neobank/app-access.ts", 'env.VERCEL_ENV !== "production"');
+requireText("src/app/api/health/route.ts", "appAccess");
 requireText("src/app/lib/neobank/core-config.ts", "PAYSHIELD_CORE_API_URL");
 requireText("src/app/lib/neobank/core-config.ts", "VERCEL_ENV");
 requireText("src/app/lib/neobank/core-client.ts", "x-payshield-provider-signature");
@@ -764,7 +773,7 @@ requireText("src/app/api/health/route.ts", "liveMoneyReady");
 requireText("src/app/api/health/route.ts", "postgresSchemaVerified");
 requireText("src/app/api/health/route.ts", "remainingGates");
 requireText("src/proxy.ts", "clerkMiddleware");
-requireText("src/proxy.ts", "/api/app(.*)");
+requireText("src/proxy.ts", 'pathname === "/api/app"');
 requireText("services/core/server.mjs", "payshield-core");
 requireText("services/core/server.mjs", 'path === "/card/authorize"');
 requireText("services/core/server.mjs", "PAYSHIELD_CORE_SERVICE_TOKEN");

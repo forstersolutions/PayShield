@@ -3,12 +3,14 @@ import { getCommercialReadiness } from "../../lib/commercial/billing.ts";
 import { getMoneyRailReadiness } from "../../lib/neobank/money-rails.ts";
 import { getWaitlistCaptureConfig } from "../../lib/waitlist-capture-config.ts";
 import { getNeobankReadiness } from "../../lib/neobank/readiness.ts";
+import { getAppAccessReadiness } from "../../lib/neobank/app-access.ts";
 
 export function GET() {
   const capture = getWaitlistCaptureConfig();
   const commercial = getCommercialReadiness();
   const moneyRails = getMoneyRailReadiness();
   const neobank = getNeobankReadiness();
+  const appAccess = getAppAccessReadiness();
   const ok =
     (!capture.requireWebhook || capture.paidTrafficReady) &&
     !capture.storageMisconfigured &&
@@ -53,6 +55,13 @@ export function GET() {
         webhookEndpointPath: commercial.webhookEndpointPath,
         webhookSigningSecretConfigured:
           commercial.webhookSigningSecretConfigured,
+      },
+      appAccess: {
+        clerkConfigured: appAccess.clerkConfigured,
+        locked: appAccess.locked,
+        mode: appAccess.mode,
+        productionLocked: appAccess.productionLocked,
+        reviewAccessAllowed: appAccess.reviewAccessAllowed,
       },
       moneyRails: {
         bankLinkReady: moneyRails.bankLinkReady,

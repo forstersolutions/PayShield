@@ -1,6 +1,10 @@
 import { headers } from "next/headers.js";
+import {
+  appAuthNotConfiguredBody,
+  clerkAppConfigured,
+  reviewAppAccessAllowed,
+} from "./app-access.ts";
 import { demoUser } from "./demo-state.ts";
-import { getNeobankReadiness } from "./readiness.ts";
 
 export type AppSession = {
   authMode: "clerk" | "demo";
@@ -9,6 +13,27 @@ export type AppSession = {
   userId: string;
 };
 
+export class AppAuthNotConfiguredError extends Error {
+  constructor() {
+    super(appAuthNotConfiguredBody().error);
+    this.name = "AppAuthNotConfiguredError";
+  }
+}
+
+export function appSessionErrorBody(error: unknown) {
+  if (error instanceof AppAuthNotConfiguredError) {
+    return {
+      body: appAuthNotConfiguredBody(),
+      status: 503,
+    };
+  }
+
+  return {
+    body: { error: "Unauthorized" },
+    status: 401,
+  };
+}
+
 function cleanIdentityText(value: unknown, maxLength: number) {
   return typeof value === "string"
     ? value.trim().replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").slice(0, maxLength)
@@ -16,9 +41,11 @@ function cleanIdentityText(value: unknown, maxLength: number) {
 }
 
 export async function getAppSession(): Promise<AppSession> {
-  const readiness = getNeobankReadiness();
+  if (!clerkAppConfigured()) {
+    if (!reviewAppAccessAllowed()) {
+      throw new AppAuthNotConfiguredError();
+    }
 
-  if (!readiness.clerkConfigured) {
     return {
       authMode: "demo",
       email: demoUser.email,

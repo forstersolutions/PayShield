@@ -1,12 +1,22 @@
 import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 import { test } from "node:test";
+import { NextRequest } from "next/server.js";
+import proxy from "../src/proxy.ts";
 
 const fallbackFiles = [
   "src/app/not-found.tsx",
   "src/app/error.tsx",
   "src/app/global-error.tsx",
 ];
+
+async function runProxy(request: NextRequest) {
+  const response = (await proxy(request, {} as never)) as Response | null;
+
+  assert.ok(response instanceof Response);
+
+  return response;
+}
 
 test("route fallbacks provide branded recovery paths", async () => {
   for (const file of fallbackFiles) {
@@ -36,4 +46,73 @@ test("app route serves the operating screen instead of the root loading shell", 
 
   assert.match(appPage, /dynamic = "force-dynamic"/);
   await assert.rejects(access("src/app/loading.tsx"));
+});
+
+test("production app access fails closed without Clerk unless review access is explicit", async () => {
+  const originalEnv = {
+    allowReview: process.env.PAYSHIELD_ALLOW_REVIEW_APP_ACCESS,
+    clerkPublishable: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+    clerkSecret: process.env.CLERK_SECRET_KEY,
+    vercelEnv: process.env.VERCEL_ENV,
+  };
+
+  try {
+    delete process.env.CLERK_SECRET_KEY;
+    delete process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+    delete process.env.PAYSHIELD_ALLOW_REVIEW_APP_ACCESS;
+    process.env.VERCEL_ENV = "production";
+
+    const apiResponse = await runProxy(
+      new NextRequest("https://payshield.test/api/app/me"),
+    );
+    const apiBody = (await apiResponse.json()) as Record<string, unknown>;
+    const readiness = apiBody.readiness as Record<string, unknown>;
+
+    assert.equal(apiResponse.status, 503);
+    assert.equal(apiBody.code, "app_auth_not_configured");
+    assert.equal(readiness.mode, "locked");
+    assert.equal(readiness.productionLocked, true);
+
+    const pageResponse = await runProxy(
+      new NextRequest("https://payshield.test/app"),
+    );
+    const pageBody = await pageResponse.text();
+
+    assert.equal(pageResponse.status, 503);
+    assert.match(pageBody, /App access is not configured/);
+    assert.match(pageBody, /PAYSHIELD_ALLOW_REVIEW_APP_ACCESS=true/);
+
+    process.env.PAYSHIELD_ALLOW_REVIEW_APP_ACCESS = "true";
+
+    const allowedResponse = await runProxy(
+      new NextRequest("https://payshield.test/api/app/me"),
+    );
+
+    assert.notEqual(allowedResponse.status, 503);
+  } finally {
+    if (originalEnv.clerkSecret === undefined) {
+      delete process.env.CLERK_SECRET_KEY;
+    } else {
+      process.env.CLERK_SECRET_KEY = originalEnv.clerkSecret;
+    }
+
+    if (originalEnv.clerkPublishable === undefined) {
+      delete process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+    } else {
+      process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY =
+        originalEnv.clerkPublishable;
+    }
+
+    if (originalEnv.allowReview === undefined) {
+      delete process.env.PAYSHIELD_ALLOW_REVIEW_APP_ACCESS;
+    } else {
+      process.env.PAYSHIELD_ALLOW_REVIEW_APP_ACCESS = originalEnv.allowReview;
+    }
+
+    if (originalEnv.vercelEnv === undefined) {
+      delete process.env.VERCEL_ENV;
+    } else {
+      process.env.VERCEL_ENV = originalEnv.vercelEnv;
+    }
+  }
 });
