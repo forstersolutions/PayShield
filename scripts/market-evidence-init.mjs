@@ -567,7 +567,7 @@ export async function createMarketEvidencePacket({
   );
   const receiverEvidenceFile = join(evidenceDir, "receiver-evidence.json");
   const commandsFile = join(evidenceDir, "commands.md");
-  const envAuditCommand = "npm run vercel:env:audit";
+  const envAuditCommand = "npm run vercel:env:audit -- --profile all";
   const requiredCaptureSmokeCommand = [
     "npm run smoke:deploy --",
     shellQuote(normalizedSiteUrl),

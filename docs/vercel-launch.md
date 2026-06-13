@@ -99,6 +99,12 @@ Audit the current Vercel environment state without printing encrypted values:
 npm run vercel:env:audit
 ```
 
+Audit the full commercial money-control path before selling access:
+
+```bash
+npm run vercel:env:audit -- --profile commercial
+```
+
 For launch-surface evidence before the webhook variables are configured:
 
 ```bash

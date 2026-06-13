@@ -316,6 +316,10 @@ are active.
 - Run `npm run vercel:env:audit` and confirm Vercel Production has
   `NEXT_PUBLIC_SITE_URL`, `PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK`, and either the
   webhook env vars, Blob env vars, or Upstash env vars before paid traffic.
+- Run `npm run vercel:env:audit -- --profile commercial` and confirm Vercel
+  Production has the Stripe revenue, Clerk access, Plaid bank-link, token-vault,
+  payroll detection, ledger, transfer/BaaS, and live-control gate variables
+  before paid households enter the money-control app.
 - Run `npm run launch:evidence -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app`
   and attach the redacted JSON output to the readiness issue. After production
   durable capture is configured, rerun the command with `--strict`.

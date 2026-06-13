@@ -2552,6 +2552,7 @@ function activationPacketFromOperations(body, env = process.env) {
       smokeCommands: [
         `curl -fsS ${siteUrl}/api/health`,
         `curl -fsS ${siteUrl}/api/launch/activation`,
+        "npm run vercel:env:audit -- --profile commercial",
         `npm run market:status -- ${siteUrl} --expect-site-url ${siteUrl}`,
         'PAYSHIELD_LEDGER_DATABASE_URL="<postgres-url>" npm run core:migrations:verify',
       ],

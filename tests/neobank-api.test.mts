@@ -222,6 +222,10 @@ test("activation endpoint exposes operator launch checklist and smoke commands",
     true,
   );
   assert.equal(
+    smokeCommands.includes("npm run vercel:env:audit -- --profile commercial"),
+    true,
+  );
+  assert.equal(
     authenticatedSmokeCommands.some((command) =>
       command.includes("/api/app/activation"),
     ),
