@@ -4660,6 +4660,7 @@ export async function handleProviderWebhook(payload, env = process.env) {
   }
 
   const processed = [];
+  const skipped = [];
 
   for (const detection of detections) {
     const actor = await actorForProviderDetection(
@@ -4684,35 +4685,27 @@ export async function handleProviderWebhook(payload, env = process.env) {
     }
 
     if (actor.missingProviderReference) {
-      return {
-        body: {
-          accepted: true,
-          detectionCount: 0,
-          eventPersistence,
-          mode: "blocked",
-          providerEventId,
-          reason:
-            "Provider paycheck transaction must include provider item and account identifiers before PayShield can match it to an active bank connection.",
-          service: "payshield-provider-webhook",
-        },
-        status: 202,
-      };
+      skipped.push({
+        amountCents: detection.amountCents,
+        employerName: detection.employerName,
+        providerTransactionId: detection.providerTransactionId,
+        reason:
+          "Provider paycheck transaction must include provider item and account identifiers before PayShield can match it to an active bank connection.",
+        status: "missing_provider_reference",
+      });
+      continue;
     }
 
     if (actor.notFound) {
-      return {
-        body: {
-          accepted: true,
-          detectionCount: 0,
-          eventPersistence,
-          mode: "blocked",
-          providerEventId,
-          reason:
-            "Provider transaction could not be matched to an active PayShield bank connection.",
-          service: "payshield-provider-webhook",
-        },
-        status: 202,
-      };
+      skipped.push({
+        amountCents: detection.amountCents,
+        employerName: detection.employerName,
+        providerTransactionId: detection.providerTransactionId,
+        reason:
+          "Provider transaction could not be matched to an active PayShield bank connection.",
+        status: "bank_connection_not_found",
+      });
+      continue;
     }
 
     const result = await detectPaycheck(
@@ -4735,6 +4728,20 @@ export async function handleProviderWebhook(payload, env = process.env) {
     );
 
     if (result.status >= 400) {
+      if (result.status < 500) {
+        skipped.push({
+          amountCents: detection.amountCents,
+          employerName: detection.employerName,
+          providerTransactionId: detection.providerTransactionId,
+          reason:
+            typeof result.body?.error === "string"
+              ? result.body.error
+              : "Provider paycheck transaction was rejected by paycheck detection controls.",
+          status: "rejected",
+        });
+        continue;
+      }
+
       return {
         body: {
           accepted: false,
@@ -4763,11 +4770,17 @@ export async function handleProviderWebhook(payload, env = process.env) {
       detectionCount: processed.length,
       detections: processed,
       eventPersistence,
-      mode: "processed",
+      mode: processed.length > 0 ? "processed" : "blocked",
       moneyReadiness,
       providerEventId,
       readiness,
+      reason:
+        processed.length > 0
+          ? undefined
+          : "Provider webhook accepted, but no paycheck transaction could be posted.",
       service: "payshield-provider-webhook",
+      skipped,
+      skippedCount: skipped.length,
     },
     status: 202,
   };

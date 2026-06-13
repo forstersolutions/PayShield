@@ -1344,6 +1344,19 @@ test("core provider webhook posts income transactions into paycheck split flow",
           },
           transaction_id: "txn_debit_001",
         },
+        {
+          account_id: "acc_payroll",
+          amount: -25_000,
+          date: "2026-06-12",
+          item_id: "item_payroll",
+          name: "OVERSIZED PAYROLL",
+          pending: false,
+          personal_finance_category: {
+            detailed: "INCOME_WAGES",
+            primary: "INCOME",
+          },
+          transaction_id: "txn_payroll_too_large",
+        },
       ],
       type: "transactions.sync",
     };
@@ -1354,15 +1367,20 @@ test("core provider webhook posts income transactions into paycheck split flow",
     );
     const detections = body.detections as Array<Record<string, unknown>>;
     const eventPersistence = body.eventPersistence as Record<string, unknown>;
+    const skipped = body.skipped as Array<Record<string, unknown>>;
 
     assert.equal(response.status, 202);
     assert.equal(body.accepted, true);
     assert.equal(body.mode, "processed");
     assert.equal(body.detectionCount, 1);
+    assert.equal(body.skippedCount, 1);
     assert.equal(eventPersistence.persistence, "memory");
     assert.equal(detections[0]?.amountCents, 187_542);
     assert.equal(detections[0]?.employerName, "ACME PAYROLL");
     assert.equal(detections[0]?.providerTransactionId, "txn_payroll_001");
+    assert.equal(skipped[0]?.providerTransactionId, "txn_payroll_too_large");
+    assert.equal(skipped[0]?.status, "rejected");
+    assert.match(String(skipped[0]?.reason), /amountCents/i);
   });
 });
 
