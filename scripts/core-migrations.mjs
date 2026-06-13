@@ -277,6 +277,8 @@ FROM (
     ('table:card_authorization_decisions', to_regclass('public.card_authorization_decisions') IS NOT NULL),
     ('table:bill_payment_schedules', to_regclass('public.bill_payment_schedules') IS NOT NULL),
     ('table:unlock_requests', to_regclass('public.unlock_requests') IS NOT NULL),
+    ('table:provider_token_secrets', to_regclass('public.provider_token_secrets') IS NOT NULL),
+    ('table:provider_token_vault_events', to_regclass('public.provider_token_vault_events') IS NOT NULL),
     ('table:provider_events', to_regclass('public.provider_events') IS NOT NULL),
     ('table:reconciliation_exceptions', to_regclass('public.reconciliation_exceptions') IS NOT NULL),
     ('table:${migrationLedgerTable}', to_regclass('public.${migrationLedgerTable}') IS NOT NULL),

@@ -18,6 +18,7 @@ import {
   getHouseholdOperations,
   getProfile,
   handleProviderWebhook,
+  receiveTokenVaultHandoff,
   recordBankConnection,
   recordCommercialBillingEvent,
   saveBucketProfile,
@@ -108,12 +109,15 @@ async function readJson(request) {
   }
 
   if (chunks.length === 0) {
-    return { value: {} };
+    return { rawBody: "", value: {} };
   }
+
+  const rawBody = Buffer.concat(chunks).toString("utf8");
 
   try {
     return {
-      value: JSON.parse(Buffer.concat(chunks).toString("utf8")),
+      rawBody,
+      value: JSON.parse(rawBody),
     };
   } catch {
     return {
@@ -145,6 +149,33 @@ async function withJsonBody(request, response, handler) {
   json(response, result.status, result.body);
 }
 
+async function withSignedJsonBody(request, response, handler) {
+  const parsed = await readJson(request);
+
+  if (parsed.error) {
+    json(response, parsed.status, {
+      error: parsed.error,
+      service: "payshield-core",
+    });
+    return;
+  }
+
+  const value =
+    parsed.value && typeof parsed.value === "object" && !Array.isArray(parsed.value)
+      ? {
+          ...parsed.value,
+          __payshieldRawBody: parsed.rawBody,
+          __payshieldSignature: cleanHeader(
+            request.headers["x-payshield-signature"],
+            320,
+          ),
+        }
+      : parsed.value;
+  const result = await handler(value);
+
+  json(response, result.status, result.body);
+}
+
 async function writeResult(response, result) {
   const resolved = await result;
 
@@ -173,11 +204,16 @@ export function createCoreServer() {
 
     if (request.method === "OPTIONS") {
       response.writeHead(204, {
-        "access-control-allow-headers": "authorization, content-type",
+        "access-control-allow-headers": "authorization, content-type, x-payshield-signature",
         "access-control-allow-methods": "GET,POST,OPTIONS",
         "cache-control": "no-store",
       });
       response.end();
+      return;
+    }
+
+    if (request.method === "POST" && path === "/token-vault/plaid") {
+      await withSignedJsonBody(request, response, receiveTokenVaultHandoff);
       return;
     }
 

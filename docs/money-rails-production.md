@@ -34,7 +34,7 @@ PAYSHIELD_CORE_API_URL=
 PAYSHIELD_CORE_SERVICE_TOKEN=
 PAYSHIELD_LEDGER_DATABASE_URL=
 PAYSHIELD_LEDGER_SCHEMA_VERIFIED=true
-PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0005
+PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0006
 ```
 
 Bank connection and transaction detection:
@@ -47,8 +47,10 @@ PLAID_PRODUCTS=auth,transactions
 PLAID_COUNTRY_CODES=US
 PLAID_WEBHOOK_URL=
 PAYSHIELD_TOKEN_VAULT_KEY_ID=
-PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL=
+PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL=https://your-core-service.example/api/token-vault/plaid
 PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET=
+PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY=base64:32-byte-token-vault-key-material
+PAYSHIELD_TOKEN_VAULT_REPLAY_TOLERANCE_SECONDS=300
 ```
 
 Transfer/provider activation:
@@ -75,6 +77,12 @@ returned access token to `PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL` with
 `x-payshield-signature`, and stores only the returned `tokenSecretRef` in
 PayShield operations. The app never treats `PAYSHIELD_TOKEN_VAULT_KEY_ID` alone
 as enough for bank readiness.
+
+The first-party core receiver is `POST /api/token-vault/plaid`. It verifies the
+signed raw body, rejects stale signatures, encrypts Plaid access tokens with
+AES-256-GCM, and writes only encrypted token material to
+`provider_token_secrets`. Without Postgres and
+`PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY`, the receiver fails closed.
 
 ## Paycheck Detection And Movement
 
@@ -117,4 +125,4 @@ npm run market:status -- https://payshield-lime.vercel.app --expect-site-url htt
 - Bank linking.
 - Paycheck detection.
 - Transfer/provider readiness.
-- Core backend, Clerk auth, and Postgres ledger schema `0005`.
+- Core backend, Clerk auth, and Postgres ledger schema `0006`.

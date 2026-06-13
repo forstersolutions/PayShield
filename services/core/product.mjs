@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   databaseConfigured,
   loadOperationalAudit,
@@ -13,12 +13,13 @@ import {
   persistMoneyRailEvent,
   persistPayee,
   persistPaycheckDetection,
+  persistProviderTokenSecret,
   persistTransferIntent,
   persistUnlockRequest,
 } from "./database.mjs";
 
 const serviceName = "payshield-core";
-export const coreLedgerSchemaVersion = "0005";
+export const coreLedgerSchemaVersion = "0006";
 
 const gateDefinitions = [
   {
@@ -250,6 +251,7 @@ export function getCoreHealth(env = process.env) {
       "GET /app/operations",
       "GET /app/audit/export",
       "POST /app/buckets",
+      "POST /token-vault/plaid",
       "POST /app/bank-link/token",
       "POST /app/bank-link/exchange",
       "POST /app/bank-connections",
@@ -2129,6 +2131,209 @@ async function storePlaidAccessToken(env, input) {
   return typeof payload.tokenSecretRef === "string" && payload.tokenSecretRef.trim()
     ? payload.tokenSecretRef.trim().slice(0, 240)
     : `vault://plaid/${input.itemId}`;
+}
+
+function secretString(value, maxLength = 2048) {
+  return typeof value === "string" && value.trim()
+    ? value.trim().slice(0, maxLength)
+    : "";
+}
+
+function parseTokenVaultSignature(header) {
+  const parts = String(header || "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const parsed = Object.fromEntries(
+    parts.map((part) => {
+      const index = part.indexOf("=");
+
+      return index === -1
+        ? [part, ""]
+        : [part.slice(0, index), part.slice(index + 1)];
+    }),
+  );
+
+  return {
+    timestamp: parsed.t || "",
+    versionOne: parsed.v1 || "",
+  };
+}
+
+function tokenVaultReplayToleranceSeconds(env = process.env) {
+  const parsed = Number(env.PAYSHIELD_TOKEN_VAULT_REPLAY_TOLERANCE_SECONDS);
+
+  return Number.isInteger(parsed) && parsed >= 30 && parsed <= 900
+    ? parsed
+    : 300;
+}
+
+function compareHexDigest(left, right) {
+  if (!/^[a-f0-9]{64}$/i.test(left) || !/^[a-f0-9]{64}$/i.test(right)) {
+    return false;
+  }
+
+  return timingSafeEqual(Buffer.from(left, "hex"), Buffer.from(right, "hex"));
+}
+
+function verifyTokenVaultSignature(payload, env = process.env) {
+  const secret = env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET?.trim() || "";
+  const rawBody =
+    typeof payload.__payshieldRawBody === "string"
+      ? payload.__payshieldRawBody.slice(0, 64 * 1024)
+      : "";
+  const signatureHeader = safeString(payload.__payshieldSignature, 320);
+
+  if (!secret) {
+    return {
+      error: "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET is required.",
+      ok: false,
+      status: 503,
+    };
+  }
+
+  if (!rawBody || !signatureHeader) {
+    return {
+      error: "Signed token-vault handoff requires a raw body and signature.",
+      ok: false,
+      status: 401,
+    };
+  }
+
+  const signature = parseTokenVaultSignature(signatureHeader);
+  const timestampSeconds = Number(signature.timestamp);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+
+  if (!Number.isInteger(timestampSeconds)) {
+    return {
+      error: "Token-vault signature timestamp is invalid.",
+      ok: false,
+      status: 401,
+    };
+  }
+
+  if (
+    Math.abs(nowSeconds - timestampSeconds) >
+    tokenVaultReplayToleranceSeconds(env)
+  ) {
+    return {
+      error: "Token-vault signature timestamp is outside replay tolerance.",
+      ok: false,
+      status: 401,
+    };
+  }
+
+  const expected = createHmac("sha256", secret)
+    .update(`${signature.timestamp}.${rawBody}`)
+    .digest("hex");
+
+  if (!compareHexDigest(expected, signature.versionOne)) {
+    return {
+      error: "Token-vault signature is invalid.",
+      ok: false,
+      status: 401,
+    };
+  }
+
+  return {
+    ok: true,
+  };
+}
+
+export async function receiveTokenVaultHandoff(payload = {}, env = process.env) {
+  const signature = verifyTokenVaultSignature(payload, env);
+
+  if (!signature.ok) {
+    return {
+      body: {
+        accepted: false,
+        error: signature.error,
+        service: "payshield-token-vault",
+      },
+      status: signature.status,
+    };
+  }
+
+  const accessToken = secretString(payload.accessToken, 2048);
+  const itemId = safeString(payload.itemId, 160);
+  const keyId = safeString(payload.keyId, 160);
+  const providerName = safeString(payload.providerName, 40) || "plaid";
+  const requestId = safeString(payload.requestId, 160);
+  const configuredKeyId = env.PAYSHIELD_TOKEN_VAULT_KEY_ID?.trim() || "";
+
+  if (providerName !== "plaid") {
+    return {
+      body: {
+        accepted: false,
+        error: "Token vault receiver currently accepts Plaid token handoffs.",
+        service: "payshield-token-vault",
+      },
+      status: 400,
+    };
+  }
+
+  if (!accessToken || !itemId || !keyId) {
+    return {
+      body: {
+        accepted: false,
+        error: "Token vault handoff requires accessToken, itemId, and keyId.",
+        service: "payshield-token-vault",
+      },
+      status: 400,
+    };
+  }
+
+  if (!configuredKeyId || keyId !== configuredKeyId) {
+    return {
+      body: {
+        accepted: false,
+        error: "Token vault key id does not match the configured key.",
+        service: "payshield-token-vault",
+      },
+      status: 400,
+    };
+  }
+
+  const persistence = await persistProviderTokenSecret(
+    {
+      accessToken,
+      keyId,
+      providerItemId: itemId,
+      providerName,
+      requestId,
+    },
+    env,
+  );
+
+  if (!persistence.persisted) {
+    return {
+      body: {
+        accepted: false,
+        error: "Token vault handoff could not be durably stored.",
+        persistence,
+        service: "payshield-token-vault",
+      },
+      status: 503,
+    };
+  }
+
+  return {
+    body: {
+      accepted: true,
+      eventType: persistence.eventType,
+      persistence: {
+        persisted: true,
+        persistence: persistence.persistence,
+        replayed: persistence.replayed,
+      },
+      providerName,
+      requestId,
+      service: "payshield-token-vault",
+      tokenSecretRef: persistence.tokenSecretRef,
+      tokenVaultStatus: "stored",
+    },
+    status: 200,
+  };
 }
 
 export async function createBankLinkToken(payload = {}, env = process.env) {

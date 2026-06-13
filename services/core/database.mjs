@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import pg from "pg";
 
 const { Pool } = pg;
@@ -78,6 +78,71 @@ function persistenceFailed(error) {
     persistence: "postgres_error",
     persistenceReason:
       error instanceof Error ? error.message : "Postgres write failed.",
+  };
+}
+
+function tokenVaultKey(env = process.env) {
+  const raw = env.PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY?.trim() || "";
+
+  if (!raw) {
+    return {
+      error: "PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY is required for token vault custody.",
+    };
+  }
+
+  if (raw.startsWith("base64:")) {
+    const decoded = Buffer.from(raw.slice("base64:".length), "base64");
+
+    return decoded.length === 32
+      ? { key: decoded }
+      : {
+          error:
+            "PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY must decode to 32 bytes.",
+        };
+  }
+
+  const utf8 = Buffer.from(raw, "utf8");
+
+  if (utf8.length === 32) {
+    return { key: utf8 };
+  }
+
+  const decoded = Buffer.from(raw, "base64");
+
+  return decoded.length === 32
+    ? { key: decoded }
+    : {
+        error:
+          "PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY must be 32 UTF-8 bytes or base64:32-byte-material.",
+      };
+}
+
+function encryptProviderToken(input, env = process.env) {
+  const keyMaterial = tokenVaultKey(env);
+
+  if (!keyMaterial.key) {
+    return keyMaterial;
+  }
+
+  const nonce = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", keyMaterial.key, nonce);
+  const aad = Buffer.from(
+    `${input.providerName}:${input.providerItemId}:${input.keyId}`,
+    "utf8",
+  );
+
+  cipher.setAAD(aad);
+
+  const ciphertext = Buffer.concat([
+    cipher.update(input.accessToken, "utf8"),
+    cipher.final(),
+  ]);
+
+  return {
+    algorithm: "aes-256-gcm",
+    authTag: cipher.getAuthTag().toString("base64"),
+    ciphertext: ciphertext.toString("base64"),
+    nonce: nonce.toString("base64"),
   };
 }
 
@@ -1348,6 +1413,168 @@ export async function persistBankConnection(input, env = process.env) {
     };
   } catch (error) {
     return persistenceFailed(error);
+  }
+}
+
+export async function persistProviderTokenSecret(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return {
+      persisted: false,
+      persistence: "postgres_required",
+      persistenceReason:
+        "Provider token vault requires PAYSHIELD_LEDGER_DATABASE_URL.",
+    };
+  }
+
+  const encrypted = encryptProviderToken(input, env);
+
+  if (encrypted.error) {
+    return {
+      persisted: false,
+      persistence: "token_vault_key_error",
+      persistenceReason: encrypted.error,
+    };
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const id = recordId(
+      "token_secret",
+      input.providerName,
+      input.providerItemId,
+    );
+    const tokenSecretRef = `vault://${input.providerName}/${input.providerItemId}`;
+    const tokenFingerprint = createHash("sha256")
+      .update(input.accessToken)
+      .digest("hex");
+    const existing = await client.query(
+      `
+        SELECT token_fingerprint_sha256
+        FROM provider_token_secrets
+        WHERE provider_name = $1 AND provider_item_id = $2
+        FOR UPDATE
+      `,
+      [input.providerName, input.providerItemId],
+    );
+    const previousFingerprint =
+      existing.rows[0]?.token_fingerprint_sha256 ?? "";
+    const replayed = previousFingerprint === tokenFingerprint;
+    const eventType =
+      existing.rowCount === 0
+        ? "token_stored"
+        : replayed
+          ? "token_replayed"
+          : "token_rotated";
+
+    await client.query(
+      `
+        INSERT INTO provider_token_secrets (
+          id,
+          provider_name,
+          provider_item_id,
+          key_id,
+          algorithm,
+          ciphertext,
+          nonce,
+          auth_tag,
+          token_fingerprint_sha256,
+          request_id,
+          status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'active')
+        ON CONFLICT (provider_name, provider_item_id)
+        DO UPDATE SET
+          key_id = EXCLUDED.key_id,
+          algorithm = EXCLUDED.algorithm,
+          ciphertext = EXCLUDED.ciphertext,
+          nonce = EXCLUDED.nonce,
+          auth_tag = EXCLUDED.auth_tag,
+          token_fingerprint_sha256 = EXCLUDED.token_fingerprint_sha256,
+          request_id = EXCLUDED.request_id,
+          status = 'active',
+          updated_at = now(),
+          rotated_at = CASE
+            WHEN provider_token_secrets.token_fingerprint_sha256 <> EXCLUDED.token_fingerprint_sha256
+            THEN now()
+            ELSE provider_token_secrets.rotated_at
+          END,
+          revoked_at = NULL
+      `,
+      [
+        id,
+        input.providerName,
+        input.providerItemId,
+        input.keyId,
+        encrypted.algorithm,
+        encrypted.ciphertext,
+        encrypted.nonce,
+        encrypted.authTag,
+        tokenFingerprint,
+        input.requestId || null,
+      ],
+    );
+
+    await client.query(
+      `
+        INSERT INTO provider_token_vault_events (
+          id,
+          provider_name,
+          provider_item_id,
+          request_id,
+          event_type,
+          key_id,
+          token_secret_ref,
+          payload
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+      `,
+      [
+        recordId(
+          "token_vault_event",
+          input.providerName,
+          input.providerItemId,
+          input.requestId || "",
+          eventType,
+          String(Date.now()),
+          randomBytes(6).toString("hex"),
+        ),
+        input.providerName,
+        input.providerItemId,
+        input.requestId || null,
+        eventType,
+        input.keyId,
+        tokenSecretRef,
+        JSON.stringify({
+          tokenFingerprintPrefix: tokenFingerprint.slice(0, 12),
+        }),
+      ],
+    );
+
+    await client.query("COMMIT");
+
+    return {
+      eventType,
+      persisted: true,
+      persistence: "postgres",
+      postgresId: id,
+      replayed,
+      tokenSecretRef,
+    };
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // Ignore rollback failures; the original error is more useful.
+    }
+
+    return persistenceFailed(error);
+  } finally {
+    client.release();
   }
 }
 

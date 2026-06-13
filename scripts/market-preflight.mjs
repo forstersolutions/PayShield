@@ -105,6 +105,9 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "services/core/migrations/0001_neobank_core.sql",
   "services/core/migrations/0002_household_bucket_controls.sql",
   "services/core/migrations/0003_ledger_integrity.sql",
+  "services/core/migrations/0004_commercial_money_rails.sql",
+  "services/core/migrations/0005_money_decision_records.sql",
+  "services/core/migrations/0006_provider_token_vault.sql",
   "scripts/core-migrations.mjs",
   "SECURITY.md",
   ".dockerignore",
@@ -250,6 +253,10 @@ requireText("services/core/migrations/0002_household_bucket_controls.sql", "hous
 requireText("services/core/migrations/0003_ledger_integrity.sql", "assert_journal_entry_balanced_by_id");
 requireText("services/core/migrations/0003_ledger_integrity.sql", "DEFERRABLE INITIALLY DEFERRED");
 requireText("services/core/migrations/0003_ledger_integrity.sql", "prevent_posted_journal_mutation");
+requireText("services/core/migrations/0006_provider_token_vault.sql", "provider_token_secrets");
+requireText("services/core/migrations/0006_provider_token_vault.sql", "ciphertext TEXT NOT NULL");
+requireText("services/core/server.mjs", "/token-vault/plaid");
+requireText("services/core/product.mjs", "receiveTokenVaultHandoff");
 requireText("scripts/core-migrations.mjs", "PAYSHIELD_LEDGER_DATABASE_URL");
 requireText("scripts/core-migrations.mjs", "checksumSha256");
 requireText("scripts/core-migrations.mjs", "core_schema_migrations");

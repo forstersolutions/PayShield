@@ -3,7 +3,7 @@ import { normalizeSiteUrl } from "./paid-traffic-readiness.mjs";
 
 const defaultTimeoutMs = 10_000;
 const requiredService = "payshield-web-app";
-const requiredLedgerSchemaVersion = "0005";
+const requiredLedgerSchemaVersion = "0006";
 
 function usage() {
   return [

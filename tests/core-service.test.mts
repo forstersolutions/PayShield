@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, test } from "node:test";
@@ -25,6 +26,8 @@ const coreEnvKeys = [
   "PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED",
   "PAYSHIELD_TRANSFER_ENABLED",
   "PAYSHIELD_TOKEN_VAULT_KEY_ID",
+  "PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY",
+  "PAYSHIELD_TOKEN_VAULT_REPLAY_TOLERANCE_SECONDS",
   "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET",
   "PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL",
   "PLAID_CLIENT_ID",
@@ -90,6 +93,26 @@ function jsonPost(payload: unknown, init: RequestInit = {}): RequestInit {
   };
 }
 
+function signedJsonPost(
+  payload: unknown,
+  secret: string,
+  timestamp = Math.floor(Date.now() / 1000).toString(),
+): RequestInit {
+  const body = JSON.stringify(payload);
+  const signature = createHmac("sha256", secret)
+    .update(`${timestamp}.${body}`)
+    .digest("hex");
+
+  return {
+    body,
+    headers: {
+      "content-type": "application/json",
+      "x-payshield-signature": `t=${timestamp},v1=${signature}`,
+    },
+    method: "POST",
+  };
+}
+
 test("core health exposes product operation routes and fail-closed readiness", async () => {
   await withCoreServer(async (baseUrl) => {
     const { body, response } = await getJson(baseUrl, "/health");
@@ -101,6 +124,7 @@ test("core health exposes product operation routes and fail-closed readiness", a
     assert.equal(readiness.liveMoneyReady, false);
     assert.equal(readiness.backendConfigured, true);
     assert.equal(routes.includes("POST /app/bill-payments"), true);
+    assert.equal(routes.includes("POST /token-vault/plaid"), true);
     assert.equal(routes.includes("POST /app/bank-link/token"), true);
     assert.equal(routes.includes("POST /app/bank-link/exchange"), true);
     assert.equal(routes.includes("POST /app/bank-connections"), true);
@@ -179,7 +203,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
 
     assert.equal(urlOnlyReadiness.postgresConfigured, true);
     assert.equal(urlOnlyReadiness.postgresSchemaVerified, false);
-    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0005");
+    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0006");
     assert.equal(postgresGate?.ok, false);
 
     process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
@@ -197,7 +221,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
       false,
     );
 
-    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0005";
+    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0006";
 
     const verified = await getJson(baseUrl, "/health");
     const verifiedReadiness = verified.body.readiness as Record<
@@ -329,6 +353,90 @@ test("core bank link token fails closed without signed token vault handoff", asy
     assert.equal(readiness.tokenVaultStoreReady, false);
     assert.equal(missing.includes("PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL"), true);
     assert.equal(missing.includes("PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET"), true);
+  });
+});
+
+test("core token vault receiver rejects unsigned Plaid token handoffs", async () => {
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
+  process.env.PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY =
+    "0123456789abcdef0123456789abcdef";
+
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(
+      baseUrl,
+      "/api/token-vault/plaid",
+      jsonPost({
+        accessToken: "access-sandbox-token",
+        itemId: "item_unsigned",
+        keyId: "vault-key",
+        providerName: "plaid",
+        requestId: "req_unsigned",
+      }),
+    );
+
+    assert.equal(response.status, 401);
+    assert.equal(body.service, "payshield-token-vault");
+    assert.equal(JSON.stringify(body).includes("access-sandbox-token"), false);
+  });
+});
+
+test("core token vault receiver rejects stale signatures", async () => {
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
+  process.env.PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY =
+    "0123456789abcdef0123456789abcdef";
+
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(
+      baseUrl,
+      "/api/token-vault/plaid",
+      signedJsonPost(
+        {
+          accessToken: "access-sandbox-token",
+          itemId: "item_stale",
+          keyId: "vault-key",
+          providerName: "plaid",
+          requestId: "req_stale",
+        },
+        "vault-secret",
+        "100",
+      ),
+    );
+
+    assert.equal(response.status, 401);
+    assert.match(String(body.error), /replay tolerance/);
+    assert.equal(JSON.stringify(body).includes("access-sandbox-token"), false);
+  });
+});
+
+test("core token vault receiver requires durable Postgres custody", async () => {
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
+  process.env.PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY =
+    "0123456789abcdef0123456789abcdef";
+
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(
+      baseUrl,
+      "/api/token-vault/plaid",
+      signedJsonPost(
+        {
+          accessToken: "access-sandbox-token",
+          itemId: "item_durable",
+          keyId: "vault-key",
+          providerName: "plaid",
+          requestId: "req_durable",
+        },
+        "vault-secret",
+      ),
+    );
+    const persistence = body.persistence as Record<string, unknown>;
+
+    assert.equal(response.status, 503);
+    assert.equal(body.service, "payshield-token-vault");
+    assert.equal(persistence.persistence, "postgres_required");
+    assert.equal(JSON.stringify(body).includes("access-sandbox-token"), false);
   });
 });
 
