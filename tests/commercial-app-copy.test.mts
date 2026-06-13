@@ -6,6 +6,8 @@ const customerFacingFiles = [
   "src/app/components/household-command-center.tsx",
   "src/app/components/money-setup-console.tsx",
   "src/app/components/money-operations-panel.tsx",
+  "src/app/components/payee-control-panel.tsx",
+  "src/app/components/bill-routing-workspace.tsx",
   "src/app/launch/page.tsx",
   "src/app/api/app/billing/checkout/route.ts",
   "src/app/api/app/billing/portal/route.ts",
@@ -89,6 +91,39 @@ test("money operations surface shows revenue, rails, records, and export", async
   assert.match(moneyOperations, /Connect banks/);
   assert.match(moneyOperations, /Detect paychecks/);
   assert.match(moneyOperations, /Move protected funds/);
+});
+
+test("bill routing workspace exposes protected payee setup before scheduling", async () => {
+  const workspace = await readFile(
+    "src/app/components/bill-routing-workspace.tsx",
+    "utf8",
+  );
+  const payeeControls = await readFile(
+    "src/app/components/payee-control-panel.tsx",
+    "utf8",
+  );
+  const commandCenter = await readFile(
+    "src/app/components/household-command-center.tsx",
+    "utf8",
+  );
+  const dashboard = await readFile(
+    "src/app/components/neobank-dashboard.tsx",
+    "utf8",
+  );
+
+  assert.match(workspace, /PayeeControlPanel/);
+  assert.match(workspace, /BillPaymentPanel/);
+  assert.match(workspace, /onPayeeSaved/);
+  assert.match(payeeControls, /Payee controls/);
+  assert.match(payeeControls, /Save payee control/);
+  assert.match(payeeControls, /\/api\/app\/payees/);
+  assert.match(payeeControls, /payshield\.payee-controls\.draft/);
+  assert.match(payeeControls, /Approve exactly who protected buckets can pay/);
+  assert.match(payeeControls, /Provider pending/);
+  assert.match(commandCenter, /BillRoutingWorkspace/);
+  assert.match(commandCenter, /Approve destinations/);
+  assert.match(commandCenter, /POST \/api\/app\/payees/);
+  assert.match(dashboard, /BillRoutingWorkspace/);
 });
 
 test("launch console exposes the commercial money path outside locked app access", async () => {

@@ -255,9 +255,19 @@ requireText("src/app/components/bucket-control-panel.tsx", "draft recovery");
 requireText("src/app/components/bucket-control-panel.tsx", "profileSource");
 requireText("src/app/components/bucket-control-panel.tsx", "profilePersistence");
 requireText("src/app/api/app/buckets/route.ts", "persisted: false");
+requireText("src/app/components/payee-control-panel.tsx", "Payee controls");
+requireText("src/app/components/payee-control-panel.tsx", "Save payee control");
+requireText("src/app/components/payee-control-panel.tsx", "/api/app/payees");
+requireText(
+  "src/app/components/payee-control-panel.tsx",
+  "payshield.payee-controls.draft",
+);
+requireText("src/app/components/bill-routing-workspace.tsx", "PayeeControlPanel");
+requireText("src/app/components/bill-routing-workspace.tsx", "BillPaymentPanel");
 requireText("src/app/components/bill-payment-panel.tsx", "Bill routing");
 requireText("src/app/components/bill-payment-panel.tsx", "/api/app/bill-payments");
-requireText("src/app/components/neobank-dashboard.tsx", "BillPaymentPanel");
+requireText("src/app/components/neobank-dashboard.tsx", "BillRoutingWorkspace");
+requireText("src/app/components/household-command-center.tsx", "POST /api/app/payees");
 requireText("src/app/api/app/bill-payments/route.ts", "/api/app/bill-payments");
 requireText("src/app/api/app/bill-payments/route.ts", "simulateBillPayment");
 requireText("src/app/components/money-operations-panel.tsx", "Save detection rule");

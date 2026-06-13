@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
-import { BillPaymentPanel } from "@/app/components/bill-payment-panel";
+import { BillRoutingWorkspace } from "@/app/components/bill-routing-workspace";
 import { BucketControlPanel } from "@/app/components/bucket-control-panel";
 import { PayShieldHeaderLogo } from "@/app/components/pay-shield-mark";
 import { WaitlistForm } from "@/app/components/waitlist-form";
@@ -298,7 +298,10 @@ export function NeobankDashboard() {
       </div>
 
       <BucketControlPanel buckets={snapshot.buckets} />
-      <BillPaymentPanel buckets={snapshot.buckets} payees={snapshot.payees} />
+      <BillRoutingWorkspace
+        buckets={snapshot.buckets}
+        payees={snapshot.payees}
+      />
 
       <div className="relative z-10 border-y border-white/10 bg-[#090b0d]">
         <div

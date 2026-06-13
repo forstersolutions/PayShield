@@ -13,11 +13,12 @@ import {
   Radar,
   ShieldAlert,
   Split,
+  UserRoundCheck,
   WalletCards,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
-import { BillPaymentPanel } from "@/app/components/bill-payment-panel";
+import { BillRoutingWorkspace } from "@/app/components/bill-routing-workspace";
 import { BucketControlPanel } from "@/app/components/bucket-control-panel";
 import { CardAuthorizationPanel } from "@/app/components/card-authorization-panel";
 import { MoneyOperationsPanel } from "@/app/components/money-operations-panel";
@@ -80,6 +81,13 @@ const commandActions = [
     href: "#money-operations",
     icon: Landmark,
     label: "Move funds",
+  },
+  {
+    body: "Approve protected-bucket destinations before bill routing can use them.",
+    endpoint: "POST /api/app/payees",
+    href: "#payee-controls",
+    icon: UserRoundCheck,
+    label: "Approve payee",
   },
   {
     body: "Run a purchase through the Safe to Spend decision model.",
@@ -237,6 +245,15 @@ export function HouseholdCommandCenter() {
       ready: true,
       status: snapshot.readiness.postgresSchemaVerified ? "Durable" : "Editable",
       title: "Build the rules",
+    },
+    {
+      body: "Approved destinations bind each protected bucket to real-world obligations before money is released.",
+      href: "#payee-controls",
+      icon: UserRoundCheck,
+      label: "Payees",
+      ready: true,
+      status: "Editable",
+      title: "Approve destinations",
     },
     {
       body: "Income events post a journal entry and recalculate protected money versus Safe to Spend.",
@@ -688,7 +705,10 @@ export function HouseholdCommandCenter() {
         payees={snapshot.payees}
       />
       <BucketControlPanel buckets={snapshot.buckets} />
-      <BillPaymentPanel buckets={snapshot.buckets} payees={snapshot.payees} />
+      <BillRoutingWorkspace
+        buckets={snapshot.buckets}
+        payees={snapshot.payees}
+      />
       <CardAuthorizationPanel safeSpendCents={safeSpend} />
       <UnlockControlPanel buckets={snapshot.buckets} />
     </section>
