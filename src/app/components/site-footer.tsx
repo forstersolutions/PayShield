@@ -64,6 +64,12 @@ export function SiteFooter() {
           </Link>
           <Link
             className="inline-flex min-h-9 items-center px-2 hover:text-white"
+            href="/launch"
+          >
+            Launch
+          </Link>
+          <Link
+            className="inline-flex min-h-9 items-center px-2 hover:text-white"
             href="/#product"
           >
             Product

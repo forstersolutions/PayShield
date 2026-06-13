@@ -54,6 +54,10 @@ function protectedAppUnavailableResponse(request: NextRequest) {
       main { width: min(92vw, 680px); border: 1px solid rgba(255,255,255,.14); border-radius: 8px; background: linear-gradient(145deg, rgba(57,232,255,.08), rgba(255,178,55,.08)), rgba(10,12,14,.94); padding: 28px; box-shadow: 0 24px 80px rgba(0,0,0,.36); }
       p { color: #c9d0da; line-height: 1.65; }
       a { color: #39e8ff; font-weight: 800; }
+      .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+      .button { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; padding: 0 14px; text-decoration: none; }
+      .primary { background: linear-gradient(135deg, #fff, #dff7ff); color: #050607; }
+      .secondary { border: 1px solid rgba(57,232,255,.28); background: rgba(57,232,255,.1); color: #dffaff; }
       code { color: #ffcf72; }
     </style>
   </head>
@@ -62,7 +66,11 @@ function protectedAppUnavailableResponse(request: NextRequest) {
       <strong>PayShield</strong>
       <h1>App access is not configured.</h1>
       <p>Configure Clerk for authenticated household access, or set <code>PAYSHIELD_ALLOW_REVIEW_APP_ACCESS=true</code> only for a controlled review environment.</p>
-      <p><a href="mailto:support@graystontechnologies.com">Contact Grayston support</a></p>
+      <p>Open the revenue and rails console for the exact Stripe, Clerk, Plaid, ledger, transfer, and verification setup that makes PayShield usable.</p>
+      <div class="actions">
+        <a class="button primary" href="/launch">Open launch console</a>
+        <a class="button secondary" href="mailto:support@graystontechnologies.com">Contact Grayston support</a>
+      </div>
     </main>
   </body>
 </html>`,

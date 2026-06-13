@@ -6,6 +6,7 @@ const customerFacingFiles = [
   "src/app/components/household-command-center.tsx",
   "src/app/components/money-setup-console.tsx",
   "src/app/components/money-operations-panel.tsx",
+  "src/app/launch/page.tsx",
   "src/app/api/app/billing/checkout/route.ts",
   "src/app/api/app/billing/portal/route.ts",
   "src/app/lib/commercial/billing.ts",
@@ -88,4 +89,33 @@ test("money operations surface shows revenue, rails, records, and export", async
   assert.match(moneyOperations, /Connect banks/);
   assert.match(moneyOperations, /Detect paychecks/);
   assert.match(moneyOperations, /Move protected funds/);
+});
+
+test("launch console exposes the commercial money path outside locked app access", async () => {
+  const launchPage = await readFile("src/app/launch/page.tsx", "utf8");
+  const footer = await readFile("src/app/components/site-footer.tsx", "utf8");
+
+  assert.match(launchPage, /dynamic = "force-dynamic"/);
+  assert.match(launchPage, /index: false/);
+  assert.match(launchPage, /PayShield Revenue \+ Rails Console/);
+  assert.match(launchPage, /Make the app earn, connect, detect, protect, and move/);
+  assert.match(launchPage, /getCommercialReadiness/);
+  assert.match(launchPage, /getMoneyRailReadiness/);
+  assert.match(launchPage, /getAppAccessReadiness/);
+  assert.match(launchPage, /createHouseholdActivationPacket/);
+  assert.match(launchPage, /STRIPE_SECRET_KEY/);
+  assert.match(launchPage, /PAYSHIELD_COMMERCIAL_PRICE_ID/);
+  assert.match(launchPage, /CLERK_SECRET_KEY/);
+  assert.match(launchPage, /PLAID_CLIENT_ID/);
+  assert.match(launchPage, /PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL/);
+  assert.match(launchPage, /PAYSHIELD_PROVIDER_WEBHOOK_SECRET/);
+  assert.match(launchPage, /PAYSHIELD_TRANSFER_ENABLED/);
+  assert.match(launchPage, /PAYSHIELD_LIVE_MONEY_ENABLED/);
+  assert.match(launchPage, /POST \/api\/app\/billing\/checkout/);
+  assert.match(launchPage, /POST \/api\/app\/bank-link\/token/);
+  assert.match(launchPage, /POST \/api\/provider\/webhooks/);
+  assert.match(launchPage, /POST \/api\/app\/transfers/);
+  assert.match(launchPage, /POST \/api\/card\/authorize/);
+  assert.match(launchPage, /npm run market:status/);
+  assert.match(footer, /href="\/launch"/);
 });

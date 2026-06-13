@@ -127,6 +127,8 @@ test("production app access fails closed without Clerk unless review access is e
     assert.equal(pageResponse.status, 503);
     assert.match(pageBody, /App access is not configured/);
     assert.match(pageBody, /PAYSHIELD_ALLOW_REVIEW_APP_ACCESS=true/);
+    assert.match(pageBody, /href="\/launch"/);
+    assert.match(pageBody, /Open launch console/);
 
     process.env.PAYSHIELD_ALLOW_REVIEW_APP_ACCESS = "true";
 
