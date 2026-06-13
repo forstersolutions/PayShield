@@ -1,4 +1,5 @@
 import { getStripeWebhookReadiness } from "./stripe-webhook.ts";
+import { getCoreServiceConfig } from "../neobank/core-config.ts";
 
 const stripeApiVersion = "2026-02-25.clover";
 
@@ -27,6 +28,70 @@ function cleanBaseUrl(value: string | undefined) {
   }
 }
 
+function cleanPaymentLinkUrl(value: string | undefined) {
+  if (!value?.trim()) {
+    return {
+      mode: "not_configured" as const,
+      ok: false,
+      url: "",
+    };
+  }
+
+  try {
+    const url = new URL(value.trim());
+    const testMode =
+      url.hostname === "buy.stripe.com" && url.pathname.startsWith("/test_");
+
+    if (
+      url.protocol !== "https:" ||
+      url.username ||
+      url.password ||
+      url.hash ||
+      url.search
+    ) {
+      return {
+        mode: testMode ? ("test" as const) : ("unknown" as const),
+        ok: false,
+        url: "",
+      };
+    }
+
+    return {
+      mode: testMode ? ("test" as const) : ("live" as const),
+      ok: true,
+      url: url.toString(),
+    };
+  } catch {
+    return {
+      mode: "unknown" as const,
+      ok: false,
+      url: "",
+    };
+  }
+}
+
+function stripeSecretMode(value: string | undefined) {
+  const secret = value?.trim() || "";
+
+  if (!secret) {
+    return "not_configured" as const;
+  }
+
+  if (secret.startsWith("sk_live_")) {
+    return "live" as const;
+  }
+
+  if (secret.startsWith("sk_test_")) {
+    return "test" as const;
+  }
+
+  return "unknown" as const;
+}
+
+function productionRequiresLiveStripe() {
+  return process.env.VERCEL_ENV === "production";
+}
+
 function formBody(input: Record<string, string>) {
   const params = new URLSearchParams();
 
@@ -41,40 +106,83 @@ function formBody(input: Record<string, string>) {
 
 export function getCommercialReadiness() {
   const webhook = getStripeWebhookReadiness();
-  const paymentLinkUrl =
-    process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL?.trim() || "";
+  const core = getCoreServiceConfig();
+  const paymentLink = cleanPaymentLinkUrl(
+    process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL,
+  );
   const stripeSecretConfigured = envPresent("STRIPE_SECRET_KEY");
+  const stripeMode = stripeSecretMode(process.env.STRIPE_SECRET_KEY);
   const stripePriceConfigured = envPresent("PAYSHIELD_COMMERCIAL_PRICE_ID");
   const checkoutConfigured =
-    Boolean(paymentLinkUrl) || (stripeSecretConfigured && stripePriceConfigured);
+    paymentLink.ok || (stripeSecretConfigured && stripePriceConfigured);
+  const productionLiveStripeReady =
+    !productionRequiresLiveStripe() ||
+    (paymentLink.ok
+      ? paymentLink.mode === "live"
+      : stripeMode === "live" && stripePriceConfigured);
+  const activationCoreReady = core.ok;
   const missing: string[] = [];
+
+  if (
+    process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL?.trim() &&
+    !paymentLink.ok
+  ) {
+    missing.push("PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL valid HTTPS URL");
+  }
 
   if (!checkoutConfigured) {
     if (!stripeSecretConfigured) {
       missing.push("STRIPE_SECRET_KEY");
     }
 
-    if (!stripePriceConfigured && !paymentLinkUrl) {
+    if (!stripePriceConfigured && !paymentLink.ok) {
       missing.push(
         "PAYSHIELD_COMMERCIAL_PRICE_ID or PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL",
       );
     }
   }
 
+  if (checkoutConfigured && !productionLiveStripeReady) {
+    missing.push("Stripe live-mode checkout asset");
+  }
+
   if (!webhook.signingSecretConfigured) {
     missing.push("STRIPE_WEBHOOK_SECRET");
   }
 
+  if (checkoutConfigured && webhook.signingSecretConfigured && !activationCoreReady) {
+    missing.push("PAYSHIELD_CORE_API_URL");
+  }
+
   return {
+    activationCoreConfigured: core.configured,
+    activationCoreReady,
     checkoutConfigured,
+    checkoutOperationalReady:
+      checkoutConfigured &&
+      webhook.signingSecretConfigured &&
+      activationCoreReady &&
+      productionLiveStripeReady,
     missing,
-    mode: paymentLinkUrl ? "payment_link" : stripeSecretConfigured ? "checkout" : "not_configured",
+    mode: paymentLink.ok
+      ? "payment_link"
+      : stripeSecretConfigured
+        ? "checkout"
+        : "not_configured",
+    paymentLinkMode: paymentLink.mode,
+    paymentLinkUrl: paymentLink.url,
     priceLabel:
       process.env.PAYSHIELD_COMMERCIAL_PRICE_LABEL?.trim() ||
       "$19/month",
-    paidAccessReady: checkoutConfigured && webhook.signingSecretConfigured,
+    paidAccessReady:
+      checkoutConfigured &&
+      webhook.signingSecretConfigured &&
+      activationCoreReady &&
+      productionLiveStripeReady,
+    productionLiveStripeReady,
     stripePriceConfigured,
     stripeSecretConfigured,
+    stripeSecretMode: stripeMode,
     webhookEndpointPath: webhook.endpointPath,
     webhookSigningSecretConfigured: webhook.signingSecretConfigured,
   };
@@ -124,22 +232,33 @@ export async function createCommercialCheckoutSession(input: {
   userId: string;
 }) {
   const readiness = getCommercialReadiness();
-  const paymentLinkUrl =
-    process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL?.trim();
-
-  if (paymentLinkUrl) {
-    return {
-      readiness,
-      status: 200,
-      url: paymentLinkUrl,
-    };
-  }
 
   if (!readiness.checkoutConfigured) {
     return {
+      error: "Commercial checkout is not configured. Add Stripe Checkout or a Stripe Payment Link.",
+      errorCode: "checkout_not_configured",
       readiness,
       status: 424,
       url: "",
+    };
+  }
+
+  if (!readiness.checkoutOperationalReady) {
+    return {
+      error:
+        "Commercial checkout is gated until webhook activation, core persistence, and live Stripe mode are ready.",
+      errorCode: "checkout_activation_not_ready",
+      readiness,
+      status: 424,
+      url: "",
+    };
+  }
+
+  if (readiness.paymentLinkUrl) {
+    return {
+      readiness,
+      status: 200,
+      url: readiness.paymentLinkUrl,
     };
   }
 

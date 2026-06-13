@@ -40,10 +40,14 @@ type PlaidCreateInput = {
 
 type OperationsReadiness = {
   commercial?: {
+    activationCoreReady?: boolean;
     checkoutConfigured?: boolean;
+    checkoutOperationalReady?: boolean;
     mode?: string;
     paidAccessReady?: boolean;
+    paymentLinkMode?: string;
     priceLabel?: string;
+    productionLiveStripeReady?: boolean;
     remainingGates?: string[];
     webhookEndpointPath?: string;
   };
@@ -211,6 +215,14 @@ function friendlyGateLabel(gate: string) {
 
   if (gate.includes("STRIPE_WEBHOOK_SECRET")) {
     return "Stripe webhook";
+  }
+
+  if (gate.includes("PAYSHIELD_CORE_API_URL")) {
+    return "Core activation service";
+  }
+
+  if (gate.includes("live-mode")) {
+    return "Live Stripe mode";
   }
 
   if (gate.includes("PLAID_CLIENT_ID") || gate.includes("PLAID_SECRET")) {
@@ -1213,20 +1225,31 @@ export function MoneyOperationsPanel({
                 readiness?.commercial?.mode === "payment_link"
                   ? "a Stripe payment link"
                   : "Stripe Checkout"
-              } at ${readiness?.commercial?.priceLabel ?? "$19/month"}.`}
+              } at ${
+                readiness?.commercial?.priceLabel ?? "$19/month"
+              }, then webhook and core activation must record access before money workflows unlock.`}
               icon={BadgeDollarSign}
               onAction={startPaidAccess}
               status={
                 readiness?.commercial?.paidAccessReady
                   ? "Revenue ready"
-                  : readiness?.commercial?.checkoutConfigured
-                    ? "Webhook pending"
+                  : readiness?.commercial?.checkoutOperationalReady
+                    ? "Checkout ready"
+                    : readiness?.commercial?.checkoutConfigured
+                      ? compactGateList(
+                          readiness?.commercial?.remainingGates,
+                          "Activation setup needed",
+                        )
                     : compactGateList(
                         readiness?.commercial?.remainingGates,
                         "Stripe setup needed",
                       )
               }
-              tone={readiness?.commercial?.checkoutConfigured ? "ready" : "attention"}
+              tone={
+                readiness?.commercial?.checkoutOperationalReady
+                  ? "ready"
+                  : "attention"
+              }
               title="Make money"
             />
             <RuntimeLane

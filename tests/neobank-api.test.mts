@@ -37,6 +37,7 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL;
   delete process.env.PAYSHIELD_COMMERCIAL_PRICE_ID;
   delete process.env.PAYSHIELD_CORE_API_URL;
+  delete process.env.PAYSHIELD_CORE_SERVICE_TOKEN;
   delete process.env.PAYSHIELD_LEDGER_DATABASE_URL;
   delete process.env.PAYSHIELD_LIVE_MONEY_ENABLED;
   delete process.env.PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED;
@@ -53,6 +54,7 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED;
   delete process.env.STRIPE_SECRET_KEY;
   delete process.env.STRIPE_WEBHOOK_SECRET;
+  delete process.env.VERCEL_ENV;
 });
 
 function makeRequest(path: string, payload: unknown) {
@@ -258,7 +260,71 @@ test("paid access checkout reports missing Stripe configuration", async () => {
 
 test("paid access checkout can return a configured payment link", async () => {
   process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL =
-    "https://buy.stripe.com/test_123";
+    "https://buy.stripe.com/live_123";
+  process.env.PAYSHIELD_CORE_API_URL = "https://core.payshield.test";
+  process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-secret";
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+  const originalFetch = globalThis.fetch;
+  let coreCalls = 0;
+
+  globalThis.fetch = async (_input, init) => {
+    coreCalls += 1;
+    const requestBody = JSON.parse(String(init?.body ?? "{}")) as Record<
+      string,
+      unknown
+    >;
+
+    return new Response(
+      JSON.stringify({
+        checkoutIntent: {
+          checkoutMode: requestBody.checkoutMode ?? "not_configured",
+          checkoutUrlPresent: Boolean(requestBody.checkoutUrlPresent),
+          errorCode: requestBody.errorCode || null,
+          idempotencyKey: requestBody.idempotencyKey,
+          priceLabel: requestBody.priceLabel ?? "$19/month",
+          providerCheckoutId: requestBody.providerCheckoutId ?? null,
+          providerName: "stripe",
+          status: requestBody.status,
+          userId: "user_demo_001",
+        },
+        persistence: {
+          persisted: true,
+          persistence: "postgres",
+        },
+        service: "payshield-checkout-intent",
+      }),
+      {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      },
+    );
+  };
+
+  try {
+    const response = await startCheckout(
+      makeRequest("/api/app/billing/checkout", {
+        cancelPath: "/app?billing=cancelled",
+        idempotencyKey: "payment-link-ready",
+        successPath: "/app?billing=active",
+      }),
+    );
+    const body = await parseJson(response);
+    const checkoutIntent = body.checkoutIntent as Record<string, unknown>;
+
+    assert.equal(response.status, 200);
+    assert.equal(body.url, "https://buy.stripe.com/live_123");
+    assert.equal(checkoutIntent.status, "payment_link");
+    assert.equal(checkoutIntent.checkoutUrlPresent, true);
+    assert.equal(coreCalls, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("paid access checkout blocks payment links without activation persistence", async () => {
+  process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL =
+    "https://buy.stripe.com/live_missing_core";
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
 
   const response = await startCheckout(
     makeRequest("/api/app/billing/checkout", {
@@ -267,17 +333,21 @@ test("paid access checkout can return a configured payment link", async () => {
     }),
   );
   const body = await parseJson(response);
+  const readiness = body.readiness as Record<string, unknown>;
   const checkoutIntent = body.checkoutIntent as Record<string, unknown>;
 
-  assert.equal(response.status, 200);
-  assert.equal(body.url, "https://buy.stripe.com/test_123");
-  assert.equal(checkoutIntent.status, "payment_link");
-  assert.equal(checkoutIntent.checkoutUrlPresent, true);
+  assert.equal(response.status, 424);
+  assert.equal(readiness.checkoutConfigured, true);
+  assert.equal(readiness.checkoutOperationalReady, false);
+  assert.equal(checkoutIntent.status, "blocked");
+  assert.equal(checkoutIntent.errorCode, "checkout_activation_not_ready");
 });
 
 test("paid access checkout session uses the authenticated customer identity", async () => {
   process.env.PAYSHIELD_COMMERCIAL_PRICE_ID = "price_payShield";
+  process.env.PAYSHIELD_CORE_API_URL = "https://core.payshield.test";
   process.env.STRIPE_SECRET_KEY = "sk_test_payShield";
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
   const originalFetch = globalThis.fetch;
   let capturedBody = "";
   let capturedStripeVersion = "";
@@ -371,9 +441,9 @@ test("billing webhook verifies Stripe signature and summarizes paid access", asy
   assert.equal(summary.subscriptionStatus, "active");
 });
 
-test("money workflows require paid access when commercial billing is configured without core state", async () => {
+test("money workflows require activation-ready paid access before commercial operations", async () => {
   process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL =
-    "https://buy.stripe.com/test_paid_access";
+    "https://buy.stripe.com/live_paid_access";
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
 
   const cases: Array<[string, () => Promise<Response>]> = [
@@ -473,7 +543,7 @@ test("money workflows require paid access when commercial billing is configured 
     const body = await parseJson(response);
 
     assert.equal(response.status, 402, operation);
-    assert.equal(body.code, "paid_access_state_unverified", operation);
+    assert.equal(body.code, "paid_access_not_configured", operation);
     assert.equal(
       String(body.error).includes(operation),
       true,

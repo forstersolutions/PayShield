@@ -117,9 +117,10 @@ export async function POST(request: NextRequest) {
       errorCode:
         result.status === 200
           ? ""
-          : result.status === 424
-            ? "checkout_not_configured"
-            : "checkout_provider_error",
+          : (result.errorCode ??
+            (result.status === 424
+              ? "checkout_not_configured"
+              : "checkout_provider_error")),
       idempotencyKey,
       priceLabel: result.readiness.priceLabel,
       providerCheckoutId: result.checkoutSessionId,
@@ -144,9 +145,10 @@ export async function POST(request: NextRequest) {
         errorCode:
           result.status === 200
             ? null
-            : result.status === 424
-              ? "checkout_not_configured"
-              : "checkout_provider_error",
+            : (result.errorCode ??
+              (result.status === 424
+                ? "checkout_not_configured"
+                : "checkout_provider_error")),
         idempotencyKey,
         priceLabel: result.readiness.priceLabel,
         providerCheckoutId: result.checkoutSessionId ?? null,
@@ -167,9 +169,7 @@ export async function POST(request: NextRequest) {
         : {
             checkoutIntent,
             corePersistence: finalIntent?.body.persistence ?? null,
-            error:
-              result.error ||
-              "Commercial checkout is not configured. Add Stripe Checkout or a Stripe Payment Link.",
+            error: result.error || "Commercial checkout is not ready.",
             readiness: result.readiness,
           },
       {

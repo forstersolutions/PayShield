@@ -15,9 +15,14 @@ async function parseJson(response: Response) {
       remainingGates?: unknown;
     };
     commercial?: {
+      activationCoreReady?: unknown;
       paidAccessReady?: unknown;
+      checkoutConfigured?: unknown;
+      checkoutOperationalReady?: unknown;
       priceLabel?: unknown;
+      productionLiveStripeReady?: unknown;
       remainingGates?: unknown;
+      stripeSecretMode?: unknown;
       webhookSigningSecretConfigured?: unknown;
     };
     moneyRails?: {
@@ -49,6 +54,7 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET;
   delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
   delete process.env.PAYSHIELD_CORE_API_URL;
+  delete process.env.PAYSHIELD_CORE_SERVICE_TOKEN;
   delete process.env.PAYSHIELD_LEDGER_DATABASE_URL;
   delete process.env.PAYSHIELD_LEDGER_SCHEMA_FINGERPRINT;
   delete process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED;
@@ -318,6 +324,7 @@ test("reports commercial and money rail readiness gates", async () => {
   process.env.STRIPE_SECRET_KEY = "sk_test";
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
   process.env.PAYSHIELD_COMMERCIAL_PRICE_ID = "price_test";
+  process.env.PAYSHIELD_CORE_API_URL = "http://127.0.0.1:8080";
   process.env.PLAID_CLIENT_ID = "plaid-client";
   process.env.PLAID_SECRET = "plaid-secret";
   process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
@@ -326,6 +333,8 @@ test("reports commercial and money rail readiness gates", async () => {
   const configuredBody = await parseJson(configured);
 
   assert.equal(configuredBody.commercial?.paidAccessReady, true);
+  assert.equal(configuredBody.commercial?.checkoutOperationalReady, true);
+  assert.equal(configuredBody.commercial?.activationCoreReady, true);
   assert.equal(
     configuredBody.commercial?.webhookSigningSecretConfigured,
     true,
@@ -360,6 +369,29 @@ test("reports commercial and money rail readiness gates", async () => {
   );
   assert.equal(
     signedProviderConfiguredBody.moneyRails?.providerWebhookSigningConfigured,
+    true,
+  );
+});
+
+test("commercial checkout does not pass production readiness with test Stripe assets", async () => {
+  process.env.PAYSHIELD_COMMERCIAL_PRICE_ID = "price_test";
+  process.env.PAYSHIELD_CORE_API_URL = "https://core.payshield.test";
+  process.env.STRIPE_SECRET_KEY = "sk_test_not_live";
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+  process.env.VERCEL_ENV = "production";
+
+  const response = GET();
+  const body = await parseJson(response);
+  const commercialGates = body.commercial?.remainingGates as string[];
+
+  assert.equal(response.status, 200);
+  assert.equal(body.commercial?.paidAccessReady, false);
+  assert.equal(body.commercial?.checkoutConfigured, true);
+  assert.equal(body.commercial?.checkoutOperationalReady, false);
+  assert.equal(body.commercial?.productionLiveStripeReady, false);
+  assert.equal(body.commercial?.stripeSecretMode, "test");
+  assert.equal(
+    commercialGates.includes("Stripe live-mode checkout asset"),
     true,
   );
 });
