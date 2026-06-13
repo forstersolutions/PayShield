@@ -22,6 +22,7 @@ const coreEnvKeys = [
   "PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION",
   "PAYSHIELD_LIVE_MONEY_ENABLED",
   "PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED",
+  "PAYSHIELD_REQUIRE_PAID_ACCESS",
   "PAYSHIELD_PROVIDER_WEBHOOK_REPLAY_TOLERANCE_SECONDS",
   "PAYSHIELD_PROVIDER_WEBHOOK_SECRET",
   "PAYSHIELD_REGULATED_COUNSEL_SIGNOFF",
@@ -321,6 +322,169 @@ test("core commercial billing event intake is idempotent", async () => {
   });
 });
 
+test("core paid access gates money workflows when commercial billing is configured", async () => {
+  process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL =
+    "https://buy.stripe.com/test_paid_access";
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+
+  const unpaidActor = {
+    "x-payshield-user-id": "user_unpaid_001",
+  };
+  const operations: Array<[string, string, RequestInit]> = [
+    [
+      "/api/app/onboarding/start",
+      "provider onboarding",
+      { headers: unpaidActor, method: "POST" },
+    ],
+    [
+      "/api/app/bank-link/token",
+      "bank linking",
+      jsonPost({ origin: "https://payshield.test" }, { headers: unpaidActor }),
+    ],
+    [
+      "/api/app/paychecks/detect",
+      "paycheck detection",
+      jsonPost(
+        {
+          amountCents: 300_000,
+          employerName: "Acme Payroll",
+          idempotencyKey: "unpaid-paycheck-detect",
+        },
+        { headers: unpaidActor },
+      ),
+    ],
+    [
+      "/api/app/transfers",
+      "protected transfers",
+      jsonPost(
+        {
+          amountCents: 25_000,
+          destinationPayeeId: "payee_abc_apartments",
+          idempotencyKey: "unpaid-transfer-rent",
+          sourceBucketId: "rent",
+        },
+        { headers: unpaidActor },
+      ),
+    ],
+    [
+      "/api/app/bill-payments",
+      "bill payment controls",
+      jsonPost(
+        {
+          amountCents: 50_000,
+          idempotencyKey: "unpaid-bill-rent",
+          payeeId: "payee_abc_apartments",
+          scheduledFor: "2026-07-01",
+        },
+        { headers: unpaidActor },
+      ),
+    ],
+    [
+      "/api/app/unlocks",
+      "protected bucket unlocks",
+      jsonPost(
+        {
+          amountCents: 5_000,
+          bucketId: "emergency",
+          idempotencyKey: "unpaid-unlock-emergency",
+          mode: "slow_free",
+          reason: "Temporary cash need",
+        },
+        { headers: unpaidActor },
+      ),
+    ],
+    [
+      "/api/card/authorize",
+      "card authorization",
+      jsonPost(
+        {
+          amountCents: 2_500,
+          idempotencyKey: "unpaid-card-auth",
+          merchantName: "Corner Market",
+        },
+        { headers: unpaidActor },
+      ),
+    ],
+  ];
+
+  await withCoreServer(async (baseUrl) => {
+    for (const [path, operation, init] of operations) {
+      const { body, response } = await getJson(baseUrl, path, init);
+
+      assert.equal(response.status, 402, path);
+      assert.equal(body.code, "paid_access_required", path);
+      assert.equal(
+        String(body.error).includes(operation),
+        true,
+        `${path} should name the gated operation`,
+      );
+      assert.equal(body.service, "payshield-paid-access-gate", path);
+    }
+  });
+});
+
+test("core active billing event unlocks paid-gated money workflows", async () => {
+  process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL =
+    "https://buy.stripe.com/test_paid_access";
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+
+  const paidUserId = "user_paid_gate_001";
+  const paidActor = {
+    "x-payshield-user-id": paidUserId,
+  };
+
+  await withCoreServer(async (baseUrl) => {
+    const billing = await getJson(
+      baseUrl,
+      "/api/commercial/billing-events",
+      jsonPost({
+        event: {
+          data: {
+            object: {
+              customer: "cus_paid_gate",
+              id: "cs_paid_gate",
+              subscription: "sub_paid_gate",
+            },
+          },
+          id: "evt_paid_gate",
+          type: "checkout.session.completed",
+        },
+        providerName: "stripe",
+        summary: {
+          accessStatus: "active",
+          amountPaidCents: 1900,
+          checkoutSessionId: "cs_paid_gate",
+          customerId: "cus_paid_gate",
+          eventId: "evt_paid_gate",
+          eventType: "checkout.session.completed",
+          handled: true,
+          subscriptionId: "sub_paid_gate",
+          subscriptionStatus: "complete",
+          userId: paidUserId,
+        },
+      }),
+    );
+    const paycheck = await getJson(
+      baseUrl,
+      "/api/app/paychecks/detect",
+      jsonPost(
+        {
+          amountCents: 300_000,
+          employerName: "Acme Payroll",
+          idempotencyKey: "paid-paycheck-detect",
+        },
+        { headers: paidActor },
+      ),
+    );
+
+    assert.equal(billing.response.status, 200);
+    assert.equal(billing.body.accessStatus, "active");
+    assert.equal(paycheck.response.status, 200);
+    assert.equal(paycheck.body.service, undefined);
+    assert.equal(paycheck.body.safeToSpendCents, 145_000);
+  });
+});
+
 test("core bank connection route records Plaid rail readiness", async () => {
   process.env.PLAID_CLIENT_ID = "plaid-client";
   process.env.PLAID_SECRET = "plaid-secret";
@@ -352,6 +516,44 @@ test("core bank connection route records Plaid rail readiness", async () => {
     assert.equal(bankConnection.status, "connected");
     assert.equal(auditPersistence.persistence, "memory");
     assert.equal(persistence.persistence, "memory");
+  });
+});
+
+test("core paycheck readiness requires provider webhook signing", async () => {
+  process.env.PLAID_CLIENT_ID = "plaid-client";
+  process.env.PLAID_SECRET = "plaid-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "http://127.0.0.1/vault";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
+
+  await withCoreServer(async (baseUrl) => {
+    const unsigned = await getJson(baseUrl, "/api/app/operations");
+    const unsignedMoneyRails = unsigned.body.moneyRails as Record<
+      string,
+      unknown
+    >;
+    const unsignedMissing = unsignedMoneyRails.missing as string[];
+
+    assert.equal(unsigned.response.status, 200);
+    assert.equal(unsignedMoneyRails.bankLinkReady, true);
+    assert.equal(unsignedMoneyRails.paycheckDetectionReady, false);
+    assert.equal(
+      unsignedMoneyRails.providerWebhookSigningConfigured,
+      false,
+    );
+    assert.equal(
+      unsignedMissing.includes("PAYSHIELD_PROVIDER_WEBHOOK_SECRET"),
+      true,
+    );
+
+    process.env.PAYSHIELD_PROVIDER_WEBHOOK_SECRET = "provider-secret";
+
+    const signed = await getJson(baseUrl, "/api/app/operations");
+    const signedMoneyRails = signed.body.moneyRails as Record<string, unknown>;
+
+    assert.equal(signed.response.status, 200);
+    assert.equal(signedMoneyRails.paycheckDetectionReady, true);
+    assert.equal(signedMoneyRails.providerWebhookSigningConfigured, true);
   });
 });
 

@@ -166,6 +166,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED",
   "PAYSHIELD_REGULATED_COUNSEL_SIGNOFF",
   "PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED",
+  "PAYSHIELD_REQUIRE_PAID_ACCESS",
   "PAYSHIELD_PROVIDER_WEBHOOK_SECRET",
   "PAYSHIELD_PROVIDER_WEBHOOK_REPLAY_TOLERANCE_SECONDS",
   "PAYSHIELD_WAITLIST_WEBHOOK_URL",
@@ -250,6 +251,7 @@ requireText("src/app/api/app/bill-payments/route.ts", "simulateBillPayment");
 requireText("src/app/lib/neobank/core-config.ts", "PAYSHIELD_CORE_API_URL");
 requireText("src/app/lib/neobank/core-config.ts", "VERCEL_ENV");
 requireText("src/app/lib/neobank/core-client.ts", "x-payshield-provider-signature");
+requireText("src/app/lib/commercial/billing.ts", "requirePaidAccessForFallback");
 requireText("src/app/lib/neobank/money-rails.ts", "providerWebhookSigningConfigured");
 requireText("src/app/lib/neobank/ledger.ts", "scheduleBillPayment");
 requireText("services/core/migrations/0002_household_bucket_controls.sql", "household_buckets");
@@ -262,6 +264,7 @@ requireText("services/core/migrations/0006_provider_token_vault.sql", "ciphertex
 requireText("services/core/server.mjs", "/token-vault/plaid");
 requireText("services/core/server.mjs", "x-payshield-provider-signature");
 requireText("services/core/product.mjs", "receiveTokenVaultHandoff");
+requireText("services/core/product.mjs", "requireActivePaidAccess");
 requireText("services/core/product.mjs", "extractProviderPaycheckDetections");
 requireText("services/core/product.mjs", "verifyProviderWebhookSignature");
 requireText(

@@ -1356,10 +1356,7 @@ function latestCommercialSubscription(audit) {
 
 function commercialAccessStatus(env, audit) {
   const subscription = latestCommercialSubscription(audit);
-  const configured = Boolean(
-    env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL?.trim() ||
-      (env.STRIPE_SECRET_KEY?.trim() && env.PAYSHIELD_COMMERCIAL_PRICE_ID?.trim()),
-  );
+  const configured = commercialBillingConfigured(env);
 
   return {
     cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd ?? false,
@@ -1376,6 +1373,77 @@ function commercialAccessStatus(env, audit) {
     readyForCheckout: configured,
     state: subscription?.accessStatus ?? (configured ? "ready" : "needs_setup"),
     subscriptionStatus: subscription?.subscriptionStatus ?? null,
+  };
+}
+
+function commercialBillingConfigured(env) {
+  return Boolean(
+    env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL?.trim() ||
+      (env.STRIPE_SECRET_KEY?.trim() && env.PAYSHIELD_COMMERCIAL_PRICE_ID?.trim()),
+  );
+}
+
+function commercialPaidAccessRequired(env) {
+  return envTrue(env, "PAYSHIELD_REQUIRE_PAID_ACCESS") || commercialBillingConfigured(env);
+}
+
+function activeCommercialAccess(commercialAccess) {
+  return commercialAccess.state === "active";
+}
+
+async function requireActivePaidAccess(env, actorInput, operation) {
+  const actor = normalizeActor(actorInput);
+
+  if (!commercialPaidAccessRequired(env)) {
+    return {
+      ok: true,
+    };
+  }
+
+  const operationalAudit = await loadOperationalAudit(actor.householdId, env);
+
+  if (persistenceFailed(operationalAudit)) {
+    return {
+      ok: false,
+      result: {
+        body: {
+          code: "paid_access_state_unavailable",
+          error: "Paid-access records could not be loaded from durable core storage.",
+          operationalAudit,
+          service: "payshield-paid-access-gate",
+        },
+        status: 503,
+      },
+    };
+  }
+
+  const durableAudit = operationalAudit.audit ?? emptyOperationalAudit();
+  const audit = {
+    ...durableAudit,
+    billingEvents: durableAudit.billingEvents.length
+      ? durableAudit.billingEvents
+      : latestCommercialBillingEvents(actor.householdId),
+  };
+  const commercialAccess = commercialAccessStatus(env, audit);
+
+  if (activeCommercialAccess(commercialAccess)) {
+    return {
+      commercialAccess,
+      ok: true,
+    };
+  }
+
+  return {
+    ok: false,
+    result: {
+      body: {
+        code: "paid_access_required",
+        commercialAccess,
+        error: `Paid access must be active before ${operation}.`,
+        service: "payshield-paid-access-gate",
+      },
+      status: 402,
+    },
   };
 }
 
@@ -1846,10 +1914,23 @@ export async function saveBucketProfile(payload, env = process.env) {
 }
 
 export function startOnboarding(env = process.env, actorInput = demoUser) {
+  return startOnboardingWithPaidAccess(env, actorInput);
+}
+
+async function startOnboardingWithPaidAccess(env = process.env, actorInput = demoUser) {
   const readiness = getCoreReadiness(env, { coreOnline: true });
   const liveGate = assertLiveMoneyReady(readiness);
   const blocked = providerBlockedResult(readiness);
   const actor = normalizeActor(actorInput);
+  const paidAccess = await requireActivePaidAccess(
+    env,
+    actor,
+    "provider onboarding",
+  );
+
+  if (!paidAccess.ok) {
+    return paidAccess.result;
+  }
 
   return {
     body: {
@@ -1978,11 +2059,16 @@ function getMoneyRailReadiness(env = process.env) {
       envPresent(env, "PAYSHIELD_BAAS_API_KEY") ||
       plaidConfigured);
   const tokenVaultConfigured = vault.keyConfigured;
+  const providerWebhookSigningConfigured = envPresent(
+    env,
+    "PAYSHIELD_PROVIDER_WEBHOOK_SECRET",
+  );
 
   return {
     bankLinkReady: plaidConfigured && vault.webhookReady,
     detectionMode: plaidConfigured ? "plaid_transactions_sync" : "manual_or_provider_webhook",
-    paycheckDetectionReady: plaidConfigured && vault.webhookReady,
+    paycheckDetectionReady:
+      plaidConfigured && vault.webhookReady && providerWebhookSigningConfigured,
     liveMoneyReady: neobank.liveMoneyReady,
     missing: [
       ...(plaidConfigured ? [] : ["PLAID_CLIENT_ID", "PLAID_SECRET"]),
@@ -1998,9 +2084,13 @@ function getMoneyRailReadiness(env = process.env) {
       ...(plaidConfigured && !vault.webhookSigningConfigured
         ? ["PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET"]
         : []),
+      ...(plaidConfigured && vault.webhookReady && !providerWebhookSigningConfigured
+        ? ["PAYSHIELD_PROVIDER_WEBHOOK_SECRET"]
+        : []),
     ],
     plaidConfigured,
     plaidEnv: env.PLAID_ENV?.trim() || "sandbox",
+    providerWebhookSigningConfigured,
     tokenVaultConfigured,
     tokenVaultStoreReady: vault.webhookReady,
     transferConfigured,
@@ -2447,6 +2537,11 @@ export async function receiveTokenVaultHandoff(payload = {}, env = process.env) 
 export async function createBankLinkToken(payload = {}, env = process.env) {
   const readiness = getMoneyRailReadiness(env);
   const actor = actorFromPayload(payload);
+  const paidAccess = await requireActivePaidAccess(env, actor, "bank linking");
+
+  if (!paidAccess.ok) {
+    return paidAccess.result;
+  }
 
   if (!readiness.plaidConfigured || !readiness.tokenVaultStoreReady) {
     return {
@@ -2500,6 +2595,16 @@ export async function exchangeBankPublicToken(payload = {}, env = process.env) {
       },
       status: 400,
     };
+  }
+
+  const paidAccess = await requireActivePaidAccess(
+    env,
+    actor,
+    "bank token exchange",
+  );
+
+  if (!paidAccess.ok) {
+    return paidAccess.result;
   }
 
   if (!readiness.plaidConfigured || !readiness.tokenVaultStoreReady) {
@@ -2584,6 +2689,16 @@ export async function detectPaycheck(payload, env = process.env) {
       },
       status: 400,
     };
+  }
+
+  const paidAccess = await requireActivePaidAccess(
+    env,
+    actor,
+    "paycheck detection",
+  );
+
+  if (!paidAccess.ok) {
+    return paidAccess.result;
   }
 
   const controls = await loadOperationalControls(env, actor);
@@ -2727,6 +2842,16 @@ export async function createTransferIntent(payload, env = process.env) {
       },
       status: 400,
     };
+  }
+
+  const paidAccess = await requireActivePaidAccess(
+    env,
+    actor,
+    "protected transfers",
+  );
+
+  if (!paidAccess.ok) {
+    return paidAccess.result;
   }
 
   const controls = await loadOperationalControls(env, actor);
@@ -2876,6 +3001,16 @@ export async function createBillPayment(payload, env = process.env) {
     };
   }
 
+  const paidAccess = await requireActivePaidAccess(
+    env,
+    actor,
+    "bill payment controls",
+  );
+
+  if (!paidAccess.ok) {
+    return paidAccess.result;
+  }
+
   const controls = await loadOperationalControls(env, actor);
 
   if (controls.error) {
@@ -3017,6 +3152,16 @@ export async function createUnlock(payload, env = process.env) {
     };
   }
 
+  const paidAccess = await requireActivePaidAccess(
+    env,
+    actor,
+    "protected bucket unlocks",
+  );
+
+  if (!paidAccess.ok) {
+    return paidAccess.result;
+  }
+
   const input = {
     amountCents,
     bucketId: payload.bucketId,
@@ -3120,6 +3265,16 @@ export async function authorizeCard(payload, env = process.env) {
       },
       status: 400,
     };
+  }
+
+  const paidAccess = await requireActivePaidAccess(
+    env,
+    actor,
+    "card authorization",
+  );
+
+  if (!paidAccess.ok) {
+    return paidAccess.result;
   }
 
   const input = {

@@ -38,6 +38,7 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_LEDGER_DATABASE_URL;
   delete process.env.PAYSHIELD_LIVE_MONEY_ENABLED;
   delete process.env.PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED;
+  delete process.env.PAYSHIELD_REQUIRE_PAID_ACCESS;
   delete process.env.PAYSHIELD_PROVIDER_WEBHOOK_REPLAY_TOLERANCE_SECONDS;
   delete process.env.PAYSHIELD_PROVIDER_WEBHOOK_SECRET;
   delete process.env.PAYSHIELD_TRANSFER_ENABLED;
@@ -360,6 +361,98 @@ test("billing webhook verifies Stripe signature and summarizes paid access", asy
   assert.equal(summary.customerId, "cus_test");
   assert.equal(summary.subscriptionId, "sub_test");
   assert.equal(summary.subscriptionStatus, "active");
+});
+
+test("money workflows require paid access when commercial billing is configured without core state", async () => {
+  process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL =
+    "https://buy.stripe.com/test_paid_access";
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+
+  const cases: Array<[string, () => Promise<Response>]> = [
+    [
+      "bank linking",
+      () =>
+        createBankLinkToken(
+          makeRequest("/api/app/bank-link/token", {
+            origin: endpoint,
+          }),
+        ),
+    ],
+    ["provider onboarding", () => startOnboarding()],
+    [
+      "paycheck detection",
+      () =>
+        detectPaycheck(
+          makeRequest("/api/app/paychecks/detect", {
+            amountCents: 300_000,
+            employerName: "Acme Payroll",
+            idempotencyKey: "route-paid-gate-paycheck",
+          }),
+        ),
+    ],
+    [
+      "protected transfers",
+      () =>
+        createTransfer(
+          makeRequest("/api/app/transfers", {
+            amountCents: 25_000,
+            destinationPayeeId: "payee_abc_apartments",
+            idempotencyKey: "route-paid-gate-transfer",
+            sourceBucketId: "rent",
+          }),
+        ),
+    ],
+    [
+      "bill payment controls",
+      () =>
+        scheduleBillPayment(
+          makeRequest("/api/app/bill-payments", {
+            amountCents: 50_000,
+            idempotencyKey: "route-paid-gate-bill",
+            payeeId: "payee_abc_apartments",
+            scheduledFor: "2026-07-01",
+          }),
+        ),
+    ],
+    [
+      "protected bucket unlocks",
+      () =>
+        unlockBucket(
+          makeRequest("/api/app/unlocks", {
+            amountCents: 5_000,
+            bucketId: "emergency",
+            idempotencyKey: "route-paid-gate-unlock",
+            mode: "slow_free",
+            reason: "Temporary cash need",
+          }),
+        ),
+    ],
+    [
+      "card authorization",
+      () =>
+        authorizeCard(
+          makeRequest("/api/card/authorize", {
+            amountCents: 2_500,
+            idempotencyKey: "route-paid-gate-card",
+            merchantName: "Corner Market",
+          }),
+        ),
+    ],
+  ];
+
+  for (const [operation, request] of cases) {
+    const response = await request();
+    const body = await parseJson(response);
+
+    assert.equal(response.status, 402, operation);
+    assert.equal(body.code, "paid_access_state_unverified", operation);
+    assert.equal(
+      String(body.error).includes(operation),
+      true,
+      `${operation} should be named in the paid-access error`,
+    );
+    assert.equal(body.service, "payshield-paid-access-gate", operation);
+  }
 });
 
 test("bank link token fails closed until Plaid is configured", async () => {

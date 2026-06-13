@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server.js";
+import { requirePaidAccessForFallback } from "../../../lib/commercial/billing.ts";
 import { getAppSession } from "../../../lib/neobank/auth.ts";
 import { forwardCoreRequest } from "../../../lib/neobank/core-client.ts";
 import { isBucketId, simulateUnlock } from "../../../lib/neobank/demo-state.ts";
@@ -36,6 +37,17 @@ export async function POST(request: NextRequest) {
 
     if (coreResponse) {
       return coreResponse;
+    }
+
+    const paidAccess = requirePaidAccessForFallback("protected bucket unlocks");
+
+    if (!paidAccess.ok) {
+      return NextResponse.json(paidAccess.body, {
+        headers: {
+          "cache-control": "no-store",
+        },
+        status: paidAccess.status,
+      });
     }
 
     const payload = (await request.json().catch(() => ({}))) as {

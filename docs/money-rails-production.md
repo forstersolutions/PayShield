@@ -23,7 +23,16 @@ STRIPE_WEBHOOK_SECRET=
 PAYSHIELD_COMMERCIAL_PRICE_ID=
 PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL=
 PAYSHIELD_COMMERCIAL_PRICE_LABEL=$19/month
+PAYSHIELD_REQUIRE_PAID_ACCESS=true
 ```
+
+When commercial billing is configured, PayShield treats paid access as an
+enforcement gate, not a banner. Provider onboarding, bank linking, paycheck
+detection, protected transfers, bill-payment controls, card authorization, and
+protected unlocks require an active paid-access record in the core service.
+Without the dedicated core service, Vercel fallback routes fail closed once
+commercial billing is enabled because they cannot prove household subscription
+state.
 
 Authentication and core service:
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server.js";
+import { requirePaidAccessForFallback } from "../../../lib/commercial/billing.ts";
 import { forwardCoreRequest } from "../../../lib/neobank/core-client.ts";
 import { simulateCardAuthorization } from "../../../lib/neobank/demo-state.ts";
 import { getBankingProvider } from "../../../lib/neobank/provider.ts";
@@ -31,6 +32,17 @@ export async function POST(request: NextRequest) {
 
   if (coreResponse) {
     return coreResponse;
+  }
+
+  const paidAccess = requirePaidAccessForFallback("card authorization");
+
+  if (!paidAccess.ok) {
+    return NextResponse.json(paidAccess.body, {
+      headers: {
+        "cache-control": "no-store",
+      },
+      status: paidAccess.status,
+    });
   }
 
   const payload = (await request.json().catch(() => ({}))) as {

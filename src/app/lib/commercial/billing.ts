@@ -6,6 +6,10 @@ function envPresent(name: string) {
   return Boolean(process.env[name]?.trim());
 }
 
+function envTrue(name: string) {
+  return process.env[name]?.trim().toLowerCase() === "true";
+}
+
 function cleanBaseUrl(value: string | undefined) {
   if (!value?.trim()) {
     return "";
@@ -73,6 +77,42 @@ export function getCommercialReadiness() {
     stripeSecretConfigured,
     webhookEndpointPath: webhook.endpointPath,
     webhookSigningSecretConfigured: webhook.signingSecretConfigured,
+  };
+}
+
+export function paidAccessRequired() {
+  const readiness = getCommercialReadiness();
+
+  return {
+    readiness,
+    required:
+      envTrue("PAYSHIELD_REQUIRE_PAID_ACCESS") || readiness.checkoutConfigured,
+  };
+}
+
+export function requirePaidAccessForFallback(operation: string) {
+  const { readiness, required } = paidAccessRequired();
+
+  if (!required) {
+    return {
+      ok: true as const,
+      readiness,
+    };
+  }
+
+  return {
+    body: {
+      code: readiness.paidAccessReady
+        ? "paid_access_state_unverified"
+        : "paid_access_not_configured",
+      error: readiness.paidAccessReady
+        ? `Paid access must be active before ${operation}. Configure PAYSHIELD_CORE_API_URL so Stripe webhooks can activate household access before this workflow runs.`
+        : `Paid access must be fully configured before ${operation}.`,
+      readiness,
+      service: "payshield-paid-access-gate",
+    },
+    ok: false as const,
+    status: 402,
   };
 }
 
