@@ -6,6 +6,7 @@ const customerFacingFiles = [
   "src/app/components/household-command-center.tsx",
   "src/app/components/money-operations-panel.tsx",
   "src/app/api/app/billing/checkout/route.ts",
+  "src/app/api/app/billing/portal/route.ts",
   "src/app/lib/commercial/billing.ts",
   ".env.example",
 ];
@@ -63,6 +64,8 @@ test("money operations surface shows revenue, rails, records, and export", async
   assert.match(moneyOperations, /The revenue and money-control operating lane/);
   assert.match(moneyOperations, /Operations ledger/);
   assert.match(moneyOperations, /Export audit/);
+  assert.match(moneyOperations, /Activate paid access/);
+  assert.match(moneyOperations, /Manage billing/);
   assert.match(moneyOperations, /Connect banks/);
   assert.match(moneyOperations, /Detect paychecks/);
   assert.match(moneyOperations, /Move protected funds/);

@@ -4,6 +4,7 @@ import { beforeEach, test } from "node:test";
 import { NextRequest } from "next/server.js";
 import { POST as authorizeCard } from "../src/app/api/card/authorize/route.ts";
 import { POST as startCheckout } from "../src/app/api/app/billing/checkout/route.ts";
+import { POST as openBillingPortal } from "../src/app/api/app/billing/portal/route.ts";
 import { POST as billingWebhook } from "../src/app/api/app/billing/webhook/route.ts";
 import { POST as createBankLinkToken } from "../src/app/api/app/bank-link/token/route.ts";
 import { GET as exportAudit } from "../src/app/api/app/audit/export/route.ts";
@@ -158,6 +159,24 @@ test("billing status exposes household paid-access state", async () => {
   assert.equal(body.service, "payshield-billing-status");
   assert.equal(commercialAccess.state, "needs_setup");
   assert.equal(commercialAccess.priceLabel, "$19/month");
+});
+
+test("billing portal requires durable Stripe customer state", async () => {
+  const response = await openBillingPortal(
+    makeRequest("/api/app/billing/portal", {
+      returnPath: "/app?billing=manage",
+    }),
+  );
+  const body = await parseJson(response);
+  const readiness = body.readiness as Record<string, unknown>;
+
+  assert.equal(response.status, 424);
+  assert.match(String(body.error), /Stripe customer/i);
+  assert.equal(readiness.portalConfigured, false);
+  assert.deepEqual(readiness.missing, [
+    "STRIPE_SECRET_KEY",
+    "provider_customer_id",
+  ]);
 });
 
 test("audit export returns a downloadable household operations packet", async () => {

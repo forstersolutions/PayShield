@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 const fallbackFiles = [
-  "src/app/loading.tsx",
   "src/app/not-found.tsx",
   "src/app/error.tsx",
   "src/app/global-error.tsx",
@@ -30,4 +29,11 @@ test("route fallbacks provide branded recovery paths", async () => {
   const globalError = await readFile("src/app/global-error.tsx", "utf8");
   assert.match(globalError, /<html lang="en">/);
   assert.match(globalError, /unstable_retry/);
+});
+
+test("app route serves the operating screen instead of the root loading shell", async () => {
+  const appPage = await readFile("src/app/app/page.tsx", "utf8");
+
+  assert.match(appPage, /dynamic = "force-dynamic"/);
+  await assert.rejects(access("src/app/loading.tsx"));
 });

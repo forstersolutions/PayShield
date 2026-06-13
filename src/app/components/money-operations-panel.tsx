@@ -129,6 +129,7 @@ type OperationsPacket = {
     currentPeriodEnd?: string | null;
     mode?: string;
     priceLabel?: string;
+    providerCustomerId?: string | null;
     readyForCheckout?: boolean;
     state?: string;
     subscriptionStatus?: string | null;
@@ -395,6 +396,10 @@ export function MoneyOperationsPanel({
     message: "",
     status: "idle",
   });
+  const [portalState, setPortalState] = useState<ActionState>({
+    message: "",
+    status: "idle",
+  });
   const [bankState, setBankState] = useState<ActionState>({
     message: "",
     status: "idle",
@@ -580,6 +585,67 @@ export function MoneyOperationsPanel({
       appendOperation({
         detail: "Checkout request failed",
         label: "Paid access",
+        rail: "billing",
+        status: "error",
+      });
+    }
+  }
+
+  async function openBillingPortal() {
+    setPortalState({
+      message: "Opening billing management...",
+      status: "loading",
+    });
+
+    try {
+      const response = await fetch("/api/app/billing/portal", {
+        body: JSON.stringify({
+          returnPath: "/app?billing=manage",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        readiness?: { missing?: string[] };
+        url?: string;
+      };
+
+      if (!response.ok || !payload.url) {
+        setPortalState({
+          message:
+            payload.error ||
+            `Billing management is missing ${payload.readiness?.missing?.join(", ") || "Stripe customer state"}.`,
+          status: "error",
+        });
+        appendOperation({
+          detail: payload.error || "Billing portal unavailable",
+          label: "Billing portal",
+          rail: "billing",
+          status: "blocked",
+        });
+        return;
+      }
+
+      setPortalState({
+        message: "Billing portal ready. Redirecting.",
+        status: "ready",
+      });
+      appendOperation({
+        detail: "Stripe customer portal",
+        label: "Billing portal",
+        rail: "billing",
+        status: "created",
+      });
+      window.location.href = payload.url;
+    } catch {
+      setPortalState({
+        message: "Billing management could not be opened.",
+        status: "error",
+      });
+      appendOperation({
+        detail: "Billing portal request failed",
+        label: "Billing portal",
         rail: "billing",
         status: "error",
       });
@@ -1092,8 +1158,24 @@ export function MoneyOperationsPanel({
                 )}
                 Activate paid access
               </button>
+              <button
+                className="brand-button-blue mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={portalState.status === "loading"}
+                onClick={openBillingPortal}
+                type="button"
+              >
+                {portalState.status === "loading" ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <ReceiptText className="size-4" aria-hidden="true" />
+                )}
+                Manage billing
+              </button>
               <div className="mt-3">
                 <StateMessage state={billingState} />
+              </div>
+              <div className="mt-3">
+                <StateMessage state={portalState} />
               </div>
             </div>
 

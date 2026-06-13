@@ -41,6 +41,12 @@ whether a checkout URL was created. It does not store card data or raw payment
 method details. Stripe webhooks remain the source of truth for activating paid
 access after payment succeeds.
 
+`POST /api/app/billing/portal` opens Stripe Billing Portal only after the
+dedicated core returns a durable `providerCustomerId` for the household. This
+keeps subscription management tied to the same paid-access records that unlock
+money workflows. Vercel fallback mode cannot open the portal because it cannot
+prove the customer id without core billing state.
+
 Authentication and core service:
 
 ```bash

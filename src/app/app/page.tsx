@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { HouseholdCommandCenter } from "@/app/components/household-command-center";
 import { SiteFooter } from "@/app/components/site-footer";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "PayShield App | Household Command Center",
   description:

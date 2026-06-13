@@ -78,6 +78,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "docs/campaign-copy.md",
   "docs/legal-review-packet.md",
   "src/app/api/app/bill-payments/route.ts",
+  "src/app/api/app/billing/portal/route.ts",
   "src/app/api/app/direct-deposit/route.ts",
   "src/app/api/app/paychecks/rules/route.ts",
   "src/app/api/health/route.ts",
@@ -240,6 +241,7 @@ requireText("src/app/components/neobank-dashboard.tsx", "Safe to Spend");
 requireText("src/app/components/neobank-dashboard.tsx", "Provider readiness");
 requireText("src/app/components/neobank-dashboard.tsx", "support@graystontechnologies.com");
 requireText("src/app/page.tsx", "NeobankDashboard");
+requireText("src/app/app/page.tsx", 'dynamic = "force-dynamic"');
 requireText("src/app/components/waitlist-form.tsx", "Contact Grayston support");
 requireText("src/app/components/bucket-control-panel.tsx", "Add bucket");
 requireText("src/app/components/bucket-control-panel.tsx", "Save bucket profile");
@@ -254,8 +256,14 @@ requireText("src/app/components/neobank-dashboard.tsx", "BillPaymentPanel");
 requireText("src/app/api/app/bill-payments/route.ts", "/api/app/bill-payments");
 requireText("src/app/api/app/bill-payments/route.ts", "simulateBillPayment");
 requireText("src/app/components/money-operations-panel.tsx", "Save detection rule");
+requireText("src/app/components/money-operations-panel.tsx", "Manage billing");
+requireText("src/app/components/money-operations-panel.tsx", "/api/app/billing/portal");
 requireText("src/app/components/money-operations-panel.tsx", "/api/app/paychecks/rules");
 requireText("src/app/components/money-operations-panel.tsx", "/api/app/direct-deposit");
+requireText("src/app/api/app/billing/portal/route.ts", "/api/app/billing/status");
+requireText("src/app/api/app/billing/portal/route.ts", "providerCustomerId");
+requireText("src/app/lib/commercial/billing.ts", "createCommercialPortalSession");
+requireText("src/app/lib/commercial/billing.ts", "billing_portal_provider_error");
 requireText("src/app/api/app/direct-deposit/route.ts", "direct deposit setup");
 requireText("src/app/api/app/paychecks/rules/route.ts", "paycheck detection setup");
 requireText("src/app/lib/neobank/core-config.ts", "PAYSHIELD_CORE_API_URL");

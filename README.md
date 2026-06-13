@@ -111,6 +111,7 @@ GET  /api/app/operations
 GET  /api/app/audit/export
 POST /api/app/onboarding/start
 POST /api/app/billing/checkout
+POST /api/app/billing/portal
 POST /api/app/billing/webhook
 POST /api/app/bank-link/token
 POST /api/app/bank-link/exchange

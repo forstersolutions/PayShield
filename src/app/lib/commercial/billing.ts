@@ -92,6 +92,16 @@ function productionRequiresLiveStripe() {
   return process.env.VERCEL_ENV === "production";
 }
 
+function portalStripeReady() {
+  const stripeMode = stripeSecretMode(process.env.STRIPE_SECRET_KEY);
+
+  return {
+    liveModeReady: !productionRequiresLiveStripe() || stripeMode === "live",
+    stripeSecretConfigured: envPresent("STRIPE_SECRET_KEY"),
+    stripeSecretMode: stripeMode,
+  };
+}
+
 function formBody(input: Record<string, string>) {
   const params = new URLSearchParams();
 
@@ -310,6 +320,99 @@ export async function createCommercialCheckoutSession(input: {
 
   return {
     checkoutSessionId: payload.id,
+    readiness,
+    status: 200,
+    url: payload.url,
+  };
+}
+
+export async function createCommercialPortalSession(input: {
+  customerId?: string | null;
+  origin: string;
+  returnPath?: string;
+}) {
+  const portalReadiness = portalStripeReady();
+  const missing = [
+    ...(portalReadiness.stripeSecretConfigured ? [] : ["STRIPE_SECRET_KEY"]),
+    ...(portalReadiness.liveModeReady ? [] : ["Stripe live-mode secret"]),
+    ...(input.customerId ? [] : ["provider_customer_id"]),
+  ];
+  const readiness = {
+    missing,
+    portalConfigured:
+      portalReadiness.stripeSecretConfigured &&
+      portalReadiness.liveModeReady &&
+      Boolean(input.customerId),
+    stripeSecretConfigured: portalReadiness.stripeSecretConfigured,
+    stripeSecretMode: portalReadiness.stripeSecretMode,
+  };
+
+  if (!input.customerId) {
+    return {
+      error:
+        "Billing portal requires an active Stripe customer from durable paid-access records.",
+      errorCode: "billing_customer_required",
+      readiness,
+      status: 424,
+      url: "",
+    };
+  }
+
+  if (!portalReadiness.stripeSecretConfigured) {
+    return {
+      error: "Billing portal requires STRIPE_SECRET_KEY.",
+      errorCode: "billing_portal_not_configured",
+      readiness,
+      status: 424,
+      url: "",
+    };
+  }
+
+  if (!portalReadiness.liveModeReady) {
+    return {
+      error: "Billing portal requires a live-mode Stripe secret in production.",
+      errorCode: "billing_portal_live_mode_required",
+      readiness,
+      status: 424,
+      url: "",
+    };
+  }
+
+  const origin =
+    cleanBaseUrl(process.env.NEXT_PUBLIC_SITE_URL) ||
+    cleanBaseUrl(input.origin) ||
+    "http://localhost:3000";
+  const returnUrl = new URL(input.returnPath || "/app?billing=manage", `${origin}/`);
+  const response = await fetch("https://api.stripe.com/v1/billing_portal/sessions", {
+    body: formBody({
+      customer: input.customerId,
+      return_url: returnUrl.toString(),
+    }),
+    headers: {
+      "authorization": `Bearer ${process.env.STRIPE_SECRET_KEY?.trim()}`,
+      "content-type": "application/x-www-form-urlencoded",
+      "stripe-version": stripeApiVersion,
+    },
+    method: "POST",
+  });
+  const payload = (await response.json().catch(() => ({}))) as {
+    error?: { message?: string };
+    id?: string;
+    url?: string;
+  };
+
+  if (!response.ok || !payload.url) {
+    return {
+      error: payload.error?.message || "Stripe Billing Portal session could not be created.",
+      errorCode: "billing_portal_provider_error",
+      readiness,
+      status: 502,
+      url: "",
+    };
+  }
+
+  return {
+    portalSessionId: payload.id,
     readiness,
     status: 200,
     url: payload.url,

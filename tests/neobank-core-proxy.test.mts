@@ -8,6 +8,7 @@ import { GET as exportAudit } from "../src/app/api/app/audit/export/route.ts";
 import { GET as getBalances } from "../src/app/api/app/balances/route.ts";
 import { POST as exchangeBankLink } from "../src/app/api/app/bank-link/exchange/route.ts";
 import { POST as createBankLinkToken } from "../src/app/api/app/bank-link/token/route.ts";
+import { POST as openBillingPortal } from "../src/app/api/app/billing/portal/route.ts";
 import { GET as getBillingStatus } from "../src/app/api/app/billing/status/route.ts";
 import { POST as scheduleBillPayment } from "../src/app/api/app/bill-payments/route.ts";
 import { GET as getOperations } from "../src/app/api/app/operations/route.ts";
@@ -21,6 +22,7 @@ const envKeys = [
   "PAYSHIELD_CORE_API_URL",
   "PAYSHIELD_CORE_SERVICE_TOKEN",
   "PAYSHIELD_CORE_TIMEOUT_MS",
+  "STRIPE_SECRET_KEY",
   "VERCEL_ENV",
 ];
 
@@ -227,6 +229,89 @@ test("billing status API delegates paid-access state to configured core service"
       assert.equal(captured.authorization, "Bearer core-billing-secret");
       assert.equal(captured.method, "GET");
       assert.equal(captured.url, "/api/app/billing/status");
+    },
+  );
+});
+
+test("billing portal uses durable core customer state for Stripe self service", async () => {
+  const captured: Record<string, unknown> = {};
+  const originalFetch = globalThis.fetch;
+
+  await withCoreProxyServer(
+    (request, response) => {
+      captured.authorization = request.headers.authorization;
+      captured.method = request.method;
+      captured.url = request.url;
+
+      response.writeHead(200, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          commercialAccess: {
+            priceLabel: "$19/month",
+            providerCustomerId: "cus_core_active",
+            state: "active",
+          },
+          coreDelegated: true,
+          service: "payshield-billing-status",
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-portal-secret";
+      process.env.STRIPE_SECRET_KEY = "sk_test_portal";
+
+      globalThis.fetch = async (input, init) => {
+        const url = String(input);
+
+        if (url === "https://api.stripe.com/v1/billing_portal/sessions") {
+          captured.stripeBody = String(init?.body ?? "");
+          captured.stripeVersion = String(
+            (init?.headers as Record<string, string>)?.["stripe-version"] ?? "",
+          );
+
+          return new Response(
+            JSON.stringify({
+              id: "bps_core_customer",
+              url: "https://billing.stripe.com/p/session/test_core",
+            }),
+            {
+              headers: { "content-type": "application/json" },
+              status: 200,
+            },
+          );
+        }
+
+        return originalFetch(input, init);
+      };
+
+      try {
+        const response = await openBillingPortal(
+          makeRequest("/api/app/billing/portal", {
+            returnPath: "/app?billing=manage",
+          }),
+        );
+        const body = await parseJson(response);
+        const stripeBody = new URLSearchParams(String(captured.stripeBody));
+
+        assert.equal(response.status, 200);
+        assert.equal(body.url, "https://billing.stripe.com/p/session/test_core");
+        assert.equal(body.portalSessionId, "bps_core_customer");
+        assert.equal(captured.authorization, "Bearer core-portal-secret");
+        assert.equal(captured.method, "GET");
+        assert.equal(captured.url, "/api/app/billing/status");
+        assert.equal(captured.stripeVersion, "2026-02-25.clover");
+        assert.equal(stripeBody.get("customer"), "cus_core_active");
+        assert.equal(
+          stripeBody.get("return_url"),
+          "https://payshield.test/app?billing=manage",
+        );
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
     },
   );
 });
