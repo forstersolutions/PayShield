@@ -92,6 +92,12 @@ transaction events. Provider webhooks can also post income events into
 engine funds protected buckets first and exposes only the remainder as
 `safe_to_spend`.
 
+`POST /api/provider/webhooks` now records the provider event, extracts
+payroll-like income transactions, resolves the active bank connection when
+provider item/account identifiers are present, and posts each matched paycheck
+through the same protected split journal used by manual detection. Pending,
+debit, and non-income transactions are ignored.
+
 Transfers, bill payments, and card decisions remain gate controlled:
 
 - `POST /api/app/transfers` creates provider transfer intents only when the

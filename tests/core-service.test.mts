@@ -922,6 +922,96 @@ test("core provider webhook accepts object events but rejects invalid JSON shape
   });
 });
 
+test("core provider webhook posts income transactions into paycheck split flow", async () => {
+  process.env.PLAID_CLIENT_ID = "plaid-client";
+  process.env.PLAID_SECRET = "plaid-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "http://127.0.0.1/vault";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
+
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(
+      baseUrl,
+      "/api/provider/webhooks",
+      jsonPost({
+        eventId: "evt_income_sync",
+        providerName: "plaid",
+        transactions: [
+          {
+            account_id: "acc_payroll",
+            amount: -1875.42,
+            date: "2026-06-12",
+            item_id: "item_payroll",
+            name: "ACME PAYROLL",
+            pending: false,
+            personal_finance_category: {
+              detailed: "INCOME_WAGES",
+              primary: "INCOME",
+            },
+            transaction_id: "txn_payroll_001",
+          },
+          {
+            account_id: "acc_payroll",
+            amount: 42.99,
+            date: "2026-06-12",
+            item_id: "item_payroll",
+            name: "Coffee shop",
+            pending: false,
+            personal_finance_category: {
+              detailed: "FOOD_AND_DRINK_COFFEE",
+              primary: "FOOD_AND_DRINK",
+            },
+            transaction_id: "txn_debit_001",
+          },
+        ],
+        type: "transactions.sync",
+      }),
+    );
+    const detections = body.detections as Array<Record<string, unknown>>;
+    const eventPersistence = body.eventPersistence as Record<string, unknown>;
+
+    assert.equal(response.status, 202);
+    assert.equal(body.accepted, true);
+    assert.equal(body.mode, "processed");
+    assert.equal(body.detectionCount, 1);
+    assert.equal(eventPersistence.persistence, "memory");
+    assert.equal(detections[0]?.amountCents, 187_542);
+    assert.equal(detections[0]?.employerName, "ACME PAYROLL");
+    assert.equal(detections[0]?.providerTransactionId, "txn_payroll_001");
+  });
+});
+
+test("core provider webhook blocks income extraction until bank rails are configured", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(
+      baseUrl,
+      "/api/provider/webhooks",
+      jsonPost({
+        eventId: "evt_income_blocked",
+        providerName: "plaid",
+        transactions: [
+          {
+            amount: -1200,
+            name: "Payroll deposit",
+            pending: false,
+            personal_finance_category: {
+              primary: "INCOME",
+            },
+            transaction_id: "txn_blocked_payroll",
+          },
+        ],
+      }),
+    );
+    const moneyReadiness = body.moneyReadiness as Record<string, unknown>;
+
+    assert.equal(response.status, 202);
+    assert.equal(body.accepted, true);
+    assert.equal(body.mode, "blocked");
+    assert.equal(body.detectionCount, 0);
+    assert.equal(moneyReadiness.paycheckDetectionReady, false);
+  });
+});
+
 test("core service token protects internal operation routes when configured", async () => {
   process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-test-token";
 

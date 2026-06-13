@@ -1416,6 +1416,66 @@ export async function persistBankConnection(input, env = process.env) {
   }
 }
 
+export async function loadBankConnectionForProvider(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return {
+      bankConnection: null,
+      persisted: false,
+      persistence: "memory",
+      persistenceReason:
+        "Bank connection lookup skipped without PAYSHIELD_LEDGER_DATABASE_URL.",
+    };
+  }
+
+  try {
+    const result = await pool.query(
+      `
+        SELECT
+          household_id,
+          user_id,
+          provider_name,
+          provider_item_id,
+          provider_account_id,
+          institution_name,
+          status
+        FROM bank_connections
+        WHERE provider_name = $1
+          AND provider_item_id = $2
+          AND ($3::text IS NULL OR provider_account_id = $3)
+          AND status IN ('connected', 'syncing')
+        ORDER BY updated_at DESC, connected_at DESC
+        LIMIT 1
+      `,
+      [
+        input.providerName,
+        input.providerItemId,
+        input.providerAccountId || null,
+      ],
+    );
+    const row = result.rows[0];
+
+    return {
+      bankConnection: row
+        ? {
+            householdId: row.household_id,
+            institutionName: row.institution_name,
+            providerAccountId: row.provider_account_id,
+            providerItemId: row.provider_item_id,
+            providerName: row.provider_name,
+            status: row.status,
+            userId: row.user_id,
+          }
+        : null,
+      persisted: true,
+      persistence: "postgres",
+    };
+  } catch (error) {
+    return persistenceFailed(error);
+  }
+}
+
 export async function persistProviderTokenSecret(input, env = process.env) {
   const pool = poolFor(env);
 

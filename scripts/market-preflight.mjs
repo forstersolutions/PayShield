@@ -257,6 +257,12 @@ requireText("services/core/migrations/0006_provider_token_vault.sql", "provider_
 requireText("services/core/migrations/0006_provider_token_vault.sql", "ciphertext TEXT NOT NULL");
 requireText("services/core/server.mjs", "/token-vault/plaid");
 requireText("services/core/product.mjs", "receiveTokenVaultHandoff");
+requireText("services/core/product.mjs", "extractProviderPaycheckDetections");
+requireText(
+  "services/core/product.mjs",
+  "Provider transaction could not be matched to an active PayShield bank connection.",
+);
+requireText("services/core/database.mjs", "loadBankConnectionForProvider");
 requireText("scripts/core-migrations.mjs", "PAYSHIELD_LEDGER_DATABASE_URL");
 requireText("scripts/core-migrations.mjs", "checksumSha256");
 requireText("scripts/core-migrations.mjs", "core_schema_migrations");

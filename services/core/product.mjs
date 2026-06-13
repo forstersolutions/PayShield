@@ -1,7 +1,8 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import {
   databaseConfigured,
   loadOperationalAudit,
+  loadBankConnectionForProvider,
   loadBucketProfile,
   loadPayees,
   persistBucketProfile,
@@ -3126,7 +3127,282 @@ export async function authorizeCard(payload, env = process.env) {
   };
 }
 
-export function handleProviderWebhook(payload, env = process.env) {
+function stableEventId(providerName, payload) {
+  const explicit =
+    safeString(payload?.providerEventId, 160) ||
+    safeString(payload?.eventId, 160) ||
+    safeString(payload?.webhookId, 160) ||
+    safeString(payload?.webhook_id, 160) ||
+    safeString(payload?.requestId, 160) ||
+    safeString(payload?.request_id, 160);
+
+  if (explicit) {
+    return explicit;
+  }
+
+  return `webhook_${providerName}_${createHash("sha256")
+    .update(JSON.stringify(payload || {}))
+    .digest("hex")
+    .slice(0, 24)}`;
+}
+
+function providerNameFromPayload(payload) {
+  return (
+    safeString(payload?.providerName, 40) ||
+    safeString(payload?.provider, 40) ||
+    safeString(payload?.source, 40) ||
+    "plaid"
+  ).toLowerCase();
+}
+
+function redactProviderWebhookPayload(value) {
+  if (Array.isArray(value)) {
+    return value.map(redactProviderWebhookPayload);
+  }
+
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      /access[_-]?token|secret|authorization|password|credential/i.test(key)
+        ? "[redacted]"
+        : redactProviderWebhookPayload(item),
+    ]),
+  );
+}
+
+function transactionCandidates(payload) {
+  const candidates = [
+    payload?.transaction,
+    payload?.transactions,
+    payload?.added,
+    payload?.modified,
+    payload?.paychecks,
+    payload?.data?.transaction,
+    payload?.data?.transactions,
+    payload?.data?.added,
+    payload?.data?.modified,
+    payload?.event?.transaction,
+    payload?.event?.transactions,
+  ];
+
+  return candidates.flatMap((candidate) =>
+    Array.isArray(candidate) ? candidate : candidate ? [candidate] : [],
+  );
+}
+
+function transactionText(transaction, key, maxLength = 160) {
+  return safeString(transaction?.[key], maxLength);
+}
+
+function nestedTransactionText(transaction, parentKey, key, maxLength = 160) {
+  return safeString(transaction?.[parentKey]?.[key], maxLength);
+}
+
+function transactionCategoryText(transaction) {
+  const raw = [
+    transactionText(transaction, "category"),
+    Array.isArray(transaction?.category)
+      ? transaction.category.filter(Boolean).join(" ")
+      : "",
+    transactionText(transaction, "categoryId"),
+    transactionText(transaction, "transactionType"),
+    transactionText(transaction, "type"),
+    nestedTransactionText(transaction, "personal_finance_category", "primary"),
+    nestedTransactionText(transaction, "personal_finance_category", "detailed"),
+    nestedTransactionText(transaction, "personalFinanceCategory", "primary"),
+    nestedTransactionText(transaction, "personalFinanceCategory", "detailed"),
+  ].join(" ");
+
+  return raw.toLowerCase();
+}
+
+function transactionName(transaction) {
+  return (
+    transactionText(transaction, "employerName", 100) ||
+    transactionText(transaction, "employer_name", 100) ||
+    transactionText(transaction, "merchantName", 100) ||
+    transactionText(transaction, "merchant_name", 100) ||
+    transactionText(transaction, "counterpartyName", 100) ||
+    transactionText(transaction, "counterparty_name", 100) ||
+    transactionText(transaction, "name", 100) ||
+    transactionText(transaction, "originalDescription", 100) ||
+    transactionText(transaction, "original_description", 100) ||
+    transactionText(transaction, "description", 100)
+  );
+}
+
+function creditDirection(transaction) {
+  const text = [
+    transactionText(transaction, "direction", 40),
+    transactionText(transaction, "amountDirection", 40),
+    transactionText(transaction, "amount_direction", 40),
+    transactionText(transaction, "transactionType", 40),
+    transactionText(transaction, "transaction_type", 40),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return /\b(credit|deposit|inflow|income)\b/.test(text);
+}
+
+function providerAmountCents(transaction) {
+  if (Number.isInteger(transaction?.amountCents)) {
+    if (transaction.amountCents < 0) {
+      return Math.abs(transaction.amountCents);
+    }
+
+    return creditDirection(transaction) ? transaction.amountCents : null;
+  }
+
+  if (Number.isInteger(transaction?.amount_cents)) {
+    if (transaction.amount_cents < 0) {
+      return Math.abs(transaction.amount_cents);
+    }
+
+    return creditDirection(transaction) ? transaction.amount_cents : null;
+  }
+
+  const amount = Number(transaction?.amount);
+
+  if (!Number.isFinite(amount)) {
+    return null;
+  }
+
+  if (amount < 0) {
+    return Math.round(Math.abs(amount) * 100);
+  }
+
+  return creditDirection(transaction) ? Math.round(amount * 100) : null;
+}
+
+function incomeSignal(transaction) {
+  const category = transactionCategoryText(transaction);
+  const name = transactionName(transaction).toLowerCase();
+
+  return /income|payroll|paycheck|salary|wage|direct deposit|direct_deposit|ach credit|ach_credit/.test(
+    `${category} ${name}`,
+  );
+}
+
+function providerTransactionId(transaction, fallback) {
+  return (
+    transactionText(transaction, "providerTransactionId", 160) ||
+    transactionText(transaction, "provider_transaction_id", 160) ||
+    transactionText(transaction, "transactionId", 160) ||
+    transactionText(transaction, "transaction_id", 160) ||
+    transactionText(transaction, "id", 160) ||
+    fallback
+  );
+}
+
+function providerItemId(payload, transaction) {
+  return (
+    transactionText(transaction, "itemId", 160) ||
+    transactionText(transaction, "item_id", 160) ||
+    safeString(payload?.itemId, 160) ||
+    safeString(payload?.item_id, 160)
+  );
+}
+
+function providerAccountId(payload, transaction) {
+  return (
+    transactionText(transaction, "accountId", 160) ||
+    transactionText(transaction, "account_id", 160) ||
+    safeString(payload?.accountId, 160) ||
+    safeString(payload?.account_id, 160)
+  );
+}
+
+function transactionReceivedAt(transaction) {
+  return (
+    transactionText(transaction, "authorized_datetime", 40) ||
+    transactionText(transaction, "datetime", 40) ||
+    transactionText(transaction, "dateTime", 40) ||
+    transactionText(transaction, "date", 40) ||
+    new Date().toISOString()
+  );
+}
+
+function extractProviderPaycheckDetections(payload, providerEventId) {
+  return transactionCandidates(payload)
+    .map((transaction, index) => {
+      if (!transaction || typeof transaction !== "object" || Array.isArray(transaction)) {
+        return null;
+      }
+
+      if (transaction.pending === true || transaction.status === "pending") {
+        return null;
+      }
+
+      const amountCents = providerAmountCents(transaction);
+      const employerName = transactionName(transaction);
+
+      if (!amountCents || !employerName || !incomeSignal(transaction)) {
+        return null;
+      }
+
+      const transactionId = providerTransactionId(
+        transaction,
+        `${providerEventId}:transaction:${index}`,
+      );
+
+      return {
+        amountCents,
+        employerName,
+        idempotencyKey: `provider:${providerEventId}:${transactionId}`,
+        itemId: providerItemId(payload, transaction),
+        providerAccountId: providerAccountId(payload, transaction),
+        providerEventId,
+        providerTransactionId: transactionId,
+        receivedAt: transactionReceivedAt(transaction),
+      };
+    })
+    .filter(Boolean);
+}
+
+async function actorForProviderDetection(payload, detection, providerName, env) {
+  const payloadActor = normalizeActor(safeObject(payload?.__payshieldActor));
+
+  if (!detection.itemId) {
+    return payloadActor;
+  }
+
+  const lookup = await loadBankConnectionForProvider(
+    {
+      providerAccountId: detection.providerAccountId,
+      providerItemId: detection.itemId,
+      providerName,
+    },
+    env,
+  );
+
+  if (lookup.persistence === "postgres_error") {
+    return {
+      error: lookup,
+    };
+  }
+
+  if (!lookup.bankConnection) {
+    if (lookup.persistence === "postgres") {
+      return {
+        notFound: true,
+      };
+    }
+
+    return payloadActor;
+  }
+
+  return normalizeActor({
+    householdId: lookup.bankConnection.householdId,
+    userId: lookup.bankConnection.userId,
+  });
+}
+
+export async function handleProviderWebhook(payload, env = process.env) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return {
       body: {
@@ -3141,25 +3417,177 @@ export function handleProviderWebhook(payload, env = process.env) {
   }
 
   const readiness = getCoreReadiness(env, { coreOnline: true });
-  const blocked = providerBlockedResult(readiness);
+  const moneyReadiness = getMoneyRailReadiness(env);
+  const providerName = providerNameFromPayload(payload);
+  const providerEventId = stableEventId(providerName, payload);
+  const detections = extractProviderPaycheckDetections(payload, providerEventId);
+  const eventPersistence = await persistMoneyRailEvent(
+    {
+      eventType:
+        safeString(payload.eventType || payload.webhook_code || payload.type, 80) ||
+        "provider_webhook",
+      householdId: safeString(payload.householdId, 160) || null,
+      payload: redactProviderWebhookPayload(payload),
+      providerEventId,
+      providerName,
+      rail: "provider_webhook",
+    },
+    env,
+  );
 
-  if (blocked) {
+  if (persistenceFailed(eventPersistence)) {
+    return {
+      body: {
+        accepted: false,
+        error: "Provider webhook audit event could not be persisted.",
+        eventPersistence,
+        readiness,
+        service: "payshield-provider-webhook",
+      },
+      status: 503,
+    };
+  }
+
+  if (eventPersistence.replayed) {
     return {
       body: {
         accepted: true,
-        mode: "blocked",
+        duplicate: true,
+        eventPersistence,
+        mode: "replayed",
+        providerEventId,
         readiness,
-        reason: blocked.reason,
         service: "payshield-provider-webhook",
       },
       status: 202,
     };
   }
 
+  if (detections.length === 0) {
+    const blocked = providerBlockedResult(readiness);
+
+    return {
+      body: {
+        accepted: true,
+        detectionCount: 0,
+        eventPersistence,
+        mode: blocked ? "blocked" : "processed",
+        providerEventId,
+        readiness,
+        reason: blocked
+          ? blocked.reason
+          : "Provider webhook accepted; no paycheck-like transactions were present.",
+        service: "payshield-provider-webhook",
+      },
+      status: 202,
+    };
+  }
+
+  if (!moneyReadiness.paycheckDetectionReady) {
+    return {
+      body: {
+        accepted: true,
+        detectionCount: 0,
+        eventPersistence,
+        mode: "blocked",
+        moneyReadiness,
+        providerEventId,
+        readiness,
+        reason:
+          "Paycheck transaction events require Plaid credentials and the signed token-vault handoff.",
+        service: "payshield-provider-webhook",
+      },
+      status: 202,
+    };
+  }
+
+  const processed = [];
+
+  for (const detection of detections) {
+    const actor = await actorForProviderDetection(
+      payload,
+      detection,
+      providerName,
+      env,
+    );
+
+    if (actor.error) {
+      return {
+        body: {
+          accepted: false,
+          error: "Bank connection lookup failed for provider transaction.",
+          lookupPersistence: actor.error,
+          providerEventId,
+          readiness,
+          service: "payshield-provider-webhook",
+        },
+        status: 503,
+      };
+    }
+
+    if (actor.notFound) {
+      return {
+        body: {
+          accepted: true,
+          detectionCount: 0,
+          eventPersistence,
+          mode: "blocked",
+          providerEventId,
+          reason:
+            "Provider transaction could not be matched to an active PayShield bank connection.",
+          service: "payshield-provider-webhook",
+        },
+        status: 202,
+      };
+    }
+
+    const result = await detectPaycheck(
+      {
+        __payshieldActor: {
+          householdId: actor.householdId,
+          userId: actor.id,
+        },
+        amountCents: detection.amountCents,
+        employerName: detection.employerName,
+        idempotencyKey: detection.idempotencyKey,
+        providerEventId: detection.providerEventId,
+        providerTransactionId: detection.providerTransactionId,
+        receivedAt: detection.receivedAt,
+      },
+      env,
+    );
+
+    if (result.status >= 400) {
+      return {
+        body: {
+          accepted: false,
+          detection,
+          error: "Provider paycheck transaction could not be posted.",
+          providerEventId,
+          result: result.body,
+          service: "payshield-provider-webhook",
+        },
+        status: result.status,
+      };
+    }
+
+    processed.push({
+      amountCents: detection.amountCents,
+      employerName: detection.employerName,
+      providerTransactionId: detection.providerTransactionId,
+      status: result.body.detection?.status || "split_posted",
+    });
+  }
+
   return {
     body: {
       accepted: true,
+      detectionCount: processed.length,
+      detections: processed,
+      eventPersistence,
       mode: "processed",
+      moneyReadiness,
+      providerEventId,
       readiness,
       service: "payshield-provider-webhook",
     },
