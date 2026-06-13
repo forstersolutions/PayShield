@@ -21,6 +21,7 @@ import Link from "next/link";
 import { BillRoutingWorkspace } from "@/app/components/bill-routing-workspace";
 import { BucketControlPanel } from "@/app/components/bucket-control-panel";
 import { CardAuthorizationPanel } from "@/app/components/card-authorization-panel";
+import { MoneyEngineConsole } from "@/app/components/money-engine-console";
 import { MoneyOperationsPanel } from "@/app/components/money-operations-panel";
 import { MoneySetupConsole } from "@/app/components/money-setup-console";
 import { PayShieldHeaderLogo } from "@/app/components/pay-shield-mark";
@@ -307,9 +308,9 @@ export function HouseholdCommandCenter() {
           >
             <a
               className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
-              href="#overview"
+              href="#money-engine"
             >
-              Overview
+              Engine
             </a>
             <a
               className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
@@ -343,13 +344,15 @@ export function HouseholdCommandCenter() {
             </a>
             <Link
               className="pay-primary-nav-link pay-primary-nav-cta brand-button-primary gap-2 rounded-[8px] px-4 py-2 font-black"
-              href="/#profile"
+              href="/launch"
             >
-              Product profile
+              Launch console
               <ArrowRight className="size-4" aria-hidden="true" />
             </Link>
           </nav>
         </header>
+
+        <MoneyEngineConsole initialPacket={initialActivationPacket} />
 
         <div
           id="overview"

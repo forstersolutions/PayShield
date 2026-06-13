@@ -87,6 +87,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/components/site-footer.tsx",
   "src/app/components/waitlist-form.tsx",
   "src/app/components/bucket-control-panel.tsx",
+  "src/app/components/money-engine-console.tsx",
   "src/app/components/money-setup-console.tsx",
   "src/app/components/neobank-dashboard.tsx",
   "src/app/lib/brand.ts",
@@ -298,6 +299,16 @@ requireText("src/app/components/money-setup-console.tsx", "Next executable move"
 requireText("src/app/components/money-setup-console.tsx", "Remaining gates");
 requireText("src/app/components/money-setup-console.tsx", "Proof commands");
 requireText("src/app/components/household-command-center.tsx", "MoneySetupConsole");
+requireText("src/app/components/household-command-center.tsx", "MoneyEngineConsole");
+requireText("src/app/components/money-engine-console.tsx", "Money engine console");
+requireText(
+  "src/app/components/money-engine-console.tsx",
+  "Charge the household. Then protect every paycheck.",
+);
+requireText("src/app/components/money-engine-console.tsx", "Monthly recurring revenue");
+requireText("src/app/components/money-engine-console.tsx", "Target households");
+requireText("src/app/components/money-engine-console.tsx", "Every row is an app action.");
+requireText("src/app/components/money-engine-console.tsx", "stage.primaryEndpoint");
 requireText(
   "src/app/components/household-command-center.tsx",
   "createHouseholdActivationPacket",

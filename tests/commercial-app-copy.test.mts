@@ -4,6 +4,7 @@ import { test } from "node:test";
 
 const customerFacingFiles = [
   "src/app/components/household-command-center.tsx",
+  "src/app/components/money-engine-console.tsx",
   "src/app/components/money-setup-console.tsx",
   "src/app/components/money-operations-panel.tsx",
   "src/app/components/payee-control-panel.tsx",
@@ -51,12 +52,24 @@ test("app command center exposes a guided real-money setup surface", async () =>
     "src/app/components/money-setup-console.tsx",
     "utf8",
   );
+  const moneyEngine = await readFile(
+    "src/app/components/money-engine-console.tsx",
+    "utf8",
+  );
 
   assert.match(appPage, /HouseholdCommandCenter/);
   assert.match(commandCenter, /getCommercialReadiness/);
   assert.match(commandCenter, /getMoneyRailReadiness/);
+  assert.match(commandCenter, /MoneyEngineConsole/);
   assert.match(commandCenter, /MoneySetupConsole/);
   assert.match(commandCenter, /createHouseholdActivationPacket/);
+  assert.match(moneyEngine, /Money engine console/);
+  assert.match(moneyEngine, /Charge the household\. Then protect every paycheck\./);
+  assert.match(moneyEngine, /Monthly recurring revenue/);
+  assert.match(moneyEngine, /Target households/);
+  assert.match(moneyEngine, /Every row is an app action/);
+  assert.match(moneyEngine, /stage\.primaryEndpoint/);
+  assert.match(moneyEngine, /stage\.actionHref/);
   assert.match(setupConsole, /Money setup console/);
   assert.match(setupConsole, /\/api\/app\/activation/);
   assert.match(setupConsole, /The shortest route from subscription to protected paycheck/);
