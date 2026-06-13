@@ -19,12 +19,13 @@ import {
   persistPaycheckDetection,
   persistPaycheckDetectionRule,
   persistProviderTokenSecret,
+  persistReconciliationException,
   persistTransferIntent,
   persistUnlockRequest,
 } from "./database.mjs";
 
 const serviceName = "payshield-core";
-export const coreLedgerSchemaVersion = "0009";
+export const coreLedgerSchemaVersion = "0010";
 
 const gateDefinitions = [
   {
@@ -1316,6 +1317,7 @@ function emptyOperationalAudit() {
     moneyRailEvents: [],
     paycheckDetectionRules: [],
     paycheckDetections: [],
+    reconciliationExceptions: [],
     transferIntents: [],
     unlockRequests: [],
   };
@@ -1687,6 +1689,18 @@ function operationTimeline(audit, snapshot) {
       rail: "unlock",
       status: unlock.status,
     })),
+    ...(audit.reconciliationExceptions || []).map((exception) => ({
+      amountCents:
+        typeof exception.metadata?.amountCents === "number"
+          ? exception.metadata.amountCents
+          : null,
+      at: exception.lastSeenAt ?? exception.createdAt,
+      detail: exception.summary,
+      id: exception.id,
+      label: "Reconciliation exception",
+      rail: "reconciliation",
+      status: exception.reasonCode || exception.status,
+    })),
   ];
 
   if (items.length > 0) {
@@ -1999,6 +2013,15 @@ async function buildHouseholdOperations(env = process.env, actorInput = demoUser
           key: "protected_transfer",
           label: "Protected transfer",
           state: audit.transferIntents.length > 0 ? "recorded" : gateState(moneyRails.transferReady),
+        },
+        {
+          key: "reconciliation",
+          label: "Exception queue",
+          state: (audit.reconciliationExceptions || []).some(
+            (exception) => exception.status === "open",
+          )
+            ? "open"
+            : "clear",
         },
       ],
       support: {
@@ -4456,15 +4479,6 @@ function extractProviderPaycheckDetections(payload, providerEventId) {
     .filter(Boolean);
 }
 
-function hasMissingDurableProviderReference(detections, env) {
-  return (
-    databaseConfigured(env) &&
-    detections.some(
-      (detection) => !detection.itemId || !detection.providerAccountId,
-    )
-  );
-}
-
 async function actorForProviderDetection(payload, detection, providerName, env) {
   const payloadActor = normalizeActor(safeObject(payload?.__payshieldActor));
   const durableLookupRequired = databaseConfigured(env);
@@ -4513,6 +4527,50 @@ async function actorForProviderDetection(payload, detection, providerName, env) 
   });
 }
 
+async function persistProviderWebhookException({
+  actor,
+  detection,
+  env,
+  providerEventId,
+  providerName,
+  reason,
+  reasonCode,
+  status,
+}) {
+  const idempotencyKey = [
+    "provider-webhook-exception",
+    providerName,
+    providerEventId,
+    detection.providerTransactionId || detection.idempotencyKey,
+    reasonCode,
+  ].join(":");
+  const summary = `${status.replace(/_/g, " ")}: ${detection.employerName} transaction ${
+    detection.providerTransactionId || "unknown"
+  } from ${providerName} event ${providerEventId} could not post.`;
+
+  return persistReconciliationException(
+    {
+      householdId: actor?.householdId || null,
+      idempotencyKey,
+      metadata: {
+        amountCents: detection.amountCents,
+        employerName: detection.employerName,
+        providerAccountId: detection.providerAccountId || null,
+        providerItemId: detection.itemId || null,
+        status,
+      },
+      providerEventId,
+      providerName,
+      providerTransactionId: detection.providerTransactionId || null,
+      reasonCode,
+      severity: status === "rejected" ? "warning" : "critical",
+      source: "provider_webhook",
+      summary: `${summary} ${reason}`,
+    },
+    env,
+  );
+}
+
 export async function handleProviderWebhook(payload, env = process.env) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return {
@@ -4551,31 +4609,6 @@ export async function handleProviderWebhook(payload, env = process.env) {
         service: "payshield-provider-webhook",
       },
       status: providerSignature.status,
-    };
-  }
-
-  if (
-    detections.length > 0 &&
-    hasMissingDurableProviderReference(detections, env)
-  ) {
-    return {
-      body: {
-        accepted: true,
-        detectionCount: 0,
-        eventPersistence: {
-          persisted: false,
-          persistence: "blocked_before_persistence",
-          persistenceReason:
-            "Ambiguous provider paycheck events are rejected before durable persistence.",
-        },
-        mode: "blocked",
-        providerEventId,
-        readiness,
-        reason:
-          "Provider paycheck transaction must include provider item and account identifiers before PayShield can match it to an active bank connection.",
-        service: "payshield-provider-webhook",
-      },
-      status: 202,
     };
   }
 
@@ -4685,25 +4718,83 @@ export async function handleProviderWebhook(payload, env = process.env) {
     }
 
     if (actor.missingProviderReference) {
-      skipped.push({
+      const skip = {
         amountCents: detection.amountCents,
         employerName: detection.employerName,
         providerTransactionId: detection.providerTransactionId,
         reason:
           "Provider paycheck transaction must include provider item and account identifiers before PayShield can match it to an active bank connection.",
         status: "missing_provider_reference",
+      };
+      const exceptionPersistence = await persistProviderWebhookException({
+        actor: null,
+        detection,
+        env,
+        providerEventId,
+        providerName,
+        reason: skip.reason,
+        reasonCode: "missing_provider_reference",
+        status: skip.status,
+      });
+
+      if (persistenceFailed(exceptionPersistence)) {
+        return {
+          body: {
+            accepted: false,
+            error: "Provider webhook exception could not be persisted.",
+            exceptionPersistence,
+            providerEventId,
+            readiness,
+            service: "payshield-provider-webhook",
+          },
+          status: 503,
+        };
+      }
+
+      skipped.push({
+        ...skip,
+        exceptionPersistence,
       });
       continue;
     }
 
     if (actor.notFound) {
-      skipped.push({
+      const skip = {
         amountCents: detection.amountCents,
         employerName: detection.employerName,
         providerTransactionId: detection.providerTransactionId,
         reason:
           "Provider transaction could not be matched to an active PayShield bank connection.",
         status: "bank_connection_not_found",
+      };
+      const exceptionPersistence = await persistProviderWebhookException({
+        actor: null,
+        detection,
+        env,
+        providerEventId,
+        providerName,
+        reason: skip.reason,
+        reasonCode: "bank_connection_not_found",
+        status: skip.status,
+      });
+
+      if (persistenceFailed(exceptionPersistence)) {
+        return {
+          body: {
+            accepted: false,
+            error: "Provider webhook exception could not be persisted.",
+            exceptionPersistence,
+            providerEventId,
+            readiness,
+            service: "payshield-provider-webhook",
+          },
+          status: 503,
+        };
+      }
+
+      skipped.push({
+        ...skip,
+        exceptionPersistence,
       });
       continue;
     }
@@ -4729,7 +4820,7 @@ export async function handleProviderWebhook(payload, env = process.env) {
 
     if (result.status >= 400) {
       if (result.status < 500) {
-        skipped.push({
+        const skip = {
           amountCents: detection.amountCents,
           employerName: detection.employerName,
           providerTransactionId: detection.providerTransactionId,
@@ -4738,6 +4829,35 @@ export async function handleProviderWebhook(payload, env = process.env) {
               ? result.body.error
               : "Provider paycheck transaction was rejected by paycheck detection controls.",
           status: "rejected",
+        };
+        const exceptionPersistence = await persistProviderWebhookException({
+          actor,
+          detection,
+          env,
+          providerEventId,
+          providerName,
+          reason: skip.reason,
+          reasonCode: "paycheck_detection_rejected",
+          status: skip.status,
+        });
+
+        if (persistenceFailed(exceptionPersistence)) {
+          return {
+            body: {
+              accepted: false,
+              error: "Provider webhook exception could not be persisted.",
+              exceptionPersistence,
+              providerEventId,
+              readiness,
+              service: "payshield-provider-webhook",
+            },
+            status: 503,
+          };
+        }
+
+        skipped.push({
+          ...skip,
+          exceptionPersistence,
         });
         continue;
       }

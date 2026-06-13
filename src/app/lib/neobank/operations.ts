@@ -167,6 +167,7 @@ export function createHouseholdOperationsPacket(session?: AppSession) {
     moneyRailEvents: [],
     paycheckDetectionRules: [],
     paycheckDetections: [],
+    reconciliationExceptions: [],
     transferIntents: [],
     unlockRequests: [],
   };
@@ -258,6 +259,11 @@ export function createHouseholdOperationsPacket(session?: AppSession) {
         state: moneyRails.bankLinkReady ? "ready" : "needs_setup",
       },
       {
+        key: "direct_deposit",
+        label: "Paycheck routing",
+        state: snapshot.readiness.liveMoneyReady ? "ready" : "needs_setup",
+      },
+      {
         key: "paycheck_detection",
         label: "Paycheck detection",
         state: moneyRails.paycheckDetectionReady ? "ready" : "needs_setup",
@@ -266,6 +272,11 @@ export function createHouseholdOperationsPacket(session?: AppSession) {
         key: "protected_transfer",
         label: "Protected transfer",
         state: moneyRails.transferReady ? "ready" : "needs_setup",
+      },
+      {
+        key: "reconciliation",
+        label: "Exception queue",
+        state: "clear",
       },
     ],
     support: {

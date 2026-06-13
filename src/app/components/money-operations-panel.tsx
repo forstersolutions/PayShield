@@ -109,6 +109,14 @@ type DirectDepositSetup = {
   status?: string;
 };
 
+type ReconciliationException = {
+  id?: string;
+  reasonCode?: string | null;
+  severity?: string;
+  status?: string;
+  summary?: string;
+};
+
 type CheckoutIntent = {
   checkoutMode?: string;
   idempotencyKey?: string;
@@ -486,6 +494,13 @@ export function MoneyOperationsPanel({
     (operations?.operations?.directDepositSetups as
       | DirectDepositSetup[]
       | undefined) ?? [];
+  const reconciliationExceptions =
+    (operations?.operations?.reconciliationExceptions as
+      | ReconciliationException[]
+      | undefined) ?? [];
+  const openExceptionCount = reconciliationExceptions.filter(
+    (exception) => exception.status === "open",
+  ).length;
   const connectedPayees = useMemo(
     () => [
       ...payees.map((payee) => ({ id: payee.id, name: payee.name })),
@@ -1258,7 +1273,7 @@ export function MoneyOperationsPanel({
               ledger, and validate every transfer or card decision against
               protected funds.
             </p>
-            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-[8px] border border-[#68f0c2]/25 bg-[#68f0c2]/10 p-3">
                 <p className="brand-kicker">Runnable lanes</p>
                 <p className="mt-2 text-3xl font-black text-white">
@@ -1275,6 +1290,18 @@ export function MoneyOperationsPanel({
                 <p className="brand-kicker">Audit records</p>
                 <p className="mt-2 text-3xl font-black text-white">
                   {serverRecordCount + localTimeline.length}
+                </p>
+              </div>
+              <div
+                className={`rounded-[8px] border p-3 ${
+                  openExceptionCount > 0
+                    ? "border-[#ff6b35]/30 bg-[#ff6b35]/10"
+                    : "border-[#68f0c2]/25 bg-[#68f0c2]/10"
+                }`}
+              >
+                <p className="brand-kicker">Exception queue</p>
+                <p className="mt-2 text-3xl font-black text-white">
+                  {openExceptionCount}
                 </p>
               </div>
             </div>
@@ -1423,7 +1450,7 @@ export function MoneyOperationsPanel({
             </a>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-3 xl:grid-cols-5">
+          <div className="mt-5 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
             {(operations?.statusCards ?? [
               {
                 key: "paid_access",
@@ -1462,6 +1489,11 @@ export function MoneyOperationsPanel({
                   ? "ready"
                   : "needs_setup",
               },
+              {
+                key: "reconciliation",
+                label: "Exception queue",
+                state: openExceptionCount > 0 ? "open" : "clear",
+              },
             ]).map((card) => (
               <div
                 className="rounded-[8px] border border-white/10 bg-black/35 p-3"
@@ -1472,7 +1504,7 @@ export function MoneyOperationsPanel({
                 </p>
                 <p
                   className={`mt-2 text-lg font-black ${
-                    ["active", "checkout_started", "connected", "ready", "recorded"].includes(
+                    ["active", "checkout_started", "clear", "connected", "ready", "recorded"].includes(
                       card.state,
                     )
                       ? "text-[#68f0c2]"

@@ -571,7 +571,7 @@ export function BucketControlPanel({
                   <div className="flex items-center gap-1">
                     <button
                       aria-label={`Move ${control.name} earlier`}
-                      className="grid size-9 place-items-center rounded-[8px] border border-white/10 text-[#c9d0da] hover:bg-[#1588ff]/12"
+                      className="grid size-10 place-items-center rounded-[8px] border border-white/10 text-[#c9d0da] hover:bg-[#1588ff]/12"
                       disabled={index === 0}
                       onClick={() => moveControl(control.id, -1)}
                       type="button"
@@ -580,7 +580,7 @@ export function BucketControlPanel({
                     </button>
                     <button
                       aria-label={`Move ${control.name} later`}
-                      className="grid size-9 place-items-center rounded-[8px] border border-white/10 text-[#c9d0da] hover:bg-[#1588ff]/12"
+                      className="grid size-10 place-items-center rounded-[8px] border border-white/10 text-[#c9d0da] hover:bg-[#1588ff]/12"
                       disabled={index === controls.length - 1}
                       onClick={() => moveControl(control.id, 1)}
                       type="button"
@@ -589,7 +589,7 @@ export function BucketControlPanel({
                     </button>
                     <button
                       aria-label={`Remove ${control.name}`}
-                      className="grid size-9 place-items-center rounded-[8px] border border-white/10 text-[#ff8a7a] hover:bg-[#ff6b35]/10 disabled:cursor-not-allowed disabled:text-[#555d69]"
+                      className="grid size-10 place-items-center rounded-[8px] border border-white/10 text-[#ff8a7a] hover:bg-[#ff6b35]/10 disabled:cursor-not-allowed disabled:text-[#555d69]"
                       disabled={coreBucketIds.has(control.id)}
                       onClick={() => removeBucket(control.id)}
                       type="button"

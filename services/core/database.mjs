@@ -268,6 +268,26 @@ function commercialCheckoutIntentFromRow(row = {}) {
   };
 }
 
+function reconciliationExceptionFromRow(row = {}) {
+  return {
+    createdAt: timestampString(row.created_at),
+    householdId: row.household_id || null,
+    id: row.id,
+    idempotencyKey: row.idempotency_key || null,
+    lastSeenAt: timestampString(row.last_seen_at),
+    metadata: redactAuditPayload(row.metadata || {}),
+    providerEventId: row.provider_event_id || null,
+    providerName: row.provider_name || null,
+    providerTransactionId: row.provider_transaction_id || null,
+    reasonCode: row.reason_code || null,
+    resolvedAt: timestampString(row.resolved_at),
+    severity: row.severity || "warning",
+    source: row.source || "system",
+    status: row.status || "open",
+    summary: row.summary,
+  };
+}
+
 function ledgerAccountShape(householdId, accountId) {
   const bucketId = bucketIdFromLedgerAccount(accountId);
 
@@ -1522,6 +1542,123 @@ export async function persistMoneyRailEvent(input, env = process.env) {
   }
 }
 
+export async function persistReconciliationException(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return {
+      ...persistenceSkipped("reconciliation exception"),
+      exception: reconciliationExceptionFromRow({
+        created_at: new Date().toISOString(),
+        household_id: input.householdId || null,
+        id: input.id || input.idempotencyKey || "memory_exception",
+        idempotency_key: input.idempotencyKey || null,
+        last_seen_at: new Date().toISOString(),
+        metadata: input.metadata || {},
+        provider_event_id: input.providerEventId || null,
+        provider_name: input.providerName || null,
+        provider_transaction_id: input.providerTransactionId || null,
+        reason_code: input.reasonCode || null,
+        resolved_at: null,
+        severity: input.severity || "warning",
+        source: input.source || "system",
+        status: "open",
+        summary: input.summary,
+      }),
+    };
+  }
+
+  try {
+    const id =
+      input.id ||
+      recordId(
+        "reconciliation_exception",
+        input.idempotencyKey ||
+          [
+            input.source,
+            input.providerName,
+            input.providerEventId,
+            input.providerTransactionId,
+            input.reasonCode,
+          ].join(":"),
+      );
+    const result = await pool.query(
+      `
+        INSERT INTO reconciliation_exceptions (
+          id,
+          household_id,
+          severity,
+          status,
+          summary,
+          source,
+          provider_name,
+          provider_event_id,
+          provider_transaction_id,
+          reason_code,
+          metadata,
+          idempotency_key,
+          last_seen_at,
+          resolved_at
+        )
+        VALUES ($1, $2, $3, 'open', $4, $5, $6, $7, $8, $9, $10::jsonb, $11, now(), NULL)
+        ON CONFLICT (id) DO UPDATE SET
+          household_id = COALESCE(EXCLUDED.household_id, reconciliation_exceptions.household_id),
+          severity = EXCLUDED.severity,
+          status = 'open',
+          summary = EXCLUDED.summary,
+          source = EXCLUDED.source,
+          provider_name = COALESCE(EXCLUDED.provider_name, reconciliation_exceptions.provider_name),
+          provider_event_id = COALESCE(EXCLUDED.provider_event_id, reconciliation_exceptions.provider_event_id),
+          provider_transaction_id = COALESCE(EXCLUDED.provider_transaction_id, reconciliation_exceptions.provider_transaction_id),
+          reason_code = EXCLUDED.reason_code,
+          metadata = reconciliation_exceptions.metadata || EXCLUDED.metadata,
+          idempotency_key = COALESCE(EXCLUDED.idempotency_key, reconciliation_exceptions.idempotency_key),
+          last_seen_at = now(),
+          resolved_at = NULL
+        RETURNING
+          id,
+          household_id,
+          severity,
+          status,
+          summary,
+          source,
+          provider_name,
+          provider_event_id,
+          provider_transaction_id,
+          reason_code,
+          metadata,
+          idempotency_key,
+          created_at,
+          last_seen_at,
+          resolved_at
+      `,
+      [
+        id,
+        input.householdId || null,
+        input.severity || "warning",
+        String(input.summary || "Reconciliation exception recorded.").slice(0, 500),
+        input.source || "system",
+        input.providerName || null,
+        input.providerEventId || null,
+        input.providerTransactionId || null,
+        input.reasonCode || null,
+        JSON.stringify(redactAuditPayload(input.metadata || {})),
+        input.idempotencyKey || null,
+      ],
+    );
+
+    return {
+      exception: reconciliationExceptionFromRow(result.rows[0]),
+      persisted: true,
+      persistence: "postgres",
+      postgresId: result.rows[0]?.id ?? id,
+      replayed: false,
+    };
+  } catch (error) {
+    return persistenceFailed(error);
+  }
+}
+
 export async function persistBankConnection(input, env = process.env) {
   const pool = poolFor(env);
 
@@ -2239,6 +2376,7 @@ export async function loadOperationalAudit(householdId, env = process.env) {
       cardDecisions,
       unlockRequests,
       railEvents,
+      reconciliationExceptions,
       journalEntries,
     ] = await Promise.all([
       pool.query(
@@ -2491,6 +2629,31 @@ export async function loadOperationalAudit(householdId, env = process.env) {
       pool.query(
         `
           SELECT
+            id,
+            household_id,
+            severity,
+            status,
+            summary,
+            source,
+            provider_name,
+            provider_event_id,
+            provider_transaction_id,
+            reason_code,
+            metadata,
+            idempotency_key,
+            created_at,
+            last_seen_at,
+            resolved_at
+          FROM reconciliation_exceptions
+          WHERE household_id = $1 OR household_id IS NULL
+          ORDER BY last_seen_at DESC, created_at DESC
+          LIMIT 50
+        `,
+        [householdId],
+      ),
+      pool.query(
+        `
+          SELECT
             journal_entries.id,
             journal_entries.idempotency_key,
             journal_entries.entry_type,
@@ -2621,6 +2784,9 @@ export async function loadOperationalAudit(householdId, env = process.env) {
         providerName: row.provider_name,
         rail: row.rail,
       })),
+      reconciliationExceptions: reconciliationExceptions.rows.map((row) =>
+        reconciliationExceptionFromRow(row),
+      ),
       paycheckDetectionRules: paycheckDetectionRules.rows.map((row) =>
         paycheckDetectionRuleFromRow(row),
       ),

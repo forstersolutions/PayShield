@@ -242,7 +242,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
 
     assert.equal(urlOnlyReadiness.postgresConfigured, true);
     assert.equal(urlOnlyReadiness.postgresSchemaVerified, false);
-    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0009");
+    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0010");
     assert.equal(postgresGate?.ok, false);
 
     process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
@@ -260,7 +260,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
       false,
     );
 
-    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0009";
+    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0010";
 
     const verified = await getJson(baseUrl, "/health");
     const verifiedReadiness = verified.body.readiness as Record<
@@ -1380,6 +1380,18 @@ test("core provider webhook posts income transactions into paycheck split flow",
     assert.equal(detections[0]?.providerTransactionId, "txn_payroll_001");
     assert.equal(skipped[0]?.providerTransactionId, "txn_payroll_too_large");
     assert.equal(skipped[0]?.status, "rejected");
+    assert.equal(
+      (skipped[0]?.exceptionPersistence as Record<string, unknown>)
+        ?.persistence,
+      "memory",
+    );
+    assert.equal(
+      (
+        (skipped[0]?.exceptionPersistence as Record<string, unknown>)
+          ?.exception as Record<string, unknown>
+      )?.reasonCode,
+      "paycheck_detection_rejected",
+    );
     assert.match(String(skipped[0]?.reason), /amountCents/i);
   });
 });
@@ -1464,9 +1476,10 @@ test("core provider webhook rejects invalid provider signatures", async () => {
   });
 });
 
-test("core provider webhook blocks durable income events without provider account references", async () => {
+test("core provider webhook fails closed when durable event persistence is unavailable", async () => {
   process.env.PAYSHIELD_LEDGER_DATABASE_URL =
     "postgres://payshield:payshield@127.0.0.1:1/payshield";
+  process.env.PAYSHIELD_CORE_DB_CONNECT_TIMEOUT_MS = "100";
   process.env.PLAID_CLIENT_ID = "plaid-client";
   process.env.PLAID_SECRET = "plaid-secret";
   process.env.PAYSHIELD_PROVIDER_WEBHOOK_SECRET = "provider-webhook-secret";
@@ -1497,13 +1510,11 @@ test("core provider webhook blocks durable income events without provider accoun
       signedProviderJsonPost(payload, "provider-webhook-secret"),
     );
 
-    assert.equal(response.status, 202);
-    assert.equal(body.accepted, true);
-    assert.equal(body.mode, "blocked");
-    assert.equal(body.detectionCount, 0);
+    assert.equal(response.status, 503);
+    assert.equal(body.accepted, false);
     assert.match(
-      String(body.reason),
-      /provider item and account identifiers/i,
+      String(body.error),
+      /audit event could not be persisted/i,
     );
   });
 });

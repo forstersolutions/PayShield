@@ -117,7 +117,7 @@ function commercialHealthReady() {
       liveMoneyReady: true,
       mode: "live_provider",
       postgresSchemaVerified: true,
-      postgresSchemaVersion: "0009",
+      postgresSchemaVersion: "0010",
       providerConfigured: true,
       remainingGates: [],
     },

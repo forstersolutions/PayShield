@@ -114,6 +114,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "services/core/migrations/0007_paycheck_detection_rules.sql",
   "services/core/migrations/0008_direct_deposit_setups.sql",
   "services/core/migrations/0009_commercial_checkout_intents.sql",
+  "services/core/migrations/0010_reconciliation_exception_details.sql",
   "scripts/core-migrations.mjs",
   "SECURITY.md",
   ".dockerignore",
@@ -286,12 +287,15 @@ requireText("services/core/migrations/0008_direct_deposit_setups.sql", "direct_d
 requireText("services/core/migrations/0008_direct_deposit_setups.sql", "account_last4");
 requireText("services/core/migrations/0009_commercial_checkout_intents.sql", "commercial_checkout_intents");
 requireText("services/core/migrations/0009_commercial_checkout_intents.sql", "provider_checkout_id");
+requireText("services/core/migrations/0010_reconciliation_exception_details.sql", "provider_transaction_id");
+requireText("services/core/migrations/0010_reconciliation_exception_details.sql", "reconciliation_exceptions_idempotency_idx");
 requireText("services/core/server.mjs", "/token-vault/plaid");
 requireText("services/core/server.mjs", "x-payshield-provider-signature");
 requireText("services/core/product.mjs", "receiveTokenVaultHandoff");
 requireText("services/core/product.mjs", "requireActivePaidAccess");
 requireText("services/core/product.mjs", "createDirectDepositSetup");
 requireText("services/core/product.mjs", "recordCommercialCheckoutIntent");
+requireText("services/core/product.mjs", "persistProviderWebhookException");
 requireText("services/core/product.mjs", "savePaycheckDetectionRule");
 requireText("services/core/product.mjs", "Paycheck did not match an active payroll rule");
 requireText("services/core/product.mjs", "extractProviderPaycheckDetections");
