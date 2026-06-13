@@ -96,7 +96,10 @@ engine funds protected buckets first and exposes only the remainder as
 payroll-like income transactions, resolves the active bank connection when
 provider item/account identifiers are present, and posts each matched paycheck
 through the same protected split journal used by manual detection. Pending,
-debit, and non-income transactions are ignored.
+debit, and non-income transactions are ignored. In durable mode, provider
+paycheck events must include provider item and account identifiers so PayShield
+can match the transaction to an active connected account; ambiguous income
+events stay blocked instead of falling back to a default household.
 
 Transfers, bill payments, and card decisions remain gate controlled:
 

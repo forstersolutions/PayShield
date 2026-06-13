@@ -194,6 +194,42 @@ function accessStatusFor(eventType: string, object: Record<string, unknown>) {
   return "ignored";
 }
 
+function subscriptionStatusFor(
+  eventType: string,
+  object: Record<string, unknown>,
+  accessStatus: StripeBillingEventSummary["accessStatus"],
+  handled: boolean,
+) {
+  const expandedSubscriptionStatus = stringValue(
+    objectValue(object.subscription).status,
+  );
+
+  if (expandedSubscriptionStatus) {
+    return expandedSubscriptionStatus;
+  }
+
+  if (eventType === "checkout.session.completed") {
+    return accessStatus === "active" ? "active" : "incomplete";
+  }
+
+  if (
+    eventType === "invoice.paid" ||
+    eventType === "invoice.payment_succeeded"
+  ) {
+    return "active";
+  }
+
+  if (eventType === "invoice.payment_failed") {
+    return "past_due";
+  }
+
+  if (eventType === "customer.subscription.deleted") {
+    return "canceled";
+  }
+
+  return stringValue(object.status) ?? (handled ? "unknown" : "ignored");
+}
+
 export function getStripeWebhookReadiness() {
   const signingSecretConfigured = Boolean(
     process.env.STRIPE_WEBHOOK_SECRET?.trim(),
@@ -317,7 +353,12 @@ export function summarizeStripeBillingEvent(event: StripeWebhookEvent): StripeBi
     invoiceId,
     priceId,
     subscriptionId,
-    subscriptionStatus: stringValue(object.status) ?? (handled ? "unknown" : "ignored"),
+    subscriptionStatus: subscriptionStatusFor(
+      eventType,
+      object,
+      accessStatus,
+      handled,
+    ),
     userId:
       metadataValue(object, "payshield_user_id") ||
       stringValue(object.client_reference_id),

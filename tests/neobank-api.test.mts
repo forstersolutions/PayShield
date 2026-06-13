@@ -337,6 +337,7 @@ test("billing webhook verifies Stripe signature and summarizes paid access", asy
   assert.equal(summary.accessStatus, "active");
   assert.equal(summary.customerId, "cus_test");
   assert.equal(summary.subscriptionId, "sub_test");
+  assert.equal(summary.subscriptionStatus, "active");
 });
 
 test("bank link token fails closed until Plaid is configured", async () => {

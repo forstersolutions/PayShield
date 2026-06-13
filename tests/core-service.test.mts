@@ -295,6 +295,7 @@ test("core commercial billing event intake is idempotent", async () => {
     assert.equal(status.body.service, "payshield-billing-status");
     assert.equal(commercialAccess.state, "active");
     assert.equal(commercialAccess.providerSubscriptionId, "sub_test");
+    assert.equal(commercialAccess.subscriptionStatus, "active");
   });
 });
 
@@ -978,6 +979,48 @@ test("core provider webhook posts income transactions into paycheck split flow",
     assert.equal(detections[0]?.amountCents, 187_542);
     assert.equal(detections[0]?.employerName, "ACME PAYROLL");
     assert.equal(detections[0]?.providerTransactionId, "txn_payroll_001");
+  });
+});
+
+test("core provider webhook blocks durable income events without provider account references", async () => {
+  process.env.PAYSHIELD_LEDGER_DATABASE_URL =
+    "postgres://payshield:payshield@127.0.0.1:1/payshield";
+  process.env.PLAID_CLIENT_ID = "plaid-client";
+  process.env.PLAID_SECRET = "plaid-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "http://127.0.0.1/vault";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
+
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(
+      baseUrl,
+      "/api/provider/webhooks",
+      jsonPost({
+        eventId: "evt_income_missing_provider_refs",
+        providerName: "plaid",
+        transactions: [
+          {
+            amount: -1550,
+            name: "Payroll deposit",
+            pending: false,
+            personal_finance_category: {
+              detailed: "INCOME_WAGES",
+              primary: "INCOME",
+            },
+            transaction_id: "txn_missing_provider_refs",
+          },
+        ],
+      }),
+    );
+
+    assert.equal(response.status, 202);
+    assert.equal(body.accepted, true);
+    assert.equal(body.mode, "blocked");
+    assert.equal(body.detectionCount, 0);
+    assert.match(
+      String(body.reason),
+      /provider item and account identifiers/i,
+    );
   });
 });
 

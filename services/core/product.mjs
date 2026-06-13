@@ -1000,6 +1000,10 @@ function allowedAccessStatus(value) {
 }
 
 function allowedSubscriptionStatus(value) {
+  if (value === "complete" || value === "paid") {
+    return "active";
+  }
+
   return [
     "active",
     "canceled",
@@ -3364,8 +3368,27 @@ function extractProviderPaycheckDetections(payload, providerEventId) {
     .filter(Boolean);
 }
 
+function hasMissingDurableProviderReference(detections, env) {
+  return (
+    databaseConfigured(env) &&
+    detections.some(
+      (detection) => !detection.itemId || !detection.providerAccountId,
+    )
+  );
+}
+
 async function actorForProviderDetection(payload, detection, providerName, env) {
   const payloadActor = normalizeActor(safeObject(payload?.__payshieldActor));
+  const durableLookupRequired = databaseConfigured(env);
+
+  if (
+    durableLookupRequired &&
+    (!detection.itemId || !detection.providerAccountId)
+  ) {
+    return {
+      missingProviderReference: true,
+    };
+  }
 
   if (!detection.itemId) {
     return payloadActor;
@@ -3421,6 +3444,32 @@ export async function handleProviderWebhook(payload, env = process.env) {
   const providerName = providerNameFromPayload(payload);
   const providerEventId = stableEventId(providerName, payload);
   const detections = extractProviderPaycheckDetections(payload, providerEventId);
+
+  if (
+    detections.length > 0 &&
+    hasMissingDurableProviderReference(detections, env)
+  ) {
+    return {
+      body: {
+        accepted: true,
+        detectionCount: 0,
+        eventPersistence: {
+          persisted: false,
+          persistence: "blocked_before_persistence",
+          persistenceReason:
+            "Ambiguous provider paycheck events are rejected before durable persistence.",
+        },
+        mode: "blocked",
+        providerEventId,
+        readiness,
+        reason:
+          "Provider paycheck transaction must include provider item and account identifiers before PayShield can match it to an active bank connection.",
+        service: "payshield-provider-webhook",
+      },
+      status: 202,
+    };
+  }
+
   const eventPersistence = await persistMoneyRailEvent(
     {
       eventType:
@@ -3522,6 +3571,22 @@ export async function handleProviderWebhook(payload, env = process.env) {
           service: "payshield-provider-webhook",
         },
         status: 503,
+      };
+    }
+
+    if (actor.missingProviderReference) {
+      return {
+        body: {
+          accepted: true,
+          detectionCount: 0,
+          eventPersistence,
+          mode: "blocked",
+          providerEventId,
+          reason:
+            "Provider paycheck transaction must include provider item and account identifiers before PayShield can match it to an active bank connection.",
+          service: "payshield-provider-webhook",
+        },
+        status: 202,
       };
     }
 

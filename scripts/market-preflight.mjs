@@ -262,6 +262,10 @@ requireText(
   "services/core/product.mjs",
   "Provider transaction could not be matched to an active PayShield bank connection.",
 );
+requireText(
+  "services/core/product.mjs",
+  "Provider paycheck transaction must include provider item and account identifiers",
+);
 requireText("services/core/database.mjs", "loadBankConnectionForProvider");
 requireText("scripts/core-migrations.mjs", "PAYSHIELD_LEDGER_DATABASE_URL");
 requireText("scripts/core-migrations.mjs", "checksumSha256");
