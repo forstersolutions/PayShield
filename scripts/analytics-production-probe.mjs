@@ -1,12 +1,9 @@
-import { execFile } from "node:child_process";
 import { writeFile } from "node:fs/promises";
-import { promisify } from "node:util";
 import {
   requiredLiveAnalyticsCampaignProperties,
   requiredLiveAnalyticsEventNames,
 } from "./check-analytics-evidence.mjs";
-
-const execFileAsync = promisify(execFile);
+import { runVercelCli } from "./vercel-cli.mjs";
 const durableModes = new Set(["blob", "upstash", "webhook"]);
 const timeoutMs = 12_000;
 
@@ -152,10 +149,8 @@ function metricStatusFromError(error) {
 
 async function probeVercelSpeedInsights(project) {
   try {
-    const { stdout } = await execFileAsync(
-      "npx",
+    const { stdout } = await runVercelCli(
       [
-        "vercel",
         "metrics",
         "vercel.speed_insights_metric.lcp",
         "--since",
@@ -166,9 +161,6 @@ async function probeVercelSpeedInsights(project) {
         "json",
         "--no-color",
       ],
-      {
-        maxBuffer: 1024 * 1024,
-      },
     );
     const rows = JSON.parse(stdout);
     const rowCount = Array.isArray(rows) ? rows.length : 0;

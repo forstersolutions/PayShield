@@ -1,8 +1,6 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
+import { runVercelCli } from "./vercel-cli.mjs";
 
-const execFileAsync = promisify(execFile);
 const commonProductionEnv = [
   "NEXT_PUBLIC_SITE_URL",
   "PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK",
@@ -26,7 +24,7 @@ function usage() {
     "Usage: npm run vercel:env:audit -- [--stdin] [--allow-demo-capture] [--environment Production]",
     "",
     "Checks whether required Vercel environment variables exist without printing values.",
-    "--stdin reads `vercel env ls` output from stdin instead of running `npx vercel env ls`.",
+    "--stdin reads `vercel env ls` output from stdin instead of running the pinned Vercel CLI.",
     "--allow-demo-capture exits 0 while reporting missing paid-traffic capture variables.",
   ].join("\n");
 }
@@ -95,10 +93,7 @@ async function readStdin() {
 }
 
 async function readVercelEnvList() {
-  const { stdout } = await execFileAsync("npx", ["vercel", "env", "ls"], {
-    encoding: "utf8",
-    maxBuffer: 1024 * 1024,
-  });
+  const { stdout } = await runVercelCli(["env", "ls"]);
 
   return stdout;
 }

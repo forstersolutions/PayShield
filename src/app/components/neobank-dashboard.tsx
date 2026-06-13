@@ -11,12 +11,11 @@ import {
   Landmark,
   LockKeyhole,
   Mail,
-  ShieldCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { BillPaymentPanel } from "@/app/components/bill-payment-panel";
 import { BucketControlPanel } from "@/app/components/bucket-control-panel";
-import { PayShieldLogo } from "@/app/components/pay-shield-mark";
+import { PayShieldHeaderLogo } from "@/app/components/pay-shield-mark";
 import { WaitlistForm } from "@/app/components/waitlist-form";
 import { REGULATED_PARTNER_DISCLOSURE } from "@/app/lib/brand";
 import { createNeobankSnapshot } from "@/app/lib/neobank/demo-state.ts";
@@ -107,13 +106,10 @@ export function NeobankDashboard() {
         <header className="pay-header">
           <a
             aria-label="PayShield dashboard home"
-            className="group pay-header-brand min-w-0"
+            className="pay-header-brand min-w-0"
             href="#product"
           >
-            <PayShieldLogo
-              className="h-10 w-auto max-w-[min(72vw,13.75rem)] sm:h-11 sm:max-w-[15rem]"
-              priority
-            />
+            <PayShieldHeaderLogo priority />
           </a>
           <nav
             aria-label="Primary"
@@ -162,7 +158,6 @@ export function NeobankDashboard() {
         <div className="grid flex-1 gap-6 py-8 lg:grid-cols-[minmax(0,0.96fr)_minmax(0,1.04fr)]">
           <section className="brand-panel accent-rule rounded-[8px] p-5 sm:p-7">
             <p className="inline-flex items-center gap-2 rounded-[8px] border border-[#39e8ff]/30 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black text-[#dffaff]">
-              <ShieldCheck className="size-4" aria-hidden="true" />
               Paycheck control software by Grayston Technologies.
             </p>
             <h1 className="mt-6 max-w-2xl text-4xl font-black leading-[1.02] text-white sm:text-5xl lg:text-[3.35rem]">

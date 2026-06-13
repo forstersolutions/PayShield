@@ -8,6 +8,7 @@ import {
   summarizeMarketGoNoGo,
 } from "./market-go-no-go.mjs";
 import { normalizeSiteUrl } from "./paid-traffic-readiness.mjs";
+import { runVercelCli } from "./vercel-cli.mjs";
 
 const execFileAsync = promisify(execFile);
 const defaultBranch = "main";
@@ -241,9 +242,7 @@ async function getLatestCiRun({ branch, repository, timeoutMs, workflowName }) {
 
 async function getVercelDeployment({ targetUrl, timeoutMs }) {
   try {
-    const { stderr, stdout } = await execFileAsync("npx", ["vercel", "inspect", targetUrl], {
-      encoding: "utf8",
-      maxBuffer: 1024 * 1024,
+    const { stderr, stdout } = await runVercelCli(["inspect", targetUrl], {
       timeout: timeoutMs,
     });
 

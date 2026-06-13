@@ -9,6 +9,7 @@ import {
 import { auditAnalyticsInstrumentation } from "./analytics-audit.mjs";
 import { auditVercelEnvList } from "./vercel-env-audit.mjs";
 import { runLeadCaptureDryRun } from "./lead-capture-dry-run.mjs";
+import { runVercelCli } from "./vercel-cli.mjs";
 
 const execFileAsync = promisify(execFile);
 const defaultTimeoutMs = 10_000;
@@ -92,10 +93,7 @@ async function getGitCommit() {
 }
 
 async function getVercelEnvAudit() {
-  const { stdout } = await execFileAsync("npx", ["vercel", "env", "ls"], {
-    encoding: "utf8",
-    maxBuffer: 1024 * 1024,
-  });
+  const { stdout } = await runVercelCli(["env", "ls"]);
 
   return auditVercelEnvList({ text: stdout });
 }

@@ -137,6 +137,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "scripts/smoke-core-service.mjs",
   "scripts/smoke-docker-receiver.mjs",
   "scripts/test-waitlist-webhook.mjs",
+  "scripts/vercel-cli.mjs",
   "scripts/vercel-env-audit.mjs",
   "scripts/vercel-upstash-cutover.mjs",
   "scripts/vercel-webhook-cutover.mjs",
@@ -303,6 +304,7 @@ requireText("scripts/analytics-production-probe.mjs", "buildAnalyticsProbeEviden
 requireText("scripts/analytics-production-probe.mjs", "analytics-evidence");
 requireText("scripts/analytics-production-probe.mjs", "dashboardConfirmationRequired");
 requireText("scripts/analytics-production-probe.mjs", "receiptIdRecorded");
+requireText("scripts/analytics-production-probe.mjs", "runVercelCli");
 requireText("scripts/analytics-production-probe.mjs", "vercel.speed_insights_metric.lcp");
 requireText("scripts/check-analytics-evidence.mjs", "evaluateLiveAnalyticsEvidence");
 requireText("scripts/check-analytics-evidence.mjs", "Product Inquiry Attempted");
@@ -319,6 +321,24 @@ requireText(
 );
 requireText("scripts/check-managed-receiver-evidence.mjs", "receiver:managed:check");
 requireText("scripts/check-managed-receiver-evidence.mjs", "Managed receiver");
+requireText("scripts/vercel-cli.mjs", "pinnedVercelCliVersion");
+requireText("scripts/vercel-cli.mjs", "NPM_CONFIG_CACHE");
+requireText("scripts/vercel-cli.mjs", "vercel-cli.lock");
+requireText("scripts/launch-evidence.mjs", "runVercelCli");
+requireText("scripts/market-status.mjs", "runVercelCli");
+requireText("scripts/vercel-env-audit.mjs", "runVercelCli");
+[
+  "scripts/analytics-production-probe.mjs",
+  "scripts/launch-evidence.mjs",
+  "scripts/market-status.mjs",
+  "scripts/vercel-env-audit.mjs",
+].forEach((path) => {
+  rejectPattern(
+    path,
+    /execFileAsync\(\s*["']npx["']/,
+    "programmatic Vercel CLI calls must use scripts/vercel-cli.mjs",
+  );
+});
 requireText(
   "scripts/check-upstash-receiver-evidence.mjs",
   "evaluateUpstashReceiverEvidenceFile",

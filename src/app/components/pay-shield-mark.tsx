@@ -42,6 +42,21 @@ export function PayShieldLogo({
   );
 }
 
+export function PayShieldHeaderLogo({
+  className = "",
+  priority = false,
+}: BrandImageProps) {
+  return (
+    <span className={`pay-brand-lockup ${className}`}>
+      <PayShieldMark className="pay-brand-lockup-mark" priority={priority} />
+      <span className="pay-brand-lockup-word" aria-label="PayShield">
+        <span className="pay-brand-lockup-pay">Pay</span>
+        <span>Shield</span>
+      </span>
+    </span>
+  );
+}
+
 export function GraystonMark({
   className = "size-9",
   priority = false,
