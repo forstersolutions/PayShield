@@ -27,8 +27,10 @@ import {
   PAYSHIELD_OWNERSHIP_LINE,
   REGULATED_PARTNER_DISCLOSURE,
 } from "@/app/lib/brand";
+import { getCommercialReadiness } from "@/app/lib/commercial/billing.ts";
 import { createNeobankSnapshot } from "@/app/lib/neobank/demo-state.ts";
 import { formatCents } from "@/app/lib/neobank/ledger.ts";
+import { getMoneyRailReadiness } from "@/app/lib/neobank/money-rails.ts";
 
 const commandActions = [
   {
@@ -78,8 +80,14 @@ const moneyPath = [
   "Reconciliation",
 ];
 
+function stepTone(ready: boolean) {
+  return ready ? "ready" : "attention";
+}
+
 export function HouseholdCommandCenter() {
   const snapshot = createNeobankSnapshot();
+  const commercialReadiness = getCommercialReadiness();
+  const moneyRailReadiness = getMoneyRailReadiness();
   const safeSpend =
     snapshot.buckets.find((bucket) => bucket.id === "safe_spending")
       ?.availableCents ?? 0;
@@ -93,6 +101,82 @@ export function HouseholdCommandCenter() {
   const protectedPercent = 100 - safeSpendPercent;
   const latestEntries = snapshot.ledgerEntries.slice(-5).reverse();
   const openGates = snapshot.readiness.gates.filter((gate) => !gate.ok);
+  const setupSteps = [
+    {
+      body: "Households subscribe before the money tools unlock. Checkout is the revenue switch.",
+      href: "#money-operations",
+      icon: BadgeDollarSign,
+      label: "Access",
+      ready: commercialReadiness.paidAccessReady,
+      status: commercialReadiness.paidAccessReady
+        ? "Ready"
+        : commercialReadiness.checkoutConfigured
+          ? "Webhook needed"
+          : "Stripe needed",
+      title: "Turn on paid access",
+    },
+    {
+      body: "Each Clerk subject maps to one PayShield household for buckets, payees, ledger events, and support.",
+      href: "#readiness",
+      icon: LockKeyhole,
+      label: "Identity",
+      ready:
+        snapshot.readiness.backendConfigured && snapshot.readiness.clerkConfigured,
+      status:
+        snapshot.readiness.backendConfigured && snapshot.readiness.clerkConfigured
+          ? "Account scoped"
+          : snapshot.readiness.clerkConfigured
+            ? "Core needed"
+            : "Clerk needed",
+      title: "Bind the household",
+    },
+    {
+      body: "Plaid Link creates the user-approved source for income detection and transfer handoff.",
+      href: "#money-operations",
+      icon: Link2,
+      label: "Bank",
+      ready: moneyRailReadiness.bankLinkReady,
+      status: moneyRailReadiness.bankLinkReady
+        ? "Ready"
+        : moneyRailReadiness.plaidConfigured
+          ? "Vault needed"
+          : "Plaid needed",
+      title: "Connect the bank source",
+    },
+    {
+      body: "Custom bucket targets, payees, priorities, and unlock rules are set before a paycheck is split.",
+      href: "#bucket-studio",
+      icon: Split,
+      label: "Rules",
+      ready: true,
+      status: snapshot.readiness.postgresSchemaVerified ? "Durable" : "Editable",
+      title: "Build the rules",
+    },
+    {
+      body: "Income events post a journal entry and recalculate protected money versus Safe to Spend.",
+      href: "#money-operations",
+      icon: Radar,
+      label: "Income",
+      ready: true,
+      status: moneyRailReadiness.paycheckDetectionReady
+        ? "Auto"
+        : "Manual event",
+      title: "Detect the paycheck",
+    },
+    {
+      body: "Every card or transfer decision checks Safe to Spend, approved payees, and protected buckets.",
+      href: "#card-authorization",
+      icon: CreditCard,
+      label: "Spend",
+      ready: true,
+      status: snapshot.readiness.liveMoneyReady ? "Gateway" : "Ledger",
+      title: "Approve or decline",
+    },
+  ];
+  const completedSetupSteps = setupSteps.filter((step) => step.ready).length;
+  const nextSetupStep =
+    setupSteps.find((step) => !step.ready) ?? setupSteps[setupSteps.length - 1];
+  const NextIcon = nextSetupStep.icon;
 
   return (
     <section className="pay-app-shell relative min-h-screen overflow-x-hidden text-[#f7f8fb]">
@@ -235,32 +319,104 @@ export function HouseholdCommandCenter() {
             <div className="brand-panel rounded-[8px] p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
+                  <p className="brand-kicker">Household setup</p>
+                  <h2 className="mt-1 text-2xl font-black text-white">
+                    Start with one clear next move.
+                  </h2>
+                </div>
+                <span className="rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black text-[#dffaff]">
+                  {completedSetupSteps}/{setupSteps.length} active
+                </span>
+              </div>
+
+              <a
+                className="mt-5 grid gap-3 rounded-[8px] border border-[#ffb237]/30 bg-[#ffb237]/10 p-4 transition hover:border-[#ffcf72]/45 hover:bg-[#ffb237]/15 sm:grid-cols-[44px_1fr_auto]"
+                href={nextSetupStep.href}
+              >
+                <span className="grid size-11 place-items-center rounded-[8px] border border-[#ffb237]/25 bg-black/35 text-[#ffcf72]">
+                  <NextIcon className="size-5" aria-hidden="true" />
+                </span>
+                <span>
+                  <span className="text-xs font-black uppercase tracking-[0.12em] text-[#ffcf72]">
+                    Next best action
+                  </span>
+                  <span className="mt-1 block text-base font-black text-white">
+                    {nextSetupStep.title}
+                  </span>
+                  <span className="mt-1 block text-sm leading-6 text-[#ffe4bd]">
+                    {nextSetupStep.body}
+                  </span>
+                </span>
+                <span className="inline-flex h-10 items-center justify-center rounded-[8px] bg-white px-3 text-sm font-black text-[#050607]">
+                  Open
+                </span>
+              </a>
+
+              <div className="mt-5 grid gap-2">
+                {setupSteps.map((step, index) => {
+                  const Icon = step.icon;
+                  const tone = stepTone(step.ready);
+
+                  return (
+                    <a
+                      className="grid grid-cols-[2.25rem_1fr_auto] items-center gap-3 rounded-[8px] border border-white/10 bg-black/40 p-3 transition hover:border-[#39e8ff]/35 hover:bg-[#39e8ff]/10"
+                      href={step.href}
+                      key={step.label}
+                    >
+                      <span
+                        className={`grid size-9 place-items-center rounded-[8px] border ${
+                          tone === "ready"
+                            ? "border-[#39e8ff]/20 bg-[#39e8ff]/10 text-[#39e8ff]"
+                            : "border-[#ffb237]/25 bg-[#ffb237]/10 text-[#ffcf72]"
+                        }`}
+                      >
+                        <Icon className="size-5" aria-hidden="true" />
+                      </span>
+                      <span>
+                        <span className="text-xs font-black uppercase tracking-[0.12em] text-[#8f99aa]">
+                          {String(index + 1).padStart(2, "0")} / {step.label}
+                        </span>
+                        <span className="block text-sm font-black text-white">
+                          {step.title}
+                        </span>
+                      </span>
+                      <span
+                        className={`rounded-[8px] px-2.5 py-1 text-xs font-black ${
+                          tone === "ready"
+                            ? "bg-[#39e8ff]/10 text-[#dffaff]"
+                            : "bg-[#ffb237]/10 text-[#ffe4ad]"
+                        }`}
+                      >
+                        {step.status}
+                      </span>
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="brand-panel-soft rounded-[8px] p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
                   <p className="brand-kicker">Command queue</p>
                   <h2 className="mt-1 text-2xl font-black text-white">
-                    The next useful actions are obvious.
+                    Jump straight to the tool.
                   </h2>
                 </div>
                 <WalletCards className="size-6 text-[#39e8ff]" aria-hidden="true" />
               </div>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {commandActions.map((action) => {
                   const Icon = action.icon;
 
                   return (
                     <a
-                      className="rounded-[8px] border border-white/10 bg-black/40 p-4 transition hover:border-[#39e8ff]/35 hover:bg-[#39e8ff]/10"
+                      className="grid min-h-20 place-items-center gap-2 rounded-[8px] border border-white/10 bg-black/35 p-3 text-center text-sm font-black text-white transition hover:border-[#39e8ff]/35 hover:bg-[#39e8ff]/10"
                       href={action.href}
                       key={action.label}
                     >
-                      <span className="grid size-10 place-items-center rounded-[8px] border border-[#39e8ff]/20 bg-[#39e8ff]/10 text-[#39e8ff]">
-                        <Icon className="size-5" aria-hidden="true" />
-                      </span>
-                      <p className="mt-3 text-sm font-black text-white">
-                        {action.label}
-                      </p>
-                      <p className="mt-2 text-sm leading-6 text-[#aab3c2]">
-                        {action.body}
-                      </p>
+                      <Icon className="size-5 text-[#39e8ff]" aria-hidden="true" />
+                      {action.label}
                     </a>
                   );
                 })}

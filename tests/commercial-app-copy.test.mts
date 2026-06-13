@@ -35,3 +35,20 @@ test("commercial app copy avoids non-production positioning", async () => {
 
   assert.deepEqual(findings, []);
 });
+
+test("app command center exposes a guided real-money setup surface", async () => {
+  const appPage = await readFile("src/app/app/page.tsx", "utf8");
+  const commandCenter = await readFile(
+    "src/app/components/household-command-center.tsx",
+    "utf8",
+  );
+
+  assert.match(appPage, /HouseholdCommandCenter/);
+  assert.match(commandCenter, /getCommercialReadiness/);
+  assert.match(commandCenter, /getMoneyRailReadiness/);
+  assert.match(commandCenter, /Household setup/);
+  assert.match(commandCenter, /Next best action/);
+  assert.match(commandCenter, /Turn on paid access/);
+  assert.match(commandCenter, /Connect the bank source/);
+  assert.match(commandCenter, /Detect the paycheck/);
+});
