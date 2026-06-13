@@ -4,6 +4,7 @@ import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, test } from "node:test";
 import { NextRequest } from "next/server.js";
+import { GET as getActivation } from "../src/app/api/app/activation/route.ts";
 import { GET as exportAudit } from "../src/app/api/app/audit/export/route.ts";
 import { GET as getBalances } from "../src/app/api/app/balances/route.ts";
 import { POST as exchangeBankLink } from "../src/app/api/app/bank-link/exchange/route.ts";
@@ -185,6 +186,48 @@ test("operations API delegates household records to configured core service", as
       assert.equal(captured.authorization, "Bearer core-ops-secret");
       assert.equal(captured.method, "GET");
       assert.equal(captured.url, "/api/app/operations");
+      assert.equal(captured.userId, "user_demo_001");
+    },
+  );
+});
+
+test("activation API delegates operator checklist to configured core service", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    (request, response) => {
+      captured.authorization = request.headers.authorization;
+      captured.method = request.method;
+      captured.url = request.url;
+      captured.userId = request.headers["x-payshield-user-id"];
+
+      response.writeHead(200, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          activationPlan: {
+            nextStageKey: "revenue",
+          },
+          coreDelegated: true,
+          service: "payshield-activation-console",
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-activation-secret";
+
+      const response = await getActivation();
+      const body = await parseJson(response);
+
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("x-payshield-core-proxied"), "true");
+      assert.equal(body.coreDelegated, true);
+      assert.equal(captured.authorization, "Bearer core-activation-secret");
+      assert.equal(captured.method, "GET");
+      assert.equal(captured.url, "/api/app/activation");
       assert.equal(captured.userId, "user_demo_001");
     },
   );

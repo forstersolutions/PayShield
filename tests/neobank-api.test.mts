@@ -7,6 +7,7 @@ import { POST as startCheckout } from "../src/app/api/app/billing/checkout/route
 import { POST as openBillingPortal } from "../src/app/api/app/billing/portal/route.ts";
 import { POST as billingWebhook } from "../src/app/api/app/billing/webhook/route.ts";
 import { POST as createBankLinkToken } from "../src/app/api/app/bank-link/token/route.ts";
+import { GET as getActivation } from "../src/app/api/app/activation/route.ts";
 import { GET as exportAudit } from "../src/app/api/app/audit/export/route.ts";
 import { GET as getBalances } from "../src/app/api/app/balances/route.ts";
 import { POST as setupDirectDeposit } from "../src/app/api/app/direct-deposit/route.ts";
@@ -172,6 +173,34 @@ test("operations endpoint exposes the revenue and money-control record", async (
         String(stage.evidence).includes("token vault reference"),
     ),
     true,
+  );
+});
+
+test("activation endpoint exposes operator launch checklist and smoke commands", async () => {
+  const response = await getActivation();
+  const body = await parseJson(response);
+  const activationPlan = body.activationPlan as Record<string, unknown>;
+  const currentState = body.currentState as Record<string, unknown>;
+  const nextAction = body.nextAction as Record<string, unknown>;
+  const operatorRunbook = body.operatorRunbook as Record<string, unknown>;
+  const smokeCommands = operatorRunbook.smokeCommands as string[];
+
+  assert.equal(response.status, 200);
+  assert.equal(body.service, "payshield-activation-console");
+  assert.equal(activationPlan.nextStageKey, "revenue");
+  assert.equal(nextAction.primaryEndpoint, "POST /api/app/billing/checkout");
+  assert.equal(
+    smokeCommands.some((command) => command.includes("/api/app/activation")),
+    true,
+  );
+  assert.equal(operatorRunbook.activationEndpoint, "/api/app/activation");
+  assert.equal(
+    Array.isArray(operatorRunbook.remainingGates),
+    true,
+  );
+  assert.equal(
+    (currentState.commercialAccess as Record<string, unknown>).state,
+    "needs_setup",
   );
 });
 

@@ -16,6 +16,7 @@ import {
   getBucketProfile,
   getCoreHealth,
   getCoreReadiness,
+  getHouseholdActivation,
   getHouseholdAuditExport,
   getHouseholdOperations,
   getProfile,
@@ -265,6 +266,11 @@ export function createCoreServer() {
 
       if (request.method === "GET" && path === "/app/balances") {
         await writeResult(response, getBalances(process.env, actor));
+        return;
+      }
+
+      if (request.method === "GET" && path === "/app/activation") {
+        await writeResult(response, getHouseholdActivation(process.env, actor));
         return;
       }
 

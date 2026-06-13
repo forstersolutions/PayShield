@@ -146,6 +146,7 @@ test("core health exposes product operation routes and fail-closed readiness", a
     assert.equal(body.service, "payshield-core");
     assert.equal(readiness.liveMoneyReady, false);
     assert.equal(readiness.backendConfigured, true);
+    assert.equal(routes.includes("GET /app/activation"), true);
     assert.equal(routes.includes("POST /app/bill-payments"), true);
     assert.equal(routes.includes("POST /app/billing/checkout"), true);
     assert.equal(routes.includes("POST /token-vault/plaid"), true);
@@ -203,6 +204,31 @@ test("core operations endpoint exposes household money-control records", async (
           String(stage.verification).includes("provider execution"),
       ),
       true,
+    );
+  });
+});
+
+test("core activation endpoint exposes operator launch checklist", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(baseUrl, "/api/app/activation");
+    const activationPlan = body.activationPlan as Record<string, unknown>;
+    const currentState = body.currentState as Record<string, unknown>;
+    const nextAction = body.nextAction as Record<string, unknown>;
+    const operatorRunbook = body.operatorRunbook as Record<string, unknown>;
+    const smokeCommands = operatorRunbook.smokeCommands as string[];
+
+    assert.equal(response.status, 200);
+    assert.equal(body.service, "payshield-activation-console");
+    assert.equal(activationPlan.nextStageKey, "revenue");
+    assert.equal(nextAction.primaryEndpoint, "POST /api/app/billing/checkout");
+    assert.equal(operatorRunbook.activationEndpoint, "/api/app/activation");
+    assert.equal(
+      smokeCommands.some((command) => command.includes("/api/app/activation")),
+      true,
+    );
+    assert.equal(
+      (currentState.commercialAccess as Record<string, unknown>).state,
+      "needs_setup",
     );
   });
 });

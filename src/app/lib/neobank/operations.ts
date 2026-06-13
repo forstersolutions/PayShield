@@ -361,6 +361,64 @@ export function createHouseholdOperationsPacket(session?: AppSession) {
   };
 }
 
+function activationPacketFromOperations(
+  packet: ReturnType<typeof createHouseholdOperationsPacket>,
+) {
+  const remainingGates = [
+    ...new Set(
+      packet.activationPlan.stages.flatMap((stage) => stage.requiredGates),
+    ),
+  ];
+  const nextStage =
+    packet.activationPlan.stages.find(
+      (stage) => stage.key === packet.activationPlan.nextStageKey,
+    ) ?? packet.activationPlan.stages[0];
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
+    "https://payshield-lime.vercel.app";
+
+  return {
+    activationPlan: packet.activationPlan,
+    currentState: {
+      commercialAccess: packet.commercialAccess,
+      moneyRails: packet.moneyRails,
+      readiness: packet.readiness,
+      statusCards: packet.statusCards,
+    },
+    generatedAt: packet.generatedAt,
+    household: packet.household,
+    nextAction: {
+      actionHref: nextStage.actionHref,
+      ownerAction: nextStage.ownerAction,
+      primaryEndpoint: nextStage.primaryEndpoint,
+      requiredGates: nextStage.requiredGates,
+      title: nextStage.title,
+      userAction: nextStage.userAction,
+      verification: nextStage.verification,
+    },
+    operatorRunbook: {
+      activationEndpoint: "/api/app/activation",
+      auditEndpoint: "/api/app/audit/export",
+      healthEndpoint: "/api/health",
+      operationsEndpoint: "/api/app/operations",
+      remainingGates,
+      siteUrl,
+      smokeCommands: [
+        `curl -fsS ${siteUrl}/api/health`,
+        `curl -fsS ${siteUrl}/api/app/activation`,
+        `npm run market:status -- ${siteUrl} --expect-site-url ${siteUrl}`,
+        'PAYSHIELD_LEDGER_DATABASE_URL="<postgres-url>" npm run core:migrations:verify',
+      ],
+    },
+    service: "payshield-activation-console",
+    support: packet.support,
+  };
+}
+
+export function createHouseholdActivationPacket(session?: AppSession) {
+  return activationPacketFromOperations(createHouseholdOperationsPacket(session));
+}
+
 export function createHouseholdAuditPacket(session?: AppSession) {
   const packet = createHouseholdOperationsPacket(session);
 

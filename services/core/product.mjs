@@ -252,6 +252,7 @@ export function getCoreHealth(env = process.env) {
     readiness,
     routes: [
       "GET /app/me",
+      "GET /app/activation",
       "GET /app/balances",
       "GET /app/billing/status",
       "GET /app/buckets",
@@ -2110,6 +2111,68 @@ async function buildHouseholdOperations(env = process.env, actorInput = demoUser
 
 export async function getHouseholdOperations(env = process.env, actorInput = demoUser) {
   return buildHouseholdOperations(env, actorInput);
+}
+
+function activationPacketFromOperations(body, env = process.env) {
+  const remainingGates = uniqueList(
+    body.activationPlan.stages.flatMap((stage) => stage.requiredGates),
+  );
+  const nextStage =
+    body.activationPlan.stages.find(
+      (stage) => stage.key === body.activationPlan.nextStageKey,
+    ) ?? body.activationPlan.stages[0];
+  const siteUrl =
+    env.NEXT_PUBLIC_SITE_URL?.trim() || "https://payshield-lime.vercel.app";
+
+  return {
+    activationPlan: body.activationPlan,
+    currentState: {
+      commercialAccess: body.commercialAccess,
+      moneyRails: body.moneyRails,
+      readiness: body.readiness,
+      statusCards: body.statusCards,
+    },
+    generatedAt: body.generatedAt,
+    household: body.household,
+    nextAction: {
+      actionHref: nextStage.actionHref,
+      ownerAction: nextStage.ownerAction,
+      primaryEndpoint: nextStage.primaryEndpoint,
+      requiredGates: nextStage.requiredGates,
+      title: nextStage.title,
+      userAction: nextStage.userAction,
+      verification: nextStage.verification,
+    },
+    operatorRunbook: {
+      activationEndpoint: "/api/app/activation",
+      auditEndpoint: "/api/app/audit/export",
+      healthEndpoint: "/api/health",
+      operationsEndpoint: "/api/app/operations",
+      remainingGates,
+      siteUrl,
+      smokeCommands: [
+        `curl -fsS ${siteUrl}/api/health`,
+        `curl -fsS ${siteUrl}/api/app/activation`,
+        `npm run market:status -- ${siteUrl} --expect-site-url ${siteUrl}`,
+        'PAYSHIELD_LEDGER_DATABASE_URL="<postgres-url>" npm run core:migrations:verify',
+      ],
+    },
+    service: "payshield-activation-console",
+    support: body.support,
+  };
+}
+
+export async function getHouseholdActivation(env = process.env, actorInput = demoUser) {
+  const result = await buildHouseholdOperations(env, actorInput);
+
+  if (result.status !== 200) {
+    return result;
+  }
+
+  return {
+    body: activationPacketFromOperations(result.body, env),
+    status: 200,
+  };
 }
 
 export async function getBillingStatus(env = process.env, actorInput = demoUser) {
