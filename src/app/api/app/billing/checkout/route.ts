@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server.js";
 import { createCommercialCheckoutSession } from "../../../../lib/commercial/billing.ts";
-import { getAppSession } from "../../../../lib/neobank/auth.ts";
+import {
+  appSessionErrorResponse,
+  getAppSession,
+  unauthorizedAppResponse,
+} from "../../../../lib/neobank/auth.ts";
 import { forwardCoreRequest } from "../../../../lib/neobank/core-client.ts";
 
 function cleanPath(value: unknown, fallback: string) {
@@ -179,7 +183,7 @@ export async function POST(request: NextRequest) {
         status: result.status,
       },
     );
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    return appSessionErrorResponse(error) ?? unauthorizedAppResponse();
   }
 }

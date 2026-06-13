@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server.js";
 import { requirePaidAccessForFallback } from "../../../../lib/commercial/billing.ts";
-import { getAppSession } from "../../../../lib/neobank/auth.ts";
+import {
+  appSessionErrorResponse,
+  getAppSession,
+  unauthorizedAppResponse,
+} from "../../../../lib/neobank/auth.ts";
 import { forwardCoreRequest } from "../../../../lib/neobank/core-client.ts";
 import { createNeobankSnapshot } from "../../../../lib/neobank/demo-state.ts";
 import { getBankingProvider } from "../../../../lib/neobank/provider.ts";
@@ -67,7 +71,7 @@ export async function POST() {
         status: liveGate.ok ? 200 : 423,
       },
     );
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    return appSessionErrorResponse(error) ?? unauthorizedAppResponse();
   }
 }

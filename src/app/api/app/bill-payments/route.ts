@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server.js";
 import { requirePaidAccessForFallback } from "../../../lib/commercial/billing.ts";
-import { getAppSession } from "../../../lib/neobank/auth.ts";
+import {
+  appSessionErrorResponse,
+  getAppSession,
+  unauthorizedAppResponse,
+} from "../../../lib/neobank/auth.ts";
 import { forwardCoreRequest } from "../../../lib/neobank/core-client.ts";
 import {
   neobankPayees,
@@ -124,10 +128,16 @@ export async function POST(request: NextRequest) {
       },
     );
   } catch (error) {
-    if (error instanceof Error && error.message !== "Unauthorized") {
+    const sessionErrorResponse = appSessionErrorResponse(error);
+
+    if (sessionErrorResponse) {
+      return sessionErrorResponse;
+    }
+
+    if (error instanceof Error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return unauthorizedAppResponse();
   }
 }

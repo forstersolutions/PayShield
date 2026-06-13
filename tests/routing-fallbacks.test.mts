@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { NextRequest } from "next/server.js";
+import { POST as createBankLinkToken } from "../src/app/api/app/bank-link/token/route.ts";
+import { POST as scheduleBillPayment } from "../src/app/api/app/bill-payments/route.ts";
+import { GET as getAppMe } from "../src/app/api/app/me/route.ts";
 import proxy from "../src/proxy.ts";
 
 const fallbackFiles = [
@@ -72,6 +75,49 @@ test("production app access fails closed without Clerk unless review access is e
     assert.equal(apiBody.code, "app_auth_not_configured");
     assert.equal(readiness.mode, "locked");
     assert.equal(readiness.productionLocked, true);
+
+    const directMeResponse = await getAppMe();
+    const directMeBody = (await directMeResponse.json()) as Record<
+      string,
+      unknown
+    >;
+
+    assert.equal(directMeResponse.status, 503);
+    assert.equal(directMeBody.code, "app_auth_not_configured");
+
+    const bankLinkResponse = await createBankLinkToken(
+      new NextRequest("https://payshield.test/api/app/bank-link/token", {
+        method: "POST",
+      }),
+    );
+    const bankLinkBody = (await bankLinkResponse.json()) as Record<
+      string,
+      unknown
+    >;
+
+    assert.equal(bankLinkResponse.status, 503);
+    assert.equal(bankLinkBody.code, "app_auth_not_configured");
+
+    const billPaymentResponse = await scheduleBillPayment(
+      new NextRequest("https://payshield.test/api/app/bill-payments", {
+        body: JSON.stringify({
+          amountCents: 1_000,
+          payeeId: "landlord_rent",
+          scheduledFor: "2026-07-01",
+        }),
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "POST",
+      }),
+    );
+    const billPaymentBody = (await billPaymentResponse.json()) as Record<
+      string,
+      unknown
+    >;
+
+    assert.equal(billPaymentResponse.status, 503);
+    assert.equal(billPaymentBody.code, "app_auth_not_configured");
 
     const pageResponse = await runProxy(
       new NextRequest("https://payshield.test/app"),

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server.js";
 import { requirePaidAccessForFallback } from "../../../../lib/commercial/billing.ts";
-import { getAppSession } from "../../../../lib/neobank/auth.ts";
+import {
+  appSessionErrorResponse,
+  getAppSession,
+} from "../../../../lib/neobank/auth.ts";
 import { forwardCoreRequest } from "../../../../lib/neobank/core-client.ts";
 import { exchangeBankPublicToken } from "../../../../lib/neobank/money-rails.ts";
 
@@ -104,6 +107,12 @@ export async function POST(request: NextRequest) {
       },
     );
   } catch (error) {
+    const sessionErrorResponse = appSessionErrorResponse(error);
+
+    if (sessionErrorResponse) {
+      return sessionErrorResponse;
+    }
+
     return NextResponse.json(
       {
         error:
