@@ -40,6 +40,7 @@ export function GET() {
         checkoutConfigured: commercial.checkoutConfigured,
         mode: commercial.mode,
         paidAccessReady: commercial.paidAccessReady,
+        priceLabel: commercial.priceLabel,
         remainingGates: commercial.missing,
         stripePriceConfigured: commercial.stripePriceConfigured,
         stripeSecretConfigured: commercial.stripeSecretConfigured,

@@ -10,7 +10,8 @@ import {
   Radar,
   ShieldAlert,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import type { LucideIcon } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import type { BucketBalance, Payee } from "@/app/lib/neobank/types.ts";
 
 type ActionState =
@@ -33,6 +34,35 @@ type PlaidCreateInput = {
   onExit?: () => void;
   onSuccess: (publicToken: string, metadata: PlaidMetadata) => void;
   token: string;
+};
+
+type OperationsReadiness = {
+  commercial?: {
+    checkoutConfigured?: boolean;
+    mode?: string;
+    paidAccessReady?: boolean;
+    priceLabel?: string;
+    remainingGates?: string[];
+  };
+  moneyRails?: {
+    bankLinkReady?: boolean;
+    detectionMode?: string;
+    paycheckDetectionReady?: boolean;
+    plaidConfigured?: boolean;
+    plaidEnv?: string;
+    remainingGates?: string[];
+    tokenVaultConfigured?: boolean;
+    transferConfigured?: boolean;
+    transferReady?: boolean;
+  };
+  neobank?: {
+    backendConfigured?: boolean;
+    liveMoneyReady?: boolean;
+    mode?: string;
+    postgresSchemaVerified?: boolean;
+    providerConfigured?: boolean;
+    remainingGates?: string[];
+  };
 };
 
 declare global {
@@ -86,6 +116,44 @@ function formatMoney(cents: number) {
   }).format(cents / 100);
 }
 
+function friendlyGateLabel(gate: string) {
+  if (gate.includes("STRIPE_SECRET_KEY")) {
+    return "Stripe API key";
+  }
+
+  if (gate.includes("PAYSHIELD_COMMERCIAL_PRICE_ID")) {
+    return "Checkout price";
+  }
+
+  if (gate.includes("STRIPE_WEBHOOK_SECRET")) {
+    return "Stripe webhook";
+  }
+
+  if (gate.includes("PLAID_CLIENT_ID") || gate.includes("PLAID_SECRET")) {
+    return "Plaid credentials";
+  }
+
+  if (gate.includes("TOKEN_VAULT") || gate.includes("token vault")) {
+    return "Token vault";
+  }
+
+  if (gate.includes("TRANSFER") || gate.includes("transfer")) {
+    return "Transfer rail";
+  }
+
+  return gate.replace(/^PAYSHIELD_/, "").replace(/_/g, " ").toLowerCase();
+}
+
+function compactGateList(gates: string[] | undefined, fallback: string) {
+  if (!gates?.length) {
+    return fallback;
+  }
+
+  const labels = [...new Set(gates.map(friendlyGateLabel))];
+
+  return labels.slice(0, 2).join(", ") + (labels.length > 2 ? " +" : "");
+}
+
 function dollarsToCents(value: string) {
   const parsed = Number(value);
 
@@ -114,6 +182,62 @@ function StateMessage({ state }: { state: ActionState }) {
   );
 }
 
+function RuntimeLane({
+  actionLabel,
+  body,
+  icon: Icon,
+  onAction,
+  status,
+  title,
+  tone,
+}: {
+  actionLabel: string;
+  body: string;
+  icon: LucideIcon;
+  onAction: () => void | Promise<void>;
+  status: string;
+  title: string;
+  tone: "attention" | "ready";
+}) {
+  return (
+    <div className="rounded-[8px] border border-white/10 bg-black/40 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <span
+          className={`grid size-10 shrink-0 place-items-center rounded-[8px] border ${
+            tone === "ready"
+              ? "border-[#39e8ff]/25 bg-[#39e8ff]/10 text-[#39e8ff]"
+              : "border-[#ffb237]/30 bg-[#ffb237]/10 text-[#ffcf72]"
+          }`}
+        >
+          <Icon className="size-5" aria-hidden="true" />
+        </span>
+        <span
+          className={`rounded-[8px] px-2.5 py-1 text-xs font-black ${
+            tone === "ready"
+              ? "bg-[#39e8ff]/10 text-[#dffaff]"
+              : "bg-[#ffb237]/10 text-[#ffe4ad]"
+          }`}
+        >
+          {status}
+        </span>
+      </div>
+      <h4 className="mt-4 text-base font-black text-white">{title}</h4>
+      <p className="mt-2 min-h-[4.5rem] text-sm leading-6 text-[#aab3c2]">{body}</p>
+      <button
+        className={`mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] px-3 text-sm font-black ${
+          tone === "ready" ? "brand-button-blue" : "brand-button-primary"
+        }`}
+        onClick={() => {
+          void onAction();
+        }}
+        type="button"
+      >
+        {actionLabel}
+      </button>
+    </div>
+  );
+}
+
 export function MoneyOperationsPanel({
   buckets,
   payees,
@@ -137,6 +261,7 @@ export function MoneyOperationsPanel({
     message: "",
     status: "idle",
   });
+  const [readiness, setReadiness] = useState<OperationsReadiness | null>(null);
   const [paycheckAmount, setPaycheckAmount] = useState("3000");
   const [employerName, setEmployerName] = useState("Payroll deposit");
   const [transferAmount, setTransferAmount] = useState("250");
@@ -156,6 +281,34 @@ export function MoneyOperationsPanel({
     ],
     [payees],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadReadiness() {
+      try {
+        const response = await fetch("/api/health", {
+          headers: { accept: "application/json" },
+        });
+        const payload = (await response.json().catch(() => ({}))) as
+          OperationsReadiness;
+
+        if (!cancelled) {
+          setReadiness(payload);
+        }
+      } catch {
+        if (!cancelled) {
+          setReadiness(null);
+        }
+      }
+    }
+
+    void loadReadiness();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function startPaidAccess() {
     setBillingState({
@@ -470,6 +623,95 @@ export function MoneyOperationsPanel({
                 <StateMessage state={bankState} />
               </div>
             </div>
+          </div>
+        </div>
+
+        <div className="brand-panel rounded-[8px] p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="brand-kicker">Money engine</p>
+              <h3 className="mt-1 text-2xl font-black text-white">
+                Charge, connect, detect, protect, move.
+              </h3>
+            </div>
+            <div className="rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black text-[#dffaff]">
+              {readiness?.neobank?.mode ?? "loading"} mode
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <RuntimeLane
+              actionLabel="Start checkout"
+              body={`Customer billing runs through ${
+                readiness?.commercial?.mode === "payment_link"
+                  ? "a Stripe payment link"
+                  : "Stripe Checkout"
+              } at ${readiness?.commercial?.priceLabel ?? "$19/month"}.`}
+              icon={BadgeDollarSign}
+              onAction={startPaidAccess}
+              status={
+                readiness?.commercial?.paidAccessReady
+                  ? "Revenue ready"
+                  : readiness?.commercial?.checkoutConfigured
+                    ? "Webhook pending"
+                    : compactGateList(
+                        readiness?.commercial?.remainingGates,
+                        "Stripe setup needed",
+                      )
+              }
+              tone={readiness?.commercial?.checkoutConfigured ? "ready" : "attention"}
+              title="Make money"
+            />
+            <RuntimeLane
+              actionLabel="Connect bank"
+              body={`Plaid Link is the user-approved connection for income detection in ${
+                readiness?.moneyRails?.plaidEnv ?? "sandbox"
+              } mode.`}
+              icon={Link2}
+              onAction={startBankLink}
+              status={
+                readiness?.moneyRails?.bankLinkReady
+                  ? "Bank link ready"
+                  : readiness?.moneyRails?.plaidConfigured
+                    ? "Token vault needed"
+                    : compactGateList(
+                        readiness?.moneyRails?.remainingGates,
+                        "Plaid setup needed",
+                      )
+              }
+              tone={readiness?.moneyRails?.bankLinkReady ? "ready" : "attention"}
+              title="Connect banks"
+            />
+            <RuntimeLane
+              actionLabel="Run detection"
+              body="Income events split into protected buckets before Safe to Spend is recalculated."
+              icon={Radar}
+              onAction={detectPaycheck}
+              status={
+                readiness?.moneyRails?.paycheckDetectionReady
+                  ? "Auto detection ready"
+                  : readiness?.moneyRails?.detectionMode === "plaid_transactions_sync"
+                    ? "Vault needed"
+                    : "Manual/provider events"
+              }
+              tone="ready"
+              title="Detect paychecks"
+            />
+            <RuntimeLane
+              actionLabel="Create intent"
+              body="Transfers validate source bucket funds and produce a provider handoff record before execution."
+              icon={ArrowRightLeft}
+              onAction={createTransfer}
+              status={
+                readiness?.moneyRails?.transferReady
+                  ? "Transfers ready"
+                  : readiness?.moneyRails?.transferConfigured
+                    ? "Live gates pending"
+                    : "Intent validation active"
+              }
+              tone={readiness?.moneyRails?.transferReady ? "ready" : "attention"}
+              title="Move protected funds"
+            />
           </div>
         </div>
 

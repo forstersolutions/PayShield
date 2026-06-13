@@ -528,6 +528,248 @@ export async function persistJournalEntry(input, env = process.env) {
   }
 }
 
+export async function persistCardAuthorizationDecision(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return persistenceSkipped("card authorization decision");
+  }
+
+  let client = null;
+  const id = recordId(
+    "card_decision",
+    input.householdId,
+    input.idempotencyKey,
+  );
+
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+    await ensureHousehold(client, input);
+
+    const result = await client.query(
+      `
+        INSERT INTO card_authorization_decisions (
+          id,
+          household_id,
+          journal_entry_id,
+          idempotency_key,
+          merchant_name,
+          merchant_category_code,
+          payee_id,
+          bucket_id,
+          amount_cents,
+          approved,
+          approved_amount_cents,
+          decision_code,
+          reason,
+          provider_status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        ON CONFLICT (household_id, idempotency_key) DO NOTHING
+        RETURNING id
+      `,
+      [
+        id,
+        input.householdId,
+        input.journalEntryId || null,
+        input.idempotencyKey,
+        input.merchantName,
+        input.merchantCategoryCode || null,
+        input.payeeId || null,
+        input.bucketId,
+        input.amountCents,
+        input.approved,
+        input.approvedAmountCents,
+        input.decisionCode,
+        input.reason,
+        input.providerStatus,
+      ],
+    );
+
+    await client.query("COMMIT");
+
+    return {
+      persisted: true,
+      persistence: "postgres",
+      postgresId: id,
+      replayed: result.rowCount === 0,
+    };
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Ignore rollback failures; the original error is more useful.
+      }
+    }
+
+    return persistenceFailed(error);
+  } finally {
+    client?.release();
+  }
+}
+
+export async function persistBillPaymentSchedule(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return persistenceSkipped("bill payment schedule");
+  }
+
+  let client = null;
+  const id = recordId(
+    "bill_schedule",
+    input.householdId,
+    input.idempotencyKey,
+  );
+
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+    await ensureHousehold(client, input);
+
+    const result = await client.query(
+      `
+        INSERT INTO bill_payment_schedules (
+          id,
+          household_id,
+          journal_entry_id,
+          idempotency_key,
+          payee_id,
+          bucket_id,
+          amount_cents,
+          scheduled_for,
+          memo,
+          decision_code,
+          reason,
+          provider_bill_payment_id,
+          provider_status,
+          status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::date, $9, $10, $11, $12, $13, $14)
+        ON CONFLICT (household_id, idempotency_key) DO NOTHING
+        RETURNING id
+      `,
+      [
+        id,
+        input.householdId,
+        input.journalEntryId || null,
+        input.idempotencyKey,
+        input.payeeId,
+        input.bucketId || null,
+        input.amountCents,
+        input.scheduledFor || null,
+        input.memo || null,
+        input.decisionCode,
+        input.reason,
+        input.providerBillPaymentId || null,
+        input.providerStatus,
+        input.status,
+      ],
+    );
+
+    await client.query("COMMIT");
+
+    return {
+      persisted: true,
+      persistence: "postgres",
+      postgresId: id,
+      replayed: result.rowCount === 0,
+    };
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Ignore rollback failures; the original error is more useful.
+      }
+    }
+
+    return persistenceFailed(error);
+  } finally {
+    client?.release();
+  }
+}
+
+export async function persistUnlockRequest(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return persistenceSkipped("unlock request");
+  }
+
+  let client = null;
+  const id = recordId(
+    "unlock_request",
+    input.householdId,
+    input.idempotencyKey,
+  );
+
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+    await ensureHousehold(client, input);
+
+    const result = await client.query(
+      `
+        INSERT INTO unlock_requests (
+          id,
+          household_id,
+          journal_entry_id,
+          idempotency_key,
+          bucket_id,
+          amount_cents,
+          unlocked_cents,
+          unlock_mode,
+          reason,
+          recovery_checks,
+          recovery_per_check_cents,
+          status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        ON CONFLICT (household_id, idempotency_key) DO NOTHING
+        RETURNING id
+      `,
+      [
+        id,
+        input.householdId,
+        input.journalEntryId || null,
+        input.idempotencyKey,
+        input.bucketId,
+        input.amountCents,
+        input.unlockedCents,
+        input.unlockMode,
+        input.reason,
+        input.recoveryChecks,
+        input.recoveryPerCheckCents,
+        input.status,
+      ],
+    );
+
+    await client.query("COMMIT");
+
+    return {
+      persisted: true,
+      persistence: "postgres",
+      postgresId: id,
+      replayed: result.rowCount === 0,
+    };
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Ignore rollback failures; the original error is more useful.
+      }
+    }
+
+    return persistenceFailed(error);
+  } finally {
+    client?.release();
+  }
+}
+
 async function ensurePayees(client, input) {
   for (const payee of input.payees || []) {
     await client.query(

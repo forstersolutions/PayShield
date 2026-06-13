@@ -136,7 +136,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
 
     assert.equal(urlOnlyReadiness.postgresConfigured, true);
     assert.equal(urlOnlyReadiness.postgresSchemaVerified, false);
-    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0004");
+    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0005");
     assert.equal(postgresGate?.ok, false);
 
     process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
@@ -154,7 +154,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
       false,
     );
 
-    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0004";
+    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0005";
 
     const verified = await getJson(baseUrl, "/health");
     const verifiedReadiness = verified.body.readiness as Record<
@@ -339,6 +339,10 @@ test("core card authorization approves safe spend and declines protected overrea
       }),
     );
     const approvedDecision = approved.body.decision as Record<string, unknown>;
+    const approvedPersistence = approved.body.decisionPersistence as Record<
+      string,
+      unknown
+    >;
     const approvedJournal = approved.body.journalPersistence as Record<
       string,
       unknown
@@ -348,6 +352,7 @@ test("core card authorization approves safe spend and declines protected overrea
     assert.equal(approved.body.mode, "simulation");
     assert.equal(approvedDecision.approved, true);
     assert.equal(approvedDecision.bucketId, "safe_spending");
+    assert.equal(approvedPersistence.persistence, "memory");
     assert.equal(approvedJournal.persistence, "memory");
 
     const declined = await getJson(
@@ -360,6 +365,10 @@ test("core card authorization approves safe spend and declines protected overrea
       }),
     );
     const declinedDecision = declined.body.decision as Record<string, unknown>;
+    const declinedPersistence = declined.body.decisionPersistence as Record<
+      string,
+      unknown
+    >;
     const declinedJournal = declined.body.journalPersistence as Record<
       string,
       unknown
@@ -368,6 +377,7 @@ test("core card authorization approves safe spend and declines protected overrea
     assert.equal(declined.response.status, 200);
     assert.equal(declinedDecision.approved, false);
     assert.equal(declinedDecision.code, "insufficient_safe_spend");
+    assert.equal(declinedPersistence.persistence, "memory");
     assert.equal(declinedJournal.persistence, "not_posted");
   });
 });
@@ -386,6 +396,10 @@ test("core unlock route creates a recovery plan without mutating protected rules
       }),
     );
     const result = body.result as Record<string, unknown>;
+    const decisionPersistence = body.decisionPersistence as Record<
+      string,
+      unknown
+    >;
     const journalPersistence = body.journalPersistence as Record<
       string,
       unknown
@@ -393,6 +407,7 @@ test("core unlock route creates a recovery plan without mutating protected rules
 
     assert.equal(response.status, 200);
     assert.equal(body.mode, "simulation");
+    assert.equal(decisionPersistence.persistence, "memory");
     assert.equal(journalPersistence.persistence, "memory");
     assert.equal(result.unlockedCents, 20_000);
     assert.equal(result.recoveryPerCheckCents, 10_000);
@@ -599,6 +614,10 @@ test("core bill payment route schedules approved payee from protected bucket", a
       }),
     );
     const decision = body.decision as Record<string, unknown>;
+    const decisionPersistence = body.decisionPersistence as Record<
+      string,
+      unknown
+    >;
     const providerBillPayment = body.providerBillPayment as Record<
       string,
       unknown
@@ -612,6 +631,7 @@ test("core bill payment route schedules approved payee from protected bucket", a
     assert.equal(decision.accepted, true);
     assert.equal(decision.code, "scheduled");
     assert.equal(decision.bucketId, "rent");
+    assert.equal(decisionPersistence.persistence, "memory");
     assert.equal(journalPersistence.persistence, "memory");
     assert.equal(providerBillPayment.status, "blocked");
     assert.equal(Array.isArray(body.ledgerEntries), true);
@@ -639,11 +659,16 @@ test("core bill payment route rejects invalid payees and malformed dates", async
       }),
     );
     const decision = unapproved.body.decision as Record<string, unknown>;
+    const decisionPersistence = unapproved.body.decisionPersistence as Record<
+      string,
+      unknown
+    >;
 
     assert.equal(invalidDate.response.status, 400);
     assert.equal(unapproved.response.status, 400);
     assert.equal(decision.accepted, false);
     assert.equal(decision.code, "payee_not_allowed");
+    assert.equal(decisionPersistence.persistence, "memory");
   });
 });
 

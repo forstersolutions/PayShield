@@ -16,6 +16,7 @@ async function parseJson(response: Response) {
     };
     commercial?: {
       paidAccessReady?: unknown;
+      priceLabel?: unknown;
       remainingGates?: unknown;
       webhookSigningSecretConfigured?: unknown;
     };
@@ -280,11 +281,11 @@ test("does not count a Postgres URL as ready until ledger schema is verified", a
 
   assert.equal(urlOnlyBody.neobank?.postgresConfigured, true);
   assert.equal(urlOnlyBody.neobank?.postgresSchemaVerified, false);
-  assert.equal(urlOnlyBody.neobank?.postgresSchemaVersion, "0004");
+  assert.equal(urlOnlyBody.neobank?.postgresSchemaVersion, "0005");
   assert.equal(urlOnlyRemaining.includes("postgres_ledger"), true);
 
   process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
-  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0004";
+  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0005";
 
   const verified = GET();
   const verifiedBody = await parseJson(verified);
@@ -301,6 +302,7 @@ test("reports commercial and money rail readiness gates", async () => {
   const commercialGates = missingBody.commercial?.remainingGates as string[];
 
   assert.equal(missingBody.commercial?.paidAccessReady, false);
+  assert.equal(missingBody.commercial?.priceLabel, "$19/month");
   assert.equal(
     commercialGates.includes("STRIPE_WEBHOOK_SECRET"),
     true,

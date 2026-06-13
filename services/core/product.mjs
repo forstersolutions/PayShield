@@ -4,16 +4,19 @@ import {
   loadPayees,
   persistBucketProfile,
   persistBankConnection,
+  persistBillPaymentSchedule,
+  persistCardAuthorizationDecision,
   persistCommercialBillingEvent,
   persistJournalEntry,
   persistMoneyRailEvent,
   persistPayee,
   persistPaycheckDetection,
   persistTransferIntent,
+  persistUnlockRequest,
 } from "./database.mjs";
 
 const serviceName = "payshield-core";
-export const coreLedgerSchemaVersion = "0004";
+export const coreLedgerSchemaVersion = "0005";
 
 const gateDefinitions = [
   {
@@ -1903,13 +1906,15 @@ export async function createBillPayment(payload, env = process.env) {
     return controls.error;
   }
 
+  const idempotencyKey =
+    cleanText(payload?.idempotencyKey, 120) ||
+    `bill-${payeeId}-${amountCents}-${scheduledFor}`;
+  const memo = cleanText(payload?.memo, 120) || undefined;
   const book = createDemoLedgerBook(300_000, controls.buckets);
   const decision = scheduleBillPayment(book, controls.payees, {
     amountCents,
-    idempotencyKey:
-      cleanText(payload?.idempotencyKey, 120) ||
-      `bill-${payeeId}-${amountCents}-${scheduledFor}`,
-    memo: cleanText(payload?.memo, 120) || undefined,
+    idempotencyKey,
+    memo,
     payeeId,
     scheduledFor,
   });
@@ -1926,10 +1931,7 @@ export async function createBillPayment(payload, env = process.env) {
         status: "blocked",
       };
   const postedEntry = decision.accepted
-    ? book.findByIdempotencyKey(
-        cleanText(payload?.idempotencyKey, 120) ||
-          `bill-${payeeId}-${amountCents}-${scheduledFor}`,
-      )
+    ? book.findByIdempotencyKey(idempotencyKey)
     : null;
   const journalPersistence = postedEntry
     ? await persistOperationalJournal(postedEntry, env)
@@ -1952,6 +1954,44 @@ export async function createBillPayment(payload, env = process.env) {
     };
   }
 
+  const decisionPersistence = await persistBillPaymentSchedule(
+    {
+      amountCents,
+      bucketId: decision.bucketId || null,
+      decisionCode: decision.code,
+      householdId: demoUser.householdId,
+      idempotencyKey,
+      journalEntryId: journalPersistence.postgresId || null,
+      memo: memo || null,
+      payeeId,
+      providerBillPaymentId: providerBillPayment.providerBillPaymentId,
+      providerStatus:
+        providerBillPayment.status === "created" ? "created" : "blocked",
+      reason: decision.reason,
+      scheduledFor,
+      status: decision.accepted
+        ? providerBillPayment.status === "created"
+          ? "submitted"
+          : "scheduled"
+        : "rejected",
+    },
+    env,
+  );
+
+  if (persistenceFailed(decisionPersistence)) {
+    return {
+      body: {
+        decision,
+        decisionPersistence,
+        error: "Bill payment decision could not be persisted.",
+        journalPersistence,
+        readiness,
+        service: "payshield-bill-payments",
+      },
+      status: 503,
+    };
+  }
+
   return {
     body: {
       balances: buildBucketBalances(book, controls.buckets),
@@ -1964,6 +2004,7 @@ export async function createBillPayment(payload, env = process.env) {
         providerStatus: providerBillPayment.status,
       },
       ledgerEntries: book.allEntries(),
+      decisionPersistence,
       journalPersistence,
       message: decision.accepted
         ? "Bill payment scheduled in the protected bucket model. Provider execution requires active money-movement controls."
@@ -2041,6 +2082,37 @@ export async function createUnlock(payload, env = process.env) {
     };
   }
 
+  const decisionPersistence = await persistUnlockRequest(
+    {
+      amountCents: input.amountCents,
+      bucketId: input.bucketId,
+      householdId: demoUser.householdId,
+      idempotencyKey: input.idempotencyKey,
+      journalEntryId: journalPersistence.postgresId || null,
+      reason: input.reason,
+      recoveryChecks: result.recoveryChecks,
+      recoveryPerCheckCents: result.recoveryPerCheckCents,
+      status: journalPersistence.replayed ? "replayed" : "posted",
+      unlockMode: input.mode,
+      unlockedCents: result.unlockedCents,
+    },
+    env,
+  );
+
+  if (persistenceFailed(decisionPersistence)) {
+    return {
+      body: {
+        decisionPersistence,
+        error: "Unlock request could not be persisted.",
+        journalPersistence,
+        readiness: getCoreReadiness(env, { coreOnline: true }),
+        result,
+        service: "payshield-unlocks",
+      },
+      status: 503,
+    };
+  }
+
   return {
     body: {
       balances: buildBucketBalances(book, controls.buckets),
@@ -2048,6 +2120,7 @@ export async function createUnlock(payload, env = process.env) {
         bucketProfile: controls.bucketPersistence,
         payees: controls.payeePersistence,
       },
+      decisionPersistence,
       ledgerEntries: book.allEntries(),
       journalPersistence,
       message: "Recovery plan created. Provider execution requires active money-movement controls.",
@@ -2131,6 +2204,39 @@ export async function authorizeCard(payload, env = process.env) {
     };
   }
 
+  const decisionPersistence = await persistCardAuthorizationDecision(
+    {
+      amountCents,
+      approved: decision.approved,
+      approvedAmountCents: decision.approvedAmountCents,
+      bucketId: decision.bucketId || "safe_spending",
+      decisionCode: decision.code,
+      householdId: demoUser.householdId,
+      idempotencyKey: input.idempotencyKey,
+      journalEntryId: journalPersistence.postgresId || null,
+      merchantCategoryCode: input.merchantCategoryCode || null,
+      merchantName: input.merchantName,
+      payeeId: input.payeeId || null,
+      providerStatus: "simulation",
+      reason: decision.reason,
+    },
+    env,
+  );
+
+  if (persistenceFailed(decisionPersistence)) {
+    return {
+      body: {
+        decision,
+        decisionPersistence,
+        error: "Card authorization decision could not be persisted.",
+        journalPersistence,
+        readiness,
+        service: "payshield-card-authorization",
+      },
+      status: 503,
+    };
+  }
+
   return {
     body: {
       balances: buildBucketBalances(book, controls.buckets),
@@ -2139,6 +2245,7 @@ export async function authorizeCard(payload, env = process.env) {
         payees: controls.payeePersistence,
       },
       decision,
+      decisionPersistence,
       journalPersistence,
       ledgerEntries: book.allEntries(),
       mode: "simulation",

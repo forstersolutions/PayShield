@@ -68,10 +68,10 @@ const liveRailCards = [
 ];
 
 const profileSteps = [
-  "Create a private PayShield profile with Grayston support behind it.",
-  "Set the paycheck amount, protected buckets, payees, priority order, and unlock rules.",
-  "Complete provider-led identity checks when account and card controls are activated.",
-  "Run authorization decisions from Safe to Spend after provider gateway activation.",
+  "Open the command center and activate paid household access through Stripe.",
+  "Connect the household bank source through Plaid Link when credentials are configured.",
+  "Save custom protected buckets, approved payees, priority order, and unlock rules.",
+  "Run paycheck detection, bill routing, transfer intents, card decisions, and recovery unlocks from one screen.",
 ];
 
 export function NeobankDashboard() {
@@ -412,18 +412,27 @@ export function NeobankDashboard() {
           className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8"
         >
           <div className="accent-rule pt-5">
-            <p className="brand-kicker">Private household profile</p>
+            <p className="brand-kicker">Commercial household activation</p>
             <h2 className="mt-3 text-3xl font-black leading-tight text-white sm:text-4xl">
-              Built for households that need simple rules, reliable support,
+              Built for households that need simple rules, working controls,
               and fewer money surprises.
             </h2>
-            <a
-              className="mt-5 inline-flex items-center gap-2 rounded-[8px] border border-[#39e8ff]/30 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black text-[#dffaff] hover:bg-[#39e8ff]/15"
-              href="mailto:support@graystontechnologies.com"
-            >
-              <Mail className="size-4" aria-hidden="true" />
-              Grayston Technologies support: support@graystontechnologies.com
-            </a>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Link
+                className="brand-button-primary inline-flex h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black"
+                href="/app#money-operations"
+              >
+                Open command center
+                <ArrowRight className="size-4" aria-hidden="true" />
+              </Link>
+              <a
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#39e8ff]/30 bg-[#39e8ff]/10 px-4 text-sm font-black text-[#dffaff] hover:bg-[#39e8ff]/15"
+                href="mailto:support@graystontechnologies.com"
+              >
+                <Mail className="size-4" aria-hidden="true" />
+                support@graystontechnologies.com
+              </a>
+            </div>
             <div className="mt-6 grid gap-3">
               {profileSteps.map((step, index) => (
                 <div
