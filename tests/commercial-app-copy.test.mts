@@ -56,6 +56,7 @@ test("app command center exposes a guided real-money setup surface", async () =>
     "src/app/components/money-engine-console.tsx",
     "utf8",
   );
+  const operations = await readFile("src/app/lib/neobank/operations.ts", "utf8");
 
   assert.match(appPage, /HouseholdCommandCenter/);
   assert.match(commandCenter, /getCommercialReadiness/);
@@ -74,8 +75,13 @@ test("app command center exposes a guided real-money setup surface", async () =>
   assert.match(setupConsole, /\/api\/app\/activation/);
   assert.match(setupConsole, /The shortest route from subscription to protected paycheck/);
   assert.match(setupConsole, /Next executable move/);
+  assert.match(setupConsole, /Activation workbench/);
+  assert.match(setupConsole, /Vercel setup/);
+  assert.match(setupConsole, /setupCommands/);
   assert.match(setupConsole, /Remaining gates/);
   assert.match(setupConsole, /Proof commands/);
+  assert.match(operations, /npx vercel env add/);
+  assert.match(operations, /\/api\/launch\/activation/);
   assert.match(setupConsole, /Per household access/);
   assert.match(setupConsole, /Endpoint backed/);
   assert.match(commandCenter, /Household setup/);
@@ -153,6 +159,8 @@ test("launch console exposes the commercial money path outside locked app access
   assert.match(launchPage, /index: false/);
   assert.match(launchPage, /PayShield Revenue \+ Rails Console/);
   assert.match(launchPage, /Make the app earn, connect, detect, protect, and move/);
+  assert.match(launchPage, /Activation workbench/);
+  assert.match(launchPage, /copy-safe/);
   assert.match(launchPage, /MoneyEngineConsole/);
   assert.match(launchPage, /getCommercialReadiness/);
   assert.match(launchPage, /getMoneyRailReadiness/);
@@ -166,6 +174,7 @@ test("launch console exposes the commercial money path outside locked app access
   assert.match(launchPage, /PAYSHIELD_PROVIDER_WEBHOOK_SECRET/);
   assert.match(launchPage, /PAYSHIELD_TRANSFER_ENABLED/);
   assert.match(launchPage, /PAYSHIELD_LIVE_MONEY_ENABLED/);
+  assert.match(launchPage, /setupCommands/);
   assert.match(launchPage, /POST \/api\/app\/billing\/checkout/);
   assert.match(launchPage, /POST \/api\/app\/bank-link\/token/);
   assert.match(launchPage, /POST \/api\/provider\/webhooks/);

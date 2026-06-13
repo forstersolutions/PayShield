@@ -12,6 +12,7 @@ import {
   Radar,
   ShieldCheck,
   Split,
+  Terminal,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -79,10 +80,23 @@ type ActivationPacket = {
     verification: string;
   };
   operatorRunbook: {
+    appActivationEndpoint?: string;
     auditEndpoint: string;
+    authenticatedSmokeCommands?: string[];
     healthEndpoint: string;
     operationsEndpoint: string;
     remainingGates: string[];
+    setupGroups?: Array<{
+      checks: string[];
+      endpoint: string;
+      env: string[];
+      key: string;
+      productAction: string;
+      ready: boolean;
+      setupCommands: string[];
+      title: string;
+      unlocks: string;
+    }>;
     smokeCommands: string[];
   };
   service: string;
@@ -286,6 +300,7 @@ export function MoneySetupConsole({
     () => groupGates(packet.operatorRunbook.remainingGates),
     [packet.operatorRunbook.remainingGates],
   );
+  const setupGroups = packet.operatorRunbook.setupGroups ?? [];
   const statusCards = packet.currentState.statusCards ?? [];
   const stageProgress = Math.round(
     (plan.readyCount / Math.max(1, plan.totalStages)) * 100,
@@ -479,6 +494,83 @@ export function MoneySetupConsole({
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+
+          <div className="rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="brand-kicker">Activation workbench</p>
+                <p className="mt-1 text-sm font-bold leading-6 text-[#dffaff]">
+                  These commands add the switches that make revenue, bank
+                  linking, payroll detection, transfers, and live controls
+                  operational.
+                </p>
+              </div>
+              <span className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#39e8ff]/25 bg-black/35 px-3 text-xs font-black uppercase text-[#dffaff]">
+                <Terminal className="size-4" aria-hidden="true" />
+                Vercel setup
+              </span>
+            </div>
+            <div className="mt-3 grid gap-3">
+              {setupGroups.map((group) => (
+                <div
+                  className={`rounded-[8px] border p-3 ${
+                    group.ready
+                      ? "border-[#68f0c2]/25 bg-[#68f0c2]/10"
+                      : "border-white/10 bg-black/35"
+                  }`}
+                  key={group.key}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase text-[#8f99aa]">
+                        {group.endpoint}
+                      </p>
+                      <h3 className="mt-1 text-base font-black text-white">
+                        {group.title}
+                      </h3>
+                      <p className="mt-1 max-w-2xl text-sm leading-6 text-[#c9d0da]">
+                        {group.productAction}
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-[8px] px-2.5 py-1 text-xs font-black uppercase ${
+                        group.ready
+                          ? "bg-[#68f0c2]/10 text-[#9af7d5]"
+                          : "bg-[#ffb237]/10 text-[#ffe4ad]"
+                      }`}
+                    >
+                      {group.ready ? "Ready" : "Needs setup"}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs font-bold leading-5 text-[#aab3c2]">
+                    Unlocks: {group.unlocks}
+                  </p>
+                  <div className="mt-3 grid gap-2 lg:grid-cols-2">
+                    <div className="grid gap-2">
+                      {group.setupCommands.map((command) => (
+                        <code
+                          className="block overflow-x-auto rounded-[8px] border border-white/10 bg-black/45 px-3 py-2 font-mono text-xs font-bold text-[#dffaff]"
+                          key={command}
+                        >
+                          {command}
+                        </code>
+                      ))}
+                    </div>
+                    <div className="grid content-start gap-2">
+                      {group.checks.map((command) => (
+                        <code
+                          className="block overflow-x-auto rounded-[8px] border border-white/10 bg-white/[0.04] px-3 py-2 font-mono text-xs font-bold text-[#ffe4ad]"
+                          key={command}
+                        >
+                          {command}
+                        </code>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 

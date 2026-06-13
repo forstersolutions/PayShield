@@ -8,6 +8,7 @@ import { POST as openBillingPortal } from "../src/app/api/app/billing/portal/rou
 import { POST as billingWebhook } from "../src/app/api/app/billing/webhook/route.ts";
 import { POST as createBankLinkToken } from "../src/app/api/app/bank-link/token/route.ts";
 import { GET as getActivation } from "../src/app/api/app/activation/route.ts";
+import { GET as getLaunchActivation } from "../src/app/api/launch/activation/route.ts";
 import { GET as exportAudit } from "../src/app/api/app/audit/export/route.ts";
 import { GET as getBalances } from "../src/app/api/app/balances/route.ts";
 import { POST as setupDirectDeposit } from "../src/app/api/app/direct-deposit/route.ts";
@@ -184,24 +185,85 @@ test("activation endpoint exposes operator launch checklist and smoke commands",
   const nextAction = body.nextAction as Record<string, unknown>;
   const operatorRunbook = body.operatorRunbook as Record<string, unknown>;
   const smokeCommands = operatorRunbook.smokeCommands as string[];
+  const authenticatedSmokeCommands =
+    operatorRunbook.authenticatedSmokeCommands as string[];
+  const setupGroups = operatorRunbook.setupGroups as Array<Record<string, unknown>>;
 
   assert.equal(response.status, 200);
   assert.equal(body.service, "payshield-activation-console");
   assert.equal(activationPlan.nextStageKey, "revenue");
   assert.equal(nextAction.primaryEndpoint, "POST /api/app/billing/checkout");
   assert.equal(
-    smokeCommands.some((command) => command.includes("/api/app/activation")),
+    smokeCommands.some((command) => command.includes("/api/launch/activation")),
     true,
   );
-  assert.equal(operatorRunbook.activationEndpoint, "/api/app/activation");
+  assert.equal(
+    authenticatedSmokeCommands.some((command) =>
+      command.includes("/api/app/activation"),
+    ),
+    true,
+  );
+  assert.equal(operatorRunbook.activationEndpoint, "/api/launch/activation");
+  assert.equal(operatorRunbook.appActivationEndpoint, "/api/app/activation");
   assert.equal(
     Array.isArray(operatorRunbook.remainingGates),
+    true,
+  );
+  assert.equal(
+    setupGroups.some(
+      (group) =>
+        group.key === "bank_connection" &&
+        Array.isArray(group.setupCommands) &&
+        String((group.setupCommands as string[]).join("\n")).includes(
+          "npx vercel env add PLAID_CLIENT_ID production",
+        ) &&
+        String(group.productAction).includes("external funding source"),
+    ),
+    true,
+  );
+  assert.equal(
+    setupGroups.some(
+      (group) =>
+        group.key === "revenue" &&
+        Array.isArray(group.setupCommands) &&
+        String((group.setupCommands as string[]).join("\n")).includes(
+          "npx vercel env add STRIPE_SECRET_KEY production",
+        ),
+    ),
     true,
   );
   assert.equal(
     (currentState.commercialAccess as Record<string, unknown>).state,
     "needs_setup",
   );
+});
+
+test("launch activation endpoint stays available while app auth is locked and redacts secrets", async () => {
+  process.env.VERCEL_ENV = "production";
+  process.env.STRIPE_SECRET_KEY = "sk_live_secret-value";
+  process.env.STRIPE_WEBHOOK_SECRET = "stripe-webhook-secret";
+  process.env.PLAID_CLIENT_ID = "plaid-client";
+  process.env.PLAID_SECRET = "plaid-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "https://vault.example/token";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
+
+  const response = getLaunchActivation();
+  const body = await parseJson(response);
+  const operatorRunbook = body.operatorRunbook as Record<string, unknown>;
+  const serialized = JSON.stringify(body);
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.equal(body.service, "payshield-activation-console");
+  assert.equal(operatorRunbook.activationEndpoint, "/api/launch/activation");
+  assert.match(serialized, /npx vercel env add STRIPE_SECRET_KEY production/);
+  assert.match(serialized, /npx vercel env add PLAID_SECRET production/);
+  assert.equal(serialized.includes("sk_live_secret-value"), false);
+  assert.equal(serialized.includes("stripe-webhook-secret"), false);
+  assert.equal(serialized.includes("plaid-secret"), false);
+  assert.equal(serialized.includes("vault-secret"), false);
+  assert.equal(serialized.includes("https://vault.example/token"), false);
 });
 
 test("billing status exposes household paid-access state", async () => {

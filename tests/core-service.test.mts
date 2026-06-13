@@ -217,14 +217,35 @@ test("core activation endpoint exposes operator launch checklist", async () => {
     const nextAction = body.nextAction as Record<string, unknown>;
     const operatorRunbook = body.operatorRunbook as Record<string, unknown>;
     const smokeCommands = operatorRunbook.smokeCommands as string[];
+    const authenticatedSmokeCommands =
+      operatorRunbook.authenticatedSmokeCommands as string[];
+    const setupGroups = operatorRunbook.setupGroups as Array<Record<string, unknown>>;
 
     assert.equal(response.status, 200);
     assert.equal(body.service, "payshield-activation-console");
     assert.equal(activationPlan.nextStageKey, "revenue");
     assert.equal(nextAction.primaryEndpoint, "POST /api/app/billing/checkout");
-    assert.equal(operatorRunbook.activationEndpoint, "/api/app/activation");
+    assert.equal(operatorRunbook.activationEndpoint, "/api/launch/activation");
+    assert.equal(operatorRunbook.appActivationEndpoint, "/api/app/activation");
     assert.equal(
-      smokeCommands.some((command) => command.includes("/api/app/activation")),
+      smokeCommands.some((command) => command.includes("/api/launch/activation")),
+      true,
+    );
+    assert.equal(
+      authenticatedSmokeCommands.some((command) =>
+        command.includes("/api/app/activation"),
+      ),
+      true,
+    );
+    assert.equal(
+      setupGroups.some(
+        (group) =>
+          group.key === "money_movement" &&
+          Array.isArray(group.setupCommands) &&
+          String((group.setupCommands as string[]).join("\n")).includes(
+            "npx vercel env add PAYSHIELD_BAAS_API_KEY production",
+          ),
+      ),
       true,
     );
     assert.equal(

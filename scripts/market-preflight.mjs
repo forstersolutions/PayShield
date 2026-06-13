@@ -78,6 +78,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "docs/campaign-copy.md",
   "docs/legal-review-packet.md",
   "src/app/api/app/activation/route.ts",
+  "src/app/api/launch/activation/route.ts",
   "src/app/api/app/bill-payments/route.ts",
   "src/app/api/app/billing/portal/route.ts",
   "src/app/api/app/direct-deposit/route.ts",
@@ -291,6 +292,8 @@ requireText(
 );
 requireText("src/app/components/money-setup-console.tsx", "Money setup console");
 requireText("src/app/components/money-setup-console.tsx", "/api/app/activation");
+requireText("src/app/components/money-setup-console.tsx", "Activation workbench");
+requireText("src/app/components/money-setup-console.tsx", "setupCommands");
 requireText(
   "src/app/components/money-setup-console.tsx",
   "The shortest route from subscription to protected paycheck.",
@@ -310,15 +313,22 @@ requireText("src/app/components/money-engine-console.tsx", "Target households");
 requireText("src/app/components/money-engine-console.tsx", "Every row is an app action.");
 requireText("src/app/components/money-engine-console.tsx", "stage.primaryEndpoint");
 requireText("src/app/launch/page.tsx", "MoneyEngineConsole");
+requireText("src/app/launch/page.tsx", "Activation workbench");
+requireText("src/app/launch/page.tsx", "copy-safe");
+requireText("src/app/launch/page.tsx", "setupCommands");
 requireText(
   "src/app/components/household-command-center.tsx",
   "createHouseholdActivationPacket",
 );
 requireText("src/app/api/app/activation/route.ts", "/api/app/activation");
 requireText("src/app/api/app/activation/route.ts", "createHouseholdActivationPacket");
+requireText("src/app/api/launch/activation/route.ts", "createHouseholdActivationPacket");
+requireText("src/app/lib/neobank/operations.ts", "npx vercel env add");
+requireText("src/app/lib/neobank/operations.ts", "/api/launch/activation");
 requireText("src/app/lib/neobank/operations.ts", "payshield-activation-console");
 requireText("services/core/server.mjs", "/app/activation");
 requireText("services/core/product.mjs", "getHouseholdActivation");
+requireText("services/core/product.mjs", "npx vercel env add");
 requireText("src/app/api/app/billing/portal/route.ts", "/api/app/billing/status");
 requireText("src/app/api/app/billing/portal/route.ts", "providerCustomerId");
 requireText("src/app/lib/commercial/billing.ts", "createCommercialPortalSession");

@@ -13,6 +13,7 @@ import {
   Radar,
   ReceiptText,
   ShieldCheck,
+  Terminal,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -46,6 +47,10 @@ export const metadata: Metadata = {
 type ActivationStage = ReturnType<
   typeof createHouseholdActivationPacket
 >["activationPlan"]["stages"][number];
+
+type ActivationSetupGroup = ReturnType<
+  typeof createHouseholdActivationPacket
+>["operatorRunbook"]["setupGroups"][number];
 
 type ConsoleTrack = {
   body: string;
@@ -219,6 +224,70 @@ function ConsoleTrackCard({ track }: { track: ConsoleTrack }) {
           ))}
         </span>
       </span>
+    </article>
+  );
+}
+
+function WorkbenchGroupCard({ group }: { group: ActivationSetupGroup }) {
+  return (
+    <article
+      className={`rounded-[8px] border p-4 ${
+        group.ready
+          ? "border-[#68f0c2]/25 bg-[#68f0c2]/10"
+          : "border-white/10 bg-black/35"
+      }`}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="font-mono text-xs font-black uppercase text-[#8f99aa]">
+            {group.endpoint}
+          </p>
+          <h3 className="mt-1 text-xl font-black text-white">{group.title}</h3>
+        </div>
+        <span
+          className={`rounded-[8px] px-3 py-1.5 text-xs font-black uppercase ${
+            group.ready
+              ? "bg-[#68f0c2]/10 text-[#9af7d5]"
+              : "bg-[#ffb237]/10 text-[#ffe4ad]"
+          }`}
+        >
+          {group.ready ? "Ready" : "Needs setup"}
+        </span>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-[#c9d0da]">
+        {group.productAction}
+      </p>
+      <p className="mt-2 text-xs font-bold leading-5 text-[#aab3c2]">
+        Unlocks: {group.unlocks}
+      </p>
+      <div className="mt-4 grid gap-3 xl:grid-cols-2">
+        <div>
+          <p className="brand-kicker">Vercel env setup</p>
+          <div className="mt-2 grid gap-2">
+            {group.setupCommands.map((command) => (
+              <code
+                className="block overflow-x-auto rounded-[8px] border border-white/10 bg-black/45 px-3 py-2 font-mono text-xs font-bold text-[#dffaff]"
+                key={command}
+              >
+                {command}
+              </code>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="brand-kicker">Verify</p>
+          <div className="mt-2 grid gap-2">
+            {group.checks.map((command) => (
+              <code
+                className="block overflow-x-auto rounded-[8px] border border-white/10 bg-white/[0.04] px-3 py-2 font-mono text-xs font-bold text-[#ffe4ad]"
+                key={command}
+              >
+                {command}
+              </code>
+            ))}
+          </div>
+        </div>
+      </div>
     </article>
   );
 }
@@ -410,6 +479,12 @@ export default function LaunchConsolePage() {
               </a>
               <a
                 className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
+                href="#activation-workbench"
+              >
+                Setup
+              </a>
+              <a
+                className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
                 href="#commands"
               >
                 Verify
@@ -596,6 +671,37 @@ export default function LaunchConsolePage() {
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {stages.map((stage) => (
               <StageCard key={stage.key} stage={stage} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section
+        className="border-b border-white/10 bg-[#090b0d]"
+        id="activation-workbench"
+      >
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:px-8">
+          <div className="accent-rule flex flex-wrap items-end justify-between gap-5 pt-5">
+            <div>
+              <p className="brand-kicker">Activation workbench</p>
+              <h2 className="mt-3 max-w-4xl text-3xl font-black leading-tight text-white sm:text-4xl">
+                The setup path that makes PayShield earn money, connect banks,
+                detect deposits, and protect funds.
+              </h2>
+              <p className="mt-4 max-w-3xl text-lg leading-8 text-[#c9d0da]">
+                Every command below is copy-safe: it names the Vercel variable
+                to add, but never prints a secret value. Each lane maps directly
+                to the product action the user sees in the app.
+              </p>
+            </div>
+            <span className="inline-flex min-h-11 items-center gap-2 rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 px-4 text-sm font-black text-[#dffaff]">
+              <Terminal className="size-4" aria-hidden="true" />
+              {packet.operatorRunbook.activationEndpoint}
+            </span>
+          </div>
+          <div className="grid gap-3 xl:grid-cols-2">
+            {packet.operatorRunbook.setupGroups.map((group) => (
+              <WorkbenchGroupCard group={group} key={group.key} />
             ))}
           </div>
         </div>

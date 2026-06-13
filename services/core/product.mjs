@@ -1839,6 +1839,141 @@ function uniqueList(values) {
   return [...new Set(values.filter(Boolean))];
 }
 
+function vercelEnvAddCommand(name) {
+  return `npx vercel env add ${name} production`;
+}
+
+function buildSetupGroup(input) {
+  return {
+    ...input,
+    setupCommands: input.env.map(vercelEnvAddCommand),
+  };
+}
+
+function buildActivationSetupGroups(body, siteUrl) {
+  return [
+    buildSetupGroup({
+      checks: [
+        `curl -fsS ${siteUrl}/api/health`,
+        `curl -fsS ${siteUrl}/api/launch/activation`,
+      ],
+      endpoint: "POST /api/app/billing/checkout",
+      env: [
+        "STRIPE_SECRET_KEY",
+        "PAYSHIELD_COMMERCIAL_PRICE_ID",
+        "PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL",
+        "STRIPE_WEBHOOK_SECRET",
+        "PAYSHIELD_CORE_API_URL",
+      ],
+      key: "revenue",
+      productAction:
+        "Collect paid household access before bank link and money controls unlock.",
+      ready: body.activationPlan.revenueReady,
+      title: "Revenue switch",
+      unlocks: "Checkout, billing webhook, and commercial access state.",
+    }),
+    buildSetupGroup({
+      checks: [
+        `curl -fsS ${siteUrl}/api/launch/activation`,
+        `curl -fsS ${siteUrl}/api/app/me`,
+      ],
+      endpoint: "GET /api/app/me",
+      env: ["NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", "CLERK_SECRET_KEY"],
+      key: "access",
+      productAction:
+        "Map every signed-in person to one PayShield household before private records open.",
+      ready: body.readiness.clerkConfigured,
+      title: "Household access",
+      unlocks: "Authenticated app entry, household scope, and private support records.",
+    }),
+    buildSetupGroup({
+      checks: [
+        `curl -fsS ${siteUrl}/api/launch/activation`,
+        "npm run test -- tests/neobank-api.test.mts",
+      ],
+      endpoint: "POST /api/app/bank-link/token",
+      env: [
+        "PLAID_ENV",
+        "PLAID_CLIENT_ID",
+        "PLAID_SECRET",
+        "PLAID_PRODUCTS",
+        "PLAID_COUNTRY_CODES",
+        "PLAID_WEBHOOK_URL",
+        "PAYSHIELD_TOKEN_VAULT_KEY_ID",
+        "PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL",
+        "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET",
+      ],
+      key: "bank_connection",
+      productAction:
+        "Let households connect an external funding source and vault the provider token outside the browser.",
+      ready: body.moneyRails.bankLinkReady,
+      title: "Bank connection",
+      unlocks: "Plaid Link, public-token exchange, masked account records, and token custody.",
+    }),
+    buildSetupGroup({
+      checks: [
+        `curl -fsS ${siteUrl}/api/launch/activation`,
+        'PAYSHIELD_LEDGER_DATABASE_URL="<postgres-url>" npm run core:migrations:verify',
+      ],
+      endpoint: "POST /api/app/paychecks/detect",
+      env: [
+        "PAYSHIELD_PROVIDER_WEBHOOK_SECRET",
+        "PAYSHIELD_LEDGER_DATABASE_URL",
+        "PAYSHIELD_LEDGER_SCHEMA_VERIFIED",
+        "PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION",
+      ],
+      key: "paycheck_detection",
+      productAction:
+        "Turn provider activity into detected deposits, balanced bucket splits, and Safe to Spend updates.",
+      ready:
+        body.moneyRails.paycheckDetectionReady &&
+        body.readiness.postgresSchemaVerified,
+      title: "Detection and ledger",
+      unlocks: "Signed provider events, idempotent payroll detection, and durable journal evidence.",
+    }),
+    buildSetupGroup({
+      checks: [
+        `curl -fsS ${siteUrl}/api/launch/activation`,
+        "npm run test -- tests/neobank-ledger.test.mts",
+      ],
+      endpoint: "POST /api/app/transfers",
+      env: [
+        "PAYSHIELD_TRANSFER_ENABLED",
+        "PAYSHIELD_BAAS_PROVIDER",
+        "PAYSHIELD_BAAS_API_KEY",
+        "PLAID_TRANSFER_CLIENT_ID",
+      ],
+      key: "money_movement",
+      productAction:
+        "Validate source bucket, approved destination, amount, and provider handoff before funds move.",
+      ready: body.moneyRails.transferReady,
+      title: "Movement rail",
+      unlocks: "Protected transfers, provider execution records, and reconciliation matching.",
+    }),
+    buildSetupGroup({
+      checks: [
+        `curl -fsS ${siteUrl}/api/health`,
+        "npm run verify",
+        `npm run market:status -- ${siteUrl} --expect-site-url ${siteUrl}`,
+      ],
+      endpoint: "POST /api/card/authorize",
+      env: [
+        "PAYSHIELD_BAAS_CONTRACT_APPROVED",
+        "PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED",
+        "PAYSHIELD_REGULATED_COUNSEL_SIGNOFF",
+        "PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED",
+        "PAYSHIELD_LIVE_MONEY_ENABLED",
+      ],
+      key: "live_control",
+      productAction:
+        "Open card authorization and live-money decisions only after every regulated gate is recorded.",
+      ready: body.readiness.liveMoneyReady,
+      title: "Live control gate",
+      unlocks: "Safe-to-spend authorization, approved biller exceptions, and release controls.",
+    }),
+  ];
+}
+
 function missingCoreGates(readiness) {
   return readiness.gates.filter((gate) => !gate.ok).map((gate) => gate.id);
 }
@@ -2225,6 +2360,7 @@ function activationPacketFromOperations(body, env = process.env) {
     ) ?? body.activationPlan.stages[0];
   const siteUrl =
     env.NEXT_PUBLIC_SITE_URL?.trim() || "https://payshield-lime.vercel.app";
+  const setupGroups = buildActivationSetupGroups(body, siteUrl);
 
   return {
     activationPlan: body.activationPlan,
@@ -2246,15 +2382,22 @@ function activationPacketFromOperations(body, env = process.env) {
       verification: nextStage.verification,
     },
     operatorRunbook: {
-      activationEndpoint: "/api/app/activation",
+      activationEndpoint: "/api/launch/activation",
+      appActivationEndpoint: "/api/app/activation",
       auditEndpoint: "/api/app/audit/export",
       healthEndpoint: "/api/health",
       operationsEndpoint: "/api/app/operations",
       remainingGates,
+      setupGroups,
       siteUrl,
+      authenticatedSmokeCommands: [
+        `curl -fsS ${siteUrl}/api/app/activation`,
+        `curl -fsS ${siteUrl}/api/app/operations`,
+        `curl -fsS ${siteUrl}/api/app/audit/export`,
+      ],
       smokeCommands: [
         `curl -fsS ${siteUrl}/api/health`,
-        `curl -fsS ${siteUrl}/api/app/activation`,
+        `curl -fsS ${siteUrl}/api/launch/activation`,
         `npm run market:status -- ${siteUrl} --expect-site-url ${siteUrl}`,
         'PAYSHIELD_LEDGER_DATABASE_URL="<postgres-url>" npm run core:migrations:verify',
       ],
