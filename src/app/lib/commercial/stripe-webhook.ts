@@ -5,6 +5,7 @@ const allowedClockSkewSeconds = 300;
 export type StripeBillingEventSummary = {
   accessStatus: "active" | "blocked" | "canceled" | "ignored" | "past_due" | "pending";
   amountPaidCents: number | null;
+  cancelAtPeriodEnd: boolean;
   checkoutSessionId: string | null;
   customerId: string | null;
   eventId: string;
@@ -12,6 +13,7 @@ export type StripeBillingEventSummary = {
   handled: boolean;
   invoiceId: string | null;
   priceId: string | null;
+  currentPeriodEnd: string | null;
   subscriptionId: string | null;
   subscriptionStatus: string;
   userId: string | null;
@@ -70,6 +72,22 @@ function stringValue(value: unknown) {
 
 function numberValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function booleanValue(value: unknown) {
+  return typeof value === "boolean" ? value : false;
+}
+
+function unixSecondsToIso(value: unknown) {
+  const seconds = numberValue(value);
+
+  if (!seconds) {
+    return null;
+  }
+
+  const date = new Date(seconds * 1000);
+
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
 }
 
 function objectValue(value: unknown) {
@@ -289,8 +307,10 @@ export function summarizeStripeBillingEvent(event: StripeWebhookEvent): StripeBi
   return {
     accessStatus,
     amountPaidCents,
+    cancelAtPeriodEnd: booleanValue(object.cancel_at_period_end),
     checkoutSessionId,
     customerId,
+    currentPeriodEnd: unixSecondsToIso(object.current_period_end),
     eventId: stringValue(event.id) ?? "",
     eventType,
     handled,

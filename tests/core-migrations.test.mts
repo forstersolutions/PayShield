@@ -55,6 +55,10 @@ test("commercial money rail migration adds operational tables", async () => {
 
   assert.match(sql, /CREATE TABLE commercial_subscriptions/);
   assert.match(sql, /CREATE TABLE commercial_billing_events/);
+  assert.match(sql, /provider_subscription_id TEXT/);
+  assert.match(sql, /current_period_end TIMESTAMPTZ/);
+  assert.match(sql, /cancel_at_period_end BOOLEAN NOT NULL DEFAULT false/);
+  assert.match(sql, /UNIQUE \(provider_name, provider_subscription_id\)/);
   assert.match(sql, /CREATE TABLE bank_connections/);
   assert.match(sql, /token_secret_ref TEXT NOT NULL/);
   assert.match(sql, /CREATE TABLE paycheck_detection_rules/);

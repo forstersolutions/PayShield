@@ -244,6 +244,7 @@ export function getCoreHealth(env = process.env) {
     routes: [
       "GET /app/me",
       "GET /app/balances",
+      "GET /app/billing/status",
       "GET /app/buckets",
       "GET /app/operations",
       "GET /app/audit/export",
@@ -1048,8 +1049,10 @@ export async function recordCommercialBillingEvent(payload, env = process.env) {
       Number.isInteger(summary.amountPaidCents) && summary.amountPaidCents >= 0
         ? summary.amountPaidCents
         : null,
+    cancelAtPeriodEnd: summary.cancelAtPeriodEnd === true,
     checkoutSessionId: safeString(summary.checkoutSessionId, 160) || null,
     customerId: safeString(summary.customerId, 160) || null,
+    currentPeriodEnd: safeString(summary.currentPeriodEnd, 40) || null,
     duplicate: false,
     eventId,
     eventType,
@@ -1062,18 +1065,31 @@ export async function recordCommercialBillingEvent(payload, env = process.env) {
     subscriptionStatus: allowedSubscriptionStatus(summary.subscriptionStatus),
     userId: safeString(summary.userId, 160) || null,
   };
+  const householdId = record.userId ? householdIdForUser(record.userId) : null;
   const persistence = await persistCommercialBillingEvent(
     {
       accessStatus: record.accessStatus,
+      cancelAtPeriodEnd: record.cancelAtPeriodEnd,
       customerId: record.customerId,
+      currentPeriodEnd: record.currentPeriodEnd,
       eventId,
       eventType,
+      householdId,
+      metadata: {
+        amountPaidCents: record.amountPaidCents,
+        checkoutSessionId: record.checkoutSessionId,
+        invoiceId: record.invoiceId,
+        userId: record.userId,
+      },
       payload: {
         event,
         summary: record,
       },
+      priceId: record.priceId,
       providerName,
       subscriptionId: record.subscriptionId,
+      subscriptionStatus: record.subscriptionStatus,
+      userId: record.userId,
     },
     env,
   );
@@ -1094,6 +1110,7 @@ export async function recordCommercialBillingEvent(payload, env = process.env) {
 
   const body = {
     ...record,
+    householdId,
     ...persistence,
     message:
       record.accessStatus === "active"
@@ -1274,6 +1291,7 @@ function emptyOperationalAudit() {
     billingEvents: [],
     billPayments: [],
     cardDecisions: [],
+    commercialSubscriptions: [],
     journalEntries: [],
     moneyRailEvents: [],
     paycheckDetections: [],
@@ -1282,8 +1300,9 @@ function emptyOperationalAudit() {
   };
 }
 
-function latestCommercialBillingEvents() {
+function latestCommercialBillingEvents(householdId) {
   return [...commercialBillingEvents.values()]
+    .filter((event) => !householdId || event.householdId === householdId)
     .slice(-25)
     .reverse()
     .map((event) => ({
@@ -1295,6 +1314,59 @@ function latestCommercialBillingEvents() {
       providerName: event.providerName,
       providerSubscriptionId: event.subscriptionId,
     }));
+}
+
+function latestCommercialSubscription(audit) {
+  const subscriptions = audit.commercialSubscriptions || [];
+
+  if (subscriptions.length > 0) {
+    return subscriptions[0];
+  }
+
+  const latestEvent = (audit.billingEvents || []).find((event) =>
+    ["active", "past_due", "canceled", "pending"].includes(event.accessStatus),
+  );
+
+  if (!latestEvent) {
+    return null;
+  }
+
+  return {
+    accessStatus: latestEvent.accessStatus,
+    cancelAtPeriodEnd: false,
+    currentPeriodEnd: null,
+    priceId: null,
+    providerCustomerId: latestEvent.providerCustomerId,
+    providerName: latestEvent.providerName,
+    providerSubscriptionId: latestEvent.providerSubscriptionId,
+    subscriptionStatus: latestEvent.accessStatus,
+    updatedAt: latestEvent.processedAt,
+  };
+}
+
+function commercialAccessStatus(env, audit) {
+  const subscription = latestCommercialSubscription(audit);
+  const configured = Boolean(
+    env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL?.trim() ||
+      (env.STRIPE_SECRET_KEY?.trim() && env.PAYSHIELD_COMMERCIAL_PRICE_ID?.trim()),
+  );
+
+  return {
+    cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd ?? false,
+    currentPeriodEnd: subscription?.currentPeriodEnd ?? null,
+    mode: env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL?.trim()
+      ? "payment_link"
+      : env.STRIPE_SECRET_KEY?.trim()
+        ? "checkout"
+        : "not_configured",
+    priceLabel: env.PAYSHIELD_COMMERCIAL_PRICE_LABEL?.trim() || "$19/month",
+    providerCustomerId: subscription?.providerCustomerId ?? null,
+    providerName: subscription?.providerName ?? "stripe",
+    providerSubscriptionId: subscription?.providerSubscriptionId ?? null,
+    readyForCheckout: configured,
+    state: subscription?.accessStatus ?? (configured ? "ready" : "needs_setup"),
+    subscriptionStatus: subscription?.subscriptionStatus ?? null,
+  };
 }
 
 function operationTimeline(audit, snapshot) {
@@ -1421,12 +1493,13 @@ async function buildHouseholdOperations(env = process.env, actorInput = demoUser
     ...durableAudit,
     billingEvents: durableAudit.billingEvents.length
       ? durableAudit.billingEvents
-      : latestCommercialBillingEvents(),
+      : latestCommercialBillingEvents(actor.householdId),
     journalEntries: durableAudit.journalEntries.length
       ? durableAudit.journalEntries
       : snapshot.ledgerEntries,
   };
   const moneyRails = getMoneyRailReadiness(env);
+  const commercialAccess = commercialAccessStatus(env, audit);
   const protectedCents = snapshot.buckets
     .filter((bucket) => bucket.id !== "safe_spending")
     .reduce((sum, bucket) => sum + bucket.availableCents, 0);
@@ -1453,6 +1526,7 @@ async function buildHouseholdOperations(env = process.env, actorInput = demoUser
         profileAccess: actor.profileAccess,
         userId: actor.id,
       },
+      commercialAccess,
       moneyRails,
       operations: audit,
       operationalAudit,
@@ -1462,9 +1536,7 @@ async function buildHouseholdOperations(env = process.env, actorInput = demoUser
         {
           key: "paid_access",
           label: "Paid access",
-          state: audit.billingEvents.some((event) => event.accessStatus === "active")
-            ? "active"
-            : gateState(Boolean(env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL?.trim() || env.STRIPE_SECRET_KEY?.trim())),
+          state: commercialAccess.state,
         },
         {
           key: "bank_connection",
@@ -1498,6 +1570,28 @@ export async function getHouseholdOperations(env = process.env, actorInput = dem
   return buildHouseholdOperations(env, actorInput);
 }
 
+export async function getBillingStatus(env = process.env, actorInput = demoUser) {
+  const result = await buildHouseholdOperations(env, actorInput);
+
+  if (result.status !== 200) {
+    return result;
+  }
+
+  return {
+    body: {
+      commercialAccess: result.body.commercialAccess,
+      household: result.body.household,
+      readiness: {
+        checkoutConfigured: result.body.commercialAccess.readyForCheckout,
+        mode: result.body.commercialAccess.mode,
+        priceLabel: result.body.commercialAccess.priceLabel,
+      },
+      service: "payshield-billing-status",
+    },
+    status: 200,
+  };
+}
+
 export async function getHouseholdAuditExport(env = process.env, actorInput = demoUser) {
   const result = await buildHouseholdOperations(env, actorInput);
 
@@ -1517,6 +1611,7 @@ export async function getHouseholdAuditExport(env = process.env, actorInput = de
       exportVersion: "payshield-household-audit-v1",
       generatedAt: body.generatedAt,
       household: body.household,
+      commercialAccess: body.commercialAccess,
       ledger: {
         entries: body.operations.journalEntries,
         source: body.operationalAudit.auditFound ? "postgres" : "core_control_model",

@@ -8,6 +8,7 @@ import {
   createUnlock,
   detectPaycheck,
   getBalances,
+  getBillingStatus,
   getBucketProfile,
   getCoreHealth,
   getCoreReadiness,
@@ -195,6 +196,11 @@ export function createCoreServer() {
 
       if (request.method === "GET" && path === "/app/balances") {
         await writeResult(response, getBalances(process.env, actor));
+        return;
+      }
+
+      if (request.method === "GET" && path === "/app/billing/status") {
+        await writeResult(response, getBillingStatus(process.env, actor));
         return;
       }
 

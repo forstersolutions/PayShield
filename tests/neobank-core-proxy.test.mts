@@ -6,6 +6,7 @@ import { afterEach, beforeEach, test } from "node:test";
 import { NextRequest } from "next/server.js";
 import { GET as exportAudit } from "../src/app/api/app/audit/export/route.ts";
 import { GET as getBalances } from "../src/app/api/app/balances/route.ts";
+import { GET as getBillingStatus } from "../src/app/api/app/billing/status/route.ts";
 import { POST as scheduleBillPayment } from "../src/app/api/app/bill-payments/route.ts";
 import { GET as getOperations } from "../src/app/api/app/operations/route.ts";
 import { POST as authorizeCard } from "../src/app/api/card/authorize/route.ts";
@@ -169,6 +170,49 @@ test("operations API delegates household records to configured core service", as
       assert.equal(captured.method, "GET");
       assert.equal(captured.url, "/api/app/operations");
       assert.equal(captured.userId, "user_demo_001");
+    },
+  );
+});
+
+test("billing status API delegates paid-access state to configured core service", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    (request, response) => {
+      captured.authorization = request.headers.authorization;
+      captured.method = request.method;
+      captured.url = request.url;
+
+      response.writeHead(200, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          commercialAccess: {
+            priceLabel: "$19/month",
+            state: "active",
+          },
+          coreDelegated: true,
+          service: "payshield-billing-status",
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-billing-secret";
+
+      const response = await getBillingStatus();
+      const body = await parseJson(response);
+      const commercialAccess = body.commercialAccess as Record<string, unknown>;
+
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("x-payshield-core-proxied"), "true");
+      assert.equal(body.coreDelegated, true);
+      assert.equal(commercialAccess.state, "active");
+      assert.equal(captured.authorization, "Bearer core-billing-secret");
+      assert.equal(captured.method, "GET");
+      assert.equal(captured.url, "/api/app/billing/status");
     },
   );
 });

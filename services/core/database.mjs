@@ -1104,9 +1104,27 @@ export async function persistCommercialBillingEvent(input, env = process.env) {
     return persistenceSkipped("billing event");
   }
 
+  let client = null;
+
   try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    if (input.householdId && input.userId) {
+      await ensureHouseholdIdentity(client, {
+        actorUserId: input.userId,
+        betaAccessStatus: input.accessStatus === "active" ? "approved" : "pending",
+        householdId: input.householdId,
+      });
+    } else if (input.householdId) {
+      await ensureHousehold(client, {
+        betaAccessStatus: input.accessStatus === "active" ? "approved" : "pending",
+        householdId: input.householdId,
+      });
+    }
+
     const id = recordId("billing_event", input.providerName, input.eventId);
-    const result = await pool.query(
+    const result = await client.query(
       `
         INSERT INTO commercial_billing_events (
           id,
@@ -1115,10 +1133,12 @@ export async function persistCommercialBillingEvent(input, env = process.env) {
           event_type,
           provider_customer_id,
           provider_subscription_id,
+          household_id,
+          user_id,
           access_status,
           payload
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
         ON CONFLICT (provider_name, provider_event_id) DO NOTHING
         RETURNING id
       `,
@@ -1129,19 +1149,89 @@ export async function persistCommercialBillingEvent(input, env = process.env) {
         input.eventType,
         input.customerId || null,
         input.subscriptionId || null,
+        input.householdId || null,
+        input.userId || null,
         input.accessStatus,
         JSON.stringify(input.payload),
       ],
     );
+
+    let subscriptionId = null;
+
+    if (input.householdId && input.subscriptionId && result.rowCount > 0) {
+      subscriptionId = recordId(
+        "commercial_subscription",
+        input.providerName,
+        input.subscriptionId,
+      );
+
+      await client.query(
+        `
+          INSERT INTO commercial_subscriptions (
+            id,
+            household_id,
+            user_id,
+            provider_name,
+            provider_customer_id,
+            provider_subscription_id,
+            price_id,
+            access_status,
+            subscription_status,
+            current_period_end,
+            cancel_at_period_end,
+            metadata
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::timestamptz, $11, $12::jsonb)
+          ON CONFLICT (provider_name, provider_subscription_id) DO UPDATE SET
+            household_id = EXCLUDED.household_id,
+            user_id = EXCLUDED.user_id,
+            provider_customer_id = EXCLUDED.provider_customer_id,
+            price_id = EXCLUDED.price_id,
+            access_status = EXCLUDED.access_status,
+            subscription_status = EXCLUDED.subscription_status,
+            current_period_end = EXCLUDED.current_period_end,
+            cancel_at_period_end = EXCLUDED.cancel_at_period_end,
+            metadata = EXCLUDED.metadata,
+            updated_at = now()
+        `,
+        [
+          subscriptionId,
+          input.householdId,
+          input.userId || null,
+          input.providerName,
+          input.customerId || "unknown",
+          input.subscriptionId,
+          input.priceId || null,
+          input.accessStatus === "ignored" ? "pending" : input.accessStatus,
+          input.subscriptionStatus || "unknown",
+          input.currentPeriodEnd || null,
+          Boolean(input.cancelAtPeriodEnd),
+          JSON.stringify(input.metadata || {}),
+        ],
+      );
+    }
+
+    await client.query("COMMIT");
 
     return {
       persisted: true,
       persistence: "postgres",
       postgresId: id,
       replayed: result.rowCount === 0,
+      subscriptionId,
     };
   } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Ignore rollback failures; the original error is more useful.
+      }
+    }
+
     return persistenceFailed(error);
+  } finally {
+    client?.release();
   }
 }
 
@@ -1385,6 +1475,7 @@ export async function loadOperationalAudit(householdId, env = process.env) {
   try {
     const [
       bankConnections,
+      commercialSubscriptions,
       billingEvents,
       paycheckDetections,
       transferIntents,
@@ -1418,16 +1509,40 @@ export async function loadOperationalAudit(householdId, env = process.env) {
         `
           SELECT
             provider_name,
+            provider_customer_id,
+            provider_subscription_id,
+            user_id,
+            price_id,
+            access_status,
+            subscription_status,
+            current_period_end,
+            cancel_at_period_end,
+            created_at,
+            updated_at
+          FROM commercial_subscriptions
+          WHERE household_id = $1
+          ORDER BY updated_at DESC, created_at DESC
+          LIMIT 10
+        `,
+        [householdId],
+      ),
+      pool.query(
+        `
+          SELECT
+            provider_name,
             provider_event_id,
             event_type,
             provider_customer_id,
             provider_subscription_id,
+            user_id,
             access_status,
             processed_at
           FROM commercial_billing_events
+          WHERE household_id = $1
           ORDER BY processed_at DESC
           LIMIT 25
         `,
+        [householdId],
       ),
       pool.query(
         `
@@ -1610,6 +1725,20 @@ export async function loadOperationalAudit(householdId, env = process.env) {
         providerEventId: row.provider_event_id,
         providerName: row.provider_name,
         providerSubscriptionId: row.provider_subscription_id,
+        userId: row.user_id,
+      })),
+      commercialSubscriptions: commercialSubscriptions.rows.map((row) => ({
+        accessStatus: row.access_status,
+        cancelAtPeriodEnd: Boolean(row.cancel_at_period_end),
+        createdAt: timestampString(row.created_at),
+        currentPeriodEnd: timestampString(row.current_period_end),
+        priceId: row.price_id,
+        providerCustomerId: row.provider_customer_id,
+        providerName: row.provider_name,
+        providerSubscriptionId: row.provider_subscription_id,
+        subscriptionStatus: row.subscription_status,
+        updatedAt: timestampString(row.updated_at),
+        userId: row.user_id,
       })),
       billPayments: billPayments.rows.map((row) => ({
         amountCents: centsNumber(row.amount_cents),

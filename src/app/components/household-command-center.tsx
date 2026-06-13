@@ -32,6 +32,7 @@ import { getCommercialReadiness } from "@/app/lib/commercial/billing.ts";
 import { createNeobankSnapshot } from "@/app/lib/neobank/demo-state.ts";
 import { formatCents } from "@/app/lib/neobank/ledger.ts";
 import { getMoneyRailReadiness } from "@/app/lib/neobank/money-rails.ts";
+import { createHouseholdOperationsPacket } from "@/app/lib/neobank/operations.ts";
 
 const commandActions = [
   {
@@ -96,6 +97,38 @@ export function HouseholdCommandCenter() {
   const snapshot = createNeobankSnapshot();
   const commercialReadiness = getCommercialReadiness();
   const moneyRailReadiness = getMoneyRailReadiness();
+  const initialOperations = createHouseholdOperationsPacket();
+  const initialOperationsReadiness = {
+    commercial: {
+      checkoutConfigured: commercialReadiness.checkoutConfigured,
+      mode: commercialReadiness.mode,
+      paidAccessReady: commercialReadiness.paidAccessReady,
+      priceLabel: commercialReadiness.priceLabel,
+      remainingGates: commercialReadiness.missing,
+      webhookEndpointPath: commercialReadiness.webhookEndpointPath,
+    },
+    moneyRails: {
+      bankLinkReady: moneyRailReadiness.bankLinkReady,
+      detectionMode: moneyRailReadiness.detectionMode,
+      paycheckDetectionReady: moneyRailReadiness.paycheckDetectionReady,
+      plaidConfigured: moneyRailReadiness.plaidConfigured,
+      plaidEnv: moneyRailReadiness.plaidEnv,
+      remainingGates: moneyRailReadiness.missing,
+      tokenVaultConfigured: moneyRailReadiness.tokenVaultConfigured,
+      transferConfigured: moneyRailReadiness.transferConfigured,
+      transferReady: moneyRailReadiness.transferReady,
+    },
+    neobank: {
+      backendConfigured: snapshot.readiness.backendConfigured,
+      liveMoneyReady: snapshot.readiness.liveMoneyReady,
+      mode: snapshot.readiness.mode,
+      postgresSchemaVerified: snapshot.readiness.postgresSchemaVerified,
+      providerConfigured: snapshot.readiness.providerConfigured,
+      remainingGates: snapshot.readiness.gates
+        .filter((gate) => !gate.ok)
+        .map((gate) => gate.id),
+    },
+  };
   const safeSpend =
     snapshot.buckets.find((bucket) => bucket.id === "safe_spending")
       ?.availableCents ?? 0;
@@ -570,7 +603,12 @@ export function HouseholdCommandCenter() {
         </section>
       </div>
 
-      <MoneyOperationsPanel buckets={snapshot.buckets} payees={snapshot.payees} />
+      <MoneyOperationsPanel
+        buckets={snapshot.buckets}
+        initialOperations={initialOperations}
+        initialReadiness={initialOperationsReadiness}
+        payees={snapshot.payees}
+      />
       <BucketControlPanel buckets={snapshot.buckets} />
       <BillPaymentPanel buckets={snapshot.buckets} payees={snapshot.payees} />
       <CardAuthorizationPanel safeSpendCents={safeSpend} />

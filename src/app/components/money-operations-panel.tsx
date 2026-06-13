@@ -87,6 +87,14 @@ type OperationsPacket = {
     safeToSpendCents?: number;
     totalCents?: number;
   };
+  commercialAccess?: {
+    currentPeriodEnd?: string | null;
+    mode?: string;
+    priceLabel?: string;
+    readyForCheckout?: boolean;
+    state?: string;
+    subscriptionStatus?: string | null;
+  };
   operationalAudit?: {
     auditFound?: boolean;
     persistence?: string;
@@ -373,9 +381,13 @@ function OperatorStage({
 
 export function MoneyOperationsPanel({
   buckets,
+  initialOperations,
+  initialReadiness,
   payees,
 }: {
   buckets: BucketBalance[];
+  initialOperations?: OperationsPacket;
+  initialReadiness?: OperationsReadiness;
   payees: Payee[];
 }) {
   const [billingState, setBillingState] = useState<ActionState>({
@@ -394,8 +406,12 @@ export function MoneyOperationsPanel({
     message: "",
     status: "idle",
   });
-  const [readiness, setReadiness] = useState<OperationsReadiness | null>(null);
-  const [operations, setOperations] = useState<OperationsPacket | null>(null);
+  const [readiness, setReadiness] = useState<OperationsReadiness | null>(
+    initialReadiness ?? null,
+  );
+  const [operations, setOperations] = useState<OperationsPacket | null>(
+    initialOperations ?? null,
+  );
   const [localTimeline, setLocalTimeline] = useState<OperationTimelineItem[]>([]);
   const [paycheckAmount, setPaycheckAmount] = useState("3000");
   const [employerName, setEmployerName] = useState("Payroll deposit");
@@ -916,6 +932,30 @@ export function MoneyOperationsPanel({
                 Stripe Checkout runs paid access without storing card data in
                 PayShield.
               </p>
+              <div className="mt-4 grid gap-2 rounded-[8px] border border-white/10 bg-black/35 p-3">
+                <div className="grid grid-cols-[6.5rem_1fr] gap-3 text-xs">
+                  <span className="font-black uppercase text-[#8f99aa]">
+                    Access
+                  </span>
+                  <span className="font-black capitalize text-[#d9dde5]">
+                    {(operations?.commercialAccess?.state ??
+                      (readiness?.commercial?.checkoutConfigured
+                        ? "ready"
+                        : "needs_setup")
+                    ).replace(/_/g, " ")}
+                  </span>
+                </div>
+                <div className="grid grid-cols-[6.5rem_1fr] gap-3 text-xs">
+                  <span className="font-black uppercase text-[#8f99aa]">
+                    Price
+                  </span>
+                  <span className="font-bold text-[#d9dde5]">
+                    {operations?.commercialAccess?.priceLabel ??
+                      readiness?.commercial?.priceLabel ??
+                      "$19/month"}
+                  </span>
+                </div>
+              </div>
               <button
                 className="brand-button-primary mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={billingState.status === "loading"}
@@ -986,15 +1026,24 @@ export function MoneyOperationsPanel({
             <div className="grid min-w-[12rem] gap-2 rounded-[8px] border border-[#48e6b2]/25 bg-[#48e6b2]/10 p-3">
               <p className="brand-kicker">Revenue model</p>
               <p className="text-2xl font-black text-white">
-                {readiness?.commercial?.priceLabel ?? "$19/month"}
+                {operations?.commercialAccess?.priceLabel ??
+                  readiness?.commercial?.priceLabel ??
+                  "$19/month"}
               </p>
               <p className="text-xs font-bold text-[#c9d0da]">
-                {readiness?.commercial?.mode === "payment_link"
+                {(operations?.commercialAccess?.mode ??
+                  readiness?.commercial?.mode) === "payment_link"
                   ? "Stripe payment link"
                   : "Stripe Checkout"}{" "}
                 {"->"}{" "}
                 {readiness?.commercial?.webhookEndpointPath ??
                   "/api/app/billing/webhook"}
+              </p>
+              <p className="text-xs font-black capitalize text-[#68f0c2]">
+                {(operations?.commercialAccess?.state ?? "needs_setup").replace(
+                  /_/g,
+                  " ",
+                )}
               </p>
             </div>
           </div>

@@ -100,6 +100,7 @@ test("core health exposes product operation routes and fail-closed readiness", a
     assert.equal(readiness.backendConfigured, true);
     assert.equal(routes.includes("POST /app/bill-payments"), true);
     assert.equal(routes.includes("POST /app/bank-connections"), true);
+    assert.equal(routes.includes("GET /app/billing/status"), true);
     assert.equal(routes.includes("POST /commercial/billing-events"), true);
     assert.equal(routes.includes("POST /card/authorize"), true);
     assert.equal(routes.includes("GET /app/operations"), true);
@@ -254,9 +255,18 @@ test("core commercial billing event intake is idempotent", async () => {
     assert.equal(first.response.status, 200);
     assert.equal(first.body.accepted, true);
     assert.equal(first.body.accessStatus, "active");
+    assert.equal(first.body.householdId, "household_demo_001");
     assert.equal(first.body.persistence, "memory");
     assert.equal(replay.response.status, 200);
     assert.equal(replay.body.duplicate, true);
+
+    const status = await getJson(baseUrl, "/api/app/billing/status");
+    const commercialAccess = status.body.commercialAccess as Record<string, unknown>;
+
+    assert.equal(status.response.status, 200);
+    assert.equal(status.body.service, "payshield-billing-status");
+    assert.equal(commercialAccess.state, "active");
+    assert.equal(commercialAccess.providerSubscriptionId, "sub_test");
   });
 });
 

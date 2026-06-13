@@ -8,6 +8,7 @@ import { POST as billingWebhook } from "../src/app/api/app/billing/webhook/route
 import { POST as createBankLinkToken } from "../src/app/api/app/bank-link/token/route.ts";
 import { GET as exportAudit } from "../src/app/api/app/audit/export/route.ts";
 import { GET as getBalances } from "../src/app/api/app/balances/route.ts";
+import { GET as getBillingStatus } from "../src/app/api/app/billing/status/route.ts";
 import {
   GET as getBuckets,
   POST as saveBuckets,
@@ -117,6 +118,17 @@ test("operations endpoint exposes the revenue and money-control record", async (
     true,
   );
   assert.equal(timeline[0]?.rail, "ledger");
+});
+
+test("billing status exposes household paid-access state", async () => {
+  const response = await getBillingStatus();
+  const body = await parseJson(response);
+  const commercialAccess = body.commercialAccess as Record<string, unknown>;
+
+  assert.equal(response.status, 200);
+  assert.equal(body.service, "payshield-billing-status");
+  assert.equal(commercialAccess.state, "needs_setup");
+  assert.equal(commercialAccess.priceLabel, "$19/month");
 });
 
 test("audit export returns a downloadable household operations packet", async () => {

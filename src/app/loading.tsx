@@ -1,14 +1,7 @@
 import { PayShieldHeaderLogo } from "@/app/components/pay-shield-mark";
-
-const skeletonRows = [
-  "Turn on paid access",
-  "Connect the bank source",
-  "Build the rules",
-  "Detect the paycheck",
-  "Create transfer intent",
-  "Export audit packet",
-  "Approve or decline",
-];
+import { getCommercialReadiness } from "@/app/lib/commercial/billing.ts";
+import { getMoneyRailReadiness } from "@/app/lib/neobank/money-rails.ts";
+import { getNeobankReadiness } from "@/app/lib/neobank/readiness.ts";
 
 const moneyPath = [
   "Commercial access",
@@ -16,10 +9,57 @@ const moneyPath = [
   "Income intake",
   "Priority split",
   "Safe-spend decision",
-  "Audit export",
+  "Reconciliation",
 ];
 
 export default function Loading() {
+  const commercialReadiness = getCommercialReadiness();
+  const moneyRailReadiness = getMoneyRailReadiness();
+  const neobankReadiness = getNeobankReadiness();
+  const setupRows = [
+    {
+      label: "Turn on paid access",
+      ready: commercialReadiness.paidAccessReady,
+      status: commercialReadiness.paidAccessReady
+        ? "Ready"
+        : commercialReadiness.checkoutConfigured
+          ? "Webhook needed"
+          : "Stripe needed",
+    },
+    {
+      label: "Connect the bank source",
+      ready: moneyRailReadiness.bankLinkReady,
+      status: moneyRailReadiness.bankLinkReady
+        ? "Ready"
+        : moneyRailReadiness.plaidConfigured
+          ? "Vault needed"
+          : "Plaid needed",
+    },
+    {
+      label: "Build the rules",
+      ready: true,
+      status: neobankReadiness.postgresSchemaVerified ? "Durable" : "Editable",
+    },
+    {
+      label: "Detect the paycheck",
+      ready: true,
+      status: moneyRailReadiness.paycheckDetectionReady
+        ? "Auto"
+        : "Manual event",
+    },
+    {
+      label: "Create transfer intent",
+      ready: true,
+      status: moneyRailReadiness.transferReady ? "Rail ready" : "Ledger check",
+    },
+    {
+      label: "Approve or decline",
+      ready: true,
+      status: neobankReadiness.liveMoneyReady ? "Gateway" : "Ledger",
+    },
+  ];
+  const activeCount = setupRows.filter((row) => row.ready).length;
+
   return (
     <main
       aria-busy="true"
@@ -75,7 +115,7 @@ export default function Loading() {
                   </h2>
                 </div>
                 <span className="rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black text-[#dffaff]">
-                  3/7 active
+                  {activeCount}/{setupRows.length} active
                 </span>
               </div>
 
@@ -93,17 +133,17 @@ export default function Loading() {
               </div>
 
               <div className="mt-5 grid gap-2">
-                {skeletonRows.map((row, index) => (
+                {setupRows.map((row, index) => (
                   <div
                     className="grid grid-cols-[2.25rem_1fr_auto] items-center gap-3 rounded-[8px] border border-white/10 bg-black/40 p-3"
-                    key={row}
+                    key={row.label}
                   >
                     <span className="grid size-9 place-items-center rounded-[8px] bg-[#39e8ff] text-sm font-black text-[#050607]">
                       {index + 1}
                     </span>
-                    <p className="text-sm font-black text-white">{row}</p>
+                    <p className="text-sm font-black text-white">{row.label}</p>
                     <span className="rounded-[8px] bg-white/[0.06] px-2.5 py-1 text-xs font-black text-[#d9dde5]">
-                      Loading
+                      {row.status}
                     </span>
                   </div>
                 ))}

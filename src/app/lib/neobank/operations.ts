@@ -72,6 +72,18 @@ export function createHouseholdOperationsPacket(session?: AppSession) {
       profileAccess: snapshot.user.profileAccess,
       userId: session?.userId ?? snapshot.user.id,
     },
+    commercialAccess: {
+      cancelAtPeriodEnd: false,
+      currentPeriodEnd: null,
+      mode: commercial.mode,
+      priceLabel: commercial.priceLabel,
+      providerCustomerId: null,
+      providerName: "stripe",
+      providerSubscriptionId: null,
+      readyForCheckout: commercial.checkoutConfigured,
+      state: commercial.checkoutConfigured ? "ready" : "needs_setup",
+      subscriptionStatus: null,
+    },
     moneyRails,
     operations,
     operationalAudit: {
@@ -126,6 +138,7 @@ export function createHouseholdAuditPacket(session?: AppSession) {
     exportVersion: "payshield-household-audit-v1",
     generatedAt: packet.generatedAt,
     household: packet.household,
+    commercialAccess: packet.commercialAccess,
     ledger: {
       entries: packet.operations.journalEntries,
       source: "core_control_model",
