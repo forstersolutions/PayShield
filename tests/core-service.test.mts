@@ -157,6 +157,7 @@ test("core health exposes product operation routes and fail-closed readiness", a
     assert.equal(routes.includes("GET /app/operations"), true);
     assert.equal(routes.includes("GET /app/audit/export"), true);
     assert.equal(routes.includes("POST /app/onboarding/start"), true);
+    assert.equal(routes.includes("POST /app/paychecks/rules"), true);
     assert.equal(routes.includes("POST /app/paychecks/detect"), true);
     assert.equal(routes.includes("POST /app/transfers"), true);
   });
@@ -226,7 +227,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
 
     assert.equal(urlOnlyReadiness.postgresConfigured, true);
     assert.equal(urlOnlyReadiness.postgresSchemaVerified, false);
-    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0006");
+    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0007");
     assert.equal(postgresGate?.ok, false);
 
     process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
@@ -244,7 +245,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
       false,
     );
 
-    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0006";
+    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0007";
 
     const verified = await getJson(baseUrl, "/health");
     const verifiedReadiness = verified.body.readiness as Record<
@@ -340,6 +341,18 @@ test("core paid access gates money workflows when commercial billing is configur
       "/api/app/bank-link/token",
       "bank linking",
       jsonPost({ origin: "https://payshield.test" }, { headers: unpaidActor }),
+    ],
+    [
+      "/api/app/paychecks/rules",
+      "paycheck detection setup",
+      jsonPost(
+        {
+          employerNamePattern: "ACME PAYROLL",
+          minimumAmountCents: 150_000,
+          ruleName: "ACME payroll",
+        },
+        { headers: unpaidActor },
+      ),
     ],
     [
       "/api/app/paychecks/detect",
@@ -554,6 +567,54 @@ test("core paycheck readiness requires provider webhook signing", async () => {
     assert.equal(signed.response.status, 200);
     assert.equal(signedMoneyRails.paycheckDetectionReady, true);
     assert.equal(signedMoneyRails.providerWebhookSigningConfigured, true);
+  });
+});
+
+test("core paycheck detection rule route validates recurring income setup", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(
+      baseUrl,
+      "/api/app/paychecks/rules",
+      jsonPost({
+        employerNamePattern: "ACME PAYROLL",
+        expectedFrequency: "biweekly",
+        idempotencyKey: "core-rule-acme-payroll",
+        maximumAmountCents: 250_000,
+        minimumAmountCents: 150_000,
+        providerName: "plaid",
+        ruleName: "ACME payroll",
+      }),
+    );
+    const rule = body.rule as Record<string, unknown>;
+    const match = rule.match as Record<string, unknown>;
+    const amountRange = rule.amountRangeCents as Record<string, unknown>;
+    const persistence = body.persistence as Record<string, unknown>;
+
+    assert.equal(response.status, 200);
+    assert.equal(body.service, "payshield-paycheck-detection-rules");
+    assert.equal(body.persisted, false);
+    assert.equal(persistence.persistence, "memory");
+    assert.equal(rule.ruleName, "ACME payroll");
+    assert.equal(rule.expectedFrequency, "biweekly");
+    assert.equal(match.employerNamePattern, "ACME PAYROLL");
+    assert.equal(amountRange.min, 150_000);
+
+    const invalid = await getJson(
+      baseUrl,
+      "/api/app/paychecks/rules",
+      jsonPost({
+        employerNamePattern: "ACME PAYROLL",
+        maximumAmountCents: 150_000,
+        minimumAmountCents: 150_000,
+        ruleName: "Invalid payroll",
+      }),
+    );
+
+    assert.equal(invalid.response.status, 400);
+    assert.equal(
+      invalid.body.error,
+      "maximumAmountCents must be greater than minimumAmountCents.",
+    );
   });
 });
 

@@ -43,7 +43,7 @@ PAYSHIELD_CORE_API_URL=
 PAYSHIELD_CORE_SERVICE_TOKEN=
 PAYSHIELD_LEDGER_DATABASE_URL=
 PAYSHIELD_LEDGER_SCHEMA_VERIFIED=true
-PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0006
+PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0007
 ```
 
 Bank connection and transaction detection:
@@ -109,12 +109,23 @@ engine funds protected buckets first and exposes only the remainder as
 
 `POST /api/provider/webhooks` now records the provider event, extracts
 payroll-like income transactions, resolves the active bank connection when
-provider item/account identifiers are present, and posts each matched paycheck
-through the same protected split journal used by manual detection. Pending,
-debit, and non-income transactions are ignored. In durable mode, provider
-paycheck events must include provider item and account identifiers so PayShield
-can match the transaction to an active connected account; ambiguous income
-events stay blocked instead of falling back to a default household.
+provider item/account identifiers are present, loads active payroll rules for
+that household, and posts only matching paycheck events through the same
+protected split journal used by manual detection. Pending, debit, non-income,
+and rule-mismatched transactions are ignored or blocked before protected funds
+move. In durable mode, provider paycheck events must include provider item and
+account identifiers so PayShield can match the transaction to an active
+connected account; ambiguous income events stay blocked instead of falling back
+to a default household.
+
+`POST /api/app/paychecks/rules` stores the household's recurring income match
+rules before automation runs. Each rule records the payroll label or transaction
+text, expected amount range, frequency, provider, optional provider item/account
+references, status, priority, and idempotency key. With the core service and
+Postgres enabled, active rules are consulted before a paycheck split posts, and
+posted detections retain the matched rule id for audit and support review.
+Without the core, the Vercel route validates the shape but marks the rule as
+non-durable.
 
 Transfers, bill payments, and card decisions remain gate controlled:
 
@@ -149,4 +160,4 @@ npm run market:status -- https://payshield-lime.vercel.app --expect-site-url htt
 - Bank linking.
 - Paycheck detection.
 - Transfer/provider readiness.
-- Core backend, Clerk auth, and Postgres ledger schema `0006`.
+- Core backend, Clerk auth, and Postgres ledger schema `0007`.

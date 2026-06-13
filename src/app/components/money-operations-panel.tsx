@@ -4,13 +4,10 @@ import {
   ArrowRightLeft,
   BadgeDollarSign,
   CheckCircle2,
-  CreditCard,
-  Database,
   FileDown,
   Landmark,
   Link2,
   Loader2,
-  LockKeyhole,
   Radar,
   ReceiptText,
   ShieldAlert,
@@ -80,6 +77,23 @@ type OperationTimelineItem = {
   label: string;
   rail: string;
   status: string;
+};
+
+type PaycheckDetectionRule = {
+  amountRangeCents?: {
+    max?: number | null;
+    min?: number | null;
+  };
+  expectedFrequency?: string;
+  id?: string;
+  match?: {
+    employerNamePattern?: string | null;
+    transactionNamePattern?: string | null;
+  };
+  priority?: number;
+  providerName?: string;
+  ruleName?: string;
+  status?: string;
 };
 
 type OperationsPacket = {
@@ -329,61 +343,6 @@ function RuntimeLane({
   );
 }
 
-function OperatorStage({
-  action,
-  icon: Icon,
-  outcome,
-  step,
-  status,
-  title,
-  tone,
-}: {
-  action: string;
-  icon: LucideIcon;
-  outcome: string;
-  step: string;
-  status: string;
-  title: string;
-  tone: "attention" | "ready";
-}) {
-  return (
-    <article className="rounded-[8px] border border-white/10 bg-black/35 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <span
-          className={`grid size-10 place-items-center rounded-[8px] border ${
-            tone === "ready"
-              ? "border-[#48e6b2]/30 bg-[#48e6b2]/10 text-[#68f0c2]"
-              : "border-[#ffb237]/30 bg-[#ffb237]/10 text-[#ffcf72]"
-          }`}
-        >
-          <Icon className="size-5" aria-hidden="true" />
-        </span>
-        <span className="rounded-[8px] border border-white/10 bg-white/[0.04] px-2.5 py-1 font-mono text-xs font-black text-[#d9dde5]">
-          {step}
-        </span>
-      </div>
-      <h4 className="mt-4 text-base font-black text-white">{title}</h4>
-      <p className="mt-2 text-sm leading-6 text-[#aab3c2]">{action}</p>
-      <div className="mt-4 grid gap-2 rounded-[8px] border border-white/10 bg-black/35 p-3">
-        <div className="grid grid-cols-[5.4rem_1fr] gap-3 text-xs">
-          <span className="font-black uppercase text-[#8f99aa]">Result</span>
-          <span className="font-bold text-[#d9dde5]">{outcome}</span>
-        </div>
-        <div className="grid grid-cols-[5.4rem_1fr] gap-3 text-xs">
-          <span className="font-black uppercase text-[#8f99aa]">Status</span>
-          <span
-            className={`font-black ${
-              tone === "ready" ? "text-[#68f0c2]" : "text-[#ffe4ad]"
-            }`}
-          >
-            {status}
-          </span>
-        </div>
-      </div>
-    </article>
-  );
-}
-
 export function MoneyOperationsPanel({
   buckets,
   initialOperations,
@@ -407,6 +366,10 @@ export function MoneyOperationsPanel({
     message: "",
     status: "idle",
   });
+  const [detectionRuleState, setDetectionRuleState] = useState<ActionState>({
+    message: "",
+    status: "idle",
+  });
   const [transferState, setTransferState] = useState<ActionState>({
     message: "",
     status: "idle",
@@ -420,6 +383,11 @@ export function MoneyOperationsPanel({
   const [localTimeline, setLocalTimeline] = useState<OperationTimelineItem[]>([]);
   const [paycheckAmount, setPaycheckAmount] = useState("3000");
   const [employerName, setEmployerName] = useState("Payroll deposit");
+  const [ruleName, setRuleName] = useState("Primary payroll");
+  const [ruleEmployerPattern, setRuleEmployerPattern] = useState("Payroll");
+  const [ruleMinimumAmount, setRuleMinimumAmount] = useState("500");
+  const [ruleMaximumAmount, setRuleMaximumAmount] = useState("");
+  const [ruleFrequency, setRuleFrequency] = useState("biweekly");
   const [transferAmount, setTransferAmount] = useState("250");
   const [sourceBucketId, setSourceBucketId] = useState("rent");
   const [destinationPayeeId, setDestinationPayeeId] = useState(
@@ -430,6 +398,14 @@ export function MoneyOperationsPanel({
     safeToSpendCents?: number;
   } | null>(null);
   const selectedBucket = buckets.find((bucket) => bucket.id === sourceBucketId);
+  const ruleMinimumCents = dollarsToCents(ruleMinimumAmount);
+  const ruleMaximumCents = ruleMaximumAmount
+    ? dollarsToCents(ruleMaximumAmount)
+    : null;
+  const detectionRules =
+    (operations?.operations?.paycheckDetectionRules as
+      | PaycheckDetectionRule[]
+      | undefined) ?? [];
   const connectedPayees = useMemo(
     () => [
       ...payees.map((payee) => ({ id: payee.id, name: payee.name })),
@@ -437,89 +413,6 @@ export function MoneyOperationsPanel({
     ],
     [payees],
   );
-  const operationStages = [
-    {
-      action: "POST /api/app/billing/checkout",
-      icon: BadgeDollarSign,
-      outcome: "Subscription checkout URL and paid-access webhook record",
-      status: readiness?.commercial?.paidAccessReady
-        ? "Paid access ready"
-        : readiness?.commercial?.checkoutConfigured
-          ? "Checkout ready"
-          : compactGateList(
-              readiness?.commercial?.remainingGates,
-              "Add Stripe keys",
-            ),
-      step: "01",
-      title: "Charge the household",
-      tone: readiness?.commercial?.checkoutConfigured ? "ready" : "attention",
-    },
-    {
-      action: "Clerk subject -> PayShield household profile",
-      icon: LockKeyhole,
-      outcome: "User-scoped buckets, payees, detections, and transfers",
-      status: readiness?.neobank?.backendConfigured
-        ? readiness?.neobank?.postgresSchemaVerified
-          ? "Durable profile"
-          : "Core online"
-        : "Connect core",
-      step: "02",
-      title: "Scope the account",
-      tone: readiness?.neobank?.backendConfigured ? "ready" : "attention",
-    },
-    {
-      action: "POST /api/app/bank-link/token -> Plaid Link",
-      icon: Link2,
-      outcome: "Bank connection record with vault reference for detection",
-      status: readiness?.moneyRails?.bankLinkReady
-        ? "Bank link ready"
-        : readiness?.moneyRails?.plaidConfigured
-          ? "Vault next"
-          : compactGateList(
-              readiness?.moneyRails?.remainingGates,
-              "Add Plaid keys",
-            ),
-      step: "03",
-      title: "Connect the bank source",
-      tone: readiness?.moneyRails?.bankLinkReady ? "ready" : "attention",
-    },
-    {
-      action: "POST /api/app/paychecks/detect",
-      icon: Radar,
-      outcome: "Paycheck journal entry, protected split, Safe to Spend",
-      status: readiness?.moneyRails?.paycheckDetectionReady
-        ? "Auto detection"
-        : "Provider/manual event",
-      step: "04",
-      title: "Detect income",
-      tone: "ready",
-    },
-    {
-      action: "POST /api/app/buckets and /api/app/payees",
-      icon: Database,
-      outcome: "Custom bucket rules and approved biller controls",
-      status: readiness?.neobank?.postgresSchemaVerified
-        ? "Postgres ledger"
-        : "Rule engine active",
-      step: "05",
-      title: "Protect the ledger",
-      tone: "ready",
-    },
-    {
-      action: "POST /api/app/transfers and /api/card/authorize",
-      icon: CreditCard,
-      outcome: "Transfer intent or card decision against protected funds",
-      status: readiness?.moneyRails?.transferReady
-        ? "Money movement ready"
-        : readiness?.moneyRails?.transferConfigured
-          ? "Approvals next"
-          : "Decision engine active",
-      step: "06",
-      title: "Move or decline",
-      tone: readiness?.moneyRails?.transferReady ? "ready" : "attention",
-    },
-  ] satisfies Array<Parameters<typeof OperatorStage>[0]>;
-
   useEffect(() => {
     let cancelled = false;
 
@@ -825,6 +718,103 @@ export function MoneyOperationsPanel({
     }
   }
 
+  async function saveDetectionRule() {
+    const minimumAmountCents = dollarsToCents(ruleMinimumAmount);
+    const maximumAmountCents = ruleMaximumAmount
+      ? dollarsToCents(ruleMaximumAmount)
+      : null;
+
+    setDetectionRuleState({
+      message: "Saving paycheck detection rule...",
+      status: "loading",
+    });
+
+    try {
+      const response = await fetch("/api/app/paychecks/rules", {
+        body: JSON.stringify({
+          employerNamePattern: ruleEmployerPattern,
+          expectedFrequency: ruleFrequency,
+          idempotencyKey: `ui-paycheck-rule-${ruleName.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`,
+          maximumAmountCents,
+          minimumAmountCents,
+          priority: 100,
+          providerName: "plaid",
+          ruleName,
+          status: "active",
+          transactionNamePattern: ruleEmployerPattern,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        rule?: PaycheckDetectionRule;
+      };
+
+      if (!response.ok) {
+        setDetectionRuleState({
+          message: payload.error || "Detection rule was not saved.",
+          status: "error",
+        });
+        appendOperation({
+          detail: payload.error || ruleName,
+          label: "Detection rule",
+          rail: "income",
+          status: "rejected",
+        });
+        return;
+      }
+
+      setOperations((current) => ({
+        ...(current ?? {}),
+        operations: {
+          ...(current?.operations ?? {}),
+          paycheckDetectionRules: [
+            payload.rule ?? {
+              amountRangeCents: {
+                max: maximumAmountCents,
+                min: minimumAmountCents,
+              },
+              expectedFrequency: ruleFrequency,
+              match: {
+                employerNamePattern: ruleEmployerPattern,
+                transactionNamePattern: ruleEmployerPattern,
+              },
+              providerName: "plaid",
+              ruleName,
+              status: "active",
+            },
+            ...detectionRules.filter(
+              (rule) => rule.ruleName?.toLowerCase() !== ruleName.toLowerCase(),
+            ),
+          ],
+        },
+      }));
+      setDetectionRuleState({
+        message: payload.message || "Detection rule saved.",
+        status: "ready",
+      });
+      appendOperation({
+        detail: ruleName,
+        label: "Detection rule",
+        rail: "income",
+        status: "active",
+      });
+    } catch {
+      setDetectionRuleState({
+        message: "Detection rule save failed.",
+        status: "error",
+      });
+      appendOperation({
+        detail: ruleName,
+        label: "Detection rule",
+        rail: "income",
+        status: "error",
+      });
+    }
+  }
+
   async function createTransfer() {
     const amountCents = dollarsToCents(transferAmount);
 
@@ -1016,60 +1006,30 @@ export function MoneyOperationsPanel({
         <div className="brand-panel rounded-[8px] p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="brand-kicker">Commercial operating sequence</p>
+              <p className="brand-kicker">Money engine</p>
               <h3 className="mt-1 text-2xl font-black text-white">
-                Charge first. Connect once. Protect every paycheck after that.
+                Charge, connect, detect, protect, move.
               </h3>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-[#aab3c2]">
-                Each stage creates a business artifact: checkout session,
-                bank-link token, paycheck split record, transfer intent, or
-                ledger decision. Provider credentials and approvals determine
-                whether the stage executes with the provider or records a
-                controlled operations intent.
+                This lane creates the revenue record, bank-link handoff,
+                recurring payroll rule, paycheck split, protected transfer
+                intent, and audit trail from one place.
               </p>
             </div>
-            <div className="grid min-w-[12rem] gap-2 rounded-[8px] border border-[#48e6b2]/25 bg-[#48e6b2]/10 p-3">
+            <div className="grid min-w-[12rem] gap-1 rounded-[8px] border border-[#48e6b2]/25 bg-[#48e6b2]/10 p-3">
               <p className="brand-kicker">Revenue model</p>
               <p className="text-2xl font-black text-white">
                 {operations?.commercialAccess?.priceLabel ??
                   readiness?.commercial?.priceLabel ??
                   "$19/month"}
               </p>
-              <p className="text-xs font-bold text-[#c9d0da]">
-                {(operations?.commercialAccess?.mode ??
-                  readiness?.commercial?.mode) === "payment_link"
-                  ? "Stripe payment link"
-                  : "Stripe Checkout"}{" "}
-                {"->"}{" "}
-                {readiness?.commercial?.webhookEndpointPath ??
-                  "/api/app/billing/webhook"}
-              </p>
               <p className="text-xs font-black capitalize text-[#68f0c2]">
                 {(operations?.commercialAccess?.state ?? "needs_setup").replace(
                   /_/g,
                   " ",
-                )}
+                )}{" "}
+                · {readiness?.neobank?.mode ?? "loading"} mode
               </p>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {operationStages.map((stage) => (
-              <OperatorStage key={stage.step} {...stage} />
-            ))}
-          </div>
-        </div>
-
-        <div className="brand-panel rounded-[8px] p-4 sm:p-5">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="brand-kicker">Money engine</p>
-              <h3 className="mt-1 text-2xl font-black text-white">
-                Charge, connect, detect, protect, move.
-              </h3>
-            </div>
-            <div className="rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black text-[#dffaff]">
-              {readiness?.neobank?.mode ?? "loading"} mode
             </div>
           </div>
 
@@ -1281,10 +1241,118 @@ export function MoneyOperationsPanel({
               <div>
                 <p className="brand-kicker">Paycheck detection</p>
                 <h3 className="mt-1 text-xl font-black text-white">
-                  Identify income and split it first.
+                  Set the rule. Split every check first.
                 </h3>
               </div>
               <Radar className="size-6 text-[#39e8ff]" aria-hidden="true" />
+            </div>
+
+            <div className="mt-4 rounded-[8px] border border-[#39e8ff]/20 bg-[#39e8ff]/[0.06] p-3">
+              <div className="grid gap-3 sm:grid-cols-[1fr_1fr]">
+                <label className="grid gap-2 text-sm font-black text-white">
+                  Rule name
+                  <input
+                    className="h-11 rounded-[8px] border border-white/10 bg-black/45 px-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
+                    maxLength={80}
+                    onChange={(event) => setRuleName(event.target.value)}
+                    value={ruleName}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-white">
+                  Match text
+                  <input
+                    className="h-11 rounded-[8px] border border-white/10 bg-black/45 px-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
+                    maxLength={100}
+                    onChange={(event) => setRuleEmployerPattern(event.target.value)}
+                    value={ruleEmployerPattern}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-white">
+                  Minimum
+                  <input
+                    className="h-11 rounded-[8px] border border-white/10 bg-black/45 px-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
+                    inputMode="decimal"
+                    min="0"
+                    onChange={(event) => setRuleMinimumAmount(event.target.value)}
+                    type="number"
+                    value={ruleMinimumAmount}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-white">
+                  Maximum
+                  <input
+                    className="h-11 rounded-[8px] border border-white/10 bg-black/45 px-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
+                    inputMode="decimal"
+                    min="0"
+                    onChange={(event) => setRuleMaximumAmount(event.target.value)}
+                    placeholder="Optional"
+                    type="number"
+                    value={ruleMaximumAmount}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-black text-white sm:col-span-2">
+                  Frequency
+                  <select
+                    className="h-11 rounded-[8px] border border-white/10 bg-black/45 px-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
+                    onChange={(event) => setRuleFrequency(event.target.value)}
+                    value={ruleFrequency}
+                  >
+                    <option value="weekly">Weekly</option>
+                    <option value="biweekly">Biweekly</option>
+                    <option value="semimonthly">Twice monthly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="unknown">Variable</option>
+                  </select>
+                </label>
+              </div>
+              <button
+                className="brand-button-blue mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={
+                  !ruleName ||
+                  !ruleEmployerPattern ||
+                  ruleMinimumCents <= 0 ||
+                  (ruleMaximumAmount !== "" &&
+                    (!ruleMaximumCents || ruleMaximumCents <= ruleMinimumCents)) ||
+                  detectionRuleState.status === "loading"
+                }
+                onClick={saveDetectionRule}
+                type="button"
+              >
+                {detectionRuleState.status === "loading" ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Radar className="size-4" aria-hidden="true" />
+                )}
+                Save detection rule
+              </button>
+              <div className="mt-3">
+                <StateMessage state={detectionRuleState} />
+              </div>
+              {detectionRules.length > 0 ? (
+                <div className="mt-3 grid gap-2">
+                  {detectionRules.slice(0, 3).map((rule, index) => (
+                    <div
+                      className="flex items-center justify-between gap-3 rounded-[8px] border border-white/10 bg-black/35 px-3 py-2"
+                      key={`${rule.id ?? rule.ruleName ?? "rule"}-${index}`}
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-black text-white">
+                          {rule.ruleName ?? "Paycheck rule"}
+                        </span>
+                        <span className="block truncate text-xs font-bold text-[#aab3c2]">
+                          {rule.match?.employerNamePattern ??
+                            rule.match?.transactionNamePattern ??
+                            "Income match"}{" "}
+                          · {formatMoney(rule.amountRangeCents?.min ?? 0)}+
+                        </span>
+                      </span>
+                      <span className="rounded-[8px] border border-[#68f0c2]/25 bg-[#68f0c2]/10 px-2.5 py-1 text-xs font-black capitalize text-[#9af7d5]">
+                        {rule.status ?? "active"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_0.65fr]">

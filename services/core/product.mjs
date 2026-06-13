@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import {
   databaseConfigured,
+  loadActivePaycheckDetectionRules,
   loadOperationalAudit,
   loadBankConnectionForProvider,
   loadBucketProfile,
@@ -14,13 +15,14 @@ import {
   persistMoneyRailEvent,
   persistPayee,
   persistPaycheckDetection,
+  persistPaycheckDetectionRule,
   persistProviderTokenSecret,
   persistTransferIntent,
   persistUnlockRequest,
 } from "./database.mjs";
 
 const serviceName = "payshield-core";
-export const coreLedgerSchemaVersion = "0006";
+export const coreLedgerSchemaVersion = "0007";
 
 const gateDefinitions = [
   {
@@ -260,6 +262,7 @@ export function getCoreHealth(env = process.env) {
       "POST /commercial/billing-events",
       "POST /app/onboarding/start",
       "POST /app/payees",
+      "POST /app/paychecks/rules",
       "POST /app/paychecks/detect",
       "POST /app/transfers",
       "POST /app/unlocks",
@@ -1304,6 +1307,7 @@ function emptyOperationalAudit() {
     commercialSubscriptions: [],
     journalEntries: [],
     moneyRailEvents: [],
+    paycheckDetectionRules: [],
     paycheckDetections: [],
     transferIntents: [],
     unlockRequests: [],
@@ -2049,6 +2053,311 @@ export async function createPayee(payload, env = process.env) {
   };
 }
 
+const paycheckRuleStatuses = new Set(["active", "paused", "archived"]);
+const paycheckRuleFrequencies = new Set([
+  "weekly",
+  "biweekly",
+  "semimonthly",
+  "monthly",
+  "unknown",
+]);
+
+function cleanRulePattern(value, maxLength = 160) {
+  const pattern = cleanText(value, maxLength);
+
+  return /[A-Za-z0-9]/.test(pattern) ? pattern : "";
+}
+
+function normalizedPaycheckRuleStatus(value) {
+  const status = cleanText(value, 20).toLowerCase();
+
+  return paycheckRuleStatuses.has(status) ? status : "active";
+}
+
+function normalizedPaycheckRuleFrequency(value) {
+  const frequency = cleanText(value, 20).toLowerCase();
+
+  return paycheckRuleFrequencies.has(frequency) ? frequency : "unknown";
+}
+
+function modelPaycheckDetectionRule(input) {
+  return {
+    amountRangeCents: {
+      max: input.maximumAmountCents,
+      min: input.minimumAmountCents,
+    },
+    expectedFrequency: input.expectedFrequency,
+    id: input.id,
+    idempotencyKey: input.idempotencyKey,
+    match: {
+      employerNamePattern: input.employerNamePattern || null,
+      transactionNamePattern: input.transactionNamePattern || null,
+    },
+    priority: input.priority,
+    providerAccountId: input.providerAccountId || null,
+    providerItemId: input.providerItemId || null,
+    providerName: input.providerName,
+    ruleName: input.ruleName,
+    status: input.status,
+  };
+}
+
+function textMatchesRulePattern(text, pattern) {
+  if (!pattern) {
+    return false;
+  }
+
+  return text.toLowerCase().includes(String(pattern).toLowerCase());
+}
+
+function paycheckRuleMatches(rule, input) {
+  const amountRange = rule.amountRangeCents || {};
+  const minimumAmountCents = Number(amountRange.min || 0);
+  const maximumAmountCents = Number(amountRange.max || 0);
+
+  if (minimumAmountCents > 0 && input.amountCents < minimumAmountCents) {
+    return false;
+  }
+
+  if (maximumAmountCents > 0 && input.amountCents > maximumAmountCents) {
+    return false;
+  }
+
+  if (
+    input.providerItemId &&
+    rule.providerItemId &&
+    input.providerItemId !== rule.providerItemId
+  ) {
+    return false;
+  }
+
+  if (
+    input.providerAccountId &&
+    rule.providerAccountId &&
+    input.providerAccountId !== rule.providerAccountId
+  ) {
+    return false;
+  }
+
+  const match = rule.match || {};
+  const patterns = [
+    match.employerNamePattern,
+    match.transactionNamePattern,
+  ].filter(Boolean);
+
+  return patterns.length === 0
+    ? true
+    : patterns.some((pattern) => textMatchesRulePattern(input.employerName, pattern));
+}
+
+async function findMatchingPaycheckRule(input, env = process.env) {
+  const lookup = await loadActivePaycheckDetectionRules(
+    {
+      householdId: input.householdId,
+      providerName: input.providerName || "plaid",
+    },
+    env,
+  );
+
+  if (persistenceFailed(lookup)) {
+    return {
+      error: {
+        body: {
+          error: "Paycheck detection rules could not be loaded.",
+          lookup,
+          service: "payshield-paycheck-detection",
+        },
+        status: 503,
+      },
+    };
+  }
+
+  const rules = lookup.rules || [];
+
+  if (rules.length === 0) {
+    return {
+      lookup,
+      rule: null,
+    };
+  }
+
+  const rule = rules.find((candidate) => paycheckRuleMatches(candidate, input));
+
+  if (!rule) {
+    return {
+      error: {
+        body: {
+          amountCents: input.amountCents,
+          employerName: input.employerName,
+          error:
+            "Paycheck did not match an active payroll rule. Update detection setup before posting the split.",
+          lookup,
+          ruleCount: rules.length,
+          service: "payshield-paycheck-detection",
+        },
+        status: 409,
+      },
+    };
+  }
+
+  return {
+    lookup,
+    rule,
+  };
+}
+
+export async function savePaycheckDetectionRule(payload, env = process.env) {
+  const actor = actorFromPayload(payload);
+  const ruleName = cleanText(payload?.ruleName, 80);
+  const employerNamePattern = cleanRulePattern(payload?.employerNamePattern, 100);
+  const transactionNamePattern = cleanRulePattern(
+    payload?.transactionNamePattern,
+    160,
+  );
+  const minimumAmountCents = toIntegerCents(payload?.minimumAmountCents, {
+    max: 2_000_000,
+    min: 1,
+  });
+  const maximumAmountProvided =
+    payload?.maximumAmountCents !== undefined &&
+    payload?.maximumAmountCents !== null &&
+    payload?.maximumAmountCents !== "";
+  const maximumAmountCents = maximumAmountProvided
+    ? toIntegerCents(payload?.maximumAmountCents, {
+        max: 2_000_000,
+        min: 1,
+      })
+    : null;
+  const priority = toIntegerCents(payload?.priority ?? 100, {
+    max: 1000,
+    min: 1,
+  });
+  const providerName = cleanText(payload?.providerName, 40).toLowerCase() || "plaid";
+  const providerItemId = cleanText(payload?.providerItemId, 160);
+  const providerAccountId = cleanText(payload?.providerAccountId, 160);
+  const status = normalizedPaycheckRuleStatus(payload?.status);
+  const expectedFrequency = normalizedPaycheckRuleFrequency(
+    payload?.expectedFrequency,
+  );
+
+  if (
+    !ruleName ||
+    (!employerNamePattern && !transactionNamePattern) ||
+    minimumAmountCents === null ||
+    priority === null ||
+    (maximumAmountProvided && maximumAmountCents === null)
+  ) {
+    return {
+      body: {
+        error:
+          "Provide ruleName, employerNamePattern or transactionNamePattern, minimumAmountCents, and valid optional maximumAmountCents.",
+        service: "payshield-paycheck-detection-rules",
+      },
+      status: 400,
+    };
+  }
+
+  if (maximumAmountCents !== null && maximumAmountCents <= minimumAmountCents) {
+    return {
+      body: {
+        error: "maximumAmountCents must be greater than minimumAmountCents.",
+        service: "payshield-paycheck-detection-rules",
+      },
+      status: 400,
+    };
+  }
+
+  const paidAccess = await requireActivePaidAccess(
+    env,
+    actor,
+    "paycheck detection setup",
+  );
+
+  if (!paidAccess.ok) {
+    return paidAccess.result;
+  }
+
+  let bankConnectionId = null;
+
+  if (providerItemId) {
+    const bankConnection = await loadBankConnectionForProvider(
+      {
+        providerAccountId: providerAccountId || null,
+        providerItemId,
+        providerName,
+      },
+      env,
+    );
+
+    if (persistenceFailed(bankConnection)) {
+      return {
+        body: {
+          error: "Bank connection lookup failed for paycheck detection rule.",
+          bankConnection,
+          service: "payshield-paycheck-detection-rules",
+        },
+        status: 503,
+      };
+    }
+
+    bankConnectionId = bankConnection.bankConnection?.id || null;
+  }
+
+  const idempotencyKey =
+    cleanText(payload?.idempotencyKey, 120) ||
+    `paycheck-rule-${slugify(ruleName)}-${providerName}`;
+  const rule = {
+    bankConnectionId,
+    expectedFrequency,
+    householdId: actor.householdId,
+    id: cleanText(payload?.id, 120) || null,
+    idempotencyKey,
+    maximumAmountCents,
+    minimumAmountCents,
+    employerNamePattern,
+    metadata: {
+      configuredBy: actor.id,
+      expectedFrequency,
+      source: "payshield_app",
+    },
+    priority,
+    providerAccountId,
+    providerItemId,
+    providerName,
+    ruleName,
+    status,
+    transactionNamePattern,
+  };
+  const persistence = await persistPaycheckDetectionRule(rule, env);
+
+  if (persistenceFailed(persistence)) {
+    return {
+      body: {
+        error: "Paycheck detection rule could not be persisted.",
+        persistence,
+        rule: modelPaycheckDetectionRule(rule),
+        service: "payshield-paycheck-detection-rules",
+      },
+      status: 503,
+    };
+  }
+
+  const persisted = persistence.persistence === "postgres";
+
+  return {
+    body: {
+      message: persisted
+        ? "Paycheck detection rule saved to durable core controls."
+        : "Paycheck detection rule validated. Durable automation requires the Postgres-backed core.",
+      persisted,
+      persistence,
+      rule: persistence.rule || modelPaycheckDetectionRule(rule),
+      service: "payshield-paycheck-detection-rules",
+    },
+    status: 200,
+  };
+}
+
 function getMoneyRailReadiness(env = process.env) {
   const neobank = getCoreReadiness(env, { coreOnline: true });
   const plaidConfigured = envPresent(env, "PLAID_CLIENT_ID") && envPresent(env, "PLAID_SECRET");
@@ -2707,6 +3016,28 @@ export async function detectPaycheck(payload, env = process.env) {
     return controls.error;
   }
 
+  const providerName = cleanText(payload?.providerName, 40).toLowerCase() || "plaid";
+  const providerItemId = cleanText(payload?.providerItemId || payload?.itemId, 160);
+  const providerAccountId = cleanText(
+    payload?.providerAccountId || payload?.accountId,
+    160,
+  );
+  const ruleMatch = await findMatchingPaycheckRule(
+    {
+      amountCents,
+      employerName,
+      householdId: actor.householdId,
+      providerAccountId,
+      providerItemId,
+      providerName,
+    },
+    env,
+  );
+
+  if (ruleMatch.error) {
+    return ruleMatch.error;
+  }
+
   const book = new LedgerBook();
   const entry = postPaycheckDeposit(book, controls.buckets, {
     amountCents,
@@ -2742,6 +3073,8 @@ export async function detectPaycheck(payload, env = process.env) {
   const persistence = await persistPaycheckDetection(
     {
       amountCents,
+      bankConnectionId: ruleMatch.rule?.bankConnectionId || null,
+      detectionRuleId: ruleMatch.rule?.id || null,
       employerName,
       householdId: actor.householdId,
       idempotencyKey: entry.idempotencyKey,
@@ -2771,12 +3104,14 @@ export async function detectPaycheck(payload, env = process.env) {
       householdId: actor.householdId,
       payload: {
         amountCents,
+        detectionRuleId: ruleMatch.rule?.id || null,
         employerName,
         idempotencyKey: entry.idempotencyKey,
         journalEntryId: entry.id,
+        payrollRuleName: ruleMatch.rule?.ruleName || null,
       },
       providerEventId: `paycheck:${entry.idempotencyKey}`,
-      providerName: readiness.plaidConfigured ? "plaid" : "payshield",
+      providerName,
       rail: readiness.plaidConfigured ? "transaction_sync" : "provider_webhook",
     },
     env,
@@ -2806,8 +3141,18 @@ export async function detectPaycheck(payload, env = process.env) {
       detection: {
         amountCents,
         employerName,
+        matchedRule: ruleMatch.rule
+          ? {
+              id: ruleMatch.rule.id,
+              ruleName: ruleMatch.rule.ruleName,
+            }
+          : null,
         mode: getMoneyRailReadiness(env).detectionMode,
         receivedAt: entry.metadata?.receivedAt,
+        ruleLookup: {
+          persistence: ruleMatch.lookup?.persistence || "memory",
+          ruleCount: ruleMatch.lookup?.rules?.length || 0,
+        },
       },
       ledgerEntry: entry,
       journalPersistence,
@@ -3894,7 +4239,10 @@ export async function handleProviderWebhook(payload, env = process.env) {
         amountCents: detection.amountCents,
         employerName: detection.employerName,
         idempotencyKey: detection.idempotencyKey,
+        providerAccountId: detection.providerAccountId,
         providerEventId: detection.providerEventId,
+        providerItemId: detection.itemId,
+        providerName,
         providerTransactionId: detection.providerTransactionId,
         receivedAt: detection.receivedAt,
       },
@@ -3918,6 +4266,7 @@ export async function handleProviderWebhook(payload, env = process.env) {
     processed.push({
       amountCents: detection.amountCents,
       employerName: detection.employerName,
+      matchedRule: result.body.detection?.matchedRule || null,
       providerTransactionId: detection.providerTransactionId,
       status: result.body.detection?.status || "split_posted",
     });

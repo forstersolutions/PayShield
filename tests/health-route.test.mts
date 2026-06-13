@@ -286,11 +286,11 @@ test("does not count a Postgres URL as ready until ledger schema is verified", a
 
   assert.equal(urlOnlyBody.neobank?.postgresConfigured, true);
   assert.equal(urlOnlyBody.neobank?.postgresSchemaVerified, false);
-  assert.equal(urlOnlyBody.neobank?.postgresSchemaVersion, "0006");
+  assert.equal(urlOnlyBody.neobank?.postgresSchemaVersion, "0007");
   assert.equal(urlOnlyRemaining.includes("postgres_ledger"), true);
 
   process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
-  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0006";
+  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0007";
 
   const verified = GET();
   const verifiedBody = await parseJson(verified);

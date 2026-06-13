@@ -5,6 +5,7 @@ import {
   createBillPayment,
   createBankLinkToken,
   createPayee,
+  savePaycheckDetectionRule,
   createTransferIntent,
   createUnlock,
   detectPaycheck,
@@ -322,6 +323,11 @@ export function createCoreServer() {
 
       if (request.method === "POST" && path === "/app/payees") {
         await withJsonBody(request, response, createPayee);
+        return;
+      }
+
+      if (request.method === "POST" && path === "/app/paychecks/rules") {
+        await withJsonBody(request, response, savePaycheckDetectionRule);
         return;
       }
 

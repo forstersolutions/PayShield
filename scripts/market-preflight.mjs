@@ -78,6 +78,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "docs/campaign-copy.md",
   "docs/legal-review-packet.md",
   "src/app/api/app/bill-payments/route.ts",
+  "src/app/api/app/paychecks/rules/route.ts",
   "src/app/api/health/route.ts",
   "src/app/components/bill-payment-panel.tsx",
   "src/app/components/site-footer.tsx",
@@ -108,6 +109,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "services/core/migrations/0004_commercial_money_rails.sql",
   "services/core/migrations/0005_money_decision_records.sql",
   "services/core/migrations/0006_provider_token_vault.sql",
+  "services/core/migrations/0007_paycheck_detection_rules.sql",
   "scripts/core-migrations.mjs",
   "SECURITY.md",
   ".dockerignore",
@@ -248,6 +250,9 @@ requireText("src/app/components/bill-payment-panel.tsx", "/api/app/bill-payments
 requireText("src/app/components/neobank-dashboard.tsx", "BillPaymentPanel");
 requireText("src/app/api/app/bill-payments/route.ts", "/api/app/bill-payments");
 requireText("src/app/api/app/bill-payments/route.ts", "simulateBillPayment");
+requireText("src/app/components/money-operations-panel.tsx", "Save detection rule");
+requireText("src/app/components/money-operations-panel.tsx", "/api/app/paychecks/rules");
+requireText("src/app/api/app/paychecks/rules/route.ts", "paycheck detection setup");
 requireText("src/app/lib/neobank/core-config.ts", "PAYSHIELD_CORE_API_URL");
 requireText("src/app/lib/neobank/core-config.ts", "VERCEL_ENV");
 requireText("src/app/lib/neobank/core-client.ts", "x-payshield-provider-signature");
@@ -261,10 +266,15 @@ requireText("services/core/migrations/0003_ledger_integrity.sql", "DEFERRABLE IN
 requireText("services/core/migrations/0003_ledger_integrity.sql", "prevent_posted_journal_mutation");
 requireText("services/core/migrations/0006_provider_token_vault.sql", "provider_token_secrets");
 requireText("services/core/migrations/0006_provider_token_vault.sql", "ciphertext TEXT NOT NULL");
+requireText("services/core/migrations/0007_paycheck_detection_rules.sql", "expected_frequency");
+requireText("services/core/migrations/0007_paycheck_detection_rules.sql", "idempotency_key");
+requireText("services/core/migrations/0007_paycheck_detection_rules.sql", "detection_rule_id");
 requireText("services/core/server.mjs", "/token-vault/plaid");
 requireText("services/core/server.mjs", "x-payshield-provider-signature");
 requireText("services/core/product.mjs", "receiveTokenVaultHandoff");
 requireText("services/core/product.mjs", "requireActivePaidAccess");
+requireText("services/core/product.mjs", "savePaycheckDetectionRule");
+requireText("services/core/product.mjs", "Paycheck did not match an active payroll rule");
 requireText("services/core/product.mjs", "extractProviderPaycheckDetections");
 requireText("services/core/product.mjs", "verifyProviderWebhookSignature");
 requireText(

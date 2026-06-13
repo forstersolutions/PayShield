@@ -19,6 +19,7 @@ import { POST as startOnboarding } from "../src/app/api/app/onboarding/start/rou
 import { GET as getOperations } from "../src/app/api/app/operations/route.ts";
 import { POST as createPayee } from "../src/app/api/app/payees/route.ts";
 import { POST as detectPaycheck } from "../src/app/api/app/paychecks/detect/route.ts";
+import { POST as savePaycheckRule } from "../src/app/api/app/paychecks/rules/route.ts";
 import { POST as createTransfer } from "../src/app/api/app/transfers/route.ts";
 import { POST as unlockBucket } from "../src/app/api/app/unlocks/route.ts";
 import { POST as providerWebhook } from "../src/app/api/provider/webhooks/route.ts";
@@ -380,6 +381,17 @@ test("money workflows require paid access when commercial billing is configured 
     ],
     ["provider onboarding", () => startOnboarding()],
     [
+      "paycheck detection setup",
+      () =>
+        savePaycheckRule(
+          makeRequest("/api/app/paychecks/rules", {
+            employerNamePattern: "ACME PAYROLL",
+            minimumAmountCents: 150_000,
+            ruleName: "ACME payroll",
+          }),
+        ),
+    ],
+    [
       "paycheck detection",
       () =>
         detectPaycheck(
@@ -503,6 +515,45 @@ test("paycheck detection posts a split before safe spend", async () => {
   assert.equal(body.protectedCents, 155_000);
   assert.equal(body.safeToSpendCents, 145_000);
   assert.equal(entry.type, "paycheck_deposit");
+});
+
+test("paycheck detection rule route validates recurring payroll setup", async () => {
+  const response = await savePaycheckRule(
+    makeRequest("/api/app/paychecks/rules", {
+      employerNamePattern: "ACME PAYROLL",
+      expectedFrequency: "biweekly",
+      idempotencyKey: "route-rule-acme-payroll",
+      maximumAmountCents: 250_000,
+      minimumAmountCents: 150_000,
+      ruleName: "ACME payroll",
+    }),
+  );
+  const body = await parseJson(response);
+  const rule = body.rule as Record<string, unknown>;
+  const amountRange = rule.amountRangeCents as Record<string, unknown>;
+
+  assert.equal(response.status, 200);
+  assert.equal(body.service, "payshield-paycheck-detection-rules");
+  assert.equal(body.persisted, false);
+  assert.equal(rule.ruleName, "ACME payroll");
+  assert.equal(rule.expectedFrequency, "biweekly");
+  assert.equal(amountRange.min, 150_000);
+
+  const invalid = await savePaycheckRule(
+    makeRequest("/api/app/paychecks/rules", {
+      employerNamePattern: "ACME PAYROLL",
+      maximumAmountCents: 150_000,
+      minimumAmountCents: 150_000,
+      ruleName: "Invalid payroll",
+    }),
+  );
+  const invalidBody = await parseJson(invalid);
+
+  assert.equal(invalid.status, 400);
+  assert.equal(
+    invalidBody.error,
+    "maximumAmountCents must be greater than minimumAmountCents.",
+  );
 });
 
 test("transfer route validates bucket funds and returns provider gate", async () => {

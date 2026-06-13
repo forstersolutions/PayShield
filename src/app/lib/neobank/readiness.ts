@@ -1,7 +1,7 @@
 import type { NeobankReadiness, NeobankReadinessGate } from "./types.ts";
 import { getCoreServiceConfig } from "./core-config.ts";
 
-export const CORE_LEDGER_SCHEMA_VERSION = "0006";
+export const CORE_LEDGER_SCHEMA_VERSION = "0007";
 
 function envTrue(name: string) {
   return process.env[name]?.trim().toLowerCase() === "true";

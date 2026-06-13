@@ -21,6 +21,7 @@ export function createHouseholdOperationsPacket(session?: AppSession) {
     cardDecisions: [],
     journalEntries: snapshot.ledgerEntries,
     moneyRailEvents: [],
+    paycheckDetectionRules: [],
     paycheckDetections: [],
     transferIntents: [],
     unlockRequests: [],

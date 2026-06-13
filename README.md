@@ -90,6 +90,9 @@ events for customizable protected money rules.
 `services/core/migrations/0006_provider_token_vault.sql` adds encrypted
 provider-token custody records and vault events so linked-bank access tokens are
 stored only inside the dedicated core ledger database.
+`services/core/migrations/0007_paycheck_detection_rules.sql` makes recurring
+payroll detection rules durable, idempotent, provider-account-aware operational
+records and links posted paycheck detections back to the matched payroll rule.
 
 The app exposes the planned API surface now:
 
@@ -108,6 +111,7 @@ POST /api/app/bank-link/exchange
 POST /api/token-vault/plaid
 POST /api/app/buckets
 POST /api/app/bank-connections
+POST /api/app/paychecks/rules
 POST /api/app/paychecks/detect
 POST /api/app/transfers
 POST /api/app/payees

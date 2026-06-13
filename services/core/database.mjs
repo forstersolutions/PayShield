@@ -209,6 +209,31 @@ function payeeFromRow(row) {
   };
 }
 
+function paycheckDetectionRuleFromRow(row = {}) {
+  return {
+    amountRangeCents: {
+      max: row.maximum_amount_cents ? centsNumber(row.maximum_amount_cents) : null,
+      min: row.minimum_amount_cents ? centsNumber(row.minimum_amount_cents) : null,
+    },
+    bankConnectionId: row.bank_connection_id || null,
+    createdAt: timestampString(row.created_at),
+    expectedFrequency: row.expected_frequency || "unknown",
+    id: row.id,
+    idempotencyKey: row.idempotency_key || null,
+    match: {
+      employerNamePattern: row.employer_name_pattern || null,
+      transactionNamePattern: row.transaction_name_pattern || null,
+    },
+    priority: Number(row.priority || 100),
+    providerAccountId: row.provider_account_id || null,
+    providerItemId: row.provider_item_id || null,
+    providerName: row.provider_name || "plaid",
+    ruleName: row.rule_name,
+    status: row.status || "active",
+    updatedAt: timestampString(row.updated_at),
+  };
+}
+
 function ledgerAccountShape(householdId, accountId) {
   const bucketId = bucketIdFromLedgerAccount(accountId);
 
@@ -1433,6 +1458,7 @@ export async function loadBankConnectionForProvider(input, env = process.env) {
     const result = await pool.query(
       `
         SELECT
+          id,
           household_id,
           user_id,
           provider_name,
@@ -1460,6 +1486,7 @@ export async function loadBankConnectionForProvider(input, env = process.env) {
       bankConnection: row
         ? {
             householdId: row.household_id,
+            id: row.id,
             institutionName: row.institution_name,
             providerAccountId: row.provider_account_id,
             providerItemId: row.provider_item_id,
@@ -1656,6 +1683,8 @@ export async function persistPaycheckDetection(input, env = process.env) {
         INSERT INTO paycheck_detections (
           id,
           household_id,
+          bank_connection_id,
+          detection_rule_id,
           provider_event_id,
           provider_transaction_id,
           employer_name,
@@ -1665,13 +1694,15 @@ export async function persistPaycheckDetection(input, env = process.env) {
           idempotency_key,
           status
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7::timestamptz, $8, $9, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz, $10, $11, $12)
         ON CONFLICT (household_id, idempotency_key) DO NOTHING
         RETURNING id
       `,
       [
         id,
         input.householdId,
+        input.bankConnectionId || null,
+        input.detectionRuleId || null,
         input.providerEventId || null,
         input.providerTransactionId || null,
         input.employerName,
@@ -1683,11 +1714,198 @@ export async function persistPaycheckDetection(input, env = process.env) {
       ],
     );
 
+    if (input.detectionRuleId) {
+      await pool.query(
+        `
+          UPDATE paycheck_detection_rules
+          SET last_matched_at = now(), updated_at = now()
+          WHERE id = $1 AND household_id = $2
+        `,
+        [input.detectionRuleId, input.householdId],
+      );
+    }
+
     return {
       persisted: true,
       persistence: "postgres",
       postgresId: id,
       replayed: result.rowCount === 0,
+    };
+  } catch (error) {
+    return persistenceFailed(error);
+  }
+}
+
+export async function loadActivePaycheckDetectionRules(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return {
+      ...persistenceSkipped("paycheck detection rules"),
+      rules: [],
+    };
+  }
+
+  try {
+    const result = await pool.query(
+      `
+        SELECT
+          id,
+          rule_name,
+          provider_name,
+          employer_name_pattern,
+          transaction_name_pattern,
+          minimum_amount_cents,
+          maximum_amount_cents,
+          status,
+          provider_item_id,
+          provider_account_id,
+          bank_connection_id,
+          expected_frequency,
+          priority,
+          idempotency_key,
+          created_at,
+          updated_at
+        FROM paycheck_detection_rules
+        WHERE household_id = $1
+          AND status = 'active'
+          AND provider_name = $2
+        ORDER BY priority ASC, updated_at DESC, created_at DESC
+        LIMIT 50
+      `,
+      [input.householdId, input.providerName || "plaid"],
+    );
+
+    return {
+      persisted: true,
+      persistence: "postgres",
+      rules: result.rows.map((row) => paycheckDetectionRuleFromRow(row)),
+    };
+  } catch (error) {
+    return persistenceFailed(error);
+  }
+}
+
+export async function persistPaycheckDetectionRule(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return {
+      ...persistenceSkipped("paycheck detection rule"),
+      rule: {
+        amountRangeCents: {
+          max: input.maximumAmountCents || null,
+          min: input.minimumAmountCents || null,
+        },
+        expectedFrequency: input.expectedFrequency,
+        bankConnectionId: input.bankConnectionId || null,
+        id: input.id,
+        idempotencyKey: input.idempotencyKey,
+        match: {
+          employerNamePattern: input.employerNamePattern || null,
+          transactionNamePattern: input.transactionNamePattern || null,
+        },
+        priority: input.priority,
+        providerAccountId: input.providerAccountId || null,
+        providerItemId: input.providerItemId || null,
+        providerName: input.providerName,
+        ruleName: input.ruleName,
+        status: input.status,
+      },
+    };
+  }
+
+  try {
+    const id =
+      input.id ||
+      recordId(
+        "paycheck_detection_rule",
+        input.householdId,
+        input.idempotencyKey,
+      );
+    const result = await pool.query(
+      `
+        INSERT INTO paycheck_detection_rules (
+          id,
+          household_id,
+          rule_name,
+          provider_name,
+          employer_name_pattern,
+          transaction_name_pattern,
+          minimum_amount_cents,
+          maximum_amount_cents,
+          status,
+          bank_connection_id,
+          provider_item_id,
+          provider_account_id,
+          expected_frequency,
+          priority,
+          metadata,
+          idempotency_key
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $16)
+        ON CONFLICT (household_id, idempotency_key)
+        WHERE idempotency_key IS NOT NULL
+        DO UPDATE SET
+          rule_name = EXCLUDED.rule_name,
+          provider_name = EXCLUDED.provider_name,
+          employer_name_pattern = EXCLUDED.employer_name_pattern,
+          transaction_name_pattern = EXCLUDED.transaction_name_pattern,
+          minimum_amount_cents = EXCLUDED.minimum_amount_cents,
+          maximum_amount_cents = EXCLUDED.maximum_amount_cents,
+          status = EXCLUDED.status,
+          bank_connection_id = EXCLUDED.bank_connection_id,
+          provider_item_id = EXCLUDED.provider_item_id,
+          provider_account_id = EXCLUDED.provider_account_id,
+          expected_frequency = EXCLUDED.expected_frequency,
+          priority = EXCLUDED.priority,
+          metadata = EXCLUDED.metadata,
+          updated_at = now()
+        RETURNING
+          id,
+          rule_name,
+          provider_name,
+          employer_name_pattern,
+          transaction_name_pattern,
+          minimum_amount_cents,
+          maximum_amount_cents,
+          status,
+          provider_item_id,
+          provider_account_id,
+          bank_connection_id,
+          expected_frequency,
+          priority,
+          idempotency_key,
+          created_at,
+          updated_at
+      `,
+      [
+        id,
+        input.householdId,
+        input.ruleName,
+        input.providerName,
+        input.employerNamePattern || null,
+        input.transactionNamePattern || null,
+        input.minimumAmountCents || null,
+        input.maximumAmountCents || null,
+        input.status,
+        input.bankConnectionId || null,
+        input.providerItemId || null,
+        input.providerAccountId || null,
+        input.expectedFrequency,
+        input.priority,
+        JSON.stringify(input.metadata || {}),
+        input.idempotencyKey,
+      ],
+    );
+    const row = result.rows[0];
+
+    return {
+      persisted: true,
+      persistence: "postgres",
+      postgresId: row?.id ?? id,
+      replayed: false,
+      rule: paycheckDetectionRuleFromRow(row),
     };
   } catch (error) {
     return persistenceFailed(error);
@@ -1764,6 +1982,7 @@ export async function loadOperationalAudit(householdId, env = process.env) {
       bankConnections,
       commercialSubscriptions,
       billingEvents,
+      paycheckDetectionRules,
       paycheckDetections,
       transferIntents,
       billPayments,
@@ -1788,6 +2007,31 @@ export async function loadOperationalAudit(householdId, env = process.env) {
           FROM bank_connections
           WHERE household_id = $1
           ORDER BY updated_at DESC, created_at DESC
+          LIMIT 25
+        `,
+        [householdId],
+      ),
+      pool.query(
+        `
+          SELECT
+            id,
+            rule_name,
+            provider_name,
+            employer_name_pattern,
+            transaction_name_pattern,
+            minimum_amount_cents,
+            maximum_amount_cents,
+            status,
+            provider_item_id,
+            provider_account_id,
+            expected_frequency,
+            priority,
+            idempotency_key,
+            created_at,
+            updated_at
+          FROM paycheck_detection_rules
+          WHERE household_id = $1
+          ORDER BY priority ASC, updated_at DESC, created_at DESC
           LIMIT 25
         `,
         [householdId],
@@ -1834,6 +2078,8 @@ export async function loadOperationalAudit(householdId, env = process.env) {
       pool.query(
         `
           SELECT
+            bank_connection_id,
+            detection_rule_id,
             provider_event_id,
             provider_transaction_id,
             employer_name,
@@ -2075,9 +2321,14 @@ export async function loadOperationalAudit(householdId, env = process.env) {
         providerName: row.provider_name,
         rail: row.rail,
       })),
+      paycheckDetectionRules: paycheckDetectionRules.rows.map((row) =>
+        paycheckDetectionRuleFromRow(row),
+      ),
       paycheckDetections: paycheckDetections.rows.map((row) => ({
         amountCents: centsNumber(row.amount_cents),
+        bankConnectionId: row.bank_connection_id,
         createdAt: timestampString(row.created_at),
+        detectionRuleId: row.detection_rule_id,
         employerName: row.employer_name,
         idempotencyKey: row.idempotency_key,
         journalEntryId: row.journal_entry_id,
