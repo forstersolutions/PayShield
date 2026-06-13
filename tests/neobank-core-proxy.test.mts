@@ -89,7 +89,9 @@ test("app API delegates balances to configured core service with token and sessi
     (request, response) => {
       captured.authorization = request.headers.authorization;
       captured.authMode = request.headers["x-payshield-auth-mode"];
+      captured.userEmail = request.headers["x-payshield-user-email"];
       captured.method = request.method;
+      captured.userName = request.headers["x-payshield-user-name"];
       captured.url = request.url;
       captured.userId = request.headers["x-payshield-user-id"];
 
@@ -119,7 +121,9 @@ test("app API delegates balances to configured core service with token and sessi
       assert.equal(body.safeToSpendCents, 12_345);
       assert.equal(captured.authorization, "Bearer core-secret");
       assert.equal(captured.authMode, "demo");
+      assert.equal(captured.userEmail, "private-household@example.com");
       assert.equal(captured.userId, "user_demo_001");
+      assert.equal(captured.userName, "PayShield household");
       assert.equal(captured.method, "GET");
       assert.equal(captured.url, "/api/app/balances");
     },

@@ -19,6 +19,7 @@ import { POST as detectPaycheck } from "../src/app/api/app/paychecks/detect/rout
 import { POST as createTransfer } from "../src/app/api/app/transfers/route.ts";
 import { POST as unlockBucket } from "../src/app/api/app/unlocks/route.ts";
 import { POST as providerWebhook } from "../src/app/api/provider/webhooks/route.ts";
+import { createCommercialCheckoutSession } from "../src/app/lib/commercial/billing.ts";
 
 const endpoint = "https://payshield.test";
 
@@ -80,6 +81,8 @@ test("me endpoint reports private app state and gated live money", async () => {
   assert.equal(response.status, 200);
   assert.deepEqual(body.auth, {
     authMode: "demo",
+    email: "private-household@example.com",
+    name: "PayShield household",
     userId: "user_demo_001",
   });
   assert.equal((body.profile as Record<string, unknown>).access, "approved");
@@ -187,6 +190,53 @@ test("paid access checkout can return a configured payment link", async () => {
 
   assert.equal(response.status, 200);
   assert.equal(body.url, "https://buy.stripe.com/test_123");
+});
+
+test("paid access checkout session uses the authenticated customer identity", async () => {
+  process.env.PAYSHIELD_COMMERCIAL_PRICE_ID = "price_payShield";
+  process.env.STRIPE_SECRET_KEY = "sk_test_payShield";
+  const originalFetch = globalThis.fetch;
+  let capturedBody = "";
+  let capturedStripeVersion = "";
+
+  globalThis.fetch = async (_input, init) => {
+    capturedBody = String(init?.body ?? "");
+    capturedStripeVersion = String(
+      (init?.headers as Record<string, string>)?.["stripe-version"] ?? "",
+    );
+
+    return new Response(
+      JSON.stringify({
+        id: "cs_test_household",
+        url: "https://checkout.stripe.com/c/pay/cs_test_household",
+      }),
+      {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      },
+    );
+  };
+
+  try {
+    const result = await createCommercialCheckoutSession({
+      email: "customer@example.com",
+      origin: endpoint,
+      userId: "user_clerk_123",
+    });
+    const form = new URLSearchParams(capturedBody);
+
+    assert.equal(result.status, 200);
+    assert.equal(capturedStripeVersion, "2026-02-25.clover");
+    assert.equal(form.get("customer_email"), "customer@example.com");
+    assert.equal(form.get("client_reference_id"), "user_clerk_123");
+    assert.equal(form.get("metadata[payshield_user_id]"), "user_clerk_123");
+    assert.equal(
+      form.get("subscription_data[metadata][payshield_user_id]"),
+      "user_clerk_123",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("billing webhook fails closed without Stripe signing secret", async () => {

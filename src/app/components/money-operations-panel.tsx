@@ -4,9 +4,12 @@ import {
   ArrowRightLeft,
   BadgeDollarSign,
   CheckCircle2,
+  CreditCard,
+  Database,
   Landmark,
   Link2,
   Loader2,
+  LockKeyhole,
   Radar,
   ShieldAlert,
 } from "lucide-react";
@@ -43,6 +46,7 @@ type OperationsReadiness = {
     paidAccessReady?: boolean;
     priceLabel?: string;
     remainingGates?: string[];
+    webhookEndpointPath?: string;
   };
   moneyRails?: {
     bankLinkReady?: boolean;
@@ -238,6 +242,61 @@ function RuntimeLane({
   );
 }
 
+function OperatorStage({
+  action,
+  icon: Icon,
+  outcome,
+  step,
+  status,
+  title,
+  tone,
+}: {
+  action: string;
+  icon: LucideIcon;
+  outcome: string;
+  step: string;
+  status: string;
+  title: string;
+  tone: "attention" | "ready";
+}) {
+  return (
+    <article className="rounded-[8px] border border-white/10 bg-black/35 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <span
+          className={`grid size-10 place-items-center rounded-[8px] border ${
+            tone === "ready"
+              ? "border-[#48e6b2]/30 bg-[#48e6b2]/10 text-[#68f0c2]"
+              : "border-[#ffb237]/30 bg-[#ffb237]/10 text-[#ffcf72]"
+          }`}
+        >
+          <Icon className="size-5" aria-hidden="true" />
+        </span>
+        <span className="rounded-[8px] border border-white/10 bg-white/[0.04] px-2.5 py-1 font-mono text-xs font-black text-[#d9dde5]">
+          {step}
+        </span>
+      </div>
+      <h4 className="mt-4 text-base font-black text-white">{title}</h4>
+      <p className="mt-2 text-sm leading-6 text-[#aab3c2]">{action}</p>
+      <div className="mt-4 grid gap-2 rounded-[8px] border border-white/10 bg-black/35 p-3">
+        <div className="grid grid-cols-[5.4rem_1fr] gap-3 text-xs">
+          <span className="font-black uppercase text-[#8f99aa]">Result</span>
+          <span className="font-bold text-[#d9dde5]">{outcome}</span>
+        </div>
+        <div className="grid grid-cols-[5.4rem_1fr] gap-3 text-xs">
+          <span className="font-black uppercase text-[#8f99aa]">Status</span>
+          <span
+            className={`font-black ${
+              tone === "ready" ? "text-[#68f0c2]" : "text-[#ffe4ad]"
+            }`}
+          >
+            {status}
+          </span>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export function MoneyOperationsPanel({
   buckets,
   payees,
@@ -281,6 +340,88 @@ export function MoneyOperationsPanel({
     ],
     [payees],
   );
+  const operationStages = [
+    {
+      action: "POST /api/app/billing/checkout",
+      icon: BadgeDollarSign,
+      outcome: "Subscription checkout URL and paid-access webhook record",
+      status: readiness?.commercial?.paidAccessReady
+        ? "Paid access ready"
+        : readiness?.commercial?.checkoutConfigured
+          ? "Checkout ready"
+          : compactGateList(
+              readiness?.commercial?.remainingGates,
+              "Add Stripe keys",
+            ),
+      step: "01",
+      title: "Charge the household",
+      tone: readiness?.commercial?.checkoutConfigured ? "ready" : "attention",
+    },
+    {
+      action: "Clerk subject -> PayShield household profile",
+      icon: LockKeyhole,
+      outcome: "User-scoped buckets, payees, detections, and transfers",
+      status: readiness?.neobank?.backendConfigured
+        ? readiness?.neobank?.postgresSchemaVerified
+          ? "Durable profile"
+          : "Core online"
+        : "Connect core",
+      step: "02",
+      title: "Scope the account",
+      tone: readiness?.neobank?.backendConfigured ? "ready" : "attention",
+    },
+    {
+      action: "POST /api/app/bank-link/token -> Plaid Link",
+      icon: Link2,
+      outcome: "Bank connection record with vault reference for detection",
+      status: readiness?.moneyRails?.bankLinkReady
+        ? "Bank link ready"
+        : readiness?.moneyRails?.plaidConfigured
+          ? "Vault next"
+          : compactGateList(
+              readiness?.moneyRails?.remainingGates,
+              "Add Plaid keys",
+            ),
+      step: "03",
+      title: "Connect the bank source",
+      tone: readiness?.moneyRails?.bankLinkReady ? "ready" : "attention",
+    },
+    {
+      action: "POST /api/app/paychecks/detect",
+      icon: Radar,
+      outcome: "Paycheck journal entry, protected split, Safe to Spend",
+      status: readiness?.moneyRails?.paycheckDetectionReady
+        ? "Auto detection"
+        : "Provider/manual event",
+      step: "04",
+      title: "Detect income",
+      tone: "ready",
+    },
+    {
+      action: "POST /api/app/buckets and /api/app/payees",
+      icon: Database,
+      outcome: "Custom bucket rules and approved biller controls",
+      status: readiness?.neobank?.postgresSchemaVerified
+        ? "Postgres ledger"
+        : "Rule engine active",
+      step: "05",
+      title: "Protect the ledger",
+      tone: "ready",
+    },
+    {
+      action: "POST /api/app/transfers and /api/card/authorize",
+      icon: CreditCard,
+      outcome: "Transfer intent or card decision against protected funds",
+      status: readiness?.moneyRails?.transferReady
+        ? "Money movement ready"
+        : readiness?.moneyRails?.transferConfigured
+          ? "Approvals next"
+          : "Decision engine active",
+      step: "06",
+      title: "Move or decline",
+      tone: readiness?.moneyRails?.transferReady ? "ready" : "attention",
+    },
+  ] satisfies Array<Parameters<typeof OperatorStage>[0]>;
 
   useEffect(() => {
     let cancelled = false;
@@ -549,13 +690,13 @@ export function MoneyOperationsPanel({
               Money operations
             </p>
             <h2 className="mt-4 text-3xl font-black leading-tight text-white sm:text-4xl">
-              Revenue, bank connection, paycheck detection, and protected transfers.
+              The revenue and money-control operating lane.
             </h2>
             <p className="mt-4 max-w-2xl text-base leading-7 text-[#c9d0da]">
-              This is the operating lane for real-world paycheck control:
-              activate paid access, connect the household source, identify
-              income, split it by rules, and validate transfer requests against
-              the protected ledger.
+              This is how PayShield makes money and controls the paycheck:
+              charge the household, bind that customer to an account, connect
+              the bank source, detect income, split the ledger, and validate
+              every transfer or card decision against protected funds.
             </p>
           </div>
 
@@ -623,6 +764,44 @@ export function MoneyOperationsPanel({
                 <StateMessage state={bankState} />
               </div>
             </div>
+          </div>
+        </div>
+
+        <div className="brand-panel rounded-[8px] p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="brand-kicker">Commercial operating sequence</p>
+              <h3 className="mt-1 text-2xl font-black text-white">
+                Charge first. Connect once. Protect every paycheck after that.
+              </h3>
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-[#aab3c2]">
+                Each stage creates a business artifact: checkout session,
+                bank-link token, paycheck split record, transfer intent, or
+                ledger decision. Provider credentials and approvals determine
+                whether the stage executes with the provider or records a
+                controlled operations intent.
+              </p>
+            </div>
+            <div className="grid min-w-[12rem] gap-2 rounded-[8px] border border-[#48e6b2]/25 bg-[#48e6b2]/10 p-3">
+              <p className="brand-kicker">Revenue model</p>
+              <p className="text-2xl font-black text-white">
+                {readiness?.commercial?.priceLabel ?? "$19/month"}
+              </p>
+              <p className="text-xs font-bold text-[#c9d0da]">
+                {readiness?.commercial?.mode === "payment_link"
+                  ? "Stripe payment link"
+                  : "Stripe Checkout"}{" "}
+                {"->"}{" "}
+                {readiness?.commercial?.webhookEndpointPath ??
+                  "/api/app/billing/webhook"}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {operationStages.map((stage) => (
+              <OperatorStage key={stage.step} {...stage} />
+            ))}
           </div>
         </div>
 

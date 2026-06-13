@@ -68,6 +68,23 @@ function assertCoreAuthorized(request) {
   return { ok: true };
 }
 
+function cleanHeader(value, maxLength = 160) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value.trim().replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").slice(0, maxLength);
+}
+
+function requestActor(request) {
+  return {
+    authMode: cleanHeader(request.headers["x-payshield-auth-mode"], 40),
+    email: cleanHeader(request.headers["x-payshield-user-email"], 160),
+    name: cleanHeader(request.headers["x-payshield-user-name"], 120),
+    userId: cleanHeader(request.headers["x-payshield-user-id"], 160),
+  };
+}
+
 async function readJson(request) {
   let bytes = 0;
   const chunks = [];
@@ -112,7 +129,14 @@ async function withJsonBody(request, response, handler) {
     return;
   }
 
-  const result = await handler(parsed.value);
+  const value =
+    parsed.value && typeof parsed.value === "object" && !Array.isArray(parsed.value)
+      ? {
+          ...parsed.value,
+          __payshieldActor: requestActor(request),
+        }
+      : parsed.value;
+  const result = await handler(value);
   json(response, result.status, result.body);
 }
 
@@ -159,19 +183,21 @@ export function createCoreServer() {
       return;
     }
 
+    const actor = requestActor(request);
+
     try {
       if (request.method === "GET" && path === "/app/me") {
-        json(response, 200, getProfile());
+        json(response, 200, getProfile(process.env, actor));
         return;
       }
 
       if (request.method === "GET" && path === "/app/balances") {
-        await writeResult(response, getBalances());
+        await writeResult(response, getBalances(process.env, actor));
         return;
       }
 
       if (request.method === "GET" && path === "/app/buckets") {
-        await writeResult(response, getBucketProfile());
+        await writeResult(response, getBucketProfile(process.env, actor));
         return;
       }
 
@@ -196,7 +222,7 @@ export function createCoreServer() {
       }
 
       if (request.method === "POST" && path === "/app/onboarding/start") {
-        await writeResult(response, startOnboarding());
+        await writeResult(response, startOnboarding(process.env, actor));
         return;
       }
 

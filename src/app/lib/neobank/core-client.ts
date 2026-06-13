@@ -64,6 +64,14 @@ function safeCoreError(message: string, status = 502) {
   );
 }
 
+function cleanHeaderValue(value: string | undefined, maxLength: number) {
+  return value
+    ?.replace(/[\r\n]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength);
+}
+
 export async function forwardCoreRequest(input: ForwardCoreInput) {
   const config = getCoreServiceConfig();
 
@@ -103,6 +111,17 @@ export async function forwardCoreRequest(input: ForwardCoreInput) {
   if (input.session) {
     headers.set("x-payshield-auth-mode", input.session.authMode);
     headers.set("x-payshield-user-id", input.session.userId);
+
+    const email = cleanHeaderValue(input.session.email, 160);
+    const name = cleanHeaderValue(input.session.name, 120);
+
+    if (email) {
+      headers.set("x-payshield-user-email", email);
+    }
+
+    if (name) {
+      headers.set("x-payshield-user-name", name);
+    }
   }
 
   let response: Response;

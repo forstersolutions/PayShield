@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server.js";
 import { createCommercialCheckoutSession } from "../../../../lib/commercial/billing.ts";
 import { getAppSession } from "../../../../lib/neobank/auth.ts";
-import { demoUser } from "../../../../lib/neobank/demo-state.ts";
 
 function cleanPath(value: unknown, fallback: string) {
   if (typeof value !== "string") {
@@ -26,7 +25,7 @@ export async function POST(request: NextRequest) {
     };
     const result = await createCommercialCheckoutSession({
       cancelPath: cleanPath(payload.cancelPath, "/app?billing=cancelled"),
-      email: demoUser.email,
+      email: session.email,
       origin: request.nextUrl.origin,
       successPath: cleanPath(payload.successPath, "/app?billing=active"),
       userId: session.userId,

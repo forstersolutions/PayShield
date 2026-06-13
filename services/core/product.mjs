@@ -320,8 +320,41 @@ function safeObject(value) {
 
 function safeString(value, maxLength = 160) {
   return typeof value === "string" && value.trim()
-    ? value.trim().replace(/\s+/g, " ").slice(0, maxLength)
+    ? value.trim().replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").slice(0, maxLength)
     : "";
+}
+
+function householdIdForUser(userId) {
+  if (userId === demoUser.id) {
+    return demoUser.householdId;
+  }
+
+  const suffix = userId.replace(/[^A-Za-z0-9:_-]/g, "_").slice(0, 96);
+
+  return `household_${suffix || "user"}`;
+}
+
+function allowedProfileAccess(value) {
+  return ["approved", "blocked", "pending"].includes(value) ? value : "";
+}
+
+function normalizeActor(value = {}) {
+  const userId = safeString(value.userId || value.id, 160) || demoUser.id;
+
+  return {
+    email: safeString(value.email, 160) || demoUser.email,
+    householdId:
+      safeString(value.householdId, 160) || householdIdForUser(userId),
+    id: userId,
+    kycStatus: safeString(value.kycStatus, 40) || demoUser.kycStatus,
+    name: safeString(value.name, 120) || demoUser.name,
+    profileAccess:
+      allowedProfileAccess(value.profileAccess) || demoUser.profileAccess,
+  };
+}
+
+function actorFromPayload(payload) {
+  return normalizeActor(safeObject(payload?.__payshieldActor));
 }
 
 function bucketIdFromAccount(accountId) {
@@ -761,10 +794,16 @@ function unlockProtectedFunds(book, input) {
   return result;
 }
 
-function createNeobankSnapshot(book = createDemoLedgerBook(), env = process.env, controls = {}) {
+function createNeobankSnapshot(
+  book = createDemoLedgerBook(),
+  env = process.env,
+  controls = {},
+  actorInput = demoUser,
+) {
   const readiness = getCoreReadiness(env, { coreOnline: true });
   const buckets = controls.buckets || neobankBuckets;
   const payees = controls.payees || neobankPayees;
+  const actor = normalizeActor(actorInput);
 
   return {
     buckets: buildBucketBalances(book, buckets),
@@ -779,11 +818,11 @@ function createNeobankSnapshot(book = createDemoLedgerBook(), env = process.env,
       providerStatus: readiness.liveMoneyReady ? "live" : "gated",
       routingLast4: readiness.liveMoneyReady ? "0210" : "----",
     },
-    householdId: demoUser.householdId,
+    householdId: actor.householdId,
     ledgerEntries: book.allEntries(),
     payees,
     readiness,
-    user: demoUser,
+    user: actor,
   };
 }
 
@@ -830,10 +869,11 @@ function mergePayees(defaultPayees, persistedPayees) {
   return [...byId.values()];
 }
 
-async function loadOperationalControls(env = process.env) {
+async function loadOperationalControls(env = process.env, actorInput = demoUser) {
+  const actor = normalizeActor(actorInput);
   const [bucketPersistence, payeePersistence] = await Promise.all([
-    loadBucketProfile(demoUser.householdId, env),
-    loadPayees(demoUser.householdId, env),
+    loadBucketProfile(actor.householdId, env),
+    loadPayees(actor.householdId, env),
   ]);
 
   if (persistenceFailed(bucketPersistence) || persistenceFailed(payeePersistence)) {
@@ -1069,6 +1109,7 @@ export async function recordCommercialBillingEvent(payload, env = process.env) {
 
 export async function recordBankConnection(payload, env = process.env) {
   const readiness = getMoneyRailReadiness(env);
+  const actor = actorFromPayload(payload);
   const providerName = safeString(payload?.providerName, 40) || "plaid";
   const providerItemId = safeString(payload?.providerItemId || payload?.itemId, 160);
   const providerAccountId = safeString(payload?.providerAccountId || payload?.accountId, 160);
@@ -1097,7 +1138,7 @@ export async function recordBankConnection(payload, env = process.env) {
   const connection = {
     accountMask: safeString(payload?.accountMask, 16) || null,
     accountName: safeString(payload?.accountName, 80) || null,
-    householdId: demoUser.householdId,
+    householdId: actor.householdId,
     institutionName,
     products,
     providerAccountId,
@@ -1105,7 +1146,7 @@ export async function recordBankConnection(payload, env = process.env) {
     providerName,
     status: readiness.bankLinkReady ? "connected" : "error",
     tokenSecretRef,
-    userId: demoUser.id,
+    userId: actor.id,
   };
   const persistence = await persistBankConnection(connection, env);
 
@@ -1125,7 +1166,7 @@ export async function recordBankConnection(payload, env = process.env) {
   const auditPersistence = await persistMoneyRailEvent(
     {
       eventType: "bank_connection_recorded",
-      householdId: demoUser.householdId,
+      householdId: actor.householdId,
       payload: {
         accountMask: connection.accountMask,
         accountName: connection.accountName,
@@ -1172,8 +1213,9 @@ export async function recordBankConnection(payload, env = process.env) {
   };
 }
 
-export function getProfile(env = process.env) {
-  const snapshot = createNeobankSnapshot(undefined, env);
+export function getProfile(env = process.env, actorInput = demoUser) {
+  const actor = normalizeActor(actorInput);
+  const snapshot = createNeobankSnapshot(undefined, env, {}, actor);
 
   return {
     auth: {
@@ -1192,15 +1234,16 @@ export function getProfile(env = process.env) {
   };
 }
 
-export async function getBalances(env = process.env) {
-  const controls = await loadOperationalControls(env);
+export async function getBalances(env = process.env, actorInput = demoUser) {
+  const actor = normalizeActor(actorInput);
+  const controls = await loadOperationalControls(env, actor);
 
   if (controls.error) {
     return controls.error;
   }
 
   const book = createDemoLedgerBook(300_000, controls.buckets);
-  const snapshot = createNeobankSnapshot(book, env, controls);
+  const snapshot = createNeobankSnapshot(book, env, controls, actor);
   const safeSpend = snapshot.buckets.find((bucket) => bucket.id === "safe_spending");
 
   return {
@@ -1222,9 +1265,10 @@ export async function getBalances(env = process.env) {
   };
 }
 
-export async function getBucketProfile(env = process.env) {
-  const snapshot = createNeobankSnapshot(undefined, env);
-  const persistence = await loadBucketProfile(demoUser.householdId, env);
+export async function getBucketProfile(env = process.env, actorInput = demoUser) {
+  const actor = normalizeActor(actorInput);
+  const snapshot = createNeobankSnapshot(undefined, env, {}, actor);
+  const persistence = await loadBucketProfile(actor.householdId, env);
 
   if (persistenceFailed(persistence)) {
     return {
@@ -1293,6 +1337,8 @@ export async function getBucketProfile(env = process.env) {
 }
 
 export async function saveBucketProfile(payload, env = process.env) {
+  const actor = actorFromPayload(payload);
+
   if (payload?.action === "replace_profile") {
     const profile = normalizeBucketProfile(payload.buckets);
 
@@ -1308,14 +1354,14 @@ export async function saveBucketProfile(payload, env = process.env) {
     const protectedCents = profile.reduce((total, bucket) => total + bucket.targetCents, 0);
     const persistence = await persistBucketProfile(
       {
-        actorUserId: demoUser.id,
-        betaAccessStatus: demoUser.profileAccess,
+        actorUserId: actor.id,
+        betaAccessStatus: actor.profileAccess,
         buckets: profile,
-        householdId: demoUser.householdId,
+        householdId: actor.householdId,
         idempotencyKey: cleanText(payload.idempotencyKey, 120),
-        kycStatus: demoUser.kycStatus,
-        userEmail: demoUser.email,
-        userName: demoUser.name,
+        kycStatus: actor.kycStatus,
+        userEmail: actor.email,
+        userName: actor.name,
       },
       env,
     );
@@ -1381,16 +1427,16 @@ export async function saveBucketProfile(payload, env = process.env) {
   );
   const persistence = await persistBucketProfile(
     {
-      actorUserId: demoUser.id,
-      betaAccessStatus: demoUser.profileAccess,
+      actorUserId: actor.id,
+      betaAccessStatus: actor.profileAccess,
       buckets: modeledBuckets.filter((bucket) => bucket.id !== "safe_spending"),
-      householdId: demoUser.householdId,
+      householdId: actor.householdId,
       idempotencyKey:
         cleanText(payload.idempotencyKey, 120) || `bucket-target-${payload.bucketId}-${targetCents}`,
-      kycStatus: demoUser.kycStatus,
+      kycStatus: actor.kycStatus,
       payees: neobankPayees,
-      userEmail: demoUser.email,
-      userName: demoUser.name,
+      userEmail: actor.email,
+      userName: actor.name,
     },
     env,
   );
@@ -1426,10 +1472,11 @@ export async function saveBucketProfile(payload, env = process.env) {
   };
 }
 
-export function startOnboarding(env = process.env) {
+export function startOnboarding(env = process.env, actorInput = demoUser) {
   const readiness = getCoreReadiness(env, { coreOnline: true });
   const liveGate = assertLiveMoneyReady(readiness);
   const blocked = providerBlockedResult(readiness);
+  const actor = normalizeActor(actorInput);
 
   return {
     body: {
@@ -1460,7 +1507,7 @@ export function startOnboarding(env = process.env) {
       message: liveGate.ok
         ? "Onboarding started with the configured provider."
         : "Onboarding is queued. Provider activation is required before account, card, and transfer setup.",
-      profileAccess: demoUser.profileAccess,
+      profileAccess: actor.profileAccess,
     },
     status: liveGate.ok ? 200 : 423,
   };
@@ -1471,6 +1518,7 @@ function modeledPayeeId(name) {
 }
 
 export async function createPayee(payload, env = process.env) {
+  const actor = actorFromPayload(payload);
   const name = cleanText(payload?.name, 80);
   const maxCents = toIntegerCents(payload?.maxCents, { min: 1 });
 
@@ -1503,17 +1551,17 @@ export async function createPayee(payload, env = process.env) {
   };
   const persistence = await persistPayee(
     {
-      actorUserId: demoUser.id,
+      actorUserId: actor.id,
       allowedBucketId: modeledPayee.allowedBucketId,
-      betaAccessStatus: demoUser.profileAccess,
-      householdId: demoUser.householdId,
+      betaAccessStatus: actor.profileAccess,
+      householdId: actor.householdId,
       id: modeledPayee.id,
-      kycStatus: demoUser.kycStatus,
+      kycStatus: actor.kycStatus,
       maxCents,
       name,
       status,
-      userEmail: demoUser.email,
-      userName: demoUser.name,
+      userEmail: actor.email,
+      userName: actor.name,
     },
     env,
   );
@@ -1585,18 +1633,21 @@ function persistenceFailed(result) {
   return result?.persistence === "postgres_error";
 }
 
-async function persistOperationalJournal(entry, env = process.env) {
+async function persistOperationalJournal(entry, env = process.env, actorInput = demoUser) {
+  const actor = normalizeActor(actorInput);
+
   return persistJournalEntry(
     {
-      betaAccessStatus: demoUser.profileAccess,
+      betaAccessStatus: actor.profileAccess,
       entry,
-      householdId: demoUser.householdId,
+      householdId: actor.householdId,
     },
     env,
   );
 }
 
 export async function detectPaycheck(payload, env = process.env) {
+  const actor = actorFromPayload(payload);
   const amountCents = toIntegerCents(payload?.amountCents, {
     max: 2_000_000,
     min: 1,
@@ -1612,7 +1663,7 @@ export async function detectPaycheck(payload, env = process.env) {
     };
   }
 
-  const controls = await loadOperationalControls(env);
+  const controls = await loadOperationalControls(env, actor);
 
   if (controls.error) {
     return controls.error;
@@ -1636,7 +1687,7 @@ export async function detectPaycheck(payload, env = process.env) {
     .reduce((sum, bucket) => sum + bucket.availableCents, 0);
 
   const readiness = getMoneyRailReadiness(env);
-  const journalPersistence = await persistOperationalJournal(entry, env);
+  const journalPersistence = await persistOperationalJournal(entry, env, actor);
 
   if (persistenceFailed(journalPersistence)) {
     return {
@@ -1654,7 +1705,7 @@ export async function detectPaycheck(payload, env = process.env) {
     {
       amountCents,
       employerName,
-      householdId: demoUser.householdId,
+      householdId: actor.householdId,
       idempotencyKey: entry.idempotencyKey,
       journalEntryId: journalPersistence.postgresId || entry.id,
       providerEventId: cleanText(payload?.providerEventId, 120) || null,
@@ -1679,7 +1730,7 @@ export async function detectPaycheck(payload, env = process.env) {
   const auditPersistence = await persistMoneyRailEvent(
     {
       eventType: "paycheck_detected",
-      householdId: demoUser.householdId,
+      householdId: actor.householdId,
       payload: {
         amountCents,
         employerName,
@@ -1734,6 +1785,7 @@ export async function detectPaycheck(payload, env = process.env) {
 }
 
 export async function createTransferIntent(payload, env = process.env) {
+  const actor = actorFromPayload(payload);
   const amountCents = toIntegerCents(payload?.amountCents, {
     max: 500_000,
     min: 1,
@@ -1754,7 +1806,7 @@ export async function createTransferIntent(payload, env = process.env) {
     };
   }
 
-  const controls = await loadOperationalControls(env);
+  const controls = await loadOperationalControls(env, actor);
 
   if (controls.error) {
     return controls.error;
@@ -1795,7 +1847,7 @@ export async function createTransferIntent(payload, env = process.env) {
     {
       amountCents,
       destinationPayeeId,
-      householdId: demoUser.householdId,
+      householdId: actor.householdId,
       idempotencyKey,
       providerName: readiness.transferConfigured ? env.PAYSHIELD_BAAS_PROVIDER || "configured_rail" : null,
       providerStatus: providerTransfer.status,
@@ -1821,7 +1873,7 @@ export async function createTransferIntent(payload, env = process.env) {
   const auditPersistence = await persistMoneyRailEvent(
     {
       eventType: "transfer_intent_created",
-      householdId: demoUser.householdId,
+      householdId: actor.householdId,
       payload: {
         amountCents,
         destinationPayeeId,
@@ -1887,6 +1939,7 @@ function cleanScheduledDate(value) {
 }
 
 export async function createBillPayment(payload, env = process.env) {
+  const actor = actorFromPayload(payload);
   const amountCents = toIntegerCents(payload?.amountCents, { min: 1 });
   const payeeId = cleanText(payload?.payeeId, 120);
   const scheduledFor = cleanScheduledDate(payload?.scheduledFor);
@@ -1900,7 +1953,7 @@ export async function createBillPayment(payload, env = process.env) {
     };
   }
 
-  const controls = await loadOperationalControls(env);
+  const controls = await loadOperationalControls(env, actor);
 
   if (controls.error) {
     return controls.error;
@@ -1934,7 +1987,7 @@ export async function createBillPayment(payload, env = process.env) {
     ? book.findByIdempotencyKey(idempotencyKey)
     : null;
   const journalPersistence = postedEntry
-    ? await persistOperationalJournal(postedEntry, env)
+    ? await persistOperationalJournal(postedEntry, env, actor)
     : {
         persisted: false,
         persistence: "not_posted",
@@ -1959,7 +2012,7 @@ export async function createBillPayment(payload, env = process.env) {
       amountCents,
       bucketId: decision.bucketId || null,
       decisionCode: decision.code,
-      householdId: demoUser.householdId,
+      householdId: actor.householdId,
       idempotencyKey,
       journalEntryId: journalPersistence.postgresId || null,
       memo: memo || null,
@@ -2022,6 +2075,7 @@ function isUnlockMode(value) {
 }
 
 export async function createUnlock(payload, env = process.env) {
+  const actor = actorFromPayload(payload);
   const amountCents = toIntegerCents(payload?.amountCents, { min: 1, max: 200_000 });
   const reason = cleanText(payload?.reason, 140);
 
@@ -2047,7 +2101,7 @@ export async function createUnlock(payload, env = process.env) {
     mode: payload.mode,
     reason,
   };
-  const controls = await loadOperationalControls(env);
+  const controls = await loadOperationalControls(env, actor);
 
   if (controls.error) {
     return controls.error;
@@ -2067,7 +2121,7 @@ export async function createUnlock(payload, env = process.env) {
   const book = createDemoLedgerBook(300_000, controls.buckets);
   const result = unlockProtectedFunds(book, input);
   const postedEntry = book.findByIdempotencyKey(input.idempotencyKey);
-  const journalPersistence = await persistOperationalJournal(postedEntry, env);
+  const journalPersistence = await persistOperationalJournal(postedEntry, env, actor);
 
   if (persistenceFailed(journalPersistence)) {
     return {
@@ -2086,7 +2140,7 @@ export async function createUnlock(payload, env = process.env) {
     {
       amountCents: input.amountCents,
       bucketId: input.bucketId,
-      householdId: demoUser.householdId,
+      householdId: actor.householdId,
       idempotencyKey: input.idempotencyKey,
       journalEntryId: journalPersistence.postgresId || null,
       reason: input.reason,
@@ -2133,6 +2187,7 @@ export async function createUnlock(payload, env = process.env) {
 }
 
 export async function authorizeCard(payload, env = process.env) {
+  const actor = actorFromPayload(payload);
   const amountCents = toIntegerCents(payload?.amountCents, { min: 1 });
 
   if (amountCents === null) {
@@ -2172,7 +2227,7 @@ export async function authorizeCard(payload, env = process.env) {
     };
   }
 
-  const controls = await loadOperationalControls(env);
+  const controls = await loadOperationalControls(env, actor);
 
   if (controls.error) {
     return controls.error;
@@ -2184,7 +2239,7 @@ export async function authorizeCard(payload, env = process.env) {
     ? book.findByIdempotencyKey(input.idempotencyKey)
     : null;
   const journalPersistence = postedEntry
-    ? await persistOperationalJournal(postedEntry, env)
+    ? await persistOperationalJournal(postedEntry, env, actor)
     : {
         persisted: false,
         persistence: "not_posted",
@@ -2211,7 +2266,7 @@ export async function authorizeCard(payload, env = process.env) {
       approvedAmountCents: decision.approvedAmountCents,
       bucketId: decision.bucketId || "safe_spending",
       decisionCode: decision.code,
-      householdId: demoUser.householdId,
+      householdId: actor.householdId,
       idempotencyKey: input.idempotencyKey,
       journalEntryId: journalPersistence.postgresId || null,
       merchantCategoryCode: input.merchantCategoryCode || null,

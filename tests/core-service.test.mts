@@ -254,6 +254,42 @@ test("core bank connection route records Plaid rail readiness", async () => {
   });
 });
 
+test("core bank connection route scopes records to forwarded household identity", async () => {
+  process.env.PLAID_CLIENT_ID = "plaid-client";
+  process.env.PLAID_SECRET = "plaid-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
+
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(
+      baseUrl,
+      "/api/app/bank-connections",
+      jsonPost(
+        {
+          accountId: "acc_household",
+          institutionName: "Household Bank",
+          itemId: "item_household",
+          providerName: "plaid",
+          tokenSecretRef: "vault://plaid/item_household",
+        },
+        {
+          headers: {
+            "x-payshield-auth-mode": "clerk",
+            "x-payshield-user-email": "real-household@example.com",
+            "x-payshield-user-id": "user_clerk_household",
+            "x-payshield-user-name": "Real Household",
+          },
+        },
+      ),
+    );
+    const bankConnection = body.bankConnection as Record<string, unknown>;
+
+    assert.equal(response.status, 200);
+    assert.equal(bankConnection.userId, "user_clerk_household");
+    assert.equal(bankConnection.householdId, "household_user_clerk_household");
+    assert.equal(bankConnection.institutionName, "Household Bank");
+  });
+});
+
 test("core bucket profile route saves custom protected bucket rules", async () => {
   await withCoreServer(async (baseUrl) => {
     const { body, response } = await getJson(
