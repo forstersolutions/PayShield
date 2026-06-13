@@ -115,6 +115,7 @@ export function HouseholdCommandCenter() {
       plaidEnv: moneyRailReadiness.plaidEnv,
       remainingGates: moneyRailReadiness.missing,
       tokenVaultConfigured: moneyRailReadiness.tokenVaultConfigured,
+      tokenVaultStoreReady: moneyRailReadiness.tokenVaultStoreReady,
       transferConfigured: moneyRailReadiness.transferConfigured,
       transferReady: moneyRailReadiness.transferReady,
     },

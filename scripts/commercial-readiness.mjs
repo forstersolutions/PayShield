@@ -170,6 +170,12 @@ export function evaluateCommercialReadiness({
   );
   record(
     result,
+    moneyRails.tokenVaultStoreReady === true,
+    "signed token-vault handoff is ready for bank access tokens",
+    "token_vault_handoff",
+  );
+  record(
+    result,
     moneyRails.bankLinkReady === true,
     "bank linking is ready with Plaid credentials and token vault",
     "bank_link",
@@ -241,6 +247,11 @@ export function evaluateCommercialReadiness({
     moneyRails: {
       bankLink: statusText(moneyRails.bankLinkReady === true, "ready", "blocked"),
       detectionMode: moneyRails.detectionMode ?? "unknown",
+      tokenVault: statusText(
+        moneyRails.tokenVaultStoreReady === true,
+        "ready",
+        "blocked",
+      ),
       transfer: statusText(moneyRails.transferReady === true, "ready", "blocked"),
     },
     neobank: {

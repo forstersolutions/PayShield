@@ -12,6 +12,17 @@ function cleanText(value: unknown, maxLength: number) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getAppSession();
+    const coreResponse = await forwardCoreRequest({
+      method: "POST",
+      path: "/api/app/bank-link/exchange",
+      request,
+      session,
+    });
+
+    if (coreResponse) {
+      return coreResponse;
+    }
+
     const payload = (await request.json().catch(() => ({}))) as {
       accountId?: unknown;
       accountMask?: unknown;
@@ -70,7 +81,7 @@ export async function POST(request: NextRequest) {
           }
         : {
             error:
-              "Bank link exchange requires Plaid credentials before users can connect an external account.",
+              "Bank link exchange requires Plaid credentials and a signed token-vault handoff.",
             readiness: result.readiness,
           },
       {

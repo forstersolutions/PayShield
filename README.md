@@ -94,9 +94,20 @@ The app exposes the planned API surface now:
 GET  /api/app/me
 GET  /api/app/balances
 GET  /api/app/buckets
+GET  /api/app/billing/status
+GET  /api/app/operations
+GET  /api/app/audit/export
 POST /api/app/onboarding/start
+POST /api/app/billing/checkout
+POST /api/app/billing/webhook
+POST /api/app/bank-link/token
+POST /api/app/bank-link/exchange
 POST /api/app/buckets
+POST /api/app/bank-connections
+POST /api/app/paychecks/detect
+POST /api/app/transfers
 POST /api/app/payees
+POST /api/app/bill-payments
 POST /api/app/unlocks
 POST /api/provider/webhooks
 POST /api/card/authorize
@@ -104,6 +115,9 @@ POST /api/card/authorize
 
 Without complete live-money gates, onboarding returns a blocked response and
 card authorization runs only in simulation mode against the PayShield ledger.
+
+For the commercial bank-link and money-rail setup, see
+[`docs/money-rails-production.md`](docs/money-rails-production.md).
 
 ## Continuous Integration
 

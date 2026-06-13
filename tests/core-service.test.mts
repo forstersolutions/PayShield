@@ -25,6 +25,8 @@ const coreEnvKeys = [
   "PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED",
   "PAYSHIELD_TRANSFER_ENABLED",
   "PAYSHIELD_TOKEN_VAULT_KEY_ID",
+  "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET",
+  "PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL",
   "PLAID_CLIENT_ID",
   "PLAID_SECRET",
   "PLAID_TRANSFER_CLIENT_ID",
@@ -99,6 +101,8 @@ test("core health exposes product operation routes and fail-closed readiness", a
     assert.equal(readiness.liveMoneyReady, false);
     assert.equal(readiness.backendConfigured, true);
     assert.equal(routes.includes("POST /app/bill-payments"), true);
+    assert.equal(routes.includes("POST /app/bank-link/token"), true);
+    assert.equal(routes.includes("POST /app/bank-link/exchange"), true);
     assert.equal(routes.includes("POST /app/bank-connections"), true);
     assert.equal(routes.includes("GET /app/billing/status"), true);
     assert.equal(routes.includes("POST /commercial/billing-events"), true);
@@ -274,6 +278,8 @@ test("core bank connection route records Plaid rail readiness", async () => {
   process.env.PLAID_CLIENT_ID = "plaid-client";
   process.env.PLAID_SECRET = "plaid-secret";
   process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "http://127.0.0.1/vault";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
 
   await withCoreServer(async (baseUrl) => {
     const { body, response } = await getJson(
@@ -302,10 +308,36 @@ test("core bank connection route records Plaid rail readiness", async () => {
   });
 });
 
+test("core bank link token fails closed without signed token vault handoff", async () => {
+  process.env.PLAID_CLIENT_ID = "plaid-client";
+  process.env.PLAID_SECRET = "plaid-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
+
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(
+      baseUrl,
+      "/api/app/bank-link/token",
+      jsonPost({ origin: "https://payshield.test" }),
+    );
+    const readiness = body.readiness as Record<string, unknown>;
+    const missing = readiness.missing as string[];
+
+    assert.equal(response.status, 424);
+    assert.equal(body.service, "payshield-bank-link-token");
+    assert.equal(readiness.plaidConfigured, true);
+    assert.equal(readiness.tokenVaultConfigured, true);
+    assert.equal(readiness.tokenVaultStoreReady, false);
+    assert.equal(missing.includes("PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL"), true);
+    assert.equal(missing.includes("PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET"), true);
+  });
+});
+
 test("core bank connection route scopes records to forwarded household identity", async () => {
   process.env.PLAID_CLIENT_ID = "plaid-client";
   process.env.PLAID_SECRET = "plaid-secret";
   process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "http://127.0.0.1/vault";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
 
   await withCoreServer(async (baseUrl) => {
     const { body, response } = await getJson(

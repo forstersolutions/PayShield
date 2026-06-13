@@ -1,10 +1,24 @@
 import { NextRequest, NextResponse } from "next/server.js";
 import { getAppSession } from "../../../../lib/neobank/auth.ts";
+import { forwardCoreRequest } from "../../../../lib/neobank/core-client.ts";
 import { createBankLinkToken } from "../../../../lib/neobank/money-rails.ts";
 
 export async function POST(request: NextRequest) {
   try {
     const session = await getAppSession();
+    const coreResponse = await forwardCoreRequest({
+      body: {
+        origin: request.nextUrl.origin,
+      },
+      method: "POST",
+      path: "/api/app/bank-link/token",
+      session,
+    });
+
+    if (coreResponse) {
+      return coreResponse;
+    }
+
     const result = await createBankLinkToken({
       origin: request.nextUrl.origin,
       userId: session.userId,
@@ -20,7 +34,7 @@ export async function POST(request: NextRequest) {
           }
         : {
             error:
-              "Bank linking requires Plaid credentials before users can connect an external account.",
+              "Bank linking requires Plaid credentials and a signed token-vault handoff before users can connect an external account.",
             readiness: result.readiness,
           },
       {

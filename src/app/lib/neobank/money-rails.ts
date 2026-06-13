@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { getNeobankReadiness } from "./readiness.ts";
 import type { BucketId } from "./types.ts";
 
@@ -14,6 +15,32 @@ function envPresent(name: string) {
 
 function envTrue(name: string) {
   return process.env[name]?.trim().toLowerCase() === "true";
+}
+
+function cleanTokenVaultUrl(value: string | undefined) {
+  if (!value?.trim()) {
+    return "";
+  }
+
+  try {
+    const url = new URL(value);
+    const localHttp =
+      url.protocol === "http:" &&
+      ["127.0.0.1", "::1", "localhost"].includes(url.hostname) &&
+      process.env.VERCEL_ENV !== "production";
+
+    if (url.username || url.password || url.search || url.hash) {
+      return "";
+    }
+
+    if (url.protocol !== "https:" && !localHttp) {
+      return "";
+    }
+
+    return url.toString();
+  } catch {
+    return "";
+  }
 }
 
 function cleanList(value: string | undefined, fallback: string[]) {
@@ -46,6 +73,27 @@ function plaidCredentials() {
   };
 }
 
+function tokenVaultReadiness() {
+  const keyId = process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID?.trim() || "";
+  const webhookUrl = cleanTokenVaultUrl(
+    process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL,
+  );
+  const webhookSigningConfigured = envPresent(
+    "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET",
+  );
+  const keyConfigured = Boolean(keyId);
+  const webhookReady = keyConfigured && Boolean(webhookUrl) && webhookSigningConfigured;
+
+  return {
+    keyConfigured,
+    keyId,
+    webhookConfigured: Boolean(webhookUrl),
+    webhookReady,
+    webhookUrl,
+    webhookSigningConfigured,
+  };
+}
+
 async function plaidRequest<T>(path: string, body: Record<string, unknown>) {
   const response = await fetch(`${plaidBaseUrl()}${path}`, {
     body: JSON.stringify({
@@ -73,18 +121,63 @@ async function plaidRequest<T>(path: string, body: Record<string, unknown>) {
   return payload;
 }
 
+async function storePlaidAccessToken(input: {
+  accessToken: string;
+  itemId: string;
+  requestId: string;
+}) {
+  const vault = tokenVaultReadiness();
+  const secret = process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET?.trim() || "";
+
+  if (!vault.webhookReady || !secret) {
+    throw new Error("Token vault handoff is not configured.");
+  }
+
+  const body = JSON.stringify({
+    accessToken: input.accessToken,
+    itemId: input.itemId,
+    keyId: vault.keyId,
+    providerName: "plaid",
+    requestId: input.requestId,
+  });
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const signature = createHmac("sha256", secret)
+    .update(`${timestamp}.${body}`)
+    .digest("hex");
+  const response = await fetch(vault.webhookUrl, {
+    body,
+    cache: "no-store",
+    headers: {
+      "content-type": "application/json",
+      "x-payshield-signature": `t=${timestamp},v1=${signature}`,
+    },
+    method: "POST",
+  });
+  const payload = (await response.json().catch(() => ({}))) as {
+    tokenSecretRef?: unknown;
+  };
+
+  if (!response.ok) {
+    throw new Error("Token vault rejected the Plaid access token.");
+  }
+
+  return typeof payload.tokenSecretRef === "string" &&
+    payload.tokenSecretRef.trim()
+    ? payload.tokenSecretRef.trim().slice(0, 240)
+    : `vault://plaid/${input.itemId}`;
+}
+
 export function getMoneyRailReadiness() {
   const neobank = getNeobankReadiness();
   const plaidConfigured =
     envPresent("PLAID_CLIENT_ID") && envPresent("PLAID_SECRET");
+  const vault = tokenVaultReadiness();
   const transferConfigured =
     envTrue("PAYSHIELD_TRANSFER_ENABLED") &&
     (envPresent("PLAID_TRANSFER_CLIENT_ID") ||
       envPresent("PAYSHIELD_BAAS_API_KEY") ||
       plaidConfigured);
-  const tokenVaultConfigured =
-    envPresent("PAYSHIELD_TOKEN_VAULT_KEY_ID") ||
-    envPresent("PAYSHIELD_BAAS_API_KEY");
+  const tokenVaultConfigured = vault.keyConfigured;
   const missing: string[] = [];
 
   if (!plaidConfigured) {
@@ -95,19 +188,30 @@ export function getMoneyRailReadiness() {
     missing.push("PAYSHIELD_TRANSFER_ENABLED plus transfer/BaaS credentials");
   }
 
-  if (plaidConfigured && !tokenVaultConfigured) {
-    missing.push("PAYSHIELD_TOKEN_VAULT_KEY_ID or BaaS token vault");
+  if (plaidConfigured && !vault.webhookReady) {
+    if (!vault.keyConfigured) {
+      missing.push("PAYSHIELD_TOKEN_VAULT_KEY_ID");
+    }
+
+    if (!vault.webhookConfigured) {
+      missing.push("PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL");
+    }
+
+    if (!vault.webhookSigningConfigured) {
+      missing.push("PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET");
+    }
   }
 
   return {
-    bankLinkReady: plaidConfigured && tokenVaultConfigured,
+    bankLinkReady: plaidConfigured && vault.webhookReady,
     detectionMode: plaidConfigured ? "plaid_transactions_sync" : "manual_or_provider_webhook",
-    paycheckDetectionReady: plaidConfigured && tokenVaultConfigured,
+    paycheckDetectionReady: plaidConfigured && vault.webhookReady,
     liveMoneyReady: neobank.liveMoneyReady,
     missing,
     plaidConfigured,
     plaidEnv: process.env.PLAID_ENV?.trim() || "sandbox",
     tokenVaultConfigured,
+    tokenVaultStoreReady: vault.webhookReady,
     transferConfigured,
     transferReady: neobank.liveMoneyReady && transferConfigured,
   };
@@ -119,7 +223,7 @@ export async function createBankLinkToken(input: {
 }) {
   const readiness = getMoneyRailReadiness();
 
-  if (!readiness.plaidConfigured) {
+  if (!readiness.plaidConfigured || !readiness.tokenVaultStoreReady) {
     return {
       readiness,
       status: 424,
@@ -165,7 +269,7 @@ export async function exchangeBankPublicToken(input: {
 }) {
   const readiness = getMoneyRailReadiness();
 
-  if (!readiness.plaidConfigured) {
+  if (!readiness.plaidConfigured || !readiness.tokenVaultStoreReady) {
     return {
       readiness,
       status: 424,
@@ -179,19 +283,19 @@ export async function exchangeBankPublicToken(input: {
   }>("/item/public_token/exchange", {
     public_token: input.publicToken,
   });
+  const tokenSecretRef = await storePlaidAccessToken({
+    accessToken: payload.access_token,
+    itemId: payload.item_id,
+    requestId: payload.request_id,
+  });
 
   return {
     bankConnection: {
       accountId: input.accountId || "selected_account",
       institutionName: input.institutionName || "Linked institution",
       itemId: payload.item_id,
-      tokenSecretRef:
-        process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID?.trim()
-          ? `vault://plaid/${payload.item_id}`
-          : "requires_core_secret_store",
-      tokenVaultStatus: readiness.bankLinkReady
-        ? "ready"
-        : "requires_core_secret_store",
+      tokenSecretRef,
+      tokenVaultStatus: "ready",
     },
     readiness,
     requestId: payload.request_id,

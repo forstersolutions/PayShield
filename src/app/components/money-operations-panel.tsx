@@ -58,6 +58,7 @@ type OperationsReadiness = {
     plaidEnv?: string;
     remainingGates?: string[];
     tokenVaultConfigured?: boolean;
+    tokenVaultStoreReady?: boolean;
     transferConfigured?: boolean;
     transferReady?: boolean;
   };

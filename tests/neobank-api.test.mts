@@ -40,6 +40,8 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED;
   delete process.env.PAYSHIELD_TRANSFER_ENABLED;
   delete process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID;
+  delete process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET;
+  delete process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL;
   delete process.env.PLAID_CLIENT_ID;
   delete process.env.PLAID_SECRET;
   delete process.env.PAYSHIELD_REGULATED_COUNSEL_SIGNOFF;
@@ -347,6 +349,26 @@ test("bank link token fails closed until Plaid is configured", async () => {
   assert.equal(response.status, 424);
   assert.equal(readiness.plaidConfigured, false);
   assert.equal(Array.isArray(readiness.missing), true);
+});
+
+test("bank link token requires signed token-vault handoff before Plaid Link", async () => {
+  process.env.PLAID_CLIENT_ID = "plaid-client";
+  process.env.PLAID_SECRET = "plaid-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
+
+  const response = await createBankLinkToken(
+    makeRequest("/api/app/bank-link/token", {}),
+  );
+  const body = await parseJson(response);
+  const readiness = body.readiness as Record<string, unknown>;
+  const missing = readiness.missing as string[];
+
+  assert.equal(response.status, 424);
+  assert.equal(readiness.plaidConfigured, true);
+  assert.equal(readiness.tokenVaultConfigured, true);
+  assert.equal(readiness.tokenVaultStoreReady, false);
+  assert.equal(missing.includes("PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL"), true);
+  assert.equal(missing.includes("PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET"), true);
 });
 
 test("paycheck detection posts a split before safe spend", async () => {

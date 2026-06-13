@@ -21,6 +21,7 @@ function readyHealth(overrides: Record<string, unknown> = {}) {
       plaidConfigured: true,
       remainingGates: [],
       tokenVaultConfigured: true,
+      tokenVaultStoreReady: true,
       transferConfigured: true,
       transferReady: true,
     },
@@ -59,6 +60,7 @@ test("commercial readiness passes only when revenue, rails, backend, auth, provi
   assert.equal(result.remainingGates.length, 0);
   assert.equal(result.commercial.paidAccess, "ready");
   assert.equal(result.moneyRails.bankLink, "ready");
+  assert.equal(result.moneyRails.tokenVault, "ready");
   assert.equal(result.moneyRails.transfer, "ready");
   assert.equal(result.neobank.liveMoney, "ready");
 });
@@ -90,6 +92,7 @@ test("commercial readiness fails with actionable gates for current architecture-
           "PAYSHIELD_TRANSFER_ENABLED plus transfer/BaaS credentials",
         ],
         tokenVaultConfigured: false,
+        tokenVaultStoreReady: false,
         transferConfigured: false,
         transferReady: false,
       },
@@ -119,10 +122,12 @@ test("commercial readiness fails with actionable gates for current architecture-
   assert.equal(result.ok, false);
   assert.equal(result.commercial.paidAccess, "blocked");
   assert.equal(result.moneyRails.bankLink, "blocked");
+  assert.equal(result.moneyRails.tokenVault, "blocked");
   assert.equal(result.moneyRails.transfer, "blocked");
   assert.equal(result.neobank.backend, "blocked");
   assert.equal(result.neobank.liveMoney, "blocked");
   assert.equal(result.remainingGates.includes("stripe_checkout"), true);
+  assert.equal(result.remainingGates.includes("token_vault_handoff"), true);
   assert.equal(result.remainingGates.includes("bank_link"), true);
   assert.equal(result.remainingGates.includes("transfer_ready"), true);
   assert.equal(result.remainingGates.includes("core_backend"), true);

@@ -56,6 +56,7 @@ export function GET() {
         plaidEnv: moneyRails.plaidEnv,
         remainingGates: moneyRails.missing,
         tokenVaultConfigured: moneyRails.tokenVaultConfigured,
+        tokenVaultStoreReady: moneyRails.tokenVaultStoreReady,
         transferConfigured: moneyRails.transferConfigured,
         transferReady: moneyRails.transferReady,
       },

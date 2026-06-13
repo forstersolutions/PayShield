@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import {
   databaseConfigured,
   loadOperationalAudit,
@@ -249,6 +250,8 @@ export function getCoreHealth(env = process.env) {
       "GET /app/operations",
       "GET /app/audit/export",
       "POST /app/buckets",
+      "POST /app/bank-link/token",
+      "POST /app/bank-link/exchange",
       "POST /app/bank-connections",
       "POST /app/bill-payments",
       "POST /commercial/billing-events",
@@ -1961,34 +1964,278 @@ export async function createPayee(payload, env = process.env) {
 function getMoneyRailReadiness(env = process.env) {
   const neobank = getCoreReadiness(env, { coreOnline: true });
   const plaidConfigured = envPresent(env, "PLAID_CLIENT_ID") && envPresent(env, "PLAID_SECRET");
+  const vault = tokenVaultReadiness(env);
   const transferConfigured =
     envTrue(env, "PAYSHIELD_TRANSFER_ENABLED") &&
     (envPresent(env, "PLAID_TRANSFER_CLIENT_ID") ||
       envPresent(env, "PAYSHIELD_BAAS_API_KEY") ||
       plaidConfigured);
-  const tokenVaultConfigured =
-    envPresent(env, "PAYSHIELD_TOKEN_VAULT_KEY_ID") ||
-    envPresent(env, "PAYSHIELD_BAAS_API_KEY");
+  const tokenVaultConfigured = vault.keyConfigured;
 
   return {
-    bankLinkReady: plaidConfigured && tokenVaultConfigured,
+    bankLinkReady: plaidConfigured && vault.webhookReady,
     detectionMode: plaidConfigured ? "plaid_transactions_sync" : "manual_or_provider_webhook",
-    paycheckDetectionReady: plaidConfigured && tokenVaultConfigured,
+    paycheckDetectionReady: plaidConfigured && vault.webhookReady,
     liveMoneyReady: neobank.liveMoneyReady,
     missing: [
       ...(plaidConfigured ? [] : ["PLAID_CLIENT_ID", "PLAID_SECRET"]),
       ...(transferConfigured
         ? []
         : ["PAYSHIELD_TRANSFER_ENABLED plus transfer/BaaS credentials"]),
-      ...(plaidConfigured && !tokenVaultConfigured
-        ? ["PAYSHIELD_TOKEN_VAULT_KEY_ID or BaaS token vault"]
+      ...(plaidConfigured && !vault.keyConfigured
+        ? ["PAYSHIELD_TOKEN_VAULT_KEY_ID"]
+        : []),
+      ...(plaidConfigured && !vault.webhookConfigured
+        ? ["PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL"]
+        : []),
+      ...(plaidConfigured && !vault.webhookSigningConfigured
+        ? ["PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET"]
         : []),
     ],
     plaidConfigured,
     plaidEnv: env.PLAID_ENV?.trim() || "sandbox",
     tokenVaultConfigured,
+    tokenVaultStoreReady: vault.webhookReady,
     transferConfigured,
     transferReady: neobank.liveMoneyReady && transferConfigured,
+  };
+}
+
+function cleanTokenVaultUrl(env = process.env) {
+  const value = env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL?.trim();
+
+  if (!value) {
+    return "";
+  }
+
+  try {
+    const url = new URL(value);
+    const localHttp =
+      url.protocol === "http:" &&
+      ["127.0.0.1", "::1", "localhost"].includes(url.hostname) &&
+      env.VERCEL_ENV !== "production";
+
+    if (url.username || url.password || url.search || url.hash) {
+      return "";
+    }
+
+    if (url.protocol !== "https:" && !localHttp) {
+      return "";
+    }
+
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+function tokenVaultReadiness(env = process.env) {
+  const keyId = env.PAYSHIELD_TOKEN_VAULT_KEY_ID?.trim() || "";
+  const webhookUrl = cleanTokenVaultUrl(env);
+  const webhookSigningConfigured = envPresent(env, "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET");
+
+  return {
+    keyConfigured: Boolean(keyId),
+    keyId,
+    webhookConfigured: Boolean(webhookUrl),
+    webhookReady: Boolean(keyId && webhookUrl && webhookSigningConfigured),
+    webhookSigningConfigured,
+    webhookUrl,
+  };
+}
+
+function cleanList(value, fallback) {
+  const parsed = value
+    ?.split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return parsed?.length ? parsed : fallback;
+}
+
+function plaidBaseUrl(env = process.env) {
+  const plaidEnv = env.PLAID_ENV?.trim().toLowerCase() || "sandbox";
+
+  if (plaidEnv === "production") {
+    return "https://production.plaid.com";
+  }
+
+  if (plaidEnv === "development") {
+    return "https://development.plaid.com";
+  }
+
+  return "https://sandbox.plaid.com";
+}
+
+async function plaidRequest(env, path, body) {
+  const response = await fetch(`${plaidBaseUrl(env)}${path}`, {
+    body: JSON.stringify({
+      client_id: env.PLAID_CLIENT_ID?.trim() || "",
+      secret: env.PLAID_SECRET?.trim() || "",
+      ...body,
+    }),
+    headers: {
+      "content-type": "application/json",
+    },
+    method: "POST",
+  });
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(
+      payload.error_message ||
+        payload.error_code ||
+        `Plaid request failed with status ${response.status}.`,
+    );
+  }
+
+  return payload;
+}
+
+async function storePlaidAccessToken(env, input) {
+  const vault = tokenVaultReadiness(env);
+  const secret = env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET?.trim() || "";
+
+  if (!vault.webhookReady || !secret) {
+    throw new Error("Token vault handoff is not configured.");
+  }
+
+  const body = JSON.stringify({
+    accessToken: input.accessToken,
+    itemId: input.itemId,
+    keyId: vault.keyId,
+    providerName: "plaid",
+    requestId: input.requestId,
+  });
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const signature = createHmac("sha256", secret)
+    .update(`${timestamp}.${body}`)
+    .digest("hex");
+  const response = await fetch(vault.webhookUrl, {
+    body,
+    cache: "no-store",
+    headers: {
+      "content-type": "application/json",
+      "x-payshield-signature": `t=${timestamp},v1=${signature}`,
+    },
+    method: "POST",
+  });
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error("Token vault rejected the Plaid access token.");
+  }
+
+  return typeof payload.tokenSecretRef === "string" && payload.tokenSecretRef.trim()
+    ? payload.tokenSecretRef.trim().slice(0, 240)
+    : `vault://plaid/${input.itemId}`;
+}
+
+export async function createBankLinkToken(payload = {}, env = process.env) {
+  const readiness = getMoneyRailReadiness(env);
+  const actor = actorFromPayload(payload);
+
+  if (!readiness.plaidConfigured || !readiness.tokenVaultStoreReady) {
+    return {
+      body: {
+        error:
+          "Bank linking requires Plaid credentials and a signed token-vault handoff before users can connect an external account.",
+        readiness,
+        service: "payshield-bank-link-token",
+      },
+      status: 424,
+    };
+  }
+
+  const plaidPayload = await plaidRequest(env, "/link/token/create", {
+    client_name: "PayShield",
+    country_codes: cleanList(env.PLAID_COUNTRY_CODES, ["US"]),
+    language: "en",
+    products: cleanList(env.PLAID_PRODUCTS, ["auth", "transactions"]),
+    redirect_uri: env.PLAID_REDIRECT_URI?.trim() || undefined,
+    transactions: cleanList(env.PLAID_PRODUCTS, ["auth", "transactions"]).includes("transactions")
+      ? { days_requested: 180 }
+      : undefined,
+    user: {
+      client_user_id: actor.id,
+    },
+    webhook: env.PLAID_WEBHOOK_URL?.trim() || undefined,
+  });
+
+  return {
+    body: {
+      expiration: plaidPayload.expiration,
+      linkToken: plaidPayload.link_token,
+      readiness,
+      requestId: plaidPayload.request_id,
+      service: "payshield-bank-link-token",
+    },
+    status: 200,
+  };
+}
+
+export async function exchangeBankPublicToken(payload = {}, env = process.env) {
+  const readiness = getMoneyRailReadiness(env);
+  const actor = actorFromPayload(payload);
+  const publicToken = safeString(payload.publicToken, 240);
+
+  if (!publicToken) {
+    return {
+      body: {
+        error: "Provide the Plaid public token returned by Link.",
+        service: "payshield-bank-link-exchange",
+      },
+      status: 400,
+    };
+  }
+
+  if (!readiness.plaidConfigured || !readiness.tokenVaultStoreReady) {
+    return {
+      body: {
+        error:
+          "Bank link exchange requires Plaid credentials and a signed token-vault handoff.",
+        readiness,
+        service: "payshield-bank-link-exchange",
+      },
+      status: 424,
+    };
+  }
+
+  const plaidPayload = await plaidRequest(env, "/item/public_token/exchange", {
+    public_token: publicToken,
+  });
+  const tokenSecretRef = await storePlaidAccessToken(env, {
+    accessToken: plaidPayload.access_token,
+    itemId: plaidPayload.item_id,
+    requestId: plaidPayload.request_id,
+  });
+  const result = await recordBankConnection(
+    {
+      __payshieldActor: {
+        authMode: actor.authMode,
+        email: actor.email,
+        name: actor.name,
+        userId: actor.id,
+      },
+      accountId: safeString(payload.accountId, 120) || "selected_account",
+      accountMask: safeString(payload.accountMask, 16) || null,
+      accountName: safeString(payload.accountName, 80) || null,
+      institutionName: safeString(payload.institutionName, 120) || "Linked institution",
+      itemId: plaidPayload.item_id,
+      products: cleanList(env.PLAID_PRODUCTS, ["auth", "transactions"]),
+      providerName: "plaid",
+      tokenSecretRef,
+    },
+    env,
+  );
+
+  return {
+    body: {
+      ...result.body,
+      requestId: plaidPayload.request_id,
+      service: "payshield-bank-link-exchange",
+    },
+    status: result.status,
   };
 }
 

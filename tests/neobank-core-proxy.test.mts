@@ -6,6 +6,8 @@ import { afterEach, beforeEach, test } from "node:test";
 import { NextRequest } from "next/server.js";
 import { GET as exportAudit } from "../src/app/api/app/audit/export/route.ts";
 import { GET as getBalances } from "../src/app/api/app/balances/route.ts";
+import { POST as exchangeBankLink } from "../src/app/api/app/bank-link/exchange/route.ts";
+import { POST as createBankLinkToken } from "../src/app/api/app/bank-link/token/route.ts";
 import { GET as getBillingStatus } from "../src/app/api/app/billing/status/route.ts";
 import { POST as scheduleBillPayment } from "../src/app/api/app/bill-payments/route.ts";
 import { GET as getOperations } from "../src/app/api/app/operations/route.ts";
@@ -213,6 +215,111 @@ test("billing status API delegates paid-access state to configured core service"
       assert.equal(captured.authorization, "Bearer core-billing-secret");
       assert.equal(captured.method, "GET");
       assert.equal(captured.url, "/api/app/billing/status");
+    },
+  );
+});
+
+test("bank link token API delegates Plaid Link setup to configured core service", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    async (request, response) => {
+      captured.authorization = request.headers.authorization;
+      captured.authMode = request.headers["x-payshield-auth-mode"];
+      captured.body = await readRequestBody(request);
+      captured.method = request.method;
+      captured.url = request.url;
+
+      response.writeHead(200, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          coreDelegated: true,
+          linkToken: "link-sandbox-core",
+          service: "payshield-bank-link-token",
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-bank-link-secret";
+
+      const response = await createBankLinkToken(makeRequest("/api/app/bank-link/token", {}));
+      const body = await parseJson(response);
+      const forwardedBody = JSON.parse(String(captured.body || "{}")) as Record<
+        string,
+        unknown
+      >;
+
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("x-payshield-core-proxied"), "true");
+      assert.equal(body.coreDelegated, true);
+      assert.equal(body.linkToken, "link-sandbox-core");
+      assert.equal(captured.authorization, "Bearer core-bank-link-secret");
+      assert.equal(captured.authMode, "demo");
+      assert.equal(captured.method, "POST");
+      assert.equal(captured.url, "/api/app/bank-link/token");
+      assert.equal(forwardedBody.origin, endpoint);
+    },
+  );
+});
+
+test("bank link exchange API delegates public token exchange to configured core service", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    async (request, response) => {
+      captured.authorization = request.headers.authorization;
+      captured.body = await readRequestBody(request);
+      captured.method = request.method;
+      captured.url = request.url;
+
+      response.writeHead(200, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          bankConnection: {
+            institutionName: "Core Bank",
+            tokenVaultStatus: "ready",
+          },
+          coreDelegated: true,
+          service: "payshield-bank-link-exchange",
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-exchange-secret";
+
+      const response = await exchangeBankLink(
+        makeRequest("/api/app/bank-link/exchange", {
+          accountId: "acc_core",
+          institutionName: "Core Bank",
+          publicToken: "public-sandbox-token",
+        }),
+      );
+      const body = await parseJson(response);
+      const forwardedBody = JSON.parse(String(captured.body || "{}")) as Record<
+        string,
+        unknown
+      >;
+
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("x-payshield-core-proxied"), "true");
+      assert.equal(body.coreDelegated, true);
+      assert.equal(
+        (body.bankConnection as Record<string, unknown>).tokenVaultStatus,
+        "ready",
+      );
+      assert.equal(captured.authorization, "Bearer core-exchange-secret");
+      assert.equal(captured.method, "POST");
+      assert.equal(captured.url, "/api/app/bank-link/exchange");
+      assert.equal(forwardedBody.publicToken, "public-sandbox-token");
+      assert.equal(forwardedBody.accountId, "acc_core");
     },
   );
 });

@@ -24,6 +24,7 @@ async function parseJson(response: Response) {
       bankLinkReady?: unknown;
       paycheckDetectionReady?: unknown;
       tokenVaultConfigured?: unknown;
+      tokenVaultStoreReady?: unknown;
       transferReady?: unknown;
     };
     waitlist?: {
@@ -52,6 +53,8 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED;
   delete process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION;
   delete process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID;
+  delete process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET;
+  delete process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL;
   delete process.env.PLAID_CLIENT_ID;
   delete process.env.PLAID_SECRET;
   delete process.env.PAYSHIELD_COMMERCIAL_PRICE_ID;
@@ -325,7 +328,18 @@ test("reports commercial and money rail readiness gates", async () => {
     configuredBody.commercial?.webhookSigningSecretConfigured,
     true,
   );
-  assert.equal(configuredBody.moneyRails?.bankLinkReady, true);
-  assert.equal(configuredBody.moneyRails?.paycheckDetectionReady, true);
+  assert.equal(configuredBody.moneyRails?.bankLinkReady, false);
+  assert.equal(configuredBody.moneyRails?.paycheckDetectionReady, false);
   assert.equal(configuredBody.moneyRails?.tokenVaultConfigured, true);
+  assert.equal(configuredBody.moneyRails?.tokenVaultStoreReady, false);
+
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "http://127.0.0.1/vault";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
+
+  const vaultConfigured = GET();
+  const vaultConfiguredBody = await parseJson(vaultConfigured);
+
+  assert.equal(vaultConfiguredBody.moneyRails?.bankLinkReady, true);
+  assert.equal(vaultConfiguredBody.moneyRails?.paycheckDetectionReady, true);
+  assert.equal(vaultConfiguredBody.moneyRails?.tokenVaultStoreReady, true);
 });

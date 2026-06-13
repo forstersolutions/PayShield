@@ -107,6 +107,7 @@ function commercialHealthReady() {
       plaidConfigured: true,
       remainingGates: [],
       tokenVaultConfigured: true,
+      tokenVaultStoreReady: true,
       transferConfigured: true,
       transferReady: true,
     },

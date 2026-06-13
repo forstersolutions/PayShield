@@ -3,10 +3,12 @@ import { fileURLToPath } from "node:url";
 import {
   authorizeCard,
   createBillPayment,
+  createBankLinkToken,
   createPayee,
   createTransferIntent,
   createUnlock,
   detectPaycheck,
+  exchangeBankPublicToken,
   getBalances,
   getBillingStatus,
   getBucketProfile,
@@ -226,6 +228,16 @@ export function createCoreServer() {
 
       if (request.method === "POST" && path === "/app/bill-payments") {
         await withJsonBody(request, response, createBillPayment);
+        return;
+      }
+
+      if (request.method === "POST" && path === "/app/bank-link/token") {
+        await withJsonBody(request, response, createBankLinkToken);
+        return;
+      }
+
+      if (request.method === "POST" && path === "/app/bank-link/exchange") {
+        await withJsonBody(request, response, exchangeBankPublicToken);
         return;
       }
 
