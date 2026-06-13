@@ -234,7 +234,18 @@ async function startSmokeTarget() {
       return;
     }
 
-    send(response, 404, "Not found", { "content-type": "text/plain" });
+    send(
+      response,
+      404,
+      [
+        "Route unavailable",
+        "This screen is not in the PayShield control surface.",
+        "Open app",
+        "Product profile",
+        "Support",
+      ].join("\n"),
+      { "content-type": "text/html" },
+    );
   });
 
   await new Promise<void>((resolve) => {

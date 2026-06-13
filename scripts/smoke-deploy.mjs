@@ -98,6 +98,22 @@ async function expectText(path, requiredText) {
   return { body, response };
 }
 
+async function expectNotFoundText(path, requiredText) {
+  const response = await expectStatus(path, 404);
+  const body = await response.text();
+  const normalizedBody = body.replace(/\s+/g, " ");
+
+  for (const text of requiredText) {
+    const normalizedText = text.replace(/\s+/g, " ");
+
+    if (!normalizedBody.includes(normalizedText)) {
+      failures.push(`${path} 404 is missing required text: ${text}`);
+    }
+  }
+
+  return { body, response };
+}
+
 async function expectAsset(path, expectedType, maxBytes) {
   let response = await expectStatus(path, 200, { method: "HEAD" });
   let contentType = response.headers.get("content-type") ?? "";
@@ -374,6 +390,14 @@ try {
   await expectText("/manifest.webmanifest", ["PayShield", "/icon.svg"]);
   await expectAsset("/icon.svg", "image/svg+xml", 5_000);
   await expectAsset("/images/payshield-social-card.jpg", "image/jpeg", 250_000);
+  const missingRoute = await expectNotFoundText("/missing-route-smoke", [
+    "Route unavailable",
+    "This screen is not in the PayShield control surface.",
+    "Open app",
+    "Product profile",
+    "Support",
+  ]);
+  expectSecurityHeaders(missingRoute.response, "/missing-route-smoke");
   await expectMissingAsset("/file.svg");
   await expectMissingAsset("/globe.svg");
   await expectMissingAsset("/next.svg");
