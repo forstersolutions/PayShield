@@ -130,7 +130,8 @@ export function getCommercialReadiness() {
     (paymentLink.ok
       ? paymentLink.mode === "live"
       : stripeMode === "live" && stripePriceConfigured);
-  const activationCoreReady = core.ok;
+  const activationCoreServiceAuthConfigured = Boolean(core.serviceToken);
+  const activationCoreReady = core.ok && activationCoreServiceAuthConfigured;
   const missing: string[] = [];
 
   if (
@@ -161,19 +162,30 @@ export function getCommercialReadiness() {
   }
 
   if (checkoutConfigured && webhook.signingSecretConfigured && !activationCoreReady) {
-    missing.push("PAYSHIELD_CORE_API_URL");
+    if (!core.ok) {
+      missing.push("PAYSHIELD_CORE_API_URL");
+    }
+
+    if (!activationCoreServiceAuthConfigured) {
+      missing.push("PAYSHIELD_CORE_SERVICE_TOKEN");
+    }
+  }
+
+  if (core.ok && !activationCoreServiceAuthConfigured) {
+    missing.push("PAYSHIELD_CORE_SERVICE_TOKEN");
   }
 
   return {
     activationCoreConfigured: core.configured,
     activationCoreReady,
+    activationCoreServiceAuthConfigured,
     checkoutConfigured,
     checkoutOperationalReady:
       checkoutConfigured &&
       webhook.signingSecretConfigured &&
       activationCoreReady &&
       productionLiveStripeReady,
-    missing,
+    missing: [...new Set(missing)],
     mode: paymentLink.ok
       ? "payment_link"
       : stripeSecretConfigured
@@ -228,6 +240,9 @@ export function requirePaidAccessForFallback(operation: string) {
         : "paid_access_not_configured",
       error: readiness.paidAccessReady
         ? `Paid access must be active before ${operation}. Configure PAYSHIELD_CORE_API_URL so Stripe webhooks can activate household access before this workflow runs.`
+        : readiness.activationCoreConfigured &&
+            !readiness.activationCoreServiceAuthConfigured
+          ? `Paid access must be fully configured before ${operation}. Add PAYSHIELD_CORE_SERVICE_TOKEN so Stripe webhooks can authenticate to core activation storage.`
         : `Paid access must be fully configured before ${operation}.`,
       readiness,
       service: "payshield-paid-access-gate",

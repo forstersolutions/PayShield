@@ -88,6 +88,10 @@ function gateLabel(gate: string) {
     return "Core activation service";
   }
 
+  if (gate.includes("PAYSHIELD_CORE_SERVICE_TOKEN")) {
+    return "Core service auth";
+  }
+
   if (gate.includes("PLAID_CLIENT_ID") || gate.includes("PLAID_SECRET")) {
     return "Plaid credentials";
   }
@@ -100,8 +104,28 @@ function gateLabel(gate: string) {
     return "Provider webhook signing";
   }
 
+  if (gate.includes("PAYSHIELD_BAAS_ADAPTER")) {
+    return "Provider adapter type";
+  }
+
+  if (gate.includes("PAYSHIELD_BAAS_API_BASE_URL")) {
+    return "Provider adapter URL";
+  }
+
+  if (gate.includes("PAYSHIELD_BAAS_API_KEY")) {
+    return "Provider API key";
+  }
+
+  if (gate.includes("PAYSHIELD_BAAS_PROVIDER")) {
+    return "Provider name";
+  }
+
   if (gate.includes("TRANSFER") || gate.includes("transfer/BaaS")) {
     return "Transfer rail credentials";
+  }
+
+  if (gate === "provider_adapter") {
+    return "Provider adapter";
   }
 
   if (gate === "clerk_auth") {

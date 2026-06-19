@@ -526,6 +526,7 @@ test("paid access checkout blocks payment links without activation persistence",
 test("paid access checkout session uses the authenticated customer identity", async () => {
   process.env.PAYSHIELD_COMMERCIAL_PRICE_ID = "price_payShield";
   process.env.PAYSHIELD_CORE_API_URL = "https://core.payshield.test";
+  process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-secret";
   process.env.STRIPE_SECRET_KEY = "sk_test_payShield";
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
   const originalFetch = globalThis.fetch;

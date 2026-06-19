@@ -163,6 +163,12 @@ export function evaluateCommercialReadiness({
   );
   record(
     result,
+    commercial.activationCoreServiceAuthConfigured === true,
+    "core activation service auth is configured",
+    "core_service_auth",
+  );
+  record(
+    result,
     typeof commercial.priceLabel === "string" &&
       commercial.priceLabel.trim().length > 0,
     "commercial price label is exposed for the app",

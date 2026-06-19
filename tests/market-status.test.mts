@@ -93,6 +93,7 @@ const readyDeployment = {
 function commercialHealthReady() {
   return {
     commercial: {
+      activationCoreServiceAuthConfigured: true,
       checkoutConfigured: true,
       mode: "checkout",
       paidAccessReady: true,

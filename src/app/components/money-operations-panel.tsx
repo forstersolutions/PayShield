@@ -41,6 +41,7 @@ type PlaidCreateInput = {
 type OperationsReadiness = {
   commercial?: {
     activationCoreReady?: boolean;
+    activationCoreServiceAuthConfigured?: boolean;
     checkoutConfigured?: boolean;
     checkoutOperationalReady?: boolean;
     mode?: string;
@@ -57,6 +58,9 @@ type OperationsReadiness = {
     paycheckDetectionReady?: boolean;
     plaidConfigured?: boolean;
     plaidEnv?: string;
+    providerAdapterConfigured?: boolean;
+    providerAdapterMissing?: string[];
+    providerWebhookSigningConfigured?: boolean;
     remainingGates?: string[];
     tokenVaultConfigured?: boolean;
     tokenVaultStoreReady?: boolean;
@@ -259,6 +263,10 @@ function friendlyGateLabel(gate: string) {
     return "Core activation service";
   }
 
+  if (gate.includes("PAYSHIELD_CORE_SERVICE_TOKEN")) {
+    return "Core service auth";
+  }
+
   if (gate.includes("live-mode")) {
     return "Live Stripe mode";
   }
@@ -273,6 +281,26 @@ function friendlyGateLabel(gate: string) {
 
   if (gate.includes("PROVIDER_WEBHOOK")) {
     return "Provider webhook signing";
+  }
+
+  if (gate.includes("PAYSHIELD_BAAS_ADAPTER")) {
+    return "Provider adapter type";
+  }
+
+  if (gate.includes("PAYSHIELD_BAAS_API_BASE_URL")) {
+    return "Provider adapter URL";
+  }
+
+  if (gate.includes("PAYSHIELD_BAAS_API_KEY")) {
+    return "Provider API key";
+  }
+
+  if (gate.includes("PAYSHIELD_BAAS_PROVIDER")) {
+    return "Provider name";
+  }
+
+  if (gate === "provider_adapter") {
+    return "Provider adapter";
   }
 
   if (gate.includes("TRANSFER") || gate.includes("transfer")) {
@@ -1232,6 +1260,25 @@ export function MoneyOperationsPanel({
   const commercialGates = readiness?.commercial?.remainingGates ?? [];
   const moneyRailGates = readiness?.moneyRails?.remainingGates ?? [];
   const neobankGates = readiness?.neobank?.remainingGates ?? [];
+  const bankLinkGates = moneyRailGates.filter(
+    (gate) => gate.includes("PLAID") || gate.includes("TOKEN_VAULT"),
+  );
+  const detectionGates = moneyRailGates.filter(
+    (gate) =>
+      gate.includes("PLAID") ||
+      gate.includes("TOKEN_VAULT") ||
+      gate.includes("PROVIDER_WEBHOOK"),
+  );
+  const transferGates = [
+    ...moneyRailGates.filter(
+      (gate) =>
+        gate.includes("TRANSFER") ||
+        gate.includes("transfer") ||
+        gate.includes("PAYSHIELD_BAAS"),
+    ),
+    ...(readiness?.moneyRails?.providerAdapterMissing ?? []),
+    ...neobankGates,
+  ];
   const railStack = [
     {
       actionLabel: "Activate paid access",
@@ -1261,7 +1308,7 @@ export function MoneyOperationsPanel({
       actionLabel: "Connect bank",
       blockers: readiness?.moneyRails?.bankLinkReady
         ? []
-        : [...new Set(moneyRailGates.map(friendlyGateLabel))],
+        : [...new Set(bankLinkGates.map(friendlyGateLabel))],
       body: "Launch Plaid Link when credentials and token custody are ready; the same route records the bank connection.",
       icon: Link2,
       key: "bank_connection",
@@ -1303,8 +1350,8 @@ export function MoneyOperationsPanel({
       actionLabel: "Run detection",
       blockers: readiness?.moneyRails?.paycheckDetectionReady
         ? []
-        : [...new Set(moneyRailGates.map(friendlyGateLabel))],
-      body: "Run a paycheck event now, or let signed provider events post the same split when configured.",
+        : [...new Set(detectionGates.map(friendlyGateLabel))],
+      body: "Save a payroll rule and run a controlled detection now; automatic detection turns on when Plaid/token-vault/provider-event signing is configured.",
       icon: Radar,
       key: "paycheck_detection",
       metric: `${detectionRules.length} rules`,
@@ -1312,15 +1359,17 @@ export function MoneyOperationsPanel({
       state: depositState,
       status: readiness?.moneyRails?.paycheckDetectionReady
         ? "Auto detection ready"
-        : "Manual/provider events",
+        : readiness?.moneyRails?.bankLinkReady
+          ? "Provider signing needed"
+          : "Controlled manual event",
       title: "Detect paychecks",
-      tone: "ready",
+      tone: readiness?.moneyRails?.paycheckDetectionReady ? "ready" : "attention",
     },
     {
       actionLabel: "Create intent",
       blockers: readiness?.moneyRails?.transferReady
         ? []
-        : [...new Set(moneyRailGates.map(friendlyGateLabel))],
+        : [...new Set(transferGates.map(friendlyGateLabel))],
       body: "Validate bucket funds and create the provider handoff record before any protected money is released.",
       icon: ArrowRightLeft,
       key: "protected_transfer",

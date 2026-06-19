@@ -7,6 +7,7 @@ const expectedSiteUrl = "https://payshield-lime.vercel.app";
 function readyHealth(overrides: Record<string, unknown> = {}) {
   return {
     commercial: {
+      activationCoreServiceAuthConfigured: true,
       checkoutConfigured: true,
       mode: "checkout",
       paidAccessReady: true,

@@ -126,6 +126,14 @@ function friendlyGateLabel(gate: string) {
     return "Stripe webhook signing";
   }
 
+  if (gate.includes("PAYSHIELD_CORE_API_URL")) {
+    return "Core activation service";
+  }
+
+  if (gate.includes("PAYSHIELD_CORE_SERVICE_TOKEN")) {
+    return "Core service auth";
+  }
+
   if (gate.includes("PAYSHIELD_COMMERCIAL_PRICE_ID")) {
     return "Checkout price or payment link";
   }
@@ -142,8 +150,28 @@ function friendlyGateLabel(gate: string) {
     return "Provider webhook signing";
   }
 
+  if (gate.includes("PAYSHIELD_BAAS_ADAPTER")) {
+    return "Provider adapter type";
+  }
+
+  if (gate.includes("PAYSHIELD_BAAS_API_BASE_URL")) {
+    return "Provider adapter URL";
+  }
+
+  if (gate.includes("PAYSHIELD_BAAS_API_KEY")) {
+    return "Provider API key";
+  }
+
+  if (gate.includes("PAYSHIELD_BAAS_PROVIDER")) {
+    return "Provider name";
+  }
+
   if (gate.includes("TRANSFER") || gate.includes("transfer/BaaS")) {
     return "Transfer or BaaS credentials";
+  }
+
+  if (gate === "provider_adapter") {
+    return "Provider adapter";
   }
 
   if (gate === "provider_contract") {

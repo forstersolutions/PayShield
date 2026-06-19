@@ -52,6 +52,7 @@ function buildActivationSetupGroups(input: {
         "PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL",
         "STRIPE_WEBHOOK_SECRET",
         "PAYSHIELD_CORE_API_URL",
+        "PAYSHIELD_CORE_SERVICE_TOKEN",
       ],
       key: "revenue",
       productAction:
@@ -193,7 +194,7 @@ function buildActivationPlan(input: {
       setupChecklist: [
         "Set STRIPE_SECRET_KEY plus PAYSHIELD_COMMERCIAL_PRICE_ID or a live payment link.",
         "Set STRIPE_WEBHOOK_SECRET for /api/app/billing/webhook.",
-        "Point PAYSHIELD_CORE_API_URL at the always-on core so paid access persists.",
+        "Point PAYSHIELD_CORE_API_URL at the always-on core and set PAYSHIELD_CORE_SERVICE_TOKEN so paid access persists through authenticated core writes.",
       ],
       title: "Charge the household",
       userAction: "Activate paid access",
@@ -441,19 +442,21 @@ function buildRevenueAndRails(input: {
               gate.includes("PROVIDER_WEBHOOK"),
           ),
         ),
-        canRunNow: true,
+        canRunNow: input.moneyRails.paycheckDetectionReady,
         endpoint: "POST /api/app/paychecks/detect",
         key: "paycheck_detection",
         label: "Detect income",
         ownerAction:
-          "Configure signed provider events for automatic detection; manual detection remains available for controlled testing.",
+          "Configure Plaid/token-vault credentials and signed provider events for automatic detection; controlled manual events remain available for operator testing.",
         provider:
           input.moneyRails.detectionMode === "plaid_transactions_sync"
             ? "Plaid Transactions"
             : "Provider webhook",
         state: input.moneyRails.paycheckDetectionReady
           ? "automatic"
-          : "manual_event_ready",
+          : input.moneyRails.bankLinkReady
+            ? "provider_event_needed"
+            : "setup_needed",
         userAction: "Save payroll rule and run detection",
         unlocks: "Priority bucket funding and a recalculated Safe to Spend balance.",
       },

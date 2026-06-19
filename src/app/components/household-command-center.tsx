@@ -148,6 +148,11 @@ export function HouseholdCommandCenter() {
       mode: commercialReadiness.mode,
       paidAccessReady: commercialReadiness.paidAccessReady,
       priceLabel: commercialReadiness.priceLabel,
+      activationCoreReady: commercialReadiness.activationCoreReady,
+      activationCoreServiceAuthConfigured:
+        commercialReadiness.activationCoreServiceAuthConfigured,
+      checkoutOperationalReady: commercialReadiness.checkoutOperationalReady,
+      productionLiveStripeReady: commercialReadiness.productionLiveStripeReady,
       remainingGates: commercialReadiness.missing,
       webhookEndpointPath: commercialReadiness.webhookEndpointPath,
     },
@@ -157,6 +162,10 @@ export function HouseholdCommandCenter() {
       paycheckDetectionReady: moneyRailReadiness.paycheckDetectionReady,
       plaidConfigured: moneyRailReadiness.plaidConfigured,
       plaidEnv: moneyRailReadiness.plaidEnv,
+      providerAdapterConfigured: moneyRailReadiness.providerAdapterConfigured,
+      providerAdapterMissing: moneyRailReadiness.providerAdapterMissing,
+      providerWebhookSigningConfigured:
+        moneyRailReadiness.providerWebhookSigningConfigured,
       remainingGates: moneyRailReadiness.missing,
       tokenVaultConfigured: moneyRailReadiness.tokenVaultConfigured,
       tokenVaultStoreReady: moneyRailReadiness.tokenVaultStoreReady,
@@ -261,10 +270,12 @@ export function HouseholdCommandCenter() {
       href: "#money-operations",
       icon: Radar,
       label: "Income",
-      ready: true,
+      ready: moneyRailReadiness.paycheckDetectionReady,
       status: moneyRailReadiness.paycheckDetectionReady
         ? "Auto"
-        : "Manual event",
+        : moneyRailReadiness.bankLinkReady
+          ? "Signing needed"
+          : "Setup needed",
       title: "Detect the paycheck",
     },
     {
@@ -272,7 +283,7 @@ export function HouseholdCommandCenter() {
       href: "#card-authorization",
       icon: CreditCard,
       label: "Spend",
-      ready: true,
+      ready: snapshot.readiness.liveMoneyReady,
       status: snapshot.readiness.liveMoneyReady ? "Gateway" : "Ledger",
       title: "Approve or decline",
     },

@@ -41,6 +41,8 @@ export function GET() {
       commercial: {
         activationCoreConfigured: commercial.activationCoreConfigured,
         activationCoreReady: commercial.activationCoreReady,
+        activationCoreServiceAuthConfigured:
+          commercial.activationCoreServiceAuthConfigured,
         checkoutConfigured: commercial.checkoutConfigured,
         checkoutOperationalReady: commercial.checkoutOperationalReady,
         mode: commercial.mode,

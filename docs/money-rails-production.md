@@ -44,6 +44,11 @@ whether a checkout URL was created. It does not store card data or raw payment
 method details. Stripe webhooks remain the source of truth for activating paid
 access after payment succeeds.
 
+Checkout is not operational until `PAYSHIELD_CORE_API_URL` and
+`PAYSHIELD_CORE_SERVICE_TOKEN` are both configured. The URL points Vercel at the
+always-on core service; the token authenticates checkout-intent and webhook
+activation writes so a paid household can be unlocked from durable records.
+
 `POST /api/app/billing/portal` opens Stripe Billing Portal only after the
 dedicated core returns a durable `providerCustomerId` for the household. This
 keeps subscription management tied to the same paid-access records that unlock

@@ -17,6 +17,7 @@ async function parseJson(response: Response) {
     };
     commercial?: {
       activationCoreReady?: unknown;
+      activationCoreServiceAuthConfigured?: unknown;
       paidAccessReady?: unknown;
       checkoutConfigured?: unknown;
       checkoutOperationalReady?: unknown;
@@ -348,11 +349,37 @@ test("reports commercial and money rail readiness gates", async () => {
   const configured = GET();
   const configuredBody = await parseJson(configured);
 
-  assert.equal(configuredBody.commercial?.paidAccessReady, true);
-  assert.equal(configuredBody.commercial?.checkoutOperationalReady, true);
-  assert.equal(configuredBody.commercial?.activationCoreReady, true);
+  assert.equal(configuredBody.commercial?.paidAccessReady, false);
+  assert.equal(configuredBody.commercial?.checkoutOperationalReady, false);
+  assert.equal(configuredBody.commercial?.activationCoreReady, false);
   assert.equal(
-    configuredBody.commercial?.webhookSigningSecretConfigured,
+    configuredBody.commercial?.activationCoreServiceAuthConfigured,
+    false,
+  );
+  assert.equal(
+    (configuredBody.commercial?.remainingGates as string[]).includes(
+      "PAYSHIELD_CORE_SERVICE_TOKEN",
+    ),
+    true,
+  );
+
+  process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-secret";
+
+  const coreAuthenticated = GET();
+  const coreAuthenticatedBody = await parseJson(coreAuthenticated);
+
+  assert.equal(coreAuthenticatedBody.commercial?.paidAccessReady, true);
+  assert.equal(
+    coreAuthenticatedBody.commercial?.checkoutOperationalReady,
+    true,
+  );
+  assert.equal(coreAuthenticatedBody.commercial?.activationCoreReady, true);
+  assert.equal(
+    coreAuthenticatedBody.commercial?.activationCoreServiceAuthConfigured,
+    true,
+  );
+  assert.equal(
+    coreAuthenticatedBody.commercial?.webhookSigningSecretConfigured,
     true,
   );
   assert.equal(configuredBody.moneyRails?.bankLinkReady, false);
@@ -392,6 +419,7 @@ test("reports commercial and money rail readiness gates", async () => {
 test("commercial checkout does not pass production readiness with test Stripe assets", async () => {
   process.env.PAYSHIELD_COMMERCIAL_PRICE_ID = "price_test";
   process.env.PAYSHIELD_CORE_API_URL = "https://core.payshield.test";
+  process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-secret";
   process.env.STRIPE_SECRET_KEY = "sk_test_not_live";
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
   process.env.VERCEL_ENV = "production";
