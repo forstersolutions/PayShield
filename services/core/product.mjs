@@ -2075,6 +2075,7 @@ function buildActivationSetupGroups(body, siteUrl) {
         "PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL",
         "STRIPE_WEBHOOK_SECRET",
         "PAYSHIELD_CORE_API_URL",
+        "PAYSHIELD_CORE_SERVICE_TOKEN",
       ],
       key: "revenue",
       productAction:
@@ -2214,6 +2215,10 @@ function commercialActivationMissing(env) {
     missing.push("STRIPE_WEBHOOK_SECRET");
   }
 
+  if (!envPresent(env, "PAYSHIELD_CORE_SERVICE_TOKEN")) {
+    missing.push("PAYSHIELD_CORE_SERVICE_TOKEN");
+  }
+
   if (
     env.VERCEL_ENV === "production" &&
     stripeSecretConfigured &&
@@ -2255,7 +2260,7 @@ function buildActivationPlan(env, snapshot, commercialAccess, moneyRails) {
       setupChecklist: [
         "Set STRIPE_SECRET_KEY plus PAYSHIELD_COMMERCIAL_PRICE_ID or a live payment link.",
         "Set STRIPE_WEBHOOK_SECRET for /api/app/billing/webhook.",
-        "Point PAYSHIELD_CORE_API_URL at the always-on core so paid access persists.",
+        "Point PAYSHIELD_CORE_API_URL at the always-on core and set PAYSHIELD_CORE_SERVICE_TOKEN so paid access persists through authenticated core writes.",
       ],
       title: "Charge the household",
       userAction: "Activate paid access",
@@ -2319,9 +2324,9 @@ function buildActivationPlan(env, snapshot, commercialAccess, moneyRails) {
       ),
       status: moneyRails.paycheckDetectionReady
         ? "automatic"
-        : moneyRails.detectionMode === "plaid_transactions_sync"
+        : moneyRails.bankLinkReady
           ? "provider_event_needed"
-          : "manual_event_ready",
+          : "setup_needed",
       setupChecklist: [
         "Save employer, amount, frequency, and provider account matching rules.",
         "Set PAYSHIELD_PROVIDER_WEBHOOK_SECRET for signed provider events.",
@@ -2370,7 +2375,10 @@ function buildActivationPlan(env, snapshot, commercialAccess, moneyRails) {
       ready: moneyRails.transferReady,
       requiredGates: uniqueList([
         ...moneyRails.missing.filter(
-          (gate) => gate.includes("TRANSFER") || gate.includes("transfer/BaaS"),
+          (gate) =>
+            gate.includes("TRANSFER") ||
+            gate.includes("transfer/BaaS") ||
+            gate.includes("PAYSHIELD_BAAS"),
         ),
         ...coreMissing,
       ]),
@@ -2503,26 +2511,31 @@ function buildRevenueAndRails(
               gate.includes("PROVIDER_WEBHOOK"),
           ),
         ),
-        canRunNow: true,
+        canRunNow: moneyRails.paycheckDetectionReady,
         endpoint: "POST /api/app/paychecks/detect",
         key: "paycheck_detection",
         label: "Detect income",
         ownerAction:
-          "Configure signed provider events for automatic detection; manual detection remains available for controlled testing.",
+          "Configure Plaid/token-vault credentials and signed provider events for automatic detection; controlled manual events remain available for operator testing.",
         provider:
           moneyRails.detectionMode === "plaid_transactions_sync"
             ? "Plaid Transactions"
             : "Provider webhook",
         state: moneyRails.paycheckDetectionReady
           ? "automatic"
-          : "manual_event_ready",
+          : moneyRails.bankLinkReady
+            ? "provider_event_needed"
+            : "setup_needed",
         userAction: "Save payroll rule and run detection",
         unlocks: "Priority bucket funding and a recalculated Safe to Spend balance.",
       },
       {
         blockers: uniqueList([
           ...moneyRails.missing.filter(
-            (gate) => gate.includes("TRANSFER") || gate.includes("transfer/BaaS"),
+            (gate) =>
+              gate.includes("TRANSFER") ||
+              gate.includes("transfer/BaaS") ||
+              gate.includes("PAYSHIELD_BAAS"),
           ),
           ...liveMoneyMissing,
         ]),

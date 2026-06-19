@@ -258,9 +258,9 @@ function buildActivationPlan(input: {
       ),
       status: input.moneyRails.paycheckDetectionReady
         ? "automatic"
-        : input.moneyRails.detectionMode === "plaid_transactions_sync"
+        : input.moneyRails.bankLinkReady
           ? "provider_event_needed"
-          : "manual_event_ready",
+          : "setup_needed",
       setupChecklist: [
         "Save employer, amount, frequency, and provider account matching rules.",
         "Set PAYSHIELD_PROVIDER_WEBHOOK_SECRET for signed provider events.",

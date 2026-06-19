@@ -180,6 +180,12 @@ test("core operations endpoint exposes household money-control records", async (
     const activationStages = activationPlan.stages as Array<Record<string, unknown>>;
     const revenueAndRails = body.revenueAndRails as Record<string, unknown>;
     const rails = revenueAndRails.rails as Array<Record<string, unknown>>;
+    const revenueStage = activationStages.find((stage) => stage.key === "revenue");
+    const paycheckStage = activationStages.find(
+      (stage) => stage.key === "paycheck_detection",
+    );
+    const paycheckRail = rails.find((rail) => rail.key === "paycheck_detection");
+    const movementRail = rails.find((rail) => rail.key === "money_movement");
 
     assert.equal(response.status, 200);
     assert.equal(body.service, "payshield-household-operations");
@@ -207,6 +213,22 @@ test("core operations endpoint exposes household money-control records", async (
           String(stage.businessImpact).includes("Release protected money") &&
           Array.isArray(stage.setupChecklist) &&
           String(stage.verification).includes("provider execution"),
+      ),
+      true,
+    );
+    assert.equal(
+      (revenueStage?.requiredGates as string[]).includes(
+        "PAYSHIELD_CORE_SERVICE_TOKEN",
+      ),
+      true,
+    );
+    assert.equal(paycheckStage?.ready, false);
+    assert.equal(paycheckStage?.status, "setup_needed");
+    assert.equal(paycheckRail?.canRunNow, false);
+    assert.equal(paycheckRail?.state, "setup_needed");
+    assert.equal(
+      (movementRail?.blockers as string[]).includes(
+        "PAYSHIELD_BAAS_ADAPTER=http_json",
       ),
       true,
     );
@@ -263,6 +285,17 @@ test("core activation endpoint exposes operator launch checklist", async () => {
     assert.equal(
       authenticatedSmokeCommands.some((command) =>
         command.includes("/api/app/activation"),
+      ),
+      true,
+    );
+    assert.equal(
+      setupGroups.some(
+        (group) =>
+          group.key === "revenue" &&
+          Array.isArray(group.setupCommands) &&
+          String((group.setupCommands as string[]).join("\n")).includes(
+            "npx vercel env add PAYSHIELD_CORE_SERVICE_TOKEN production",
+          ),
       ),
       true,
     );
