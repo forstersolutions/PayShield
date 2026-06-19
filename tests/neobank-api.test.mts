@@ -25,6 +25,7 @@ import { GET as getOperations } from "../src/app/api/app/operations/route.ts";
 import { POST as createPayee } from "../src/app/api/app/payees/route.ts";
 import { POST as detectPaycheck } from "../src/app/api/app/paychecks/detect/route.ts";
 import { POST as savePaycheckRule } from "../src/app/api/app/paychecks/rules/route.ts";
+import { POST as resolveReconciliation } from "../src/app/api/app/reconciliation/resolve/route.ts";
 import { POST as createTransfer } from "../src/app/api/app/transfers/route.ts";
 import { POST as unlockBucket } from "../src/app/api/app/unlocks/route.ts";
 import { POST as providerWebhook } from "../src/app/api/provider/webhooks/route.ts";
@@ -348,6 +349,22 @@ test("audit export returns a downloadable household operations packet", async ()
   assert.equal(ledger.source, "core_control_model");
   assert.equal(Array.isArray(ledger.entries), true);
   assert.equal(activationPlan.totalStages, 6);
+});
+
+test("reconciliation resolution fails closed without the dedicated core store", async () => {
+  const response = await resolveReconciliation(
+    makeRequest("/api/app/reconciliation/resolve", {
+      exceptionId: "reconciliation_exception_demo",
+      reason: "duplicate_event",
+      resolutionNote: "Provider replay reviewed and no ledger change was needed.",
+    }),
+  );
+  const body = await parseJson(response);
+
+  assert.equal(response.status, 424);
+  assert.equal(body.service, "payshield-reconciliation-resolution");
+  assert.equal(body.code, "core_operations_required");
+  assert.match(String(body.error), /core operations store/i);
 });
 
 test("bucket endpoint loads editable household profile templates", async () => {

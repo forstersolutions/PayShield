@@ -25,6 +25,7 @@ import {
   recordBankConnection,
   recordCommercialBillingEvent,
   recordCommercialCheckoutIntent,
+  resolveReconciliationException,
   saveBucketProfile,
   startOnboarding,
 } from "./product.mjs";
@@ -388,6 +389,11 @@ export function createCoreServer() {
 
       if (request.method === "POST" && path === "/app/unlocks") {
         await withJsonBody(request, response, createUnlock);
+        return;
+      }
+
+      if (request.method === "POST" && path === "/app/reconciliation/resolve") {
+        await withJsonBody(request, response, resolveReconciliationException);
         return;
       }
 

@@ -22,6 +22,7 @@ import {
   persistReconciliationException,
   persistTransferIntent,
   persistUnlockRequest,
+  resolveReconciliationExceptionRecord,
 } from "./database.mjs";
 
 const serviceName = "payshield-core";
@@ -481,6 +482,7 @@ export function getCoreHealth(env = process.env) {
       "POST /app/paychecks/detect",
       "POST /app/transfers",
       "POST /app/unlocks",
+      "POST /app/reconciliation/resolve",
       "POST /card/authorize",
       "POST /provider/webhooks",
     ],
@@ -2021,7 +2023,10 @@ function operationTimeline(audit, snapshot) {
       id: exception.id,
       label: "Reconciliation exception",
       rail: "reconciliation",
-      status: exception.reasonCode || exception.status,
+      status:
+        exception.status === "resolved"
+          ? "resolved"
+          : exception.reasonCode || exception.status,
     })),
   ];
 
@@ -2861,6 +2866,129 @@ export async function getHouseholdAuditExport(env = process.env, actorInput = de
       statusCards: body.statusCards,
       support: body.support,
       timeline: body.timeline,
+    },
+    status: 200,
+  };
+}
+
+export async function resolveReconciliationException(payload, env = process.env) {
+  const actor = actorFromPayload(payload);
+  const exceptionId = cleanText(payload?.exceptionId || payload?.id, 180);
+  const idempotencyKey = cleanText(payload?.idempotencyKey, 220);
+  const reason =
+    cleanText(payload?.reason, 80) || "support_review_complete";
+  const resolutionNote = cleanText(
+    payload?.resolutionNote || payload?.note,
+    500,
+  );
+
+  if (!exceptionId && !idempotencyKey) {
+    return {
+      body: {
+        error: "Provide exceptionId or idempotencyKey.",
+        service: "payshield-reconciliation-resolution",
+      },
+      status: 400,
+    };
+  }
+
+  if (!resolutionNote) {
+    return {
+      body: {
+        error: "Provide a resolutionNote before closing the exception.",
+        service: "payshield-reconciliation-resolution",
+      },
+      status: 400,
+    };
+  }
+
+  const summary = cleanText(payload?.summary, 500) || null;
+  const resolution = await resolveReconciliationExceptionRecord(
+    {
+      exceptionId,
+      householdId: actor.householdId,
+      idempotencyKey,
+      reason,
+      resolvedBy: actor.id,
+      resolutionNote,
+      summary,
+    },
+    env,
+  );
+
+  if (persistenceFailed(resolution)) {
+    return {
+      body: {
+        error: "Reconciliation exception could not be resolved.",
+        resolution,
+        service: "payshield-reconciliation-resolution",
+      },
+      status: 503,
+    };
+  }
+
+  if (!resolution.found) {
+    return {
+      body: {
+        error: "No matching reconciliation exception was found.",
+        resolution,
+        service: "payshield-reconciliation-resolution",
+      },
+      status: 404,
+    };
+  }
+
+  if (resolution.persistence !== "postgres") {
+    return {
+      body: {
+        error:
+          "Resolving reconciliation exceptions requires the dedicated Postgres operations store.",
+        resolution,
+        service: "payshield-reconciliation-resolution",
+      },
+      status: 424,
+    };
+  }
+
+  const auditPersistence = await persistMoneyRailEvent(
+    {
+      eventType: "reconciliation_exception_resolved",
+      householdId: actor.householdId,
+      payload: {
+        exceptionId: exceptionId || null,
+        idempotencyKey: idempotencyKey || null,
+        noteRecorded: true,
+        reason,
+        resolvedBy: actor.id,
+      },
+      providerEventId: `reconciliation-resolution:${exceptionId || idempotencyKey}`,
+      providerName: "payshield",
+      rail: "reconciliation",
+    },
+    env,
+  );
+
+  if (persistenceFailed(auditPersistence)) {
+    return {
+      body: {
+        auditPersistence,
+        error: "Reconciliation resolution audit event could not be persisted.",
+        resolution,
+        service: "payshield-reconciliation-resolution",
+      },
+      status: 503,
+    };
+  }
+
+  return {
+    body: {
+      auditPersistence,
+      exception: resolution.exception,
+      message:
+        "Reconciliation exception resolved in the durable operations queue.",
+      resolved: true,
+      resolution,
+      service: "payshield-reconciliation-resolution",
     },
     status: 200,
   };

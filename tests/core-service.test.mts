@@ -167,6 +167,7 @@ test("core health exposes product operation routes and fail-closed readiness", a
     assert.equal(routes.includes("POST /app/paychecks/rules"), true);
     assert.equal(routes.includes("POST /app/paychecks/detect"), true);
     assert.equal(routes.includes("POST /app/transfers"), true);
+    assert.equal(routes.includes("POST /app/reconciliation/resolve"), true);
   });
 });
 
@@ -353,6 +354,58 @@ test("core audit export packages ledger and operations for support handoff", asy
     assert.equal(Array.isArray(ledger.entries), true);
     assert.equal(support.contact, "support@graystontechnologies.com");
     assert.equal(activationPlan.totalStages, 6);
+  });
+});
+
+test("core reconciliation resolution validates and requires durable closeout", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const missingIdentifier = await getJson(
+      baseUrl,
+      "/api/app/reconciliation/resolve",
+      jsonPost({
+        resolutionNote: "Reviewed duplicate provider event.",
+      }),
+    );
+
+    assert.equal(missingIdentifier.response.status, 400);
+    assert.equal(
+      missingIdentifier.body.service,
+      "payshield-reconciliation-resolution",
+    );
+
+    const missingNote = await getJson(
+      baseUrl,
+      "/api/app/reconciliation/resolve",
+      jsonPost({
+        exceptionId: "reconciliation_exception_demo",
+      }),
+    );
+
+    assert.equal(missingNote.response.status, 400);
+    assert.match(String(missingNote.body.error), /resolutionNote/);
+
+    const blocked = await getJson(
+      baseUrl,
+      "/api/app/reconciliation/resolve",
+      jsonPost(
+        {
+          exceptionId: "reconciliation_exception_demo",
+          reason: "duplicate_event",
+          resolutionNote: "Provider replay was reviewed and no ledger change was needed.",
+        },
+        {
+          headers: {
+            "x-payshield-user-id": "support_operator",
+          },
+        },
+      ),
+    );
+    const resolution = blocked.body.resolution as Record<string, unknown>;
+
+    assert.equal(blocked.response.status, 424);
+    assert.equal(blocked.body.service, "payshield-reconciliation-resolution");
+    assert.match(String(blocked.body.error), /Postgres operations store/i);
+    assert.equal(resolution.persistence, "memory");
   });
 });
 

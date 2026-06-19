@@ -1665,6 +1665,100 @@ export async function persistReconciliationException(input, env = process.env) {
   }
 }
 
+export async function resolveReconciliationExceptionRecord(input, env = process.env) {
+  const pool = poolFor(env);
+  const resolvedAt = new Date().toISOString();
+  const resolutionMetadata = redactAuditPayload({
+    action: "resolved",
+    reason: input.reason || null,
+    resolvedBy: input.resolvedBy || null,
+    resolutionNote: input.resolutionNote || null,
+  });
+
+  if (!pool) {
+    return {
+      ...persistenceSkipped("reconciliation exception resolution"),
+      exception: reconciliationExceptionFromRow({
+        created_at: resolvedAt,
+        household_id: input.householdId || null,
+        id: input.exceptionId || input.idempotencyKey || "memory_exception",
+        idempotency_key: input.idempotencyKey || null,
+        last_seen_at: resolvedAt,
+        metadata: resolutionMetadata,
+        provider_event_id: null,
+        provider_name: null,
+        provider_transaction_id: null,
+        reason_code: input.reasonCode || "operator_resolved",
+        resolved_at: resolvedAt,
+        severity: "info",
+        source: "operator_resolution",
+        status: "resolved",
+        summary:
+          input.summary || input.resolutionNote || "Reconciliation exception resolved.",
+      }),
+      found: true,
+    };
+  }
+
+  try {
+    const result = await pool.query(
+      `
+        UPDATE reconciliation_exceptions
+        SET
+          status = 'resolved',
+          summary = COALESCE($4, summary),
+          metadata = metadata || $5::jsonb,
+          last_seen_at = now(),
+          resolved_at = COALESCE(resolved_at, now())
+        WHERE (id = $1 OR ($2::text IS NOT NULL AND idempotency_key = $2))
+          AND ($3::text IS NULL OR household_id = $3 OR household_id IS NULL)
+        RETURNING
+          id,
+          household_id,
+          severity,
+          status,
+          summary,
+          source,
+          provider_name,
+          provider_event_id,
+          provider_transaction_id,
+          reason_code,
+          metadata,
+          idempotency_key,
+          created_at,
+          last_seen_at,
+          resolved_at
+      `,
+      [
+        input.exceptionId || "",
+        input.idempotencyKey || null,
+        input.householdId || null,
+        input.summary || null,
+        JSON.stringify(resolutionMetadata),
+      ],
+    );
+
+    if (result.rowCount === 0) {
+      return {
+        found: false,
+        persisted: false,
+        persistence: "postgres",
+        persistenceReason: "No matching reconciliation exception was found.",
+      };
+    }
+
+    return {
+      exception: reconciliationExceptionFromRow(result.rows[0]),
+      found: true,
+      persisted: true,
+      persistence: "postgres",
+      postgresId: result.rows[0]?.id ?? input.exceptionId ?? null,
+    };
+  } catch (error) {
+    return persistenceFailed(error);
+  }
+}
+
 export async function persistBankConnection(input, env = process.env) {
   const pool = poolFor(env);
 
