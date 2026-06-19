@@ -111,6 +111,7 @@ test("money operations surface shows revenue, rails, records, and export", async
   );
 
   assert.match(moneyOperations, /The revenue and money-control operating lane/);
+  assert.match(moneyOperations, /Money path/);
   assert.match(moneyOperations, /Live rail stack/);
   assert.match(moneyOperations, /Runnable lanes/);
   assert.match(moneyOperations, /Setup blockers/);
@@ -123,6 +124,10 @@ test("money operations surface shows revenue, rails, records, and export", async
   assert.match(moneyOperations, /Detect paychecks/);
   assert.match(moneyOperations, /Rule check ready/);
   assert.match(moneyOperations, /Provider activation/);
+  assert.match(moneyOperations, /Protect the money/);
+  assert.match(moneyOperations, /POST \/api\/app\/buckets/);
+  assert.match(moneyOperations, /Control spending/);
+  assert.match(moneyOperations, /POST \/api\/card\/authorize/);
   assert.match(moneyOperations, /Move protected funds/);
   assert.match(moneyOperations, /Approved destination/);
   assert.match(
@@ -176,6 +181,7 @@ test("launch console exposes the commercial money path outside locked app access
   assert.match(launchPage, /Activation workbench/);
   assert.match(launchPage, /copy-safe/);
   assert.match(launchPage, /MoneyEngineConsole/);
+  assert.match(launchPage, /PublicCheckoutForm/);
   assert.match(launchPage, /getCommercialReadiness/);
   assert.match(launchPage, /getMoneyRailReadiness/);
   assert.match(launchPage, /getAppAccessReadiness/);

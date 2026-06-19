@@ -72,18 +72,19 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json(
     {
+      accepted: false,
+      error:
+        "Stripe event verified, but paid-access state was not persisted. Configure PAYSHIELD_CORE_API_URL and PAYSHIELD_CORE_SERVICE_TOKEN so Stripe retries until core activation storage accepts the event.",
       persisted: false,
-      received: true,
+      received: false,
       service: "payshield-stripe-webhook",
       summary,
-      warning:
-        "Stripe event verified. Configure PAYSHIELD_CORE_API_URL to persist paid-access state in the dedicated core service.",
     },
     {
       headers: {
         "cache-control": "no-store",
       },
-      status: 200,
+      status: 503,
     },
   );
 }

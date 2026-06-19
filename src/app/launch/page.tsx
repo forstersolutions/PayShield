@@ -21,6 +21,7 @@ import {
   PayShieldHeaderLogo,
 } from "@/app/components/pay-shield-mark";
 import { MoneyEngineConsole } from "@/app/components/money-engine-console";
+import { PublicCheckoutForm } from "@/app/components/public-checkout-form";
 import { SiteFooter } from "@/app/components/site-footer";
 import {
   GRAYSTON_SUPPORT_EMAIL,
@@ -331,14 +332,16 @@ function Metric({
 }) {
   return (
     <div
-      className={`rounded-[8px] border p-3 ${
+      className={`min-w-0 rounded-[8px] border p-3 ${
         ready
           ? "border-[#68f0c2]/25 bg-[#68f0c2]/10"
           : "border-[#ffb237]/25 bg-[#ffb237]/10"
       }`}
     >
       <p className="brand-kicker">{label}</p>
-      <p className="mt-2 text-2xl font-black capitalize text-white">{value}</p>
+      <p className="mt-2 break-words text-2xl font-black capitalize text-white">
+        {value}
+      </p>
       <p
         className={`mt-1 text-xs font-black ${
           ready ? "text-[#9af7d5]" : "text-[#ffe4ad]"
@@ -531,23 +534,25 @@ export default function LaunchConsolePage() {
 
           <MoneyEngineConsole initialPacket={packet} />
 
-          <div className="grid flex-1 gap-6 py-8 lg:grid-cols-[0.95fr_1.05fr]">
-            <section className="brand-panel accent-rule rounded-[8px] p-5 sm:p-7">
-              <p className="inline-flex items-center gap-2 rounded-[8px] border border-[#39e8ff]/30 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black uppercase text-[#dffaff]">
+          <div className="grid min-w-0 flex-1 gap-6 py-8 lg:grid-cols-[0.95fr_1.05fr]">
+            <section className="brand-panel accent-rule min-w-0 rounded-[8px] p-5 sm:p-7">
+              <p className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-[8px] border border-[#39e8ff]/30 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black uppercase text-[#dffaff]">
                 <ShieldCheck className="size-4" aria-hidden="true" />
-                PayShield Revenue + Rails Console
+                <span className="min-w-0 break-words">
+                  PayShield Revenue + Rails Console
+                </span>
               </p>
-              <h1 className="mt-6 max-w-3xl text-4xl font-black leading-[1.02] text-white sm:text-5xl lg:text-[3.3rem]">
+              <h1 className="mt-6 max-w-3xl break-words text-4xl font-black leading-[1.02] text-white sm:text-5xl lg:text-[3.3rem]">
                 Make the app earn, connect, detect, protect, and move.
               </h1>
-              <p className="mt-5 max-w-2xl text-lg leading-8 text-[#c9d0da]">
+              <p className="mt-5 max-w-2xl break-words text-lg leading-8 text-[#c9d0da]">
                 PayShield becomes usable in one operating sequence: collect
                 paid household access, open authenticated app access, connect a
                 bank source, detect paycheck deposits, split protected buckets,
                 then release only what the ledger allows.
               </p>
 
-              <div className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="mt-7 grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <Metric
                   label="Paid access"
                   ready={commercial.paidAccessReady}
@@ -594,12 +599,12 @@ export default function LaunchConsolePage() {
               </div>
             </section>
 
-            <section className="grid gap-5">
-              <div className="brand-panel rounded-[8px] p-5">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div>
+            <section className="grid min-w-0 gap-5">
+              <div className="brand-panel min-w-0 max-w-full overflow-hidden rounded-[8px] p-5">
+                <div className="flex min-w-0 flex-wrap items-center justify-between gap-4">
+                  <div className="min-w-0">
                     <p className="brand-kicker">Operator clarity</p>
-                    <h2 className="mt-1 text-2xl font-black text-white">
+                    <h2 className="mt-1 break-words text-2xl font-black text-white">
                       The product is wired. These are the remaining switches.
                     </h2>
                   </div>
@@ -607,7 +612,7 @@ export default function LaunchConsolePage() {
                     <GraystonLogo className="h-8 w-auto" />
                   </div>
                 </div>
-                <p className="mt-4 text-sm leading-6 text-[#c9d0da]">
+                <p className="mt-4 break-words text-sm leading-6 text-[#c9d0da]">
                   {PAYSHIELD_OWNERSHIP_LINE} Product and support requests route
                   to{" "}
                   <a
@@ -618,16 +623,16 @@ export default function LaunchConsolePage() {
                   </a>
                   .
                 </p>
-                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-2">
                   <Link
-                    className="brand-button-primary inline-flex min-h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black"
+                    className="brand-button-primary inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-[8px] px-4 text-center text-sm font-black"
                     href="/app#money-operations"
                   >
                     Open money operations
                     <ArrowRight className="size-4" aria-hidden="true" />
                   </Link>
                   <a
-                    className="brand-button-blue inline-flex min-h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black"
+                    className="brand-button-blue inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-[8px] px-4 text-center text-sm font-black"
                     href="/api/health"
                   >
                     View health JSON
@@ -636,19 +641,19 @@ export default function LaunchConsolePage() {
                 </div>
               </div>
 
-              <div className="brand-panel rounded-[8px] p-5">
+              <div className="brand-panel min-w-0 max-w-full overflow-hidden rounded-[8px] p-5">
                 <p className="brand-kicker">Remaining gates</p>
-                <div className="mt-3 grid gap-2">
+                <div className="mt-3 grid min-w-0 gap-2">
                   {allRemainingGates.length ? (
                     allRemainingGates.slice(0, 12).map((gate) => (
                       <div
-                        className="flex items-center justify-between gap-3 rounded-[8px] border border-white/10 bg-black/35 px-3 py-2"
+                        className="grid min-w-0 gap-2 rounded-[8px] border border-white/10 bg-black/35 px-3 py-2 sm:grid-cols-[1fr_auto] sm:items-center"
                         key={gate}
                       >
-                        <span className="text-sm font-black text-white">
+                        <span className="min-w-0 break-words text-sm font-black text-white">
                           {gateLabel(gate)}
                         </span>
-                        <code className="overflow-x-auto text-right font-mono text-xs font-bold text-[#ffcf72]">
+                        <code className="min-w-0 max-w-full overflow-x-auto font-mono text-xs font-bold text-[#ffcf72] sm:text-right">
                           {gate}
                         </code>
                       </div>
@@ -682,10 +687,15 @@ export default function LaunchConsolePage() {
             </p>
           </div>
 
-          <div className="grid gap-3" id="rails">
-            {setupTracks.map((track) => (
-              <ConsoleTrackCard key={track.key} track={track} />
-            ))}
+          <div className="grid gap-4 lg:grid-cols-[0.92fr_1.08fr]" id="rails">
+            <div className="self-start">
+              <PublicCheckoutForm />
+            </div>
+            <div className="grid gap-3">
+              {setupTracks.map((track) => (
+                <ConsoleTrackCard key={track.key} track={track} />
+              ))}
+            </div>
           </div>
         </div>
       </section>

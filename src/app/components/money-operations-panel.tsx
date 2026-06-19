@@ -4,6 +4,7 @@ import {
   ArrowRightLeft,
   BadgeDollarSign,
   CheckCircle2,
+  CreditCard,
   FileDown,
   Landmark,
   Link2,
@@ -11,6 +12,7 @@ import {
   Radar,
   ReceiptText,
   ShieldAlert,
+  Split,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -388,6 +390,7 @@ function ActivationRail({
   actionLabel,
   blockers,
   body,
+  endpoint,
   icon: Icon,
   metric,
   onAction,
@@ -399,6 +402,7 @@ function ActivationRail({
   actionLabel: string;
   blockers: string[];
   body: string;
+  endpoint: string;
   icon: LucideIcon;
   metric: string;
   onAction: () => void | Promise<void>;
@@ -433,6 +437,9 @@ function ActivationRail({
         </span>
         <span className="mt-1 block text-sm leading-6 text-[#c9d0da]">
           {body}
+        </span>
+        <span className="mt-2 block overflow-x-auto font-mono text-[0.68rem] font-black uppercase text-[#39e8ff]">
+          {endpoint}
         </span>
       </span>
       <span className="grid gap-2 sm:min-w-[11rem]">
@@ -507,6 +514,10 @@ export function MoneyOperationsPanel({
     message: "",
     status: "idle",
   });
+  const [bucketState, setBucketState] = useState<ActionState>({
+    message: "",
+    status: "idle",
+  });
   const [depositState, setDepositState] = useState<ActionState>({
     message: "",
     status: "idle",
@@ -516,6 +527,10 @@ export function MoneyOperationsPanel({
     status: "idle",
   });
   const [transferState, setTransferState] = useState<ActionState>({
+    message: "",
+    status: "idle",
+  });
+  const [cardState, setCardState] = useState<ActionState>({
     message: "",
     status: "idle",
   });
@@ -607,6 +622,24 @@ export function MoneyOperationsPanel({
       approvedPayees.find((payee) => payee.allowedBucketId === nextBucketId)
         ?.id ?? "",
     );
+  }
+
+  function focusProductSection(sectionId: string, setState: (state: ActionState) => void) {
+    const element = document.getElementById(sectionId);
+
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+      setState({
+        message: "Opened the control surface for this money workflow.",
+        status: "ready",
+      });
+      return;
+    }
+
+    setState({
+      message: "The control surface could not be found on this page.",
+      status: "error",
+    });
   }
 
   useEffect(() => {
@@ -1290,6 +1323,7 @@ export function MoneyOperationsPanel({
         ? []
         : [...new Set(commercialGates.map(friendlyGateLabel))],
       body: "Activate the paid household record first so every money-control workflow has a revenue gate.",
+      endpoint: "POST /api/app/billing/checkout",
       icon: BadgeDollarSign,
       key: "commercial_access",
       metric:
@@ -1314,6 +1348,7 @@ export function MoneyOperationsPanel({
         ? []
         : [...new Set(bankLinkGates.map(friendlyGateLabel))],
       body: "Launch Plaid Link when credentials and token custody are ready; the same route records the bank connection.",
+      endpoint: "POST /api/app/bank-link/token",
       icon: Link2,
       key: "bank_connection",
       metric: readiness?.moneyRails?.plaidEnv ?? "plaid",
@@ -1334,6 +1369,7 @@ export function MoneyOperationsPanel({
           ? []
           : [...new Set(neobankGates.map(friendlyGateLabel))],
       body: "Record the masked paycheck-routing setup used before incoming payroll funds protected buckets.",
+      endpoint: "POST /api/app/direct-deposit",
       icon: Landmark,
       key: "direct_deposit",
       metric: directDepositSetups[0]?.accountLast4
@@ -1351,11 +1387,26 @@ export function MoneyOperationsPanel({
           : "attention",
     },
     {
+      actionLabel: "Edit buckets",
+      blockers: [],
+      body: "Customize protected categories, target amounts, priority order, due cadence, payees, and unlock behavior before money is released.",
+      endpoint: "POST /api/app/buckets",
+      icon: Split,
+      key: "protected_buckets",
+      metric: `${protectedTransferBuckets.length} buckets`,
+      onAction: () => focusProductSection("bucket-studio", setBucketState),
+      state: bucketState,
+      status: "Customizable",
+      title: "Protect the money",
+      tone: "ready",
+    },
+    {
       actionLabel: "Run detection",
       blockers: readiness?.moneyRails?.paycheckDetectionReady
         ? []
         : [...new Set(detectionGates.map(friendlyGateLabel))],
       body: "Save a payroll rule and run a controlled detection now; automatic detection turns on when Plaid/token-vault/provider-event signing is configured.",
+      endpoint: "POST /api/app/paychecks/detect",
       icon: Radar,
       key: "paycheck_detection",
       metric: `${detectionRules.length} rules`,
@@ -1375,6 +1426,7 @@ export function MoneyOperationsPanel({
         ? []
         : [...new Set(transferGates.map(friendlyGateLabel))],
       body: "Validate bucket funds and create the provider handoff record before any protected money is released.",
+      endpoint: "POST /api/app/transfers",
       icon: ArrowRightLeft,
       key: "protected_transfer",
       metric: selectedBucket ? formatMoney(selectedBucket.availableCents) : "bucket",
@@ -1388,10 +1440,30 @@ export function MoneyOperationsPanel({
       title: "Move protected funds",
       tone: readiness?.moneyRails?.transferReady ? "ready" : "attention",
     },
+    {
+      actionLabel: "Check swipe",
+      blockers: readiness?.neobank?.liveMoneyReady
+        ? []
+        : [...new Set(neobankGates.map(friendlyGateLabel))],
+      body: "Run purchase decisions against Safe to Spend while approved billers can draw only from their assigned protected buckets.",
+      endpoint: "POST /api/card/authorize",
+      icon: CreditCard,
+      key: "card_control",
+      metric:
+        operations?.balances?.safeToSpendCents !== undefined
+          ? formatMoney(operations.balances.safeToSpendCents)
+          : "safe spend",
+      onAction: () => focusProductSection("card-authorization", setCardState),
+      state: cardState,
+      status: readiness?.neobank?.liveMoneyReady ? "Gateway ready" : "Ledger decisions",
+      title: "Control spending",
+      tone: readiness?.neobank?.liveMoneyReady ? "ready" : "attention",
+    },
   ] satisfies Array<{
     actionLabel: string;
     blockers: string[];
     body: string;
+    endpoint: string;
     icon: LucideIcon;
     key: string;
     metric: string;
@@ -1406,6 +1478,11 @@ export function MoneyOperationsPanel({
     (total, rail) => total + rail.blockers.length,
     0,
   );
+  const flowSteps = railStack.map((rail) => ({
+    key: rail.key,
+    label: rail.title,
+    ready: rail.tone === "ready",
+  }));
 
   return (
     <section
@@ -1429,6 +1506,34 @@ export function MoneyOperationsPanel({
               ledger, and validate every transfer or card decision against
               protected funds.
             </p>
+            <div className="mt-6 rounded-[8px] border border-white/10 bg-black/35 p-3">
+              <p className="brand-kicker">Money path</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                {flowSteps.map((step, index) => (
+                  <div
+                    className={`flex min-h-16 items-center gap-3 rounded-[8px] border p-3 ${
+                      step.ready
+                        ? "border-[#68f0c2]/25 bg-[#68f0c2]/10"
+                        : "border-[#ffb237]/25 bg-[#ffb237]/10"
+                    }`}
+                    key={step.key}
+                  >
+                    <span
+                      className={`grid size-8 shrink-0 place-items-center rounded-[8px] text-sm font-black ${
+                        step.ready
+                          ? "bg-[#68f0c2] text-[#04100c]"
+                          : "bg-[#ffb237] text-[#15100a]"
+                      }`}
+                    >
+                      {index + 1}
+                    </span>
+                    <span className="text-sm font-black leading-5 text-white">
+                      {step.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
             <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-[8px] border border-[#68f0c2]/25 bg-[#68f0c2]/10 p-3">
                 <p className="brand-kicker">Runnable lanes</p>
@@ -1496,6 +1601,7 @@ export function MoneyOperationsPanel({
                   actionLabel={rail.actionLabel}
                   blockers={rail.blockers}
                   body={rail.body}
+                  endpoint={rail.endpoint}
                   icon={rail.icon}
                   key={rail.key}
                   metric={rail.metric}

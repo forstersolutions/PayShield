@@ -781,7 +781,7 @@ test("billing webhook fails closed without Stripe signing secret", async () => {
   assert.match(String(body.error), /signing secret/i);
 });
 
-test("billing webhook verifies Stripe signature and summarizes paid access", async () => {
+test("billing webhook fails closed when paid-access state cannot persist to core", async () => {
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
 
   const payload = JSON.stringify({
@@ -809,14 +809,98 @@ test("billing webhook verifies Stripe signature and summarizes paid access", asy
   const body = await parseJson(response);
   const summary = body.summary as Record<string, unknown>;
 
-  assert.equal(response.status, 200);
-  assert.equal(body.received, true);
+  assert.equal(response.status, 503);
+  assert.equal(body.accepted, false);
+  assert.equal(body.received, false);
   assert.equal(body.persisted, false);
+  assert.match(String(body.error), /paid-access state was not persisted/i);
   assert.equal(summary.accessStatus, "active");
   assert.equal(summary.customerEmail, "payer@example.com");
   assert.equal(summary.customerId, "cus_test");
   assert.equal(summary.subscriptionId, "sub_test");
   assert.equal(summary.subscriptionStatus, "active");
+});
+
+test("billing webhook forwards verified paid-access events to core", async () => {
+  process.env.PAYSHIELD_CORE_API_URL = "https://core.payshield.test";
+  process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-secret";
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+  const originalFetch = globalThis.fetch;
+  let capturedAuthorization = "";
+  let capturedBody = "";
+  let capturedUrl = "";
+
+  globalThis.fetch = async (input, init) => {
+    capturedAuthorization = String(
+      (init?.headers as Headers | Record<string, string>) instanceof Headers
+        ? (init?.headers as Headers).get("authorization") ?? ""
+        : (init?.headers as Record<string, string>)?.authorization ?? "",
+    );
+    capturedBody = String(init?.body ?? "");
+    capturedUrl = String(input);
+
+    return new Response(
+      JSON.stringify({
+        accepted: true,
+        accessStatus: "active",
+        persisted: true,
+        persistence: {
+          persisted: true,
+          persistence: "postgres",
+        },
+        service: "payshield-commercial-billing",
+      }),
+      {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      },
+    );
+  };
+
+  try {
+    const payload = JSON.stringify({
+      data: {
+        object: {
+          amount_total: 1900,
+          client_reference_id: "user_demo_001",
+          customer_details: {
+            email: "payer@example.com",
+          },
+          customer: "cus_test",
+          id: "cs_test_paid",
+          mode: "subscription",
+          payment_status: "paid",
+          status: "complete",
+          subscription: "sub_test",
+        },
+      },
+      id: "evt_checkout_paid_forwarded",
+      type: "checkout.session.completed",
+    });
+    const response = await billingWebhook(
+      makeStripeWebhookRequest(
+        payload,
+        "whsec_test",
+        Math.floor(Date.now() / 1000),
+      ),
+    );
+    const body = await parseJson(response);
+    const forwarded = JSON.parse(capturedBody) as Record<string, unknown>;
+    const summary = forwarded.summary as Record<string, unknown>;
+
+    assert.equal(response.status, 200);
+    assert.equal(body.accepted, true);
+    assert.equal(body.persisted, true);
+    assert.equal(capturedUrl, "https://core.payshield.test/api/commercial/billing-events");
+    assert.equal(capturedAuthorization, "Bearer core-secret");
+    assert.equal(forwarded.providerName, "stripe");
+    assert.equal(summary.accessStatus, "active");
+    assert.equal(summary.customerEmail, "payer@example.com");
+    assert.equal(summary.customerId, "cus_test");
+    assert.equal(summary.subscriptionId, "sub_test");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("billing webhook attaches invoice events through nested subscription metadata", async () => {
@@ -850,7 +934,9 @@ test("billing webhook attaches invoice events through nested subscription metada
   const body = await parseJson(response);
   const summary = body.summary as Record<string, unknown>;
 
-  assert.equal(response.status, 200);
+  assert.equal(response.status, 503);
+  assert.equal(body.accepted, false);
+  assert.equal(body.persisted, false);
   assert.equal(summary.accessStatus, "active");
   assert.equal(summary.amountPaidCents, 1900);
   assert.equal(summary.customerEmail, "buyer@example.com");
