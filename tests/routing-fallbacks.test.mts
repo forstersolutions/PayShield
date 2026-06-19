@@ -76,6 +76,19 @@ test("production app access fails closed without Clerk unless review access is e
     assert.equal(readiness.mode, "locked");
     assert.equal(readiness.productionLocked, true);
 
+    const billingWebhookProxyResponse = await proxy(
+      new NextRequest("https://payshield.test/api/app/billing/webhook", {
+        method: "POST",
+      }),
+      {} as never,
+    );
+
+    assert.equal(billingWebhookProxyResponse?.status, 200);
+    assert.equal(
+      billingWebhookProxyResponse?.headers.get("x-middleware-next"),
+      "1",
+    );
+
     const directMeResponse = await getAppMe();
     const directMeBody = (await directMeResponse.json()) as Record<
       string,

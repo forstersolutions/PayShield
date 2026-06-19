@@ -7,6 +7,10 @@ import {
 function isProtectedRoute(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  if (pathname === "/api/app/billing/webhook") {
+    return false;
+  }
+
   return (
     pathname === "/app" ||
     pathname.startsWith("/app/") ||
