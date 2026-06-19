@@ -6,34 +6,32 @@ test("summarizes Docker core smoke output without exposing service token", () =>
   const result = summarizeDockerCoreSmoke({
     authorizedBalances: {
       body: {
-        safeToSpendCents: 145_000,
+        bucketPersistence: {
+          persistence: "postgres_required",
+        },
       },
       response: {
-        status: 200,
+        status: 503,
       },
     },
     cardAuthorization: {
       body: {
-        decision: {
-          approved: true,
-          bucketId: "safe_spending",
+        bucketPersistence: {
+          persistence: "postgres_required",
         },
-        mode: "simulation",
       },
       response: {
-        status: 200,
+        status: 503,
       },
     },
     billPayment: {
       body: {
-        decision: {
-          accepted: true,
-          bucketId: "rent",
-          providerStatus: "blocked",
+        bucketPersistence: {
+          persistence: "postgres_required",
         },
       },
       response: {
-        status: 200,
+        status: 503,
       },
     },
     checks: [
@@ -67,14 +65,16 @@ test("summarizes Docker core smoke output without exposing service token", () =>
   const serialized = JSON.stringify(result);
 
   assert.equal(result.ok, true);
-  assert.equal(result.safeToSpendCents, 145_000);
+  assert.equal(result.safeToSpendCents, null);
+  assert.equal(result.durableStorage.required, true);
+  assert.equal(result.durableStorage.status, 503);
   assert.equal(result.authorization.serviceTokenConfigured, true);
   assert.equal(result.authorization.protectedRouteStatusWithoutToken, 401);
-  assert.equal(result.authorization.protectedRouteStatusWithToken, 200);
-  assert.equal(result.cardAuthorization.approved, true);
-  assert.equal(result.billPayment.accepted, true);
-  assert.equal(result.billPayment.bucketId, "rent");
-  assert.equal(result.billPayment.providerStatus, "blocked");
+  assert.equal(result.authorization.protectedRouteStatusWithToken, 503);
+  assert.equal(result.cardAuthorization.approved, false);
+  assert.equal(result.cardAuthorization.persistence, "postgres_required");
+  assert.equal(result.billPayment.accepted, false);
+  assert.equal(result.billPayment.persistence, "postgres_required");
   assert.equal(result.onboarding.status, 423);
   assert.equal(serialized.includes("core-smoke-"), false);
   assert.equal(serialized.includes("PAYSHIELD_CORE_SERVICE_TOKEN"), false);

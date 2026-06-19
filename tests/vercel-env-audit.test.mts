@@ -153,6 +153,7 @@ test("commercial profile passes when production revenue and money-rail variables
       PAYSHIELD_LEDGER_DATABASE_URL             Encrypted           Production          1m ago
       PAYSHIELD_LEDGER_SCHEMA_VERIFIED          Encrypted           Production          1m ago
       PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION  Encrypted           Production          1m ago
+      PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE    Encrypted           Production          1m ago
       PAYSHIELD_TRANSFER_ENABLED                Encrypted           Production          1m ago
       PAYSHIELD_BAAS_PROVIDER                   Encrypted           Production          1m ago
       PAYSHIELD_BAAS_ADAPTER                    Encrypted           Production          1m ago

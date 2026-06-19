@@ -245,10 +245,12 @@ are active.
   Vercel frontend, deploy the dedicated core service, set
   `PAYSHIELD_CORE_API_URL` to its HTTPS base URL, set the matching
   `PAYSHIELD_CORE_SERVICE_TOKEN` on both services if token protection is
-  enabled, keep `PAYSHIELD_CORE_TIMEOUT_MS` between 1000 and 30000, and verify
+  enabled, keep `PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE=true` for deployed core
+  services, keep `PAYSHIELD_CORE_TIMEOUT_MS` between 1000 and 30000, and verify
   `/api/app/balances`, `/api/app/bill-payments`, `/api/card/authorize`, and
   `/api/provider/webhooks` return `x-payshield-core-proxied: true` from the web
-  app.
+  app. Without `PAYSHIELD_LEDGER_DATABASE_URL`, deployed core money-control
+  routes must return `postgres_required` instead of accepting volatile writes.
 - If `compose.receiver.yml` is used, set `PAYSHIELD_WAITLIST_WEBHOOK_SECRET`
   and `PAYSHIELD_RECEIVER_HOST_DATA_DIR` in `.env.receiver`, start it with
   `docker compose --env-file .env.receiver -f compose.receiver.yml up -d --build`,

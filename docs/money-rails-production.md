@@ -51,6 +51,10 @@ activation writes so a paid household can be unlocked from durable records.
 In production, live-money mode, or when `PAYSHIELD_CORE_REQUIRE_SERVICE_TOKEN`
 is true, protected core routes reject requests with
 `core_service_token_required` until the token is configured.
+In those same deployed/live paths, `PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE=true`
+keeps money-control writes locked unless `PAYSHIELD_LEDGER_DATABASE_URL` is
+configured, preventing bank-link, payroll, bucket, transfer, card, and billing
+events from being accepted into volatile memory.
 
 `POST /api/app/billing/portal` opens Stripe Billing Portal only after the
 dedicated core returns a durable `providerCustomerId` for the household. This
@@ -66,6 +70,7 @@ CLERK_SECRET_KEY=
 PAYSHIELD_CORE_API_URL=
 PAYSHIELD_CORE_SERVICE_TOKEN=
 PAYSHIELD_CORE_REQUIRE_SERVICE_TOKEN=true
+PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE=true
 PAYSHIELD_LEDGER_DATABASE_URL=
 PAYSHIELD_LEDGER_SCHEMA_VERIFIED=true
 PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0010

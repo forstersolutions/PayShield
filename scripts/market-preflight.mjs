@@ -174,6 +174,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "PAYSHIELD_ALLOW_REVIEW_APP_ACCESS",
   "PAYSHIELD_CORE_API_URL",
   "PAYSHIELD_CORE_SERVICE_TOKEN",
+  "PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE",
   "PAYSHIELD_CORE_TIMEOUT_MS",
   "PAYSHIELD_LEDGER_DATABASE_URL",
   "PAYSHIELD_LIVE_MONEY_ENABLED",
@@ -869,6 +870,7 @@ requireText("Dockerfile.core", "services/core/server.mjs");
 requireText("compose.core.yml", "PAYSHIELD_LEDGER_DATABASE_URL");
 requireText("compose.core.yml", "PAYSHIELD_LEDGER_SCHEMA_VERIFIED");
 requireText("compose.core.yml", "PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION");
+requireText("compose.core.yml", "PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE");
 requireText("compose.core.yml", "PAYSHIELD_BAAS_CONTRACT_APPROVED");
 requireText("package.json", "\"core:docker:smoke\"");
 requireText("package.json", "\"core:migrations:verify\"");
@@ -892,6 +894,7 @@ requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_BAAS_API_KEY");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_BAAS_ADAPTER");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_BAAS_API_BASE_URL");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_LIVE_MONEY_ENABLED");
+requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE");
 requireText("scripts/smoke-deploy.mjs", "/api/health");
 requireText("scripts/waitlist-webhook-receiver.mjs", "verifyPayShieldSignature");
 requireText("scripts/waitlist-webhook-receiver.mjs", "payshield-waitlist-receiver");

@@ -1423,7 +1423,7 @@ export async function recordCommercialBillingEvent(payload, env = process.env) {
     env,
   );
 
-  if (persistence.persistence === "postgres_error") {
+  if (persistenceFailed(persistence)) {
     return {
       body: {
         accepted: false,
@@ -1499,7 +1499,7 @@ export async function recordBankConnection(payload, env = process.env) {
   };
   const persistence = await persistBankConnection(connection, env);
 
-  if (persistence.persistence === "postgres_error") {
+  if (persistenceFailed(persistence)) {
     return {
       body: {
         bankConnection: connection,
@@ -4622,7 +4622,7 @@ export async function exchangeBankPublicToken(payload = {}, env = process.env) {
 }
 
 function persistenceFailed(result) {
-  return result?.persistence === "postgres_error";
+  return ["postgres_error", "postgres_required"].includes(result?.persistence);
 }
 
 async function persistOperationalJournal(entry, env = process.env, actorInput = demoUser) {
@@ -5785,7 +5785,7 @@ async function actorForProviderDetection(payload, detection, providerName, env) 
     env,
   );
 
-  if (lookup.persistence === "postgres_error") {
+  if (persistenceFailed(lookup)) {
     return {
       error: lookup,
     };

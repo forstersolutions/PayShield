@@ -146,12 +146,20 @@ export function summarizeDockerCoreSmoke({
     cardAuthorization: {
       approved: cardAuthorization.body.decision?.approved === true,
       bucketId: cardAuthorization.body.decision?.bucketId ?? null,
+      persistence:
+        cardAuthorization.body.bucketPersistence?.persistence ??
+        cardAuthorization.body.decisionPersistence?.persistence ??
+        null,
       mode: cardAuthorization.body.mode,
       status: cardAuthorization.response.status,
     },
     billPayment: {
       accepted: billPayment.body.decision?.accepted === true,
       bucketId: billPayment.body.decision?.bucketId ?? null,
+      persistence:
+        billPayment.body.bucketPersistence?.persistence ??
+        billPayment.body.decisionPersistence?.persistence ??
+        null,
       providerStatus: billPayment.body.decision?.providerStatus ?? null,
       status: billPayment.response.status,
     },
@@ -163,7 +171,11 @@ export function summarizeDockerCoreSmoke({
       liveMoneyOk: onboarding.body.liveMoney?.ok === true,
       status: onboarding.response.status,
     },
-    safeToSpendCents: authorizedBalances.body.safeToSpendCents,
+    durableStorage: {
+      required: authorizedBalances.body.bucketPersistence?.persistence === "postgres_required",
+      status: authorizedBalances.response.status,
+    },
+    safeToSpendCents: authorizedBalances.body.safeToSpendCents ?? null,
   };
 }
 
@@ -195,6 +207,8 @@ export async function runDockerCoreSmoke({
       `PAYSHIELD_CORE_SERVICE_TOKEN=${token}`,
       "-e",
       "PAYSHIELD_LIVE_MONEY_ENABLED=false",
+      "-e",
+      "PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE=true",
       image,
     ]);
     containerStarted = true;
@@ -235,9 +249,9 @@ export async function runDockerCoreSmoke({
 
     requireCheck(
       checks,
-      authorizedBalances.response.status === 200 &&
-        authorizedBalances.body?.safeToSpendCents === 145_000,
-      "authorized balances expose the Safe to Spend ledger model",
+      authorizedBalances.response.status === 503 &&
+        authorizedBalances.body?.bucketPersistence?.persistence === "postgres_required",
+      "production core refuses balance reads without durable Postgres storage",
     );
 
     const cardAuthorization = await readJson(`${mapped.url}/api/card/authorize`, {
@@ -253,10 +267,9 @@ export async function runDockerCoreSmoke({
 
     requireCheck(
       checks,
-      cardAuthorization.response.status === 200 &&
-        cardAuthorization.body?.decision?.approved === true &&
-        cardAuthorization.body?.decision?.bucketId === "safe_spending",
-      "authorized card decision approves only against Safe to Spend",
+      cardAuthorization.response.status === 503 &&
+        cardAuthorization.body?.bucketPersistence?.persistence === "postgres_required",
+      "production core refuses card decisions without durable Postgres storage",
     );
 
     const billPayment = await readJson(`${mapped.url}/api/app/bill-payments`, {
@@ -273,11 +286,9 @@ export async function runDockerCoreSmoke({
 
     requireCheck(
       checks,
-      billPayment.response.status === 200 &&
-        billPayment.body?.decision?.accepted === true &&
-        billPayment.body?.decision?.bucketId === "rent" &&
-        billPayment.body?.decision?.providerStatus === "blocked",
-      "authorized bill payment schedules only from an approved protected bucket",
+      billPayment.response.status === 503 &&
+        billPayment.body?.bucketPersistence?.persistence === "postgres_required",
+      "production core refuses bill-payment writes without durable Postgres storage",
     );
 
     const onboarding = await readJson(`${mapped.url}/api/app/onboarding/start`, {

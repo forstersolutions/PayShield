@@ -193,6 +193,7 @@ test("launch console exposes the commercial money path outside locked app access
   assert.match(launchPage, /PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL/);
   assert.match(launchPage, /PAYSHIELD_PROVIDER_WEBHOOK_SECRET/);
   assert.match(launchPage, /PAYSHIELD_TRANSFER_ENABLED/);
+  assert.match(launchPage, /PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE/);
   assert.match(launchPage, /PAYSHIELD_LIVE_MONEY_ENABLED/);
   assert.match(launchPage, /setupCommands/);
   assert.match(launchPage, /POST \/api\/app\/billing\/checkout/);

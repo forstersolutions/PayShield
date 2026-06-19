@@ -71,6 +71,7 @@ const commercialProductionGroups = [
       "PAYSHIELD_LEDGER_DATABASE_URL",
       "PAYSHIELD_LEDGER_SCHEMA_VERIFIED",
       "PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION",
+      "PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE",
     ],
     title: "Detection and ledger",
     unlocks:
@@ -101,6 +102,7 @@ const commercialProductionGroups = [
       "PAYSHIELD_REGULATED_COUNSEL_SIGNOFF",
       "PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED",
       "PAYSHIELD_LIVE_MONEY_ENABLED",
+      "PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE",
     ],
     title: "Live control gate",
     unlocks:

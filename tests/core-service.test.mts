@@ -18,6 +18,7 @@ const coreEnvKeys = [
   "PAYSHIELD_COMMERCIAL_PRICE_ID",
   "PAYSHIELD_CORE_API_URL",
   "PAYSHIELD_CORE_DB_CONNECT_TIMEOUT_MS",
+  "PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE",
   "PAYSHIELD_CORE_REQUIRE_SERVICE_TOKEN",
   "PAYSHIELD_CORE_SERVICE_TOKEN",
   "PAYSHIELD_LEDGER_DATABASE_URL",
@@ -1197,6 +1198,108 @@ test("core bucket profile route fails closed when durable persistence fails", as
     assert.equal(response.status, 503);
     assert.equal(body.error, "Bucket profile could not be persisted.");
     assert.equal(persistence.persistence, "postgres_error");
+  });
+});
+
+test("core money-control routes require Postgres when durable storage mode is enabled", async () => {
+  process.env.PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE = "true";
+
+  await withCoreServer(async (baseUrl) => {
+    const profile = await getJson(
+      baseUrl,
+      "/api/app/buckets",
+      jsonPost({
+        action: "replace_profile",
+        buckets: [
+          {
+            due: "1st",
+            id: "rent",
+            name: "Rent",
+            protection: "bill_only",
+            targetCents: 50_000,
+          },
+        ],
+      }),
+    );
+    const directDeposit = await getJson(
+      baseUrl,
+      "/api/app/direct-deposit",
+      jsonPost({ idempotencyKey: "durable-required-routing" }),
+    );
+    const paycheckRule = await getJson(
+      baseUrl,
+      "/api/app/paychecks/rules",
+      jsonPost({
+        employerNamePattern: "ACME PAYROLL",
+        expectedFrequency: "biweekly",
+        maximumAmountCents: 250_000,
+        minimumAmountCents: 150_000,
+        providerName: "plaid",
+        ruleName: "ACME payroll",
+      }),
+    );
+    const paycheckDetection = await getJson(
+      baseUrl,
+      "/api/app/paychecks/detect",
+      jsonPost({
+        amountCents: 300_000,
+        employerName: "Acme Payroll",
+        idempotencyKey: "durable-required-paycheck",
+      }),
+    );
+    const transfer = await getJson(
+      baseUrl,
+      "/api/app/transfers",
+      jsonPost({
+        amountCents: 25_000,
+        destinationPayeeId: "payee_abc_apartments",
+        idempotencyKey: "durable-required-transfer",
+        sourceBucketId: "rent",
+      }),
+    );
+    const bankConnection = await getJson(
+      baseUrl,
+      "/api/app/bank-connections",
+      jsonPost({
+        accountId: "acc_durable_required",
+        itemId: "item_durable_required",
+        providerName: "plaid",
+        tokenSecretRef: "vault://plaid/item_durable_required",
+      }),
+    );
+
+    assert.equal(profile.response.status, 503);
+    assert.equal(directDeposit.response.status, 503);
+    assert.equal(paycheckRule.response.status, 503);
+    assert.equal(paycheckDetection.response.status, 503);
+    assert.equal(transfer.response.status, 503);
+    assert.equal(bankConnection.response.status, 503);
+    assert.equal(
+      (profile.body.persistence as Record<string, unknown>).persistence,
+      "postgres_required",
+    );
+    assert.equal(
+      (directDeposit.body.persistence as Record<string, unknown>).persistence,
+      "postgres_required",
+    );
+    assert.equal(
+      (paycheckRule.body.persistence as Record<string, unknown>).persistence,
+      "postgres_required",
+    );
+    assert.equal(
+      (
+        paycheckDetection.body.bucketPersistence as Record<string, unknown>
+      ).persistence,
+      "postgres_required",
+    );
+    assert.equal(
+      (transfer.body.bucketPersistence as Record<string, unknown>).persistence,
+      "postgres_required",
+    );
+    assert.equal(
+      (bankConnection.body.persistence as Record<string, unknown>).persistence,
+      "postgres_required",
+    );
   });
 });
 

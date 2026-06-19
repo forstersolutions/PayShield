@@ -24,6 +24,19 @@ export function databaseConfigured(env = process.env) {
   return Boolean(databaseUrl(env));
 }
 
+function envTrue(env, name) {
+  return env[name]?.trim().toLowerCase() === "true";
+}
+
+export function durableStorageRequired(env = process.env) {
+  return (
+    env.NODE_ENV === "production" ||
+    env.VERCEL_ENV === "production" ||
+    envTrue(env, "PAYSHIELD_LIVE_MONEY_ENABLED") ||
+    envTrue(env, "PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE")
+  );
+}
+
 function recordId(prefix, ...parts) {
   const digest = createHash("sha256")
     .update(parts.filter(Boolean).join(":"))
@@ -64,7 +77,16 @@ function poolFor(env = process.env) {
   return activePool;
 }
 
-function persistenceSkipped(kind) {
+function persistenceSkipped(kind, env = process.env) {
+  if (durableStorageRequired(env)) {
+    return {
+      code: "postgres_ledger_required",
+      persisted: false,
+      persistence: "postgres_required",
+      persistenceReason: `${kind} requires PAYSHIELD_LEDGER_DATABASE_URL before production, live-money, or durable-core operation.`,
+    };
+  }
+
   return {
     persisted: false,
     persistence: "memory",
@@ -436,7 +458,7 @@ export async function loadPayees(householdId, env = process.env) {
 
   if (!pool) {
     return {
-      ...persistenceSkipped("payees"),
+      ...persistenceSkipped("payees", env),
       payees: null,
       payeesFound: false,
     };
@@ -478,7 +500,7 @@ export async function persistPayee(input, env = process.env) {
   const pool = poolFor(env);
 
   if (!pool) {
-    return persistenceSkipped("payee");
+    return persistenceSkipped("payee", env);
   }
 
   let client = null;
@@ -586,7 +608,7 @@ export async function persistJournalEntry(input, env = process.env) {
   const pool = poolFor(env);
 
   if (!pool) {
-    return persistenceSkipped("journal entry");
+    return persistenceSkipped("journal entry", env);
   }
 
   let client = null;
@@ -704,7 +726,7 @@ export async function persistCardAuthorizationDecision(input, env = process.env)
   const pool = poolFor(env);
 
   if (!pool) {
-    return persistenceSkipped("card authorization decision");
+    return persistenceSkipped("card authorization decision", env);
   }
 
   let client = null;
@@ -786,7 +808,7 @@ export async function persistBillPaymentSchedule(input, env = process.env) {
   const pool = poolFor(env);
 
   if (!pool) {
-    return persistenceSkipped("bill payment schedule");
+    return persistenceSkipped("bill payment schedule", env);
   }
 
   let client = null;
@@ -868,7 +890,7 @@ export async function persistUnlockRequest(input, env = process.env) {
   const pool = poolFor(env);
 
   if (!pool) {
-    return persistenceSkipped("unlock request");
+    return persistenceSkipped("unlock request", env);
   }
 
   let client = null;
@@ -992,7 +1014,7 @@ export async function loadBucketProfile(householdId, env = process.env) {
 
   if (!pool) {
     return {
-      ...persistenceSkipped("bucket profile"),
+      ...persistenceSkipped("bucket profile", env),
       profile: null,
       profileFound: false,
     };
@@ -1037,7 +1059,7 @@ export async function persistBucketProfile(input, env = process.env) {
   const pool = poolFor(env);
 
   if (!pool) {
-    return persistenceSkipped("bucket profile");
+    return persistenceSkipped("bucket profile", env);
   }
 
   let client = null;
@@ -1246,7 +1268,7 @@ export async function persistCommercialBillingEvent(input, env = process.env) {
   const pool = poolFor(env);
 
   if (!pool) {
-    return persistenceSkipped("billing event");
+    return persistenceSkipped("billing event", env);
   }
 
   let client = null;
@@ -1387,7 +1409,7 @@ export async function persistCommercialCheckoutIntent(input, env = process.env) 
 
   if (!pool) {
     return {
-      ...persistenceSkipped("checkout intent"),
+      ...persistenceSkipped("checkout intent", env),
       intent: {
         checkoutMode: input.checkoutMode,
         checkoutUrlPresent: Boolean(input.checkoutUrlPresent),
@@ -1505,7 +1527,7 @@ export async function persistMoneyRailEvent(input, env = process.env) {
   const pool = poolFor(env);
 
   if (!pool) {
-    return persistenceSkipped("money rail event");
+    return persistenceSkipped("money rail event", env);
   }
 
   try {
@@ -1553,7 +1575,7 @@ export async function persistReconciliationException(input, env = process.env) {
 
   if (!pool) {
     return {
-      ...persistenceSkipped("reconciliation exception"),
+      ...persistenceSkipped("reconciliation exception", env),
       exception: reconciliationExceptionFromRow({
         created_at: new Date().toISOString(),
         household_id: input.householdId || null,
@@ -1677,7 +1699,7 @@ export async function resolveReconciliationExceptionRecord(input, env = process.
 
   if (!pool) {
     return {
-      ...persistenceSkipped("reconciliation exception resolution"),
+      ...persistenceSkipped("reconciliation exception resolution", env),
       exception: reconciliationExceptionFromRow({
         created_at: resolvedAt,
         household_id: input.householdId || null,
@@ -1763,7 +1785,7 @@ export async function persistBankConnection(input, env = process.env) {
   const pool = poolFor(env);
 
   if (!pool) {
-    return persistenceSkipped("bank connection");
+    return persistenceSkipped("bank connection", env);
   }
 
   try {
@@ -1833,11 +1855,8 @@ export async function loadBankConnectionForProvider(input, env = process.env) {
 
   if (!pool) {
     return {
+      ...persistenceSkipped("bank connection lookup", env),
       bankConnection: null,
-      persisted: false,
-      persistence: "memory",
-      persistenceReason:
-        "Bank connection lookup skipped without PAYSHIELD_LEDGER_DATABASE_URL.",
     };
   }
 
@@ -2056,7 +2075,7 @@ export async function persistPaycheckDetection(input, env = process.env) {
   const pool = poolFor(env);
 
   if (!pool) {
-    return persistenceSkipped("paycheck detection");
+    return persistenceSkipped("paycheck detection", env);
   }
 
   try {
@@ -2128,7 +2147,7 @@ export async function loadActivePaycheckDetectionRules(input, env = process.env)
 
   if (!pool) {
     return {
-      ...persistenceSkipped("paycheck detection rules"),
+      ...persistenceSkipped("paycheck detection rules", env),
       rules: [],
     };
   }
@@ -2178,7 +2197,7 @@ export async function persistPaycheckDetectionRule(input, env = process.env) {
 
   if (!pool) {
     return {
-      ...persistenceSkipped("paycheck detection rule"),
+      ...persistenceSkipped("paycheck detection rule", env),
       rule: {
         amountRangeCents: {
           max: input.maximumAmountCents || null,
@@ -2304,7 +2323,7 @@ export async function persistDirectDepositSetup(input, env = process.env) {
 
   if (!pool) {
     return {
-      ...persistenceSkipped("direct deposit setup"),
+      ...persistenceSkipped("direct deposit setup", env),
       setup: {
         accountLast4: input.accountLast4 || "----",
         accountName: input.accountName,
@@ -2401,7 +2420,7 @@ export async function persistTransferIntent(input, env = process.env) {
   const pool = poolFor(env);
 
   if (!pool) {
-    return persistenceSkipped("transfer intent");
+    return persistenceSkipped("transfer intent", env);
   }
 
   try {
@@ -2456,7 +2475,7 @@ export async function loadOperationalAudit(householdId, env = process.env) {
 
   if (!pool) {
     return {
-      ...persistenceSkipped("operational audit"),
+      ...persistenceSkipped("operational audit", env),
       audit: null,
       auditFound: false,
     };

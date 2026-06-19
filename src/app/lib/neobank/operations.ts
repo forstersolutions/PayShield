@@ -110,6 +110,7 @@ function buildActivationSetupGroups(input: {
         "PAYSHIELD_LEDGER_DATABASE_URL",
         "PAYSHIELD_LEDGER_SCHEMA_VERIFIED",
         "PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION",
+        "PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE",
       ],
       key: "paycheck_detection",
       productAction:
@@ -155,6 +156,7 @@ function buildActivationSetupGroups(input: {
         "PAYSHIELD_REGULATED_COUNSEL_SIGNOFF",
         "PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED",
         "PAYSHIELD_LIVE_MONEY_ENABLED",
+        "PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE",
       ],
       key: "live_control",
       productAction:
