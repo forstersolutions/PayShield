@@ -104,8 +104,12 @@ function buildActivationSetupGroups(input: {
         `curl -fsS ${input.siteUrl}/api/launch/activation`,
         'PAYSHIELD_LEDGER_DATABASE_URL="<postgres-url>" npm run core:migrations:verify',
       ],
-      endpoint: "POST /api/app/paychecks/detect",
+      endpoint:
+        "POST /api/app/paychecks/sync + POST /api/app/paychecks/detect",
       env: [
+        "PLAID_CLIENT_ID",
+        "PLAID_SECRET",
+        "PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY",
         "PAYSHIELD_PROVIDER_WEBHOOK_SECRET",
         "PAYSHIELD_LEDGER_DATABASE_URL",
         "PAYSHIELD_LEDGER_SCHEMA_VERIFIED",
@@ -119,7 +123,8 @@ function buildActivationSetupGroups(input: {
         input.moneyRails.paycheckDetectionReady &&
         input.neobank.postgresSchemaVerified,
       title: "Detection and ledger",
-      unlocks: "Signed provider events, idempotent payroll detection, and durable journal evidence.",
+      unlocks:
+        "Plaid transaction sync, signed provider events, idempotent payroll detection, and durable journal evidence.",
     }),
     buildSetupGroup({
       checks: [
@@ -243,12 +248,12 @@ function buildActivationPlan(input: {
       businessImpact:
         "Convert connected account activity into automatic payroll detection and bucket funding.",
       evidence:
-        "Saved paycheck rule, signed provider event, balanced ledger entry, and updated Safe to Spend.",
+        "Saved paycheck rule, Plaid transaction sync event, balanced ledger entry, and updated Safe to Spend.",
       key: "paycheck_detection",
       label: "Paycheck detection",
       ownerAction:
-        "Store detection rules and consume Plaid/provider events so payroll deposits split into buckets automatically.",
-      primaryEndpoint: "POST /api/app/paychecks/detect",
+        "Store detection rules and sync Plaid/provider events so payroll deposits split into buckets automatically.",
+      primaryEndpoint: "POST /api/app/paychecks/sync",
       ready: input.moneyRails.paycheckDetectionReady,
       requiredGates: cleanMissing(
         input.moneyRails.missing.filter(
@@ -265,13 +270,13 @@ function buildActivationPlan(input: {
           : "setup_needed",
       setupChecklist: [
         "Save employer, amount, frequency, and provider account matching rules.",
-        "Set PAYSHIELD_PROVIDER_WEBHOOK_SECRET for signed provider events.",
-        "Verify duplicate provider events are idempotent and exceptions enter the queue.",
+        "Set Plaid credentials, token-vault encryption, durable Postgres, and provider webhook signing.",
+        "Verify duplicate sync/provider events are idempotent and exceptions enter the queue.",
       ],
       title: "Detect paychecks",
-      userAction: "Save rule and run detection",
+      userAction: "Save rule and sync bank activity",
       verification:
-        "Run /api/app/paychecks/detect or send a signed provider webhook and confirm protected buckets fund before Safe to Spend.",
+        "Run /api/app/paychecks/sync, /api/app/paychecks/detect, or a signed provider webhook and confirm protected buckets fund before Safe to Spend.",
     },
     {
       actionHref: "#bucket-studio",
@@ -390,6 +395,7 @@ function buildRevenueAndRails(input: {
       "Collect paid household access",
       "Bind the household identity",
       "Connect the external bank source",
+      "Sync linked-bank activity",
       "Route and detect paycheck deposits",
       "Split protected buckets before Safe to Spend",
       "Release funds only through approved transfers, billers, unlocks, or card decisions",
@@ -411,6 +417,35 @@ function buildRevenueAndRails(input: {
             : "stripe_needed",
         userAction: `Subscribe at ${priceLabel}`,
         unlocks: "Commercial access, billing status, and paid money workflows.",
+      },
+      {
+        blockers: cleanMissing([
+          ...input.moneyRails.missing.filter(
+            (gate) =>
+              gate.includes("PLAID") ||
+              gate.includes("TOKEN_VAULT") ||
+              gate.includes("token vault"),
+          ),
+          ...liveMoneyMissing.filter((gate) =>
+            ["postgres_ledger", "dedicated_backend", "core_service_auth"].includes(
+              gate,
+            ),
+          ),
+        ]),
+        canRunNow: input.moneyRails.transactionSyncReady,
+        endpoint: "POST /api/app/paychecks/sync",
+        key: "transaction_sync",
+        label: "Sync activity",
+        ownerAction:
+          "Run Plaid Transactions sync from the core so payroll-like deposits enter the bucket ledger.",
+        provider: "Plaid Transactions",
+        state: input.moneyRails.transactionSyncReady
+          ? "ready"
+          : input.moneyRails.bankLinkReady
+            ? "core_storage_needed"
+            : "bank_link_needed",
+        userAction: "Sync linked-bank activity",
+        unlocks: "Synced transactions, paycheck detections, exceptions, and cursor evidence.",
       },
       {
         blockers: cleanMissing(
@@ -445,11 +480,11 @@ function buildRevenueAndRails(input: {
           ),
         ),
         canRunNow: input.moneyRails.paycheckDetectionReady,
-        endpoint: "POST /api/app/paychecks/detect",
+        endpoint: "POST /api/app/paychecks/sync",
         key: "paycheck_detection",
         label: "Detect income",
         ownerAction:
-          "Configure Plaid/token-vault credentials and signed provider events for automatic detection; controlled manual events remain available for operator testing.",
+          "Configure Plaid/token-vault credentials, sync cursor storage, and signed provider events; controlled manual detection remains available for operator testing.",
         provider:
           input.moneyRails.detectionMode === "plaid_transactions_sync"
             ? "Plaid Transactions"
@@ -459,7 +494,7 @@ function buildRevenueAndRails(input: {
           : input.moneyRails.bankLinkReady
             ? "provider_event_needed"
             : "setup_needed",
-        userAction: "Save payroll rule and run detection",
+        userAction: "Save payroll rule and sync income",
         unlocks: "Priority bucket funding and a recalculated Safe to Spend balance.",
       },
       {
@@ -636,6 +671,12 @@ export function createHouseholdOperationsPacket(session?: AppSession) {
         key: "direct_deposit",
         label: "Paycheck routing",
         state: snapshot.readiness.liveMoneyReady ? "ready" : "needs_setup",
+      },
+      {
+        key: "transaction_sync",
+        label: "Bank sync",
+        state:
+          moneyRails.transactionSyncReady ? "ready" : "needs_setup",
       },
       {
         key: "paycheck_detection",

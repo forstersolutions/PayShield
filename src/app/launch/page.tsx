@@ -429,9 +429,13 @@ export default function LaunchConsolePage() {
     },
     {
       body:
-        "This turns income activity into protected bucket funding. The app can save payroll rules, accept signed provider events, and post balanced ledger splits.",
-      endpoint: "POST /api/app/paychecks/rules + POST /api/provider/webhooks",
+        "This turns linked-bank income activity into protected bucket funding. The app saves payroll rules, syncs Plaid transactions, accepts signed provider events, and posts balanced ledger splits.",
+      endpoint:
+        "POST /api/app/paychecks/rules + POST /api/app/paychecks/sync + POST /api/provider/webhooks",
       env: [
+        "PLAID_CLIENT_ID",
+        "PLAID_SECRET",
+        "PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY",
         "PAYSHIELD_PROVIDER_WEBHOOK_SECRET",
         "PAYSHIELD_LEDGER_DATABASE_URL",
         "PAYSHIELD_LEDGER_SCHEMA_VERIFIED=true",

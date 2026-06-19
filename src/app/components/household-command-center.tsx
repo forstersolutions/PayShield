@@ -11,6 +11,7 @@ import {
   Link2,
   LockKeyhole,
   Radar,
+  RefreshCw,
   ShieldAlert,
   Split,
   UserRoundCheck,
@@ -54,6 +55,13 @@ const commandActions = [
     href: "#money-operations",
     icon: Link2,
     label: "Launch Plaid",
+  },
+  {
+    body: "Sync linked-bank transactions and let the core post payroll splits.",
+    endpoint: "POST /api/app/paychecks/sync",
+    href: "#money-operations",
+    icon: RefreshCw,
+    label: "Sync bank",
   },
   {
     body: "Record masked routing state for the protected paycheck landing zone.",
@@ -239,6 +247,19 @@ export function HouseholdCommandCenter() {
       title: "Connect the bank source",
     },
     {
+      body: "The core syncs linked-bank transactions, detects payroll-like credits, and stores the cursor for the next run.",
+      href: "#money-operations",
+      icon: RefreshCw,
+      label: "Sync",
+      ready: moneyRailReadiness.transactionSyncReady,
+      status: moneyRailReadiness.transactionSyncReady
+        ? "Ready"
+        : moneyRailReadiness.bankLinkReady
+          ? "Core needed"
+          : "Bank needed",
+      title: "Sync linked-bank activity",
+    },
+    {
       body: "Paycheck-routing setup records the masked payroll destination before income events fund buckets.",
       href: "#money-operations",
       icon: Landmark,
@@ -323,15 +344,25 @@ export function HouseholdCommandCenter() {
     },
     {
       body: "Employer, amount, frequency, and provider rules turn account activity into a paycheck event PayShield can split.",
+      endpoint: "POST /api/app/paychecks/sync",
+      href: "#money-operations",
+      icon: RefreshCw,
+      label: "Sync",
+      ready: moneyRailReadiness.transactionSyncReady,
+      status: moneyRailReadiness.transactionSyncReady ? "sync ready" : "core needed",
+      title: "Recognize payroll",
+    },
+    {
+      body: "Rules and controlled detections are still available for setup, support, and exception handling.",
       endpoint: "POST /api/app/paychecks/rules",
       href: "#money-operations",
       icon: Radar,
-      label: "Detect",
+      label: "Rules",
       ready: moneyRailReadiness.paycheckDetectionReady,
       status: moneyRailReadiness.paycheckDetectionReady
         ? "automatic"
         : "rule check",
-      title: "Recognize payroll",
+      title: "Tune detection rules",
     },
     {
       body: "Custom buckets, priorities, due rules, approved payees, and unlock rules define what money is protected before spending.",
@@ -493,7 +524,7 @@ export function HouseholdCommandCenter() {
               <div>
                 <p className="brand-kicker">Actual operating flow</p>
                 <h2 className="mt-1 text-2xl font-black text-white">
-                  Five actions make the product work.
+                  Six actions make the product work.
                 </h2>
               </div>
               <Link

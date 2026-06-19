@@ -3,7 +3,7 @@ import { normalizeSiteUrl } from "./paid-traffic-readiness.mjs";
 
 const defaultTimeoutMs = 10_000;
 const requiredService = "payshield-web-app";
-const requiredLedgerSchemaVersion = "0010";
+const requiredLedgerSchemaVersion = "0011";
 
 function usage() {
   return [
@@ -188,6 +188,12 @@ export function evaluateCommercialReadiness({
   );
   record(
     result,
+    moneyRails.transactionSyncReady === true,
+    "linked-bank transaction sync is ready for paycheck detection",
+    "paycheck_sync",
+  );
+  record(
+    result,
     moneyRails.paycheckDetectionReady === true,
     "paycheck detection is ready for linked-bank/provider events",
     "paycheck_detection",
@@ -259,6 +265,11 @@ export function evaluateCommercialReadiness({
     moneyRails: {
       bankLink: statusText(moneyRails.bankLinkReady === true, "ready", "blocked"),
       detectionMode: moneyRails.detectionMode ?? "unknown",
+      transactionSync: statusText(
+        moneyRails.transactionSyncReady === true,
+        "ready",
+        "blocked",
+      ),
       tokenVault: statusText(
         moneyRails.tokenVaultStoreReady === true,
         "ready",

@@ -78,6 +78,7 @@ export function GET() {
         remainingGates: moneyRails.missing,
         tokenVaultConfigured: moneyRails.tokenVaultConfigured,
         tokenVaultStoreReady: moneyRails.tokenVaultStoreReady,
+        transactionSyncReady: moneyRails.transactionSyncReady,
         transferConfigured: moneyRails.transferConfigured,
         transferReady: moneyRails.transferReady,
       },

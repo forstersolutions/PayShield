@@ -1,4 +1,9 @@
-import { createCipheriv, createHash, randomBytes } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+} from "node:crypto";
 import pg from "pg";
 
 const { Pool } = pg;
@@ -168,10 +173,65 @@ function encryptProviderToken(input, env = process.env) {
   };
 }
 
+function decryptProviderToken(row, env = process.env) {
+  const keyMaterial = tokenVaultKey(env);
+
+  if (!keyMaterial.key) {
+    return keyMaterial;
+  }
+
+  try {
+    const nonce = Buffer.from(row.nonce, "base64");
+    const authTag = Buffer.from(row.auth_tag, "base64");
+    const ciphertext = Buffer.from(row.ciphertext, "base64");
+    const decipher = createDecipheriv("aes-256-gcm", keyMaterial.key, nonce);
+    const aad = Buffer.from(
+      `${row.provider_name}:${row.provider_item_id}:${row.key_id}`,
+      "utf8",
+    );
+
+    decipher.setAAD(aad);
+    decipher.setAuthTag(authTag);
+
+    return {
+      accessToken: Buffer.concat([
+        decipher.update(ciphertext),
+        decipher.final(),
+      ]).toString("utf8"),
+    };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? `Provider token could not be decrypted: ${error.message}`
+          : "Provider token could not be decrypted.",
+    };
+  }
+}
+
 function centsNumber(value) {
   const numberValue = Number(value);
 
   return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function bankConnectionFromRow(row) {
+  return {
+    accountMask: row.account_mask || null,
+    accountName: row.account_name || null,
+    householdId: row.household_id,
+    id: row.id,
+    institutionName: row.institution_name,
+    lastTransactionSyncAt: timestampString(row.last_transaction_sync_at),
+    lastTransactionSyncRequestId: row.last_transaction_sync_request_id || null,
+    providerAccountId: row.provider_account_id,
+    providerItemId: row.provider_item_id,
+    providerName: row.provider_name,
+    status: row.status,
+    syncCursor: row.sync_cursor || null,
+    tokenSecretRef: row.token_secret_ref || null,
+    userId: row.user_id,
+  };
 }
 
 function timestampString(value) {
@@ -1871,6 +1931,12 @@ export async function loadBankConnectionForProvider(input, env = process.env) {
           provider_item_id,
           provider_account_id,
           institution_name,
+          account_name,
+          account_mask,
+          token_secret_ref,
+          sync_cursor,
+          last_transaction_sync_at,
+          last_transaction_sync_request_id,
           status
         FROM bank_connections
         WHERE provider_name = $1
@@ -1889,20 +1955,190 @@ export async function loadBankConnectionForProvider(input, env = process.env) {
     const row = result.rows[0];
 
     return {
-      bankConnection: row
-        ? {
-            householdId: row.household_id,
-            id: row.id,
-            institutionName: row.institution_name,
-            providerAccountId: row.provider_account_id,
-            providerItemId: row.provider_item_id,
-            providerName: row.provider_name,
-            status: row.status,
-            userId: row.user_id,
-          }
-        : null,
+      bankConnection: row ? bankConnectionFromRow(row) : null,
       persisted: true,
       persistence: "postgres",
+    };
+  } catch (error) {
+    return persistenceFailed(error);
+  }
+}
+
+export async function loadActiveBankConnectionForHousehold(
+  input,
+  env = process.env,
+) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return {
+      ...persistenceSkipped("bank connection lookup", env),
+      bankConnection: null,
+    };
+  }
+
+  try {
+    const result = await pool.query(
+      `
+        SELECT
+          id,
+          household_id,
+          user_id,
+          provider_name,
+          provider_item_id,
+          provider_account_id,
+          institution_name,
+          account_name,
+          account_mask,
+          token_secret_ref,
+          sync_cursor,
+          last_transaction_sync_at,
+          last_transaction_sync_request_id,
+          status
+        FROM bank_connections
+        WHERE household_id = $1
+          AND provider_name = $2
+          AND ($3::text IS NULL OR id = $3)
+          AND ($4::text IS NULL OR provider_account_id = $4)
+          AND status IN ('connected', 'syncing')
+        ORDER BY updated_at DESC, connected_at DESC
+        LIMIT 1
+      `,
+      [
+        input.householdId,
+        input.providerName,
+        input.bankConnectionId || null,
+        input.providerAccountId || null,
+      ],
+    );
+    const row = result.rows[0];
+
+    return {
+      bankConnection: row ? bankConnectionFromRow(row) : null,
+      persisted: true,
+      persistence: "postgres",
+    };
+  } catch (error) {
+    return persistenceFailed(error);
+  }
+}
+
+export async function loadProviderTokenSecret(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return {
+      found: false,
+      persisted: false,
+      persistence: "postgres_required",
+      persistenceReason:
+        "Provider token lookup requires PAYSHIELD_LEDGER_DATABASE_URL.",
+    };
+  }
+
+  try {
+    const result = await pool.query(
+      `
+        SELECT
+          provider_name,
+          provider_item_id,
+          key_id,
+          algorithm,
+          ciphertext,
+          nonce,
+          auth_tag,
+          request_id
+        FROM provider_token_secrets
+        WHERE provider_name = $1
+          AND provider_item_id = $2
+          AND status = 'active'
+        LIMIT 1
+      `,
+      [input.providerName, input.providerItemId],
+    );
+    const row = result.rows[0];
+
+    if (!row) {
+      return {
+        found: false,
+        persisted: true,
+        persistence: "postgres",
+      };
+    }
+
+    const tokenSecretRef = `vault://${row.provider_name}/${row.provider_item_id}`;
+
+    if (input.tokenSecretRef && input.tokenSecretRef !== tokenSecretRef) {
+      return {
+        found: false,
+        persisted: true,
+        persistence: "postgres",
+        persistenceReason: "Stored token reference does not match bank connection.",
+      };
+    }
+
+    const decrypted = decryptProviderToken(row, env);
+
+    if (decrypted.error) {
+      return {
+        found: false,
+        persisted: false,
+        persistence: "token_vault_key_error",
+        persistenceReason: decrypted.error,
+      };
+    }
+
+    return {
+      accessToken: decrypted.accessToken,
+      found: true,
+      persisted: true,
+      persistence: "postgres",
+      requestId: row.request_id || null,
+      tokenSecretRef,
+    };
+  } catch (error) {
+    return persistenceFailed(error);
+  }
+}
+
+export async function persistBankConnectionSyncState(
+  input,
+  env = process.env,
+) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return persistenceSkipped("bank transaction sync", env);
+  }
+
+  try {
+    const result = await pool.query(
+      `
+        UPDATE bank_connections
+        SET
+          sync_cursor = $3,
+          last_transaction_sync_at = $4,
+          last_transaction_sync_request_id = $5,
+          status = 'connected',
+          updated_at = now()
+        WHERE id = $1
+          AND household_id = $2
+        RETURNING id
+      `,
+      [
+        input.bankConnectionId,
+        input.householdId,
+        input.syncCursor || null,
+        input.syncedAt || new Date().toISOString(),
+        input.requestId || null,
+      ],
+    );
+
+    return {
+      persisted: true,
+      persistence: "postgres",
+      postgresId: result.rows[0]?.id ?? input.bankConnectionId,
+      replayed: false,
     };
   } catch (error) {
     return persistenceFailed(error);

@@ -180,6 +180,11 @@ export function getMoneyRailReadiness() {
   const providerWebhookSigningConfigured = envPresent(
     "PAYSHIELD_PROVIDER_WEBHOOK_SECRET",
   );
+  const transactionSyncReady =
+    plaidConfigured &&
+    vault.webhookReady &&
+    neobank.backendConfigured &&
+    neobank.postgresSchemaVerified;
   const missing: string[] = [];
 
   if (!plaidConfigured) {
@@ -224,6 +229,7 @@ export function getMoneyRailReadiness() {
     providerAdapterMissing: providerAdapter.missing,
     plaidConfigured,
     plaidEnv: process.env.PLAID_ENV?.trim() || "sandbox",
+    transactionSyncReady,
     tokenVaultConfigured,
     tokenVaultStoreReady: vault.webhookReady,
     transferConfigured,

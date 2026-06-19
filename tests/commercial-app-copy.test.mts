@@ -91,15 +91,17 @@ test("app command center exposes a guided real-money setup surface", async () =>
     /Charge the household\. Connect the paycheck\. Protect the money\./,
   );
   assert.match(commandCenter, /Actual operating flow/);
-  assert.match(commandCenter, /Five actions make the product work/);
+  assert.match(commandCenter, /Six actions make the product work/);
   assert.match(commandCenter, /Collect payment/);
   assert.match(commandCenter, /POST \/api\/app\/bank-link\/token/);
+  assert.match(commandCenter, /POST \/api\/app\/paychecks\/sync/);
   assert.match(commandCenter, /POST \/api\/app\/paychecks\/rules/);
   assert.match(commandCenter, /POST \/api\/app\/buckets/);
   assert.match(commandCenter, /POST \/api\/app\/transfers/);
   assert.match(commandCenter, /Next best action/);
   assert.match(commandCenter, /Turn on paid access/);
   assert.match(commandCenter, /Connect the bank source/);
+  assert.match(commandCenter, /Sync linked-bank activity/);
   assert.match(commandCenter, /Detect the paycheck/);
   assert.match(commandCenter, /Audit export/);
 });
@@ -121,6 +123,8 @@ test("money operations surface shows revenue, rails, records, and export", async
   assert.match(moneyOperations, /Activate paid access/);
   assert.match(moneyOperations, /Manage billing/);
   assert.match(moneyOperations, /Connect banks/);
+  assert.match(moneyOperations, /Sync bank activity/);
+  assert.match(moneyOperations, /POST \/api\/app\/paychecks\/sync/);
   assert.match(moneyOperations, /Detect paychecks/);
   assert.match(moneyOperations, /Rule check ready/);
   assert.match(moneyOperations, /Provider activation/);
@@ -198,6 +202,7 @@ test("launch console exposes the commercial money path outside locked app access
   assert.match(launchPage, /setupCommands/);
   assert.match(launchPage, /POST \/api\/app\/billing\/checkout/);
   assert.match(launchPage, /POST \/api\/app\/bank-link\/token/);
+  assert.match(launchPage, /POST \/api\/app\/paychecks\/sync/);
   assert.match(launchPage, /POST \/api\/provider\/webhooks/);
   assert.match(launchPage, /POST \/api\/app\/transfers/);
   assert.match(launchPage, /POST \/api\/card\/authorize/);

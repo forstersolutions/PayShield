@@ -28,6 +28,7 @@ import {
   resolveReconciliationException,
   saveBucketProfile,
   startOnboarding,
+  syncLinkedBankPaychecks,
 } from "./product.mjs";
 
 const port = Number(process.env.PORT || process.env.PAYSHIELD_CORE_PORT || 8080);
@@ -379,6 +380,11 @@ export function createCoreServer() {
 
       if (request.method === "POST" && path === "/app/paychecks/detect") {
         await withJsonBody(request, response, detectPaycheck);
+        return;
+      }
+
+      if (request.method === "POST" && path === "/app/paychecks/sync") {
+        await withJsonBody(request, response, syncLinkedBankPaychecks);
         return;
       }
 

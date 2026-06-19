@@ -25,6 +25,7 @@ import { GET as getOperations } from "../src/app/api/app/operations/route.ts";
 import { POST as createPayee } from "../src/app/api/app/payees/route.ts";
 import { POST as detectPaycheck } from "../src/app/api/app/paychecks/detect/route.ts";
 import { POST as savePaycheckRule } from "../src/app/api/app/paychecks/rules/route.ts";
+import { POST as syncPaychecks } from "../src/app/api/app/paychecks/sync/route.ts";
 import { POST as resolveReconciliation } from "../src/app/api/app/reconciliation/resolve/route.ts";
 import { POST as createTransfer } from "../src/app/api/app/transfers/route.ts";
 import { POST as unlockBucket } from "../src/app/api/app/unlocks/route.ts";
@@ -995,6 +996,15 @@ test("money workflows require activation-ready paid access before commercial ope
         ),
     ],
     [
+      "linked-bank paycheck sync",
+      () =>
+        syncPaychecks(
+          makeRequest("/api/app/paychecks/sync", {
+            maxPages: 1,
+          }),
+        ),
+    ],
+    [
       "protected transfers",
       () =>
         createTransfer(
@@ -1089,6 +1099,19 @@ test("bank link token requires signed token-vault handoff before Plaid Link", as
   assert.equal(readiness.tokenVaultStoreReady, false);
   assert.equal(missing.includes("PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL"), true);
   assert.equal(missing.includes("PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET"), true);
+});
+
+test("linked-bank paycheck sync requires the dedicated core custody path", async () => {
+  const response = await syncPaychecks(
+    makeRequest("/api/app/paychecks/sync", {
+      maxPages: 1,
+    }),
+  );
+  const body = await parseJson(response);
+
+  assert.equal(response.status, 424);
+  assert.equal(body.service, "payshield-paycheck-transaction-sync");
+  assert.match(String(body.error), /dedicated core token vault/i);
 });
 
 test("direct deposit route records paycheck routing setup", async () => {

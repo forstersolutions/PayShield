@@ -124,6 +124,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "services/core/migrations/0008_direct_deposit_setups.sql",
   "services/core/migrations/0009_commercial_checkout_intents.sql",
   "services/core/migrations/0010_reconciliation_exception_details.sql",
+  "services/core/migrations/0011_bank_transaction_sync.sql",
   "scripts/core-migrations.mjs",
   "SECURITY.md",
   ".dockerignore",
@@ -360,6 +361,8 @@ requireText("src/app/lib/commercial/billing.ts", "createCommercialPortalSession"
 requireText("src/app/lib/commercial/billing.ts", "billing_portal_provider_error");
 requireText("src/app/api/app/direct-deposit/route.ts", "direct deposit setup");
 requireText("src/app/api/app/paychecks/rules/route.ts", "paycheck detection setup");
+requireText("src/app/api/app/paychecks/sync/route.ts", "payshield-paycheck-transaction-sync");
+requireText("src/app/api/app/paychecks/sync/route.ts", "/api/app/paychecks/sync");
 requireText("src/proxy.ts", "protectedAppUnavailableResponse");
 requireText("src/proxy.ts", "appAuthNotConfiguredBody");
 requireText("src/proxy.ts", "PAYSHIELD_ALLOW_REVIEW_APP_ACCESS=true");
@@ -377,6 +380,7 @@ requireText("src/app/lib/commercial/stripe-webhook.ts", "billingIdentityUserId")
 requireText("src/app/lib/commercial/stripe-webhook.ts", "subscriptionDetailsObject");
 requireText("src/app/lib/commercial/stripe-webhook.ts", "payshield_customer_email");
 requireText("src/app/lib/neobank/money-rails.ts", "providerWebhookSigningConfigured");
+requireText("src/app/lib/neobank/money-rails.ts", "transactionSyncReady");
 requireText("src/app/lib/neobank/provider-events.ts", "classifyProviderEvent");
 requireText("src/app/lib/neobank/provider-events.ts", "redactProviderEventPayload");
 requireText("src/app/lib/neobank/provider.ts", "classifyProviderEvent");
@@ -403,9 +407,13 @@ requireText("services/core/migrations/0009_commercial_checkout_intents.sql", "co
 requireText("services/core/migrations/0009_commercial_checkout_intents.sql", "provider_checkout_id");
 requireText("services/core/migrations/0010_reconciliation_exception_details.sql", "provider_transaction_id");
 requireText("services/core/migrations/0010_reconciliation_exception_details.sql", "reconciliation_exceptions_idempotency_idx");
+requireText("services/core/migrations/0011_bank_transaction_sync.sql", "sync_cursor");
+requireText("services/core/migrations/0011_bank_transaction_sync.sql", "last_transaction_sync_request_id");
 requireText("services/core/server.mjs", "/token-vault/plaid");
 requireText("services/core/server.mjs", "x-payshield-provider-signature");
 requireText("services/core/product.mjs", "receiveTokenVaultHandoff");
+requireText("services/core/product.mjs", "syncLinkedBankPaychecks");
+requireText("services/core/product.mjs", "/transactions/sync");
 requireText("services/core/product.mjs", "requireActivePaidAccess");
 requireText("services/core/product.mjs", "createDirectDepositSetup");
 requireText("services/core/product.mjs", "recordCommercialCheckoutIntent");

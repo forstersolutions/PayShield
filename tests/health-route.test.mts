@@ -310,11 +310,11 @@ test("does not count a Postgres URL as ready until ledger schema is verified", a
 
   assert.equal(urlOnlyBody.neobank?.postgresConfigured, true);
   assert.equal(urlOnlyBody.neobank?.postgresSchemaVerified, false);
-  assert.equal(urlOnlyBody.neobank?.postgresSchemaVersion, "0010");
+  assert.equal(urlOnlyBody.neobank?.postgresSchemaVersion, "0011");
   assert.equal(urlOnlyRemaining.includes("postgres_ledger"), true);
 
   process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
-  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0010";
+  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0011";
 
   const verified = GET();
   const verifiedBody = await parseJson(verified);
@@ -452,7 +452,7 @@ test("live money remains blocked until the provider adapter URL is configured", 
   process.env.PAYSHIELD_LEDGER_DATABASE_URL =
     "postgres://payshield:secret@example.invalid:5432/ledger";
   process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
-  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0010";
+  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0011";
   process.env.PAYSHIELD_LIVE_MONEY_ENABLED = "true";
   process.env.PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED = "true";
   process.env.PAYSHIELD_REGULATED_COUNSEL_SIGNOFF = "true";

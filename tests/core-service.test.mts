@@ -167,6 +167,7 @@ test("core health exposes product operation routes and fail-closed readiness", a
     assert.equal(routes.includes("POST /app/onboarding/start"), true);
     assert.equal(routes.includes("POST /app/paychecks/rules"), true);
     assert.equal(routes.includes("POST /app/paychecks/detect"), true);
+    assert.equal(routes.includes("POST /app/paychecks/sync"), true);
     assert.equal(routes.includes("POST /app/transfers"), true);
     assert.equal(routes.includes("POST /app/reconciliation/resolve"), true);
   });
@@ -509,7 +510,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
 
     assert.equal(urlOnlyReadiness.postgresConfigured, true);
     assert.equal(urlOnlyReadiness.postgresSchemaVerified, false);
-    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0010");
+    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0011");
     assert.equal(postgresGate?.ok, false);
 
     process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
@@ -527,7 +528,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
       false,
     );
 
-    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0010";
+    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0011";
 
     const verified = await getJson(baseUrl, "/health");
     const verifiedReadiness = verified.body.readiness as Record<
@@ -1203,6 +1204,11 @@ test("core bucket profile route fails closed when durable persistence fails", as
 
 test("core money-control routes require Postgres when durable storage mode is enabled", async () => {
   process.env.PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE = "true";
+  process.env.PLAID_CLIENT_ID = "plaid-client";
+  process.env.PLAID_SECRET = "plaid-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "http://127.0.0.1/vault";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
 
   await withCoreServer(async (baseUrl) => {
     const profile = await getJson(
@@ -1247,6 +1253,13 @@ test("core money-control routes require Postgres when durable storage mode is en
         idempotencyKey: "durable-required-paycheck",
       }),
     );
+    const paycheckSync = await getJson(
+      baseUrl,
+      "/api/app/paychecks/sync",
+      jsonPost({
+        maxPages: 1,
+      }),
+    );
     const transfer = await getJson(
       baseUrl,
       "/api/app/transfers",
@@ -1272,6 +1285,7 @@ test("core money-control routes require Postgres when durable storage mode is en
     assert.equal(directDeposit.response.status, 503);
     assert.equal(paycheckRule.response.status, 503);
     assert.equal(paycheckDetection.response.status, 503);
+    assert.equal(paycheckSync.response.status, 503);
     assert.equal(transfer.response.status, 503);
     assert.equal(bankConnection.response.status, 503);
     assert.equal(
@@ -1292,6 +1306,7 @@ test("core money-control routes require Postgres when durable storage mode is en
       ).persistence,
       "postgres_required",
     );
+    assert.equal(paycheckSync.body.code, "postgres_ledger_required");
     assert.equal(
       (transfer.body.bucketPersistence as Record<string, unknown>).persistence,
       "postgres_required",
@@ -1794,6 +1809,7 @@ test("core provider webhook posts income transactions into paycheck split flow",
     assert.equal(eventPersistence.persistence, "memory");
     assert.equal(detections[0]?.amountCents, 187_542);
     assert.equal(detections[0]?.employerName, "ACME PAYROLL");
+    assert.match(String(detections[0]?.idempotencyKey), /^provider-txn:/);
     assert.equal(detections[0]?.providerTransactionId, "txn_payroll_001");
     assert.equal(skipped[0]?.providerTransactionId, "txn_payroll_too_large");
     assert.equal(skipped[0]?.status, "rejected");
@@ -1810,6 +1826,26 @@ test("core provider webhook posts income transactions into paycheck split flow",
       "paycheck_detection_rejected",
     );
     assert.match(String(skipped[0]?.reason), /amountCents/i);
+
+    const replayPayload = {
+      ...payload,
+      eventId: "evt_income_sync_retry",
+      requestId: "req_income_sync_retry",
+    };
+    const replay = await getJson(
+      baseUrl,
+      "/api/provider/webhooks",
+      signedProviderJsonPost(replayPayload, "provider-webhook-secret"),
+    );
+    const replayDetections = replay.body.detections as Array<
+      Record<string, unknown>
+    >;
+
+    assert.equal(replay.response.status, 202);
+    assert.equal(
+      replayDetections[0]?.idempotencyKey,
+      detections[0]?.idempotencyKey,
+    );
   });
 });
 

@@ -25,6 +25,7 @@ function readyHealth(overrides: Record<string, unknown> = {}) {
       remainingGates: [],
       tokenVaultConfigured: true,
       tokenVaultStoreReady: true,
+      transactionSyncReady: true,
       transferConfigured: true,
       transferReady: true,
     },
@@ -34,7 +35,7 @@ function readyHealth(overrides: Record<string, unknown> = {}) {
       liveMoneyReady: true,
       mode: "live_provider",
       postgresSchemaVerified: true,
-      postgresSchemaVersion: "0010",
+      postgresSchemaVersion: "0011",
       providerConfigured: true,
       remainingGates: [],
     },
@@ -106,6 +107,7 @@ test("commercial readiness fails with actionable gates for current architecture-
         ],
         tokenVaultConfigured: false,
         tokenVaultStoreReady: false,
+        transactionSyncReady: false,
         transferConfigured: false,
         transferReady: false,
       },
@@ -116,7 +118,7 @@ test("commercial readiness fails with actionable gates for current architecture-
         mode: "architecture",
         postgresConfigured: false,
         postgresSchemaVerified: false,
-        postgresSchemaVersion: "0010",
+        postgresSchemaVersion: "0011",
         providerConfigured: false,
         remainingGates: [
           "provider_contract",
@@ -143,6 +145,7 @@ test("commercial readiness fails with actionable gates for current architecture-
   assert.equal(result.remainingGates.includes("stripe_checkout"), true);
   assert.equal(result.remainingGates.includes("token_vault_handoff"), true);
   assert.equal(result.remainingGates.includes("bank_link"), true);
+  assert.equal(result.remainingGates.includes("paycheck_sync"), true);
   assert.equal(result.remainingGates.includes("transfer_ready"), true);
   assert.equal(result.remainingGates.includes("core_backend"), true);
   assert.equal(result.remainingGates.includes("clerk_auth"), true);

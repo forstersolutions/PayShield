@@ -11,6 +11,7 @@ import {
   Loader2,
   Radar,
   ReceiptText,
+  RefreshCw,
   ShieldAlert,
   Split,
 } from "lucide-react";
@@ -66,6 +67,7 @@ type OperationsReadiness = {
     remainingGates?: string[];
     tokenVaultConfigured?: boolean;
     tokenVaultStoreReady?: boolean;
+    transactionSyncReady?: boolean;
     transferConfigured?: boolean;
     transferReady?: boolean;
   };
@@ -511,6 +513,10 @@ export function MoneyOperationsPanel({
     status: "idle",
   });
   const [directDepositState, setDirectDepositState] = useState<ActionState>({
+    message: "",
+    status: "idle",
+  });
+  const [syncState, setSyncState] = useState<ActionState>({
     message: "",
     status: "idle",
   });
@@ -1022,6 +1028,79 @@ export function MoneyOperationsPanel({
     }
   }
 
+  async function syncBankTransactions() {
+    setSyncState({
+      message: "Syncing linked-bank activity...",
+      status: "loading",
+    });
+
+    try {
+      const response = await fetch("/api/app/paychecks/sync", {
+        body: JSON.stringify({
+          maxPages: 3,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        detectionCount?: number;
+        error?: string;
+        skippedCount?: number;
+        sync?: {
+          addedCount?: number;
+          modifiedCount?: number;
+          pageCount?: number;
+          removedCount?: number;
+        };
+      };
+
+      if (!response.ok) {
+        setSyncState({
+          message:
+            payload.error ||
+            "Linked-bank activity could not be synced from the core.",
+          status: "error",
+        });
+        appendOperation({
+          detail: payload.error || "Transaction sync unavailable",
+          label: "Bank activity sync",
+          rail: "transaction_sync",
+          status: "blocked",
+        });
+        return;
+      }
+
+      const syncedCount =
+        (payload.sync?.addedCount ?? 0) + (payload.sync?.modifiedCount ?? 0);
+
+      setSyncState({
+        message: `${syncedCount} transactions synced. ${
+          payload.detectionCount ?? 0
+        } paycheck deposits posted${
+          payload.skippedCount ? `, ${payload.skippedCount} queued for review` : ""
+        }.`,
+        status: "ready",
+      });
+      appendOperation({
+        detail: `${syncedCount} transactions · ${payload.detectionCount ?? 0} paycheck splits`,
+        label: "Bank activity sync",
+        rail: "transaction_sync",
+        status: payload.detectionCount ? "processed" : "synced",
+      });
+    } catch {
+      setSyncState({
+        message: "Linked-bank activity sync failed.",
+        status: "error",
+      });
+      appendOperation({
+        detail: "Transaction sync request failed",
+        label: "Bank activity sync",
+        rail: "transaction_sync",
+        status: "error",
+      });
+    }
+  }
+
   async function detectPaycheck() {
     const amountCents = dollarsToCents(paycheckAmount);
 
@@ -1306,6 +1385,12 @@ export function MoneyOperationsPanel({
       gate.includes("TOKEN_VAULT") ||
       gate.includes("PROVIDER_WEBHOOK"),
   );
+  const syncGates = [
+    ...bankLinkGates,
+    ...neobankGates.filter((gate) =>
+      ["postgres_ledger", "dedicated_backend", "core_service_auth"].includes(gate),
+    ),
+  ];
   const transferGates = [
     ...moneyRailGates.filter(
       (gate) =>
@@ -1361,6 +1446,27 @@ export function MoneyOperationsPanel({
           : "Plaid setup needed",
       title: "Connect banks",
       tone: readiness?.moneyRails?.bankLinkReady ? "ready" : "attention",
+    },
+    {
+      actionLabel: "Sync activity",
+      blockers: readiness?.moneyRails?.transactionSyncReady
+        ? []
+        : [...new Set(syncGates.map(friendlyGateLabel))],
+      body: "Pull linked-bank transactions through the core token vault, detect payroll deposits, and post protected bucket splits.",
+      endpoint: "POST /api/app/paychecks/sync",
+      icon: RefreshCw,
+      key: "transaction_sync",
+      metric: readiness?.moneyRails?.detectionMode ?? "sync",
+      onAction: syncBankTransactions,
+      state: syncState,
+      status:
+        readiness?.moneyRails?.transactionSyncReady
+          ? "Sync ready"
+          : readiness?.moneyRails?.bankLinkReady
+            ? "Core storage needed"
+            : "Bank link needed",
+      title: "Sync bank activity",
+      tone: readiness?.moneyRails?.transactionSyncReady ? "ready" : "attention",
     },
     {
       actionLabel: "Set routing",

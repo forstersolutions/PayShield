@@ -73,7 +73,7 @@ PAYSHIELD_CORE_REQUIRE_SERVICE_TOKEN=true
 PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE=true
 PAYSHIELD_LEDGER_DATABASE_URL=
 PAYSHIELD_LEDGER_SCHEMA_VERIFIED=true
-PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0010
+PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0011
 ```
 
 Bank connection and transaction detection:
@@ -136,16 +136,21 @@ AES-256-GCM, and writes only encrypted token material to
 Provider transaction webhooks use a separate PayShield HMAC gate:
 `PAYSHIELD_PROVIDER_WEBHOOK_SECRET` signs the raw body with
 `x-payshield-provider-signature: t=<unix>,v1=<sha256>`. Linked-bank paycheck
-detection is not ready until Plaid credentials, the token vault handoff, and
-provider webhook signing are configured.
+detection can run through the core sync route once Plaid credentials, token
+vault custody, encrypted token storage, and the Postgres ledger are configured.
+Signed provider webhook ingestion still requires provider webhook signing.
 
 ## Paycheck Detection And Movement
 
 Linked-bank transaction detection uses the token vault reference plus Plaid
-transaction events. Provider webhooks can also post income events into
-`POST /api/provider/webhooks` or `POST /api/app/paychecks/detect`. The split
-engine funds protected buckets first and exposes only the remainder as
-`safe_to_spend`.
+Transactions sync. `POST /api/app/paychecks/sync` loads the active bank
+connection, decrypts the Plaid access token inside the core service, calls
+Plaid `/transactions/sync`, stores the cursor, and posts payroll-like credits
+through the same protected split journal used by manual detection. Provider
+webhooks can also post income events into `POST /api/provider/webhooks`, and
+operators can run controlled manual checks through
+`POST /api/app/paychecks/detect`. The split engine funds protected buckets
+first and exposes only the remainder as `safe_to_spend`.
 
 `POST /api/provider/webhooks` now records the provider event, extracts
 payroll-like income transactions, resolves the active bank connection when
@@ -207,4 +212,4 @@ npm run market:status -- https://payshield-lime.vercel.app --expect-site-url htt
 - Bank linking.
 - Paycheck detection.
 - Transfer/provider readiness.
-- Core backend, core service auth, Clerk auth, and Postgres ledger schema `0010`.
+- Core backend, core service auth, Clerk auth, and Postgres ledger schema `0011`.

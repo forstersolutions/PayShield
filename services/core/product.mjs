@@ -1,13 +1,16 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import {
   databaseConfigured,
+  loadActiveBankConnectionForHousehold,
   loadActivePaycheckDetectionRules,
   loadOperationalAudit,
   loadBankConnectionForProvider,
   loadBucketProfile,
   loadPayees,
+  loadProviderTokenSecret,
   persistBucketProfile,
   persistBankConnection,
+  persistBankConnectionSyncState,
   persistBillPaymentSchedule,
   persistCardAuthorizationDecision,
   persistCommercialBillingEvent,
@@ -26,7 +29,7 @@ import {
 } from "./database.mjs";
 
 const serviceName = "payshield-core";
-export const coreLedgerSchemaVersion = "0010";
+export const coreLedgerSchemaVersion = "0011";
 
 const gateDefinitions = [
   {
@@ -480,6 +483,7 @@ export function getCoreHealth(env = process.env) {
       "POST /app/payees",
       "POST /app/paychecks/rules",
       "POST /app/paychecks/detect",
+      "POST /app/paychecks/sync",
       "POST /app/transfers",
       "POST /app/unlocks",
       "POST /app/reconciliation/resolve",
@@ -2138,8 +2142,12 @@ function buildActivationSetupGroups(body, siteUrl) {
         `curl -fsS ${siteUrl}/api/launch/activation`,
         'PAYSHIELD_LEDGER_DATABASE_URL="<postgres-url>" npm run core:migrations:verify',
       ],
-      endpoint: "POST /api/app/paychecks/detect",
+      endpoint:
+        "POST /api/app/paychecks/sync + POST /api/app/paychecks/detect",
       env: [
+        "PLAID_CLIENT_ID",
+        "PLAID_SECRET",
+        "PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY",
         "PAYSHIELD_PROVIDER_WEBHOOK_SECRET",
         "PAYSHIELD_LEDGER_DATABASE_URL",
         "PAYSHIELD_LEDGER_SCHEMA_VERIFIED",
@@ -2149,10 +2157,12 @@ function buildActivationSetupGroups(body, siteUrl) {
       productAction:
         "Turn provider activity into detected deposits, balanced bucket splits, and Safe to Spend updates.",
       ready:
-        body.moneyRails.paycheckDetectionReady &&
-        body.readiness.postgresSchemaVerified,
+        body.moneyRails.transactionSyncReady ||
+        (body.moneyRails.paycheckDetectionReady &&
+          body.readiness.postgresSchemaVerified),
       title: "Detection and ledger",
-      unlocks: "Signed provider events, idempotent payroll detection, and durable journal evidence.",
+      unlocks:
+        "Plaid transaction sync, signed provider events, idempotent payroll detection, and durable journal evidence.",
     }),
     buildSetupGroup({
       checks: [
@@ -2318,13 +2328,13 @@ function buildActivationPlan(env, snapshot, commercialAccess, moneyRails) {
       businessImpact:
         "Convert connected account activity into automatic payroll detection and bucket funding.",
       evidence:
-        "Saved paycheck rule, signed provider event, balanced ledger entry, and updated Safe to Spend.",
+        "Saved paycheck rule, Plaid transaction sync event, balanced ledger entry, and updated Safe to Spend.",
       key: "paycheck_detection",
       label: "Paycheck detection",
       ownerAction:
-        "Store detection rules and consume Plaid/provider events so payroll deposits split into buckets automatically.",
-      primaryEndpoint: "POST /api/app/paychecks/detect",
-      ready: moneyRails.paycheckDetectionReady,
+        "Store detection rules and sync Plaid/provider events so payroll deposits split into buckets automatically.",
+      primaryEndpoint: "POST /api/app/paychecks/sync",
+      ready: moneyRails.transactionSyncReady || moneyRails.paycheckDetectionReady,
       requiredGates: uniqueList(
         moneyRails.missing.filter(
           (gate) =>
@@ -2335,18 +2345,20 @@ function buildActivationPlan(env, snapshot, commercialAccess, moneyRails) {
       ),
       status: moneyRails.paycheckDetectionReady
         ? "automatic"
-        : moneyRails.bankLinkReady
-          ? "provider_event_needed"
-          : "setup_needed",
+        : moneyRails.transactionSyncReady
+          ? "sync_ready"
+          : moneyRails.bankLinkReady
+            ? "core_storage_needed"
+            : "setup_needed",
       setupChecklist: [
         "Save employer, amount, frequency, and provider account matching rules.",
-        "Set PAYSHIELD_PROVIDER_WEBHOOK_SECRET for signed provider events.",
-        "Verify duplicate provider events are idempotent and exceptions enter the queue.",
+        "Set Plaid credentials, token-vault encryption, durable Postgres, and provider webhook signing.",
+        "Verify duplicate sync/provider events are idempotent and exceptions enter the queue.",
       ],
       title: "Detect paychecks",
-      userAction: "Save rule and run detection",
+      userAction: "Save rule and sync bank activity",
       verification:
-        "Run /api/app/paychecks/detect or send a signed provider webhook and confirm protected buckets fund before Safe to Spend.",
+        "Run /api/app/paychecks/sync, /api/app/paychecks/detect, or a signed provider webhook and confirm protected buckets fund before Safe to Spend.",
     },
     {
       actionHref: "#bucket-studio",
@@ -2469,6 +2481,7 @@ function buildRevenueAndRails(
       "Collect paid household access",
       "Bind the household identity",
       "Connect the external bank source",
+      "Sync linked-bank activity",
       "Route and detect paycheck deposits",
       "Split protected buckets before Safe to Spend",
       "Release funds only through approved transfers, billers, unlocks, or card decisions",
@@ -2514,6 +2527,35 @@ function buildRevenueAndRails(
         unlocks: "Masked funding source, token custody, and provider account mapping.",
       },
       {
+        blockers: uniqueList([
+          ...moneyRails.missing.filter(
+            (gate) =>
+              gate.includes("PLAID") ||
+              gate.includes("TOKEN_VAULT") ||
+              gate.includes("token vault"),
+          ),
+          ...liveMoneyMissing.filter((gate) =>
+            ["postgres_ledger", "dedicated_backend", "core_service_auth"].includes(
+              gate,
+            ),
+          ),
+        ]),
+        canRunNow: moneyRails.transactionSyncReady,
+        endpoint: "POST /api/app/paychecks/sync",
+        key: "transaction_sync",
+        label: "Sync activity",
+        ownerAction:
+          "Run Plaid Transactions sync from the core so payroll-like deposits enter the bucket ledger.",
+        provider: "Plaid Transactions",
+        state: moneyRails.transactionSyncReady
+          ? "ready"
+          : moneyRails.bankLinkReady
+            ? "core_storage_needed"
+            : "bank_link_needed",
+        userAction: "Sync linked-bank activity",
+        unlocks: "Synced transactions, paycheck detections, exceptions, and cursor evidence.",
+      },
+      {
         blockers: uniqueList(
           moneyRails.missing.filter(
             (gate) =>
@@ -2522,22 +2564,24 @@ function buildRevenueAndRails(
               gate.includes("PROVIDER_WEBHOOK"),
           ),
         ),
-        canRunNow: moneyRails.paycheckDetectionReady,
-        endpoint: "POST /api/app/paychecks/detect",
+        canRunNow: moneyRails.transactionSyncReady || moneyRails.paycheckDetectionReady,
+        endpoint: "POST /api/app/paychecks/sync",
         key: "paycheck_detection",
         label: "Detect income",
         ownerAction:
-          "Configure Plaid/token-vault credentials and signed provider events for automatic detection; controlled manual events remain available for operator testing.",
+          "Configure Plaid/token-vault credentials, sync cursor storage, and signed provider events; controlled manual detection remains available for operator testing.",
         provider:
           moneyRails.detectionMode === "plaid_transactions_sync"
             ? "Plaid Transactions"
             : "Provider webhook",
         state: moneyRails.paycheckDetectionReady
           ? "automatic"
-          : moneyRails.bankLinkReady
-            ? "provider_event_needed"
-            : "setup_needed",
-        userAction: "Save payroll rule and run detection",
+          : moneyRails.transactionSyncReady
+            ? "sync_ready"
+            : moneyRails.bankLinkReady
+              ? "core_storage_needed"
+              : "setup_needed",
+        userAction: "Save payroll rule and sync income",
         unlocks: "Priority bucket funding and a recalculated Safe to Spend balance.",
       },
       {
@@ -2589,6 +2633,7 @@ function buildRevenueAndRails(
       protectedCents,
       revenueReady: commercialActivationReady(env, commercialAccess),
       safeToSpendCents,
+      transactionSyncReady: moneyRails.transactionSyncReady,
       transferReady: moneyRails.transferReady,
     },
   };
@@ -2697,6 +2742,11 @@ async function buildHouseholdOperations(env = process.env, actorInput = demoUser
           state: audit.directDepositSetups.length > 0
             ? "recorded"
             : gateState(snapshot.readiness.liveMoneyReady),
+        },
+        {
+          key: "transaction_sync",
+          label: "Bank sync",
+          state: gateState(moneyRails.transactionSyncReady),
         },
         {
           key: "paycheck_detection",
@@ -4020,6 +4070,11 @@ function getMoneyRailReadiness(env = process.env) {
     env,
     "PAYSHIELD_PROVIDER_WEBHOOK_SECRET",
   );
+  const transactionSyncReady =
+    plaidConfigured &&
+    vault.webhookReady &&
+    neobank.backendConfigured &&
+    neobank.postgresSchemaVerified;
 
   return {
     bankLinkReady: plaidConfigured && vault.webhookReady,
@@ -4055,6 +4110,7 @@ function getMoneyRailReadiness(env = process.env) {
     providerAdapterConfigured: providerAdapter.ok,
     providerAdapterMissing: providerAdapter.missing,
     providerWebhookSigningConfigured,
+    transactionSyncReady,
     tokenVaultConfigured,
     tokenVaultStoreReady: vault.webhookReady,
     transferConfigured,
@@ -4618,6 +4674,479 @@ export async function exchangeBankPublicToken(payload = {}, env = process.env) {
       service: "payshield-bank-link-exchange",
     },
     status: result.status,
+  };
+}
+
+function syncPageLimit(value) {
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed)) {
+    return 3;
+  }
+
+  return Math.min(Math.max(parsed, 1), 10);
+}
+
+function plaidTransactionSyncCounts(pages) {
+  return pages.reduce(
+    (counts, page) => ({
+      added: counts.added + (Array.isArray(page.added) ? page.added.length : 0),
+      modified:
+        counts.modified + (Array.isArray(page.modified) ? page.modified.length : 0),
+      removed:
+        counts.removed + (Array.isArray(page.removed) ? page.removed.length : 0),
+    }),
+    { added: 0, modified: 0, removed: 0 },
+  );
+}
+
+function plaidSyncTransactions(pages) {
+  return pages.flatMap((page) => [
+    ...(Array.isArray(page.added) ? page.added : []),
+    ...(Array.isArray(page.modified) ? page.modified : []),
+  ]);
+}
+
+export async function syncLinkedBankPaychecks(payload = {}, env = process.env) {
+  const actor = actorFromPayload(payload);
+  const paidAccess = await requireActivePaidAccess(
+    env,
+    actor,
+    "linked-bank paycheck sync",
+  );
+
+  if (!paidAccess.ok) {
+    return paidAccess.result;
+  }
+
+  const readiness = getCoreReadiness(env, { coreOnline: true });
+  const moneyReadiness = getMoneyRailReadiness(env);
+
+  if (!moneyReadiness.plaidConfigured || !moneyReadiness.tokenVaultStoreReady) {
+    return {
+      body: {
+        error:
+          "Linked-bank paycheck sync requires Plaid credentials and signed token-vault custody.",
+        moneyReadiness,
+        readiness,
+        service: "payshield-paycheck-transaction-sync",
+      },
+      status: 424,
+    };
+  }
+
+  if (!databaseConfigured(env)) {
+    return {
+      body: {
+        code: "postgres_ledger_required",
+        error:
+          "Linked-bank paycheck sync requires the dedicated Postgres core ledger and bank connection store.",
+        moneyReadiness,
+        readiness,
+        service: "payshield-paycheck-transaction-sync",
+      },
+      status: 503,
+    };
+  }
+
+  const providerName = "plaid";
+  const bankConnectionLookup = await loadActiveBankConnectionForHousehold(
+    {
+      bankConnectionId: safeString(payload.bankConnectionId, 160) || null,
+      householdId: actor.householdId,
+      providerAccountId: safeString(payload.providerAccountId, 160) || null,
+      providerName,
+    },
+    env,
+  );
+
+  if (persistenceFailed(bankConnectionLookup)) {
+    return {
+      body: {
+        error: "Active bank connection could not be loaded for transaction sync.",
+        lookupPersistence: bankConnectionLookup,
+        moneyReadiness,
+        readiness,
+        service: "payshield-paycheck-transaction-sync",
+      },
+      status: 503,
+    };
+  }
+
+  const bankConnection = bankConnectionLookup.bankConnection;
+
+  if (!bankConnection) {
+    return {
+      body: {
+        error:
+          "Connect a bank account before running linked-bank paycheck sync.",
+        moneyReadiness,
+        readiness,
+        service: "payshield-paycheck-transaction-sync",
+      },
+      status: 404,
+    };
+  }
+
+  const tokenLookup = await loadProviderTokenSecret(
+    {
+      providerItemId: bankConnection.providerItemId,
+      providerName,
+      tokenSecretRef: bankConnection.tokenSecretRef,
+    },
+    env,
+  );
+
+  if (persistenceFailed(tokenLookup)) {
+    return {
+      body: {
+        error: "Provider token could not be loaded for transaction sync.",
+        moneyReadiness,
+        readiness,
+        service: "payshield-paycheck-transaction-sync",
+        tokenPersistence: tokenLookup,
+      },
+      status: 503,
+    };
+  }
+
+  if (!tokenLookup.found || !tokenLookup.accessToken) {
+    return {
+      body: {
+        error:
+          "Linked bank token custody is not ready for this bank connection.",
+        moneyReadiness,
+        readiness,
+        service: "payshield-paycheck-transaction-sync",
+        tokenPersistence: {
+          found: tokenLookup.found === true,
+          persistence: tokenLookup.persistence,
+          persistenceReason: tokenLookup.persistenceReason || null,
+        },
+      },
+      status:
+        tokenLookup.persistence === "token_vault_key_error" ? 503 : 424,
+    };
+  }
+
+  const maxPages = syncPageLimit(payload.maxPages);
+  const startingCursor =
+    safeString(payload.cursor, 512) || bankConnection.syncCursor || null;
+  const pages = [];
+  let cursor = startingCursor;
+  let hasMore = true;
+  let pageCount = 0;
+
+  try {
+    while (hasMore && pageCount < maxPages) {
+      const page = await plaidRequest(env, "/transactions/sync", {
+        access_token: tokenLookup.accessToken,
+        count: 100,
+        cursor: cursor || undefined,
+      });
+
+      pages.push(page);
+      cursor = safeString(page.next_cursor, 512) || cursor;
+      hasMore = page.has_more === true;
+      pageCount += 1;
+    }
+  } catch (error) {
+    return {
+      body: {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Plaid transaction sync failed.",
+        moneyReadiness,
+        readiness,
+        service: "payshield-paycheck-transaction-sync",
+      },
+      status: 502,
+    };
+  }
+
+  const counts = plaidTransactionSyncCounts(pages);
+  const requestId =
+    safeString(pages.at(-1)?.request_id || pages.at(-1)?.requestId, 160) ||
+    null;
+  const providerEventId =
+    safeString(payload.providerEventId, 160) ||
+    stableEventId(providerName, {
+      accountId: bankConnection.providerAccountId,
+      cursor: startingCursor,
+      itemId: bankConnection.providerItemId,
+      nextCursor: cursor,
+      requestId,
+      type: "transactions_sync",
+    });
+  const syncTransactions = plaidSyncTransactions(pages);
+  const providerPayload = {
+    account_id: bankConnection.providerAccountId,
+    added: syncTransactions,
+    bankConnectionId: bankConnection.id,
+    eventType: "plaid_transactions_sync",
+    item_id: bankConnection.providerItemId,
+    providerEventId,
+    providerName,
+    request_id: requestId,
+  };
+  const eventPersistence = await persistMoneyRailEvent(
+    {
+      eventType: "plaid_transactions_sync",
+      householdId: actor.householdId,
+      payload: redactProviderWebhookPayload({
+        ...providerPayload,
+        counts,
+        hasMore,
+        pageCount,
+      }),
+      providerEventId,
+      providerName,
+      rail: "transaction_sync",
+    },
+    env,
+  );
+
+  if (persistenceFailed(eventPersistence)) {
+    return {
+      body: {
+        accepted: false,
+        error: "Linked-bank transaction sync audit event could not be persisted.",
+        eventPersistence,
+        moneyReadiness,
+        readiness,
+        service: "payshield-paycheck-transaction-sync",
+      },
+      status: 503,
+    };
+  }
+
+  const detections = extractProviderPaycheckDetections(
+    providerPayload,
+    providerEventId,
+  );
+  const processed = [];
+  const skipped = [];
+
+  for (const detection of detections) {
+    const detectionActor = await actorForProviderDetection(
+      providerPayload,
+      detection,
+      providerName,
+      env,
+    );
+
+    if (detectionActor.error) {
+      return {
+        body: {
+          accepted: false,
+          error: "Bank connection lookup failed for synced transaction.",
+          lookupPersistence: detectionActor.error,
+          providerEventId,
+          readiness,
+          service: "payshield-paycheck-transaction-sync",
+        },
+        status: 503,
+      };
+    }
+
+    if (detectionActor.missingProviderReference || detectionActor.notFound) {
+      const status = detectionActor.missingProviderReference
+        ? "missing_provider_reference"
+        : "bank_connection_not_found";
+      const reason = detectionActor.missingProviderReference
+        ? "Synced paycheck transaction must include Plaid item and account identifiers before PayShield can match it to an active bank connection."
+        : "Synced transaction could not be matched to an active PayShield bank connection.";
+      const exceptionPersistence = await persistProviderWebhookException({
+        actor: null,
+        detection,
+        env,
+        providerEventId,
+        providerName,
+        reason,
+        reasonCode: status,
+        source: "transaction_sync",
+        status,
+      });
+
+      if (persistenceFailed(exceptionPersistence)) {
+        return {
+          body: {
+            accepted: false,
+            error: "Transaction sync exception could not be persisted.",
+            exceptionPersistence,
+            providerEventId,
+            readiness,
+            service: "payshield-paycheck-transaction-sync",
+          },
+          status: 503,
+        };
+      }
+
+      skipped.push({
+        amountCents: detection.amountCents,
+        employerName: detection.employerName,
+        exceptionPersistence,
+        providerTransactionId: detection.providerTransactionId,
+        reason,
+        status,
+      });
+      continue;
+    }
+
+    const result = await detectPaycheck(
+      {
+        __payshieldActor: {
+          householdId: detectionActor.householdId,
+          userId: detectionActor.id,
+        },
+        amountCents: detection.amountCents,
+        employerName: detection.employerName,
+        idempotencyKey: detection.idempotencyKey,
+        providerAccountId: detection.providerAccountId,
+        providerEventId: detection.providerEventId,
+        providerItemId: detection.itemId,
+        providerName,
+        providerTransactionId: detection.providerTransactionId,
+        receivedAt: detection.receivedAt,
+      },
+      env,
+    );
+
+    if (result.status >= 400) {
+      if (result.status < 500) {
+        const reason =
+          typeof result.body?.error === "string"
+            ? result.body.error
+            : "Synced paycheck transaction was rejected by paycheck detection controls.";
+        const exceptionPersistence = await persistProviderWebhookException({
+          actor: detectionActor,
+          detection,
+          env,
+          providerEventId,
+          providerName,
+          reason,
+          reasonCode: "paycheck_detection_rejected",
+          source: "transaction_sync",
+          status: "rejected",
+        });
+
+        if (persistenceFailed(exceptionPersistence)) {
+          return {
+            body: {
+              accepted: false,
+              error: "Transaction sync exception could not be persisted.",
+              exceptionPersistence,
+              providerEventId,
+              readiness,
+              service: "payshield-paycheck-transaction-sync",
+            },
+            status: 503,
+          };
+        }
+
+        skipped.push({
+          amountCents: detection.amountCents,
+          employerName: detection.employerName,
+          exceptionPersistence,
+          providerTransactionId: detection.providerTransactionId,
+          reason,
+          status: "rejected",
+        });
+        continue;
+      }
+
+      return {
+        body: {
+          accepted: false,
+          detection: {
+            amountCents: detection.amountCents,
+            employerName: detection.employerName,
+            providerTransactionId: detection.providerTransactionId,
+          },
+          error: "Synced paycheck transaction could not be posted.",
+          providerEventId,
+          result: result.body,
+          service: "payshield-paycheck-transaction-sync",
+        },
+        status: result.status,
+      };
+    }
+
+    processed.push({
+      amountCents: detection.amountCents,
+      employerName: detection.employerName,
+      idempotencyKey: detection.idempotencyKey,
+      journalEntryId:
+        result.body.ledgerEntry?.id ||
+        result.body.journalPersistence?.postgresId ||
+        null,
+      journalReplayed: result.body.journalPersistence?.replayed === true,
+      matchedRule: result.body.detection?.matchedRule || null,
+      providerTransactionId: detection.providerTransactionId,
+      status: result.body.detection?.status || "split_posted",
+    });
+  }
+
+  const syncPersistence = await persistBankConnectionSyncState(
+    {
+      bankConnectionId: bankConnection.id,
+      householdId: actor.householdId,
+      requestId,
+      syncCursor: cursor,
+      syncedAt: new Date().toISOString(),
+    },
+    env,
+  );
+
+  if (persistenceFailed(syncPersistence)) {
+    return {
+      body: {
+        accepted: false,
+        error: "Bank transaction sync cursor could not be persisted.",
+        providerEventId,
+        readiness,
+        service: "payshield-paycheck-transaction-sync",
+        syncPersistence,
+      },
+      status: 503,
+    };
+  }
+
+  return {
+    body: {
+      accepted: true,
+      bankConnection: {
+        accountMask: bankConnection.accountMask,
+        accountName: bankConnection.accountName,
+        id: bankConnection.id,
+        institutionName: bankConnection.institutionName,
+        providerAccountId: bankConnection.providerAccountId,
+        providerItemId: bankConnection.providerItemId,
+        providerName,
+      },
+      detectionCount: processed.length,
+      detections: processed,
+      eventPersistence,
+      mode: processed.length > 0 ? "processed" : "synced",
+      moneyReadiness,
+      providerEventId,
+      readiness,
+      service: "payshield-paycheck-transaction-sync",
+      skipped,
+      skippedCount: skipped.length,
+      sync: {
+        addedCount: counts.added,
+        cursorStored: Boolean(cursor),
+        hasMore,
+        modifiedCount: counts.modified,
+        pageCount,
+        removedCount: counts.removed,
+        requestId,
+      },
+      syncPersistence,
+    },
+    status: 202,
   };
 }
 
@@ -5712,6 +6241,35 @@ function providerAccountId(payload, transaction) {
   );
 }
 
+function providerDetectionIdempotencyKey({
+  accountId,
+  itemId,
+  payload,
+  providerEventId,
+  transactionId,
+}) {
+  const fallbackTransactionId = `${providerEventId}:transaction:`;
+  const hasStableTransactionId =
+    transactionId && !transactionId.startsWith(fallbackTransactionId);
+  const seed = hasStableTransactionId
+    ? {
+        accountId,
+        itemId,
+        providerName: providerNameFromPayload(payload),
+        transactionId,
+      }
+    : {
+        providerEventId,
+        providerName: providerNameFromPayload(payload),
+        transactionId,
+      };
+
+  return `provider-txn:${createHash("sha256")
+    .update(JSON.stringify(seed))
+    .digest("hex")
+    .slice(0, 32)}`;
+}
+
 function transactionReceivedAt(transaction) {
   return (
     transactionText(transaction, "authorized_datetime", 40) ||
@@ -5744,13 +6302,21 @@ function extractProviderPaycheckDetections(payload, providerEventId) {
         transaction,
         `${providerEventId}:transaction:${index}`,
       );
+      const itemId = providerItemId(payload, transaction);
+      const accountId = providerAccountId(payload, transaction);
 
       return {
         amountCents,
         employerName,
-        idempotencyKey: `provider:${providerEventId}:${transactionId}`,
-        itemId: providerItemId(payload, transaction),
-        providerAccountId: providerAccountId(payload, transaction),
+        idempotencyKey: providerDetectionIdempotencyKey({
+          accountId,
+          itemId,
+          payload,
+          providerEventId,
+          transactionId,
+        }),
+        itemId,
+        providerAccountId: accountId,
         providerEventId,
         providerTransactionId: transactionId,
         receivedAt: transactionReceivedAt(transaction),
@@ -5815,10 +6381,11 @@ async function persistProviderWebhookException({
   providerName,
   reason,
   reasonCode,
+  source = "provider_webhook",
   status,
 }) {
   const idempotencyKey = [
-    "provider-webhook-exception",
+    `${source}-exception`,
     providerName,
     providerEventId,
     detection.providerTransactionId || detection.idempotencyKey,
@@ -5844,7 +6411,7 @@ async function persistProviderWebhookException({
       providerTransactionId: detection.providerTransactionId || null,
       reasonCode,
       severity: status === "rejected" ? "warning" : "critical",
-      source: "provider_webhook",
+      source,
       summary: `${summary} ${reason}`,
     },
     env,
@@ -6158,6 +6725,12 @@ export async function handleProviderWebhook(payload, env = process.env) {
     processed.push({
       amountCents: detection.amountCents,
       employerName: detection.employerName,
+      idempotencyKey: detection.idempotencyKey,
+      journalEntryId:
+        result.body.ledgerEntry?.id ||
+        result.body.journalPersistence?.postgresId ||
+        null,
+      journalReplayed: result.body.journalPersistence?.replayed === true,
       matchedRule: result.body.detection?.matchedRule || null,
       providerTransactionId: detection.providerTransactionId,
       status: result.body.detection?.status || "split_posted",
