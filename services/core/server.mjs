@@ -55,10 +55,36 @@ function coreToken() {
   return process.env.PAYSHIELD_CORE_SERVICE_TOKEN?.trim() || "";
 }
 
+function envTrue(name) {
+  return process.env[name]?.trim().toLowerCase() === "true";
+}
+
+function coreServiceTokenRequired() {
+  return (
+    process.env.NODE_ENV === "production" ||
+    process.env.VERCEL_ENV === "production" ||
+    envTrue("PAYSHIELD_LIVE_MONEY_ENABLED") ||
+    envTrue("PAYSHIELD_CORE_REQUIRE_SERVICE_TOKEN")
+  );
+}
+
 function assertCoreAuthorized(request) {
   const token = coreToken();
 
   if (!token) {
+    if (coreServiceTokenRequired()) {
+      return {
+        body: {
+          code: "core_service_token_required",
+          error:
+            "PAYSHIELD_CORE_SERVICE_TOKEN must be configured before protected core routes can run in production or live-money mode.",
+          service: "payshield-core",
+        },
+        ok: false,
+        status: 503,
+      };
+    }
+
     return { ok: true };
   }
 

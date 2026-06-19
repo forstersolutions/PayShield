@@ -14,6 +14,7 @@ const envKeys = [
   "PAYSHIELD_BAAS_CONTRACT_APPROVED",
   "PAYSHIELD_BAAS_PROVIDER",
   "PAYSHIELD_CORE_API_URL",
+  "PAYSHIELD_CORE_SERVICE_TOKEN",
   "PAYSHIELD_LEDGER_DATABASE_URL",
   "PAYSHIELD_LEDGER_SCHEMA_VERIFIED",
   "PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION",
@@ -40,6 +41,7 @@ function setLiveProviderEnv() {
   process.env.PAYSHIELD_BAAS_CONTRACT_APPROVED = "true";
   process.env.PAYSHIELD_BAAS_PROVIDER = "marqeta";
   process.env.PAYSHIELD_CORE_API_URL = "http://127.0.0.1:8080";
+  process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-secret";
   process.env.PAYSHIELD_LEDGER_DATABASE_URL =
     "postgres://payshield:secret@example.invalid:5432/ledger";
   process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";

@@ -38,8 +38,9 @@ are active.
   bill-payment scheduling, emergency unlocks, card authorization simulation,
   and provider webhooks. The service accepts both `/app/*` and `/api/app/*`
   style paths, returns no-store JSON, enforces request-size and JSON-shape
-  guardrails, and can require
-  `PAYSHIELD_CORE_SERVICE_TOKEN` for internal operation routes.
+  guardrails, and requires `PAYSHIELD_CORE_SERVICE_TOKEN` for internal
+  operation routes in production, live-money mode, or explicit
+  `PAYSHIELD_CORE_REQUIRE_SERVICE_TOKEN=true` deployments.
 - Next.js app APIs delegate app, card-authorization, and provider-webhook
   operations to the dedicated core service whenever `PAYSHIELD_CORE_API_URL` is
   configured. Delegated requests include the optional

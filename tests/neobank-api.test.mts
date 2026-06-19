@@ -46,6 +46,7 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL;
   delete process.env.PAYSHIELD_COMMERCIAL_PRICE_ID;
   delete process.env.PAYSHIELD_CORE_API_URL;
+  delete process.env.PAYSHIELD_CORE_REQUIRE_SERVICE_TOKEN;
   delete process.env.PAYSHIELD_CORE_SERVICE_TOKEN;
   delete process.env.PAYSHIELD_LEDGER_DATABASE_URL;
   delete process.env.PAYSHIELD_LIVE_MONEY_ENABLED;

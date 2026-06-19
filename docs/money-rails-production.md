@@ -1,9 +1,9 @@
 # PayShield Money Rails Production Runbook
 
-Status: operator setup guide for commercial beta readiness.
+Status: operator setup guide for commercial readiness.
 Last updated: June 13, 2026.
 
-PayShield becomes usable and revenue-ready through four connected systems:
+PayShield becomes usable and revenue-ready through five connected systems:
 
 1. Paid access through Stripe Checkout or a configured Stripe Payment Link.
 2. User authentication through Clerk, mapped to a PayShield household.
@@ -48,6 +48,9 @@ Checkout is not operational until `PAYSHIELD_CORE_API_URL` and
 `PAYSHIELD_CORE_SERVICE_TOKEN` are both configured. The URL points Vercel at the
 always-on core service; the token authenticates checkout-intent and webhook
 activation writes so a paid household can be unlocked from durable records.
+In production, live-money mode, or when `PAYSHIELD_CORE_REQUIRE_SERVICE_TOKEN`
+is true, protected core routes reject requests with
+`core_service_token_required` until the token is configured.
 
 `POST /api/app/billing/portal` opens Stripe Billing Portal only after the
 dedicated core returns a durable `providerCustomerId` for the household. This
@@ -62,6 +65,7 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
 CLERK_SECRET_KEY=
 PAYSHIELD_CORE_API_URL=
 PAYSHIELD_CORE_SERVICE_TOKEN=
+PAYSHIELD_CORE_REQUIRE_SERVICE_TOKEN=true
 PAYSHIELD_LEDGER_DATABASE_URL=
 PAYSHIELD_LEDGER_SCHEMA_VERIFIED=true
 PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0010
@@ -198,4 +202,4 @@ npm run market:status -- https://payshield-lime.vercel.app --expect-site-url htt
 - Bank linking.
 - Paycheck detection.
 - Transfer/provider readiness.
-- Core backend, Clerk auth, and Postgres ledger schema `0009`.
+- Core backend, core service auth, Clerk auth, and Postgres ledger schema `0010`.

@@ -64,6 +64,12 @@ export function getNeobankReadiness(): NeobankReadiness {
       ok: coreService.ok,
     },
     {
+      description:
+        "Core service token is configured for protected internal operation routes.",
+      id: "core_service_auth",
+      ok: Boolean(coreService.serviceToken),
+    },
+    {
       description: "Clerk keys are configured for authenticated app access.",
       id: "clerk_auth",
       ok: clerkAppConfigured(process.env),

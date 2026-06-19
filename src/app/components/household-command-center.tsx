@@ -363,7 +363,12 @@ export function HouseholdCommandCenter() {
           </nav>
         </header>
 
-        <MoneyEngineConsole initialPacket={initialActivationPacket} />
+        <MoneyOperationsPanel
+          buckets={snapshot.buckets}
+          initialOperations={initialOperations}
+          initialReadiness={initialOperationsReadiness}
+          payees={snapshot.payees}
+        />
 
         <div
           id="overview"
@@ -601,6 +606,8 @@ export function HouseholdCommandCenter() {
           </section>
         </div>
 
+        <MoneyEngineConsole initialPacket={initialActivationPacket} />
+
         <section
           id="readiness"
           className="grid gap-6 border-t border-white/10 py-8 lg:grid-cols-[0.9fr_1.1fr]"
@@ -712,12 +719,6 @@ export function HouseholdCommandCenter() {
         </section>
       </div>
 
-      <MoneyOperationsPanel
-        buckets={snapshot.buckets}
-        initialOperations={initialOperations}
-        initialReadiness={initialOperationsReadiness}
-        payees={snapshot.payees}
-      />
       <BucketControlPanel buckets={snapshot.buckets} />
       <BillRoutingWorkspace
         buckets={snapshot.buckets}

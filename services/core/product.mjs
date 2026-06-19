@@ -74,6 +74,12 @@ const gateDefinitions = [
     kind: "core_online_or_present",
   },
   {
+    description: "Core service token is configured for protected internal operation routes.",
+    env: "PAYSHIELD_CORE_SERVICE_TOKEN",
+    id: "core_service_auth",
+    kind: "present",
+  },
+  {
     description: "Clerk keys are configured for authenticated app access.",
     id: "clerk_auth",
     kind: "clerk",

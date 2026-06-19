@@ -247,6 +247,10 @@ function formatMoney(cents: number) {
 }
 
 function friendlyGateLabel(gate: string) {
+  if (gate === "core_service_auth") {
+    return "Core service auth";
+  }
+
   if (gate.includes("STRIPE_SECRET_KEY")) {
     return "Stripe API key";
   }

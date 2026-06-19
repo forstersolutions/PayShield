@@ -18,6 +18,7 @@ const coreEnvKeys = [
   "PAYSHIELD_COMMERCIAL_PRICE_ID",
   "PAYSHIELD_CORE_API_URL",
   "PAYSHIELD_CORE_DB_CONNECT_TIMEOUT_MS",
+  "PAYSHIELD_CORE_REQUIRE_SERVICE_TOKEN",
   "PAYSHIELD_CORE_SERVICE_TOKEN",
   "PAYSHIELD_LEDGER_DATABASE_URL",
   "PAYSHIELD_LEDGER_SCHEMA_FINGERPRINT",
@@ -251,6 +252,27 @@ test("core operations endpoint exposes household money-control records", async (
       ),
       true,
     );
+  });
+});
+
+test("core protected routes fail closed when service token is required but missing", async () => {
+  process.env.PAYSHIELD_CORE_REQUIRE_SERVICE_TOKEN = "true";
+
+  await withCoreServer(async (baseUrl) => {
+    const health = await getJson(baseUrl, "/health");
+    const blocked = await getJson(baseUrl, "/api/app/balances");
+    const readiness = health.body.readiness as Record<string, unknown>;
+    const gates = readiness.gates as Array<Record<string, unknown>>;
+
+    assert.equal(health.response.status, 200);
+    assert.equal(readiness.serviceAuthConfigured, false);
+    assert.equal(
+      gates.find((gate) => gate.id === "core_service_auth")?.ok,
+      false,
+    );
+    assert.equal(blocked.response.status, 503);
+    assert.equal(blocked.body.code, "core_service_token_required");
+    assert.equal(blocked.body.service, "payshield-core");
   });
 });
 

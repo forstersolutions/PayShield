@@ -118,6 +118,10 @@ const stageIcons: Record<string, LucideIcon> = {
 };
 
 function friendlyGateLabel(gate: string) {
+  if (gate === "core_service_auth") {
+    return "Core service auth";
+  }
+
   if (gate.includes("STRIPE_SECRET_KEY")) {
     return "Stripe API key";
   }
@@ -231,6 +235,7 @@ function gateCategory(gate: string) {
       "operations_runbooks",
       "postgres_ledger",
       "dedicated_backend",
+      "core_service_auth",
       "clerk_auth",
     ].includes(gate)
   ) {

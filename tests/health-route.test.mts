@@ -61,6 +61,7 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET;
   delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_URL;
   delete process.env.PAYSHIELD_CORE_API_URL;
+  delete process.env.PAYSHIELD_CORE_REQUIRE_SERVICE_TOKEN;
   delete process.env.PAYSHIELD_CORE_SERVICE_TOKEN;
   delete process.env.PAYSHIELD_LEDGER_DATABASE_URL;
   delete process.env.PAYSHIELD_LEDGER_SCHEMA_FINGERPRINT;
@@ -447,6 +448,7 @@ test("live money remains blocked until the provider adapter URL is configured", 
   process.env.PAYSHIELD_BAAS_CONTRACT_APPROVED = "true";
   process.env.PAYSHIELD_BAAS_PROVIDER = "marqeta";
   process.env.PAYSHIELD_CORE_API_URL = "https://core.payshield.test";
+  process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-secret";
   process.env.PAYSHIELD_LEDGER_DATABASE_URL =
     "postgres://payshield:secret@example.invalid:5432/ledger";
   process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";

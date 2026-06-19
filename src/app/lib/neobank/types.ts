@@ -114,6 +114,7 @@ export type NeobankReadinessGate = {
     | "operations_runbooks"
     | "postgres_ledger"
     | "dedicated_backend"
+    | "core_service_auth"
     | "clerk_auth";
   ok: boolean;
 };
