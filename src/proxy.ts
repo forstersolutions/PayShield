@@ -48,28 +48,191 @@ function protectedAppUnavailableResponse(request: NextRequest) {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PayShield App Access</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <title>PayShield App Activation</title>
     <style>
-      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #050607; color: #f7f8fb; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      main { width: min(92vw, 680px); border: 1px solid rgba(255,255,255,.14); border-radius: 8px; background: linear-gradient(145deg, rgba(57,232,255,.08), rgba(255,178,55,.08)), rgba(10,12,14,.94); padding: 28px; box-shadow: 0 24px 80px rgba(0,0,0,.36); }
-      p { color: #c9d0da; line-height: 1.65; }
-      a { color: #39e8ff; font-weight: 800; }
-      .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
-      .button { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; padding: 0 14px; text-decoration: none; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          linear-gradient(115deg, rgba(18, 109, 255, .16), transparent 34%),
+          radial-gradient(circle at 76% 18%, rgba(255, 178, 55, .14), transparent 28%),
+          #050607;
+        color: #f7f8fb;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      body::before {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        content: "";
+        background-image:
+          linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+        background-size: 44px 44px;
+        mask-image: linear-gradient(to bottom, rgba(0,0,0,.76), transparent 86%);
+      }
+      main {
+        position: relative;
+        z-index: 1;
+        width: min(94vw, 1120px);
+        margin: 0 auto;
+        padding: 18px 0 38px;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        min-height: 68px;
+      }
+      .logo {
+        width: min(54vw, 208px);
+        height: auto;
+        display: block;
+      }
+      .support {
+        color: #dffaff;
+        font-size: 14px;
+        font-weight: 850;
+        text-decoration: none;
+      }
+      .layout {
+        min-height: calc(100vh - 124px);
+        display: grid;
+        align-items: center;
+        gap: 18px;
+        grid-template-columns: minmax(0, 1.08fr) minmax(320px, .92fr);
+      }
+      .panel {
+        border: 1px solid rgba(255,255,255,.14);
+        border-radius: 8px;
+        background:
+          linear-gradient(145deg, rgba(57,232,255,.08), rgba(255,178,55,.075)),
+          rgba(10,12,14,.94);
+        box-shadow: 0 24px 80px rgba(0,0,0,.36);
+      }
+      .hero {
+        padding: clamp(24px, 4vw, 42px);
+      }
+      .kicker {
+        display: inline-flex;
+        min-height: 34px;
+        align-items: center;
+        border: 1px solid rgba(57,232,255,.3);
+        border-radius: 8px;
+        background: rgba(57,232,255,.1);
+        color: #dffaff;
+        padding: 0 12px;
+        font-size: 12px;
+        font-weight: 950;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 22px 0 0;
+        max-width: 760px;
+        color: #fff;
+        font-size: clamp(40px, 7vw, 76px);
+        line-height: .96;
+        letter-spacing: 0;
+      }
+      p {
+        color: #c9d0da;
+        line-height: 1.65;
+      }
+      .lead {
+        max-width: 700px;
+        margin: 20px 0 0;
+        font-size: clamp(16px, 2vw, 19px);
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 26px;
+      }
+      .button {
+        min-height: 46px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        padding: 0 16px;
+        text-decoration: none;
+        font-weight: 950;
+      }
       .primary { background: linear-gradient(135deg, #fff, #dff7ff); color: #050607; }
       .secondary { border: 1px solid rgba(57,232,255,.28); background: rgba(57,232,255,.1); color: #dffaff; }
-      code { color: #ffcf72; }
+      .quiet { border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.055); color: #f7f8fb; }
+      .stack {
+        display: grid;
+        gap: 12px;
+      }
+      .card {
+        border: 1px solid rgba(255,255,255,.12);
+        border-radius: 8px;
+        background: rgba(0,0,0,.32);
+        padding: 16px;
+      }
+      .card strong {
+        display: block;
+        color: #fff;
+        font-size: 16px;
+      }
+      .card span {
+        display: block;
+        margin-top: 7px;
+        color: #aab3c2;
+        font-size: 14px;
+        line-height: 1.55;
+      }
+      code {
+        color: #ffcf72;
+        font-weight: 850;
+        word-break: break-word;
+      }
+      @media (max-width: 840px) {
+        header { align-items: flex-start; flex-direction: column; }
+        .layout { grid-template-columns: 1fr; min-height: auto; padding-top: 18px; }
+        .support { min-height: 40px; display: inline-flex; align-items: center; }
+      }
     </style>
   </head>
   <body>
     <main>
-      <strong>PayShield</strong>
-      <h1>App access is not configured.</h1>
-      <p>Configure Clerk for authenticated household access, or set <code>PAYSHIELD_ALLOW_REVIEW_APP_ACCESS=true</code> only for a controlled review environment.</p>
-      <p>Open the revenue and rails console for the exact Stripe, Clerk, Plaid, ledger, transfer, and verification setup that makes PayShield usable.</p>
-      <div class="actions">
-        <a class="button primary" href="/launch">Open launch console</a>
-        <a class="button secondary" href="mailto:support@graystontechnologies.com">Contact Grayston support</a>
+      <header>
+        <a aria-label="PayShield home" href="/">
+          <img class="logo" alt="PayShield" src="/images/payshield-logo-clean.png" />
+        </a>
+        <a class="support" href="mailto:support@graystontechnologies.com">support@graystontechnologies.com</a>
+      </header>
+      <div class="layout">
+        <section class="panel hero">
+          <span class="kicker">Household app activation</span>
+          <h1>Turn on secure app access before household money controls open.</h1>
+          <p class="lead">PayShield is ready to run the paid-access, bank-link, paycheck detection, protected bucket, transfer, card-decision, and audit workflow once authenticated access is configured.</p>
+          <div class="actions">
+            <a class="button primary" href="/launch">Open revenue + rails console</a>
+            <a class="button secondary" href="/">View product profile</a>
+            <a class="button quiet" href="/api/health">Review production health</a>
+          </div>
+        </section>
+        <aside class="stack">
+          <div class="card">
+            <strong>What is blocking this route?</strong>
+            <span>Clerk app access has not been activated for this production deployment.</span>
+          </div>
+          <div class="card">
+            <strong>What unlocks it?</strong>
+            <span>Set <code>NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</code> and <code>CLERK_SECRET_KEY</code>. Use <code>PAYSHIELD_ALLOW_REVIEW_APP_ACCESS=true</code> only for a controlled review deployment.</span>
+          </div>
+          <div class="card">
+            <strong>Who operates PayShield?</strong>
+            <span>PayShield is operated by Grayston Technologies. Product and support requests route to Grayston support.</span>
+          </div>
+        </aside>
       </div>
     </main>
   </body>

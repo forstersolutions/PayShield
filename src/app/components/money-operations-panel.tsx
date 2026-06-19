@@ -1343,7 +1343,7 @@ export function MoneyOperationsPanel({
       state: directDepositState,
       status:
         directDepositSetups[0]?.status ??
-        (readiness?.neobank?.liveMoneyReady ? "Instructions ready" : "Provider gated"),
+        (readiness?.neobank?.liveMoneyReady ? "Instructions ready" : "Provider activation"),
       title: "Route paycheck",
       tone:
         directDepositSetups.length > 0 || readiness?.neobank?.liveMoneyReady
@@ -1365,7 +1365,7 @@ export function MoneyOperationsPanel({
         ? "Auto detection ready"
         : readiness?.moneyRails?.bankLinkReady
           ? "Provider signing needed"
-          : "Controlled manual event",
+          : "Rule check ready",
       title: "Detect paychecks",
       tone: readiness?.moneyRails?.paycheckDetectionReady ? "ready" : "attention",
     },

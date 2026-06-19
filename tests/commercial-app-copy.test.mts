@@ -85,6 +85,18 @@ test("app command center exposes a guided real-money setup surface", async () =>
   assert.match(setupConsole, /Per household access/);
   assert.match(setupConsole, /Endpoint backed/);
   assert.match(commandCenter, /Household setup/);
+  assert.match(commandCenter, /Revenue \+ real money controls/);
+  assert.match(
+    commandCenter,
+    /Charge the household\. Connect the paycheck\. Protect the money\./,
+  );
+  assert.match(commandCenter, /Actual operating flow/);
+  assert.match(commandCenter, /Five actions make the product work/);
+  assert.match(commandCenter, /Collect payment/);
+  assert.match(commandCenter, /POST \/api\/app\/bank-link\/token/);
+  assert.match(commandCenter, /POST \/api\/app\/paychecks\/rules/);
+  assert.match(commandCenter, /POST \/api\/app\/buckets/);
+  assert.match(commandCenter, /POST \/api\/app\/transfers/);
   assert.match(commandCenter, /Next best action/);
   assert.match(commandCenter, /Turn on paid access/);
   assert.match(commandCenter, /Connect the bank source/);
@@ -109,6 +121,8 @@ test("money operations surface shows revenue, rails, records, and export", async
   assert.match(moneyOperations, /Manage billing/);
   assert.match(moneyOperations, /Connect banks/);
   assert.match(moneyOperations, /Detect paychecks/);
+  assert.match(moneyOperations, /Rule check ready/);
+  assert.match(moneyOperations, /Provider activation/);
   assert.match(moneyOperations, /Move protected funds/);
   assert.match(moneyOperations, /Approved destination/);
   assert.match(

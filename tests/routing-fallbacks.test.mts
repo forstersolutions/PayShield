@@ -125,10 +125,17 @@ test("production app access fails closed without Clerk unless review access is e
     const pageBody = await pageResponse.text();
 
     assert.equal(pageResponse.status, 503);
-    assert.match(pageBody, /App access is not configured/);
+    assert.match(pageBody, /PayShield App Activation/);
+    assert.match(pageBody, /Household app activation/);
+    assert.match(pageBody, /Turn on secure app access/);
     assert.match(pageBody, /PAYSHIELD_ALLOW_REVIEW_APP_ACCESS=true/);
+    assert.match(pageBody, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY/);
+    assert.match(pageBody, /CLERK_SECRET_KEY/);
+    assert.match(pageBody, /payshield-logo-clean\.png/);
     assert.match(pageBody, /href="\/launch"/);
-    assert.match(pageBody, /Open launch console/);
+    assert.match(pageBody, /Open revenue \+ rails console/);
+    assert.match(pageBody, /href="\/api\/health"/);
+    assert.match(pageBody, /support@graystontechnologies\.com/);
 
     process.env.PAYSHIELD_ALLOW_REVIEW_APP_ACCESS = "true";
 

@@ -149,9 +149,9 @@ export function NeobankDashboard() {
             </a>
             <Link
               className="pay-primary-nav-link pay-primary-nav-cta brand-button-primary gap-2 rounded-[8px] px-4 py-2 font-black"
-              href="/app"
+              href="/launch"
             >
-              Open app
+              Launch console
               <ArrowRight className="size-4" aria-hidden="true" />
             </Link>
           </nav>
@@ -424,9 +424,9 @@ export function NeobankDashboard() {
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
                 className="brand-button-primary inline-flex h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black"
-                href="/app#money-operations"
+                href="/launch"
               >
-                Open command center
+                Open launch console
                 <ArrowRight className="size-4" aria-hidden="true" />
               </Link>
               <a

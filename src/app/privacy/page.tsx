@@ -44,7 +44,7 @@ export default function PrivacyPage() {
               <p className="mt-3">
                 PayShield is operated by Grayston Technologies. This notice
                 covers the product website, household profile tools, support
-                requests, analytics, and private beta onboarding.{" "}
+                requests, analytics, and private onboarding.{" "}
                 {REGULATED_PARTNER_DISCLOSURE}
               </p>
             </section>
