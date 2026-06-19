@@ -77,6 +77,9 @@ export function GET() {
           moneyRails.providerWebhookSigningConfigured,
         remainingGates: moneyRails.missing,
         tokenVaultConfigured: moneyRails.tokenVaultConfigured,
+        tokenVaultEncryptionConfigured:
+          moneyRails.tokenVaultEncryptionConfigured,
+        tokenVaultEncryptionReady: moneyRails.tokenVaultEncryptionReady,
         tokenVaultStoreReady: moneyRails.tokenVaultStoreReady,
         transactionSyncReady: moneyRails.transactionSyncReady,
         transferConfigured: moneyRails.transferConfigured,

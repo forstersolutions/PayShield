@@ -898,6 +898,7 @@ requireText("scripts/vercel-env-audit.mjs", "STRIPE_WEBHOOK_SECRET");
 requireText("scripts/vercel-env-audit.mjs", "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY");
 requireText("scripts/vercel-env-audit.mjs", "PLAID_SECRET");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET");
+requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_BAAS_API_KEY");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_BAAS_ADAPTER");
 requireText("scripts/vercel-env-audit.mjs", "PAYSHIELD_BAAS_API_BASE_URL");

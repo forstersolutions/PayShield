@@ -36,7 +36,10 @@ async function parseJson(response: Response) {
       providerAdapterMissing?: unknown;
       providerWebhookSigningConfigured?: unknown;
       remainingGates?: unknown;
+      tokenVaultEncryptionConfigured?: unknown;
+      tokenVaultEncryptionReady?: unknown;
       transferReady?: unknown;
+      transactionSyncReady?: unknown;
     };
     waitlist?: {
       mode?: unknown;
@@ -68,6 +71,7 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED;
   delete process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION;
   delete process.env.PAYSHIELD_PROVIDER_WEBHOOK_SECRET;
+  delete process.env.PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY;
   delete process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID;
   delete process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET;
   delete process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL;
@@ -386,6 +390,7 @@ test("reports commercial and money rail readiness gates", async () => {
   assert.equal(configuredBody.moneyRails?.bankLinkReady, false);
   assert.equal(configuredBody.moneyRails?.paycheckDetectionReady, false);
   assert.equal(configuredBody.moneyRails?.tokenVaultConfigured, true);
+  assert.equal(configuredBody.moneyRails?.tokenVaultEncryptionReady, false);
   assert.equal(configuredBody.moneyRails?.tokenVaultStoreReady, false);
 
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "http://127.0.0.1/vault";
@@ -393,14 +398,45 @@ test("reports commercial and money rail readiness gates", async () => {
 
   const vaultConfigured = GET();
   const vaultConfiguredBody = await parseJson(vaultConfigured);
+  const vaultConfiguredMissing = vaultConfiguredBody.moneyRails
+    ?.remainingGates as string[];
 
-  assert.equal(vaultConfiguredBody.moneyRails?.bankLinkReady, true);
+  assert.equal(vaultConfiguredBody.moneyRails?.bankLinkReady, false);
   assert.equal(vaultConfiguredBody.moneyRails?.paycheckDetectionReady, false);
   assert.equal(
     vaultConfiguredBody.moneyRails?.providerWebhookSigningConfigured,
     false,
   );
-  assert.equal(vaultConfiguredBody.moneyRails?.tokenVaultStoreReady, true);
+  assert.equal(
+    vaultConfiguredBody.moneyRails?.tokenVaultEncryptionConfigured,
+    false,
+  );
+  assert.equal(vaultConfiguredBody.moneyRails?.tokenVaultEncryptionReady, false);
+  assert.equal(vaultConfiguredBody.moneyRails?.tokenVaultStoreReady, false);
+  assert.equal(
+    vaultConfiguredMissing.includes("PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY"),
+    true,
+  );
+
+  process.env.PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY =
+    "0123456789abcdef0123456789abcdef";
+
+  const encryptedVaultConfigured = GET();
+  const encryptedVaultConfiguredBody = await parseJson(encryptedVaultConfigured);
+
+  assert.equal(encryptedVaultConfiguredBody.moneyRails?.bankLinkReady, true);
+  assert.equal(
+    encryptedVaultConfiguredBody.moneyRails?.tokenVaultEncryptionConfigured,
+    true,
+  );
+  assert.equal(
+    encryptedVaultConfiguredBody.moneyRails?.tokenVaultEncryptionReady,
+    true,
+  );
+  assert.equal(
+    encryptedVaultConfiguredBody.moneyRails?.tokenVaultStoreReady,
+    true,
+  );
 
   process.env.PAYSHIELD_PROVIDER_WEBHOOK_SECRET = "provider-webhook-secret";
 

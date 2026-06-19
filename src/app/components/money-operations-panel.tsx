@@ -65,6 +65,8 @@ type OperationsReadiness = {
     providerAdapterMissing?: string[];
     providerWebhookSigningConfigured?: boolean;
     remainingGates?: string[];
+    tokenVaultEncryptionConfigured?: boolean;
+    tokenVaultEncryptionReady?: boolean;
     tokenVaultConfigured?: boolean;
     tokenVaultStoreReady?: boolean;
     transactionSyncReady?: boolean;
@@ -283,8 +285,16 @@ function friendlyGateLabel(gate: string) {
     return "Plaid credentials";
   }
 
+  if (gate.includes("TOKEN_VAULT_ENCRYPTION_KEY")) {
+    return "Token custody encryption key";
+  }
+
+  if (gate.includes("TOKEN_VAULT_WEBHOOK")) {
+    return "Signed token-vault handoff";
+  }
+
   if (gate.includes("TOKEN_VAULT") || gate.includes("token vault")) {
-    return "Token vault";
+    return "Token vault custody";
   }
 
   if (gate.includes("PROVIDER_WEBHOOK")) {
@@ -1401,6 +1411,15 @@ export function MoneyOperationsPanel({
     ...(readiness?.moneyRails?.providerAdapterMissing ?? []),
     ...neobankGates,
   ];
+  const tokenCustodyMetric = readiness?.moneyRails?.tokenVaultEncryptionReady
+    ? "encrypted custody"
+    : readiness?.moneyRails?.tokenVaultStoreReady
+      ? "vault ready"
+      : readiness?.moneyRails?.tokenVaultEncryptionConfigured
+        ? "encryption invalid"
+        : readiness?.moneyRails?.tokenVaultConfigured
+          ? "key needed"
+          : "vault setup";
   const railStack = [
     {
       actionLabel: "Activate paid access",
@@ -1432,17 +1451,19 @@ export function MoneyOperationsPanel({
       blockers: readiness?.moneyRails?.bankLinkReady
         ? []
         : [...new Set(bankLinkGates.map(friendlyGateLabel))],
-      body: "Launch Plaid Link when credentials and token custody are ready; the same route records the bank connection.",
+      body: "Launch Plaid Link only after credentials, signed vault handoff, and encrypted token custody are ready; the exchange route records the bank connection.",
       endpoint: "POST /api/app/bank-link/token",
       icon: Link2,
       key: "bank_connection",
-      metric: readiness?.moneyRails?.plaidEnv ?? "plaid",
+      metric: tokenCustodyMetric,
       onAction: startBankLink,
       state: bankState,
       status: readiness?.moneyRails?.bankLinkReady
         ? "Bank link ready"
         : readiness?.moneyRails?.plaidConfigured
-          ? "Token vault needed"
+          ? readiness?.moneyRails?.tokenVaultEncryptionReady
+            ? "Token vault needed"
+            : "Encryption key needed"
           : "Plaid setup needed",
       title: "Connect banks",
       tone: readiness?.moneyRails?.bankLinkReady ? "ready" : "attention",
@@ -1452,7 +1473,7 @@ export function MoneyOperationsPanel({
       blockers: readiness?.moneyRails?.transactionSyncReady
         ? []
         : [...new Set(syncGates.map(friendlyGateLabel))],
-      body: "Pull linked-bank transactions through the core token vault, detect payroll deposits, and post protected bucket splits.",
+      body: "Pull linked-bank transactions through encrypted token custody, detect payroll deposits, and post protected bucket splits into the ledger.",
       endpoint: "POST /api/app/paychecks/sync",
       icon: RefreshCw,
       key: "transaction_sync",

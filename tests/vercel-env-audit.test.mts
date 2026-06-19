@@ -121,6 +121,10 @@ test("commercial profile reports the revenue, access, bank, detection, movement,
     "PAYSHIELD_COMMERCIAL_PRICE_ID or PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL",
   ]);
   assert.equal(bank?.missing.includes("PLAID_SECRET"), true);
+  assert.equal(
+    bank?.missing.includes("PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY"),
+    true,
+  );
   assert.equal(movement?.missing.includes("PAYSHIELD_BAAS_ADAPTER"), true);
   assert.equal(movement?.missing.includes("PAYSHIELD_BAAS_API_BASE_URL"), true);
   assert.equal(movement?.missing.includes("PAYSHIELD_BAAS_API_KEY"), true);
@@ -149,6 +153,7 @@ test("commercial profile passes when production revenue and money-rail variables
       PAYSHIELD_TOKEN_VAULT_KEY_ID              Encrypted           Production          1m ago
       PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL         Encrypted           Production          1m ago
       PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET      Encrypted           Production          1m ago
+      PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY      Encrypted           Production          1m ago
       PAYSHIELD_PROVIDER_WEBHOOK_SECRET         Encrypted           Production          1m ago
       PAYSHIELD_LEDGER_DATABASE_URL             Encrypted           Production          1m ago
       PAYSHIELD_LEDGER_SCHEMA_VERIFIED          Encrypted           Production          1m ago

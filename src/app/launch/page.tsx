@@ -101,6 +101,14 @@ function gateLabel(gate: string) {
     return "Plaid credentials";
   }
 
+  if (gate.includes("TOKEN_VAULT_ENCRYPTION_KEY")) {
+    return "Token custody encryption key";
+  }
+
+  if (gate.includes("TOKEN_VAULT_WEBHOOK")) {
+    return "Signed token-vault handoff";
+  }
+
   if (gate.includes("TOKEN_VAULT")) {
     return "Token vault custody";
   }

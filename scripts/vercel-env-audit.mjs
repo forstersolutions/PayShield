@@ -59,6 +59,7 @@ const commercialProductionGroups = [
       "PAYSHIELD_TOKEN_VAULT_KEY_ID",
       "PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL",
       "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET",
+      "PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY",
     ],
     title: "Bank connection",
     unlocks: "Plaid Link, public-token exchange, and token custody.",

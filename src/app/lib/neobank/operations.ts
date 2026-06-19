@@ -91,6 +91,7 @@ function buildActivationSetupGroups(input: {
         "PAYSHIELD_TOKEN_VAULT_KEY_ID",
         "PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL",
         "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET",
+        "PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY",
       ],
       key: "bank_connection",
       productAction:
@@ -217,7 +218,7 @@ function buildActivationPlan(input: {
       key: "bank_connection",
       label: "Bank connection",
       ownerAction:
-        "Configure Plaid credentials and token-vault handoff so users can connect an external account from the app.",
+        "Configure Plaid credentials, signed token-vault handoff, and encrypted token custody so users can connect an external account from the app.",
       primaryEndpoint: "POST /api/app/bank-link/token",
       ready: input.moneyRails.bankLinkReady,
       requiredGates: cleanMissing(
@@ -235,7 +236,7 @@ function buildActivationPlan(input: {
           : "plaid_needed",
       setupChecklist: [
         "Set PLAID_CLIENT_ID, PLAID_SECRET, PLAID_ENV, and PLAID_PRODUCTS.",
-        "Set PAYSHIELD_TOKEN_VAULT_KEY_ID, PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL, and PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET.",
+        "Set PAYSHIELD_TOKEN_VAULT_KEY_ID, PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL, PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET, and PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY.",
         "Verify /api/app/bank-link/exchange records the masked account and vault reference.",
       ],
       title: "Connect banks",
@@ -460,7 +461,8 @@ function buildRevenueAndRails(input: {
         endpoint: "POST /api/app/bank-link/token",
         key: "bank_connection",
         label: "Connect banks",
-        ownerAction: "Set Plaid credentials and signed token-vault handoff.",
+        ownerAction:
+          "Set Plaid credentials, signed token-vault handoff, and encrypted token custody.",
         provider: "Plaid Link",
         state: input.moneyRails.bankLinkReady
           ? "ready"

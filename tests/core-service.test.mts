@@ -845,6 +845,8 @@ test("core bank connection route records Plaid rail readiness", async () => {
   process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "http://127.0.0.1/vault";
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY =
+    "0123456789abcdef0123456789abcdef";
 
   await withCoreServer(async (baseUrl) => {
     const { body, response } = await getJson(
@@ -905,6 +907,24 @@ test("core paycheck readiness requires provider webhook signing", async () => {
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
 
   await withCoreServer(async (baseUrl) => {
+    const missingEncryption = await getJson(baseUrl, "/api/app/operations");
+    const missingEncryptionMoneyRails = missingEncryption.body.moneyRails as Record<
+      string,
+      unknown
+    >;
+    const missingEncryptionGates = missingEncryptionMoneyRails.missing as string[];
+
+    assert.equal(missingEncryption.response.status, 200);
+    assert.equal(missingEncryptionMoneyRails.bankLinkReady, false);
+    assert.equal(missingEncryptionMoneyRails.tokenVaultStoreReady, false);
+    assert.equal(
+      missingEncryptionGates.includes("PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY"),
+      true,
+    );
+
+    process.env.PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY =
+      "0123456789abcdef0123456789abcdef";
+
     const unsigned = await getJson(baseUrl, "/api/app/operations");
     const unsignedMoneyRails = unsigned.body.moneyRails as Record<
       string,
@@ -1097,6 +1117,8 @@ test("core bank connection route scopes records to forwarded household identity"
   process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "http://127.0.0.1/vault";
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY =
+    "0123456789abcdef0123456789abcdef";
 
   await withCoreServer(async (baseUrl) => {
     const { body, response } = await getJson(
@@ -1209,6 +1231,8 @@ test("core money-control routes require Postgres when durable storage mode is en
   process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "http://127.0.0.1/vault";
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY =
+    "0123456789abcdef0123456789abcdef";
 
   await withCoreServer(async (baseUrl) => {
     const profile = await getJson(
@@ -1744,6 +1768,8 @@ test("core provider webhook posts income transactions into paycheck split flow",
   process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "http://127.0.0.1/vault";
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY =
+    "0123456789abcdef0123456789abcdef";
 
   await withCoreServer(async (baseUrl) => {
     const payload = {
@@ -1855,6 +1881,8 @@ test("core provider webhook requires signing before linked-bank detection can ru
   process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "http://127.0.0.1/vault";
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY =
+    "0123456789abcdef0123456789abcdef";
 
   await withCoreServer(async (baseUrl) => {
     const { body, response } = await getJson(
@@ -1892,6 +1920,8 @@ test("core provider webhook rejects invalid provider signatures", async () => {
   process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "http://127.0.0.1/vault";
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY =
+    "0123456789abcdef0123456789abcdef";
 
   await withCoreServer(async (baseUrl) => {
     const { body, response } = await getJson(
@@ -1939,6 +1969,8 @@ test("core provider webhook fails closed when durable event persistence is unava
   process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "http://127.0.0.1/vault";
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY =
+    "0123456789abcdef0123456789abcdef";
 
   await withCoreServer(async (baseUrl) => {
     const payload = {

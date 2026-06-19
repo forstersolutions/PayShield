@@ -175,8 +175,12 @@ export function HouseholdCommandCenter() {
       providerWebhookSigningConfigured:
         moneyRailReadiness.providerWebhookSigningConfigured,
       remainingGates: moneyRailReadiness.missing,
+      tokenVaultEncryptionConfigured:
+        moneyRailReadiness.tokenVaultEncryptionConfigured,
+      tokenVaultEncryptionReady: moneyRailReadiness.tokenVaultEncryptionReady,
       tokenVaultConfigured: moneyRailReadiness.tokenVaultConfigured,
       tokenVaultStoreReady: moneyRailReadiness.tokenVaultStoreReady,
+      transactionSyncReady: moneyRailReadiness.transactionSyncReady,
       transferConfigured: moneyRailReadiness.transferConfigured,
       transferReady: moneyRailReadiness.transferReady,
     },

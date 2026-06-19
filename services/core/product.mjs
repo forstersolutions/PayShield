@@ -2129,6 +2129,7 @@ function buildActivationSetupGroups(body, siteUrl) {
         "PAYSHIELD_TOKEN_VAULT_KEY_ID",
         "PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL",
         "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET",
+        "PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY",
       ],
       key: "bank_connection",
       productAction:
@@ -2297,7 +2298,7 @@ function buildActivationPlan(env, snapshot, commercialAccess, moneyRails) {
       key: "bank_connection",
       label: "Bank connection",
       ownerAction:
-        "Configure Plaid credentials and token-vault handoff so users can connect an external account from the app.",
+        "Configure Plaid credentials, signed token-vault handoff, and encrypted token custody so users can connect an external account from the app.",
       primaryEndpoint: "POST /api/app/bank-link/token",
       ready: moneyRails.bankLinkReady,
       requiredGates: uniqueList(
@@ -2315,7 +2316,7 @@ function buildActivationPlan(env, snapshot, commercialAccess, moneyRails) {
           : "plaid_needed",
       setupChecklist: [
         "Set PLAID_CLIENT_ID, PLAID_SECRET, PLAID_ENV, and PLAID_PRODUCTS.",
-        "Set PAYSHIELD_TOKEN_VAULT_KEY_ID, PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL, and PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET.",
+        "Set PAYSHIELD_TOKEN_VAULT_KEY_ID, PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL, PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET, and PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY.",
         "Verify /api/app/bank-link/exchange records the masked account and vault reference.",
       ],
       title: "Connect banks",
@@ -2516,7 +2517,8 @@ function buildRevenueAndRails(
         endpoint: "POST /api/app/bank-link/token",
         key: "bank_connection",
         label: "Connect banks",
-        ownerAction: "Set Plaid credentials and signed token-vault handoff.",
+        ownerAction:
+          "Set Plaid credentials, signed token-vault handoff, and encrypted token custody.",
         provider: "Plaid Link",
         state: moneyRails.bankLinkReady
           ? "ready"
@@ -4072,15 +4074,15 @@ function getMoneyRailReadiness(env = process.env) {
   );
   const transactionSyncReady =
     plaidConfigured &&
-    vault.webhookReady &&
+    vault.custodyReady &&
     neobank.backendConfigured &&
     neobank.postgresSchemaVerified;
 
   return {
-    bankLinkReady: plaidConfigured && vault.webhookReady,
+    bankLinkReady: plaidConfigured && vault.custodyReady,
     detectionMode: plaidConfigured ? "plaid_transactions_sync" : "manual_or_provider_webhook",
     paycheckDetectionReady:
-      plaidConfigured && vault.webhookReady && providerWebhookSigningConfigured,
+      plaidConfigured && vault.custodyReady && providerWebhookSigningConfigured,
     liveMoneyReady: neobank.liveMoneyReady,
     missing: [
       ...(plaidConfigured ? [] : ["PLAID_CLIENT_ID", "PLAID_SECRET"]),
@@ -4101,7 +4103,10 @@ function getMoneyRailReadiness(env = process.env) {
       ...(plaidConfigured && !vault.webhookSigningConfigured
         ? ["PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET"]
         : []),
-      ...(plaidConfigured && vault.webhookReady && !providerWebhookSigningConfigured
+      ...(plaidConfigured && vault.webhookReady && !vault.encryptionKeyReady
+        ? ["PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY"]
+        : []),
+      ...(plaidConfigured && vault.custodyReady && !providerWebhookSigningConfigured
         ? ["PAYSHIELD_PROVIDER_WEBHOOK_SECRET"]
         : []),
     ],
@@ -4112,7 +4117,9 @@ function getMoneyRailReadiness(env = process.env) {
     providerWebhookSigningConfigured,
     transactionSyncReady,
     tokenVaultConfigured,
-    tokenVaultStoreReady: vault.webhookReady,
+    tokenVaultEncryptionConfigured: vault.encryptionKeyConfigured,
+    tokenVaultEncryptionReady: vault.encryptionKeyReady,
+    tokenVaultStoreReady: vault.custodyReady,
     transferConfigured,
     transferReady: neobank.liveMoneyReady && transferConfigured,
   };
@@ -4146,12 +4153,44 @@ function cleanTokenVaultUrl(env = process.env) {
   }
 }
 
+function tokenVaultEncryptionReadiness(env = process.env) {
+  const raw = env.PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY?.trim() || "";
+
+  if (!raw) {
+    return {
+      encryptionKeyConfigured: false,
+      encryptionKeyReady: false,
+    };
+  }
+
+  if (raw.startsWith("base64:")) {
+    return {
+      encryptionKeyConfigured: true,
+      encryptionKeyReady:
+        Buffer.from(raw.slice("base64:".length), "base64").length === 32,
+    };
+  }
+
+  return {
+    encryptionKeyConfigured: true,
+    encryptionKeyReady:
+      Buffer.from(raw, "utf8").length === 32 ||
+      Buffer.from(raw, "base64").length === 32,
+  };
+}
+
 function tokenVaultReadiness(env = process.env) {
   const keyId = env.PAYSHIELD_TOKEN_VAULT_KEY_ID?.trim() || "";
   const webhookUrl = cleanTokenVaultUrl(env);
   const webhookSigningConfigured = envPresent(env, "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET");
+  const encryption = tokenVaultEncryptionReadiness(env);
 
   return {
+    custodyReady:
+      Boolean(keyId && webhookUrl && webhookSigningConfigured) &&
+      encryption.encryptionKeyReady,
+    encryptionKeyConfigured: encryption.encryptionKeyConfigured,
+    encryptionKeyReady: encryption.encryptionKeyReady,
     keyConfigured: Boolean(keyId),
     keyId,
     webhookConfigured: Boolean(webhookUrl),
@@ -4567,7 +4606,7 @@ export async function createBankLinkToken(payload = {}, env = process.env) {
     return {
       body: {
         error:
-          "Bank linking requires Plaid credentials and a signed token-vault handoff before users can connect an external account.",
+          "Bank linking requires Plaid credentials, signed token-vault handoff, and encrypted token custody before users can connect an external account.",
         readiness,
         service: "payshield-bank-link-token",
       },
@@ -4631,7 +4670,7 @@ export async function exchangeBankPublicToken(payload = {}, env = process.env) {
     return {
       body: {
         error:
-          "Bank link exchange requires Plaid credentials and a signed token-vault handoff.",
+          "Bank link exchange requires Plaid credentials, signed token-vault handoff, and encrypted token custody.",
         readiness,
         service: "payshield-bank-link-exchange",
       },
@@ -4726,7 +4765,7 @@ export async function syncLinkedBankPaychecks(payload = {}, env = process.env) {
     return {
       body: {
         error:
-          "Linked-bank paycheck sync requires Plaid credentials and signed token-vault custody.",
+          "Linked-bank paycheck sync requires Plaid credentials, signed token-vault handoff, and encrypted token custody.",
         moneyReadiness,
         readiness,
         service: "payshield-paycheck-transaction-sync",
