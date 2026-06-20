@@ -1830,6 +1830,32 @@ export function MoneyOperationsPanel({
       tone: readiness?.moneyRails?.bankLinkReady ? "ready" : "attention",
     },
     {
+      actionLabel: "Set routing",
+      blockers:
+        directDepositSetups.length > 0 || readiness?.neobank?.liveMoneyReady
+          ? []
+          : [...new Set(neobankGates.map(friendlyGateLabel))],
+      body: "This creates the paycheck-routing setup record so payroll can land in the controlled flow before bucket funding runs.",
+      endpoint: "POST /api/app/direct-deposit",
+      icon: Landmark,
+      key: "route",
+      metric: directDepositSetups[0]?.accountLast4
+        ? `*${directDepositSetups[0].accountLast4}`
+        : "payroll",
+      onAction: startDirectDepositSetup,
+      setupHref: "/launch#money_movement",
+      setupLabel: "Set up provider",
+      state: directDepositState,
+      status:
+        directDepositSetups[0]?.status ??
+        (readiness?.neobank?.liveMoneyReady ? "routing ready" : "provider gate"),
+      title: "Route the paycheck",
+      tone:
+        directDepositSetups.length > 0 || readiness?.neobank?.liveMoneyReady
+          ? "ready"
+          : "attention",
+    },
+    {
       actionLabel: "Run detection",
       blockers: readiness?.moneyRails?.paycheckDetectionReady
         ? []
@@ -1852,6 +1878,22 @@ export function MoneyOperationsPanel({
       tone: readiness?.moneyRails?.paycheckDetectionReady
         ? "ready"
         : "attention",
+    },
+    {
+      actionLabel: "Edit buckets",
+      blockers: [],
+      body: "Households can add categories, set targets, reorder priorities, choose lock modes, and preview Safe to Spend before a paycheck posts.",
+      endpoint: "POST /api/app/buckets",
+      icon: Split,
+      key: "protect",
+      metric: `${protectedTransferBuckets.length} buckets`,
+      onAction: () => focusProductSection("bucket-studio", setBucketState),
+      setupHref: "#bucket-studio",
+      setupLabel: "Open bucket studio",
+      state: bucketState,
+      status: "customizable now",
+      title: "Protect funds first",
+      tone: "ready",
     },
     {
       actionLabel: "Create transfer intent",
@@ -2230,14 +2272,14 @@ export function MoneyOperationsPanel({
               <div>
                 <p className="brand-kicker">Use PayShield</p>
                 <h3 className="mt-1 text-2xl font-black text-white">
-                  Four controls run the money product.
+                  Six controls run the money product.
                 </h3>
                 <p className="mt-3 max-w-3xl text-sm leading-6 text-[#c9d0da]">
                   These are the actions that make the product usable: charge the
-                  account, connect a bank, detect the paycheck, and release only
-                  approved protected money. If a provider secret is missing, the
-                  card tells you the exact blocker before the request reaches
-                  live rails.
+                  account, connect a bank, set paycheck routing, detect payroll,
+                  customize protection, and release only approved protected
+                  money. If a provider secret is missing, the card tells you the
+                  exact blocker before the request reaches live rails.
                 </p>
               </div>
               <a
@@ -2249,7 +2291,7 @@ export function MoneyOperationsPanel({
                 Export audit
               </a>
             </div>
-            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {capabilityCards.map((card) => (
                 <CapabilityCard
                   actionLabel={card.actionLabel}

@@ -284,8 +284,10 @@ FROM (
     ('table:reconciliation_exceptions', to_regclass('public.reconciliation_exceptions') IS NOT NULL),
     ('table:${migrationLedgerTable}', to_regclass('public.${migrationLedgerTable}') IS NOT NULL),
     ('function:assert_journal_entry_balanced_by_id', to_regprocedure('public.assert_journal_entry_balanced_by_id(text)') IS NOT NULL),
+    ('function:assert_journal_line_household_scope', to_regprocedure('public.assert_journal_line_household_scope()') IS NOT NULL),
     ('trigger:journal_entries_balance_check', EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'journal_entries_balance_check' AND NOT tgisinternal)),
     ('trigger:journal_lines_balance_check', EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'journal_lines_balance_check' AND NOT tgisinternal)),
+    ('trigger:journal_lines_household_scope_check', EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'journal_lines_household_scope_check' AND NOT tgisinternal)),
     ('trigger:journal_entries_prevent_update', EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'journal_entries_prevent_update' AND NOT tgisinternal)),
     ('trigger:journal_lines_prevent_update', EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'journal_lines_prevent_update' AND NOT tgisinternal))
 ) AS checks(name, ok)

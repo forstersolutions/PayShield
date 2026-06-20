@@ -136,6 +136,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "services/core/migrations/0010_reconciliation_exception_details.sql",
   "services/core/migrations/0011_bank_transaction_sync.sql",
   "services/core/migrations/0012_production_gate_evidence.sql",
+  "services/core/migrations/0013_journal_household_scope.sql",
   "scripts/core-migrations.mjs",
   "SECURITY.md",
   ".dockerignore",
@@ -502,6 +503,9 @@ requireText("services/core/migrations/0012_production_gate_evidence.sql", "produ
 requireText("services/core/migrations/0012_production_gate_evidence.sql", "evidence_ref");
 requireText("services/core/migrations/0012_production_gate_evidence.sql", "approved_at");
 requireText("services/core/migrations/0012_production_gate_evidence.sql", "gate_id");
+requireText("services/core/migrations/0013_journal_household_scope.sql", "assert_journal_line_household_scope");
+requireText("services/core/migrations/0013_journal_household_scope.sql", "journal_lines_household_scope_check");
+requireText("scripts/core-migrations.mjs", "trigger:journal_lines_household_scope_check");
 requireText("src/app/api/launch/gate-evidence/route.ts", "getAppSession");
 requireText("src/app/api/launch/gate-evidence/route.ts", "PAYSHIELD_CORE_API_URL");
 requireText("src/app/api/launch/gate-evidence/route.ts", "PAYSHIELD_CORE_SERVICE_TOKEN");

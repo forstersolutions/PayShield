@@ -3244,6 +3244,7 @@ export async function loadOperationalAudit(householdId, env = process.env) {
             ON journal_lines.journal_entry_id = journal_entries.id
           JOIN ledger_accounts
             ON ledger_accounts.id = journal_lines.ledger_account_id
+            AND ledger_accounts.household_id = journal_entries.household_id
           WHERE journal_entries.household_id = $1
           GROUP BY journal_entries.id
           ORDER BY journal_entries.created_at DESC

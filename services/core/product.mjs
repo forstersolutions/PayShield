@@ -31,7 +31,7 @@ import {
 } from "./database.mjs";
 
 const serviceName = "payshield-core";
-export const coreLedgerSchemaVersion = "0012";
+export const coreLedgerSchemaVersion = "0013";
 const productionGateEvidenceScopes = new Set([
   "provider",
   "sponsor_disclosure",
@@ -6054,7 +6054,7 @@ export async function recordProductionGateEvidence(payload, env = process.env) {
       body: {
         code: "postgres_ledger_required",
         error:
-          "Production gate evidence requires PAYSHIELD_LEDGER_DATABASE_URL and schema 0012 before approvals can be recorded.",
+          "Production gate evidence requires PAYSHIELD_LEDGER_DATABASE_URL and schema 0013 before approvals can be recorded.",
         service: "payshield-production-gate-evidence",
       },
       status: 503,

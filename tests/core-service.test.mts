@@ -675,7 +675,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
 
     assert.equal(urlOnlyReadiness.postgresConfigured, true);
     assert.equal(urlOnlyReadiness.postgresSchemaVerified, false);
-    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0012");
+    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0013");
     assert.equal(postgresGate?.ok, false);
 
     process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
@@ -693,7 +693,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
       false,
     );
 
-    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0012";
+    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0013";
 
     const verified = await getJson(baseUrl, "/health");
     const verifiedReadiness = verified.body.readiness as Record<
@@ -854,7 +854,7 @@ test("core launch gate evidence route requires redacted durable approval records
 
     assert.equal(missingPostgres.response.status, 503);
     assert.equal(missingPostgres.body.code, "postgres_ledger_required");
-    assert.match(String(missingPostgres.body.error), /schema 0012/);
+    assert.match(String(missingPostgres.body.error), /schema 0013/);
   });
 });
 

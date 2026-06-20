@@ -45,7 +45,7 @@ function setLiveProviderEnv() {
   process.env.PAYSHIELD_LEDGER_DATABASE_URL =
     "postgres://payshield:secret@example.invalid:5432/ledger";
   process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
-  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0012";
+  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0013";
   process.env.PAYSHIELD_LIVE_MONEY_ENABLED = "true";
   process.env.PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED = "true";
   process.env.PAYSHIELD_REGULATED_COUNSEL_SIGNOFF = "true";

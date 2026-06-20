@@ -230,10 +230,12 @@ test("money operations surface shows revenue, rails, records, and export", async
   assert.match(moneyOperations, /POST \/api\/public\/billing\/checkout/);
   assert.match(moneyOperations, /POST \/api\/app\/bank-link\/exchange/);
   assert.match(moneyOperations, /Use PayShield/);
-  assert.match(moneyOperations, /Four controls run the money product/);
+  assert.match(moneyOperations, /Six controls run the money product/);
   assert.match(moneyOperations, /Charge the household/);
   assert.match(moneyOperations, /Connect banks/);
+  assert.match(moneyOperations, /Route the paycheck/);
   assert.match(moneyOperations, /Detect paychecks/);
+  assert.match(moneyOperations, /Protect funds first/);
   assert.match(moneyOperations, /Move protected funds/);
   assert.match(moneyOperations, /CapabilityCard/);
   assert.match(moneyOperations, /Money path/);

@@ -38,7 +38,7 @@ function readyHealth(overrides: Record<string, unknown> = {}) {
       liveMoneyReady: true,
       mode: "live_provider",
       postgresSchemaVerified: true,
-      postgresSchemaVersion: "0012",
+      postgresSchemaVersion: "0013",
       providerConfigured: true,
       remainingGates: [],
     },
@@ -126,7 +126,7 @@ test("commercial readiness fails with actionable gates for current architecture-
         mode: "architecture",
         postgresConfigured: false,
         postgresSchemaVerified: false,
-        postgresSchemaVersion: "0012",
+        postgresSchemaVersion: "0013",
         providerConfigured: false,
         remainingGates: [
           "provider_contract",

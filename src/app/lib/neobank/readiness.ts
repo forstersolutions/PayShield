@@ -3,7 +3,7 @@ import { clerkAppConfigured } from "./app-access.ts";
 import { getCoreServiceConfig } from "./core-config.ts";
 import { getProviderAdapterConfig } from "./provider-adapter.ts";
 
-export const CORE_LEDGER_SCHEMA_VERSION = "0012";
+export const CORE_LEDGER_SCHEMA_VERSION = "0013";
 
 function envTrue(name: string) {
   return process.env[name]?.trim().toLowerCase() === "true";
