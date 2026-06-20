@@ -83,6 +83,17 @@ async function runConfiguredClerkMiddleware(
 
 function protectedAppUnavailableResponse(request: NextRequest) {
   const body = appAuthNotConfiguredBody();
+  const accessState = request.nextUrl.searchParams.get("access");
+  const appAccess = getAppAccessReadiness();
+  const accessNotice =
+    accessState === "invalid"
+      ? `<p class="notice danger">That review token was not accepted. Check the owner token and try again.</p>`
+      : accessState === "not_configured"
+        ? `<p class="notice danger">Review access is not configured for this deployment. Add <code>PAYSHIELD_REVIEW_APP_ACCESS_TOKEN</code> or activate Clerk.</p>`
+        : "";
+  const reviewAccessHelp = appAccess.reviewTokenConfigured
+    ? "Enter the owner review token to open the app for this browser."
+    : "Review access needs PAYSHIELD_REVIEW_APP_ACCESS_TOKEN before this form can unlock the app.";
   const headers = {
     "cache-control": "no-store",
   };
@@ -218,6 +229,71 @@ function protectedAppUnavailableResponse(request: NextRequest) {
       .primary { background: linear-gradient(135deg, #fff, #dff7ff); color: #050607; }
       .secondary { border: 1px solid rgba(57,232,255,.28); background: rgba(57,232,255,.1); color: #dffaff; }
       .quiet { border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.055); color: #f7f8fb; }
+      .token-form {
+        display: grid;
+        gap: 10px;
+        margin-top: 24px;
+        max-width: 640px;
+        border: 1px solid rgba(57,232,255,.24);
+        border-radius: 8px;
+        background: rgba(57,232,255,.08);
+        padding: 14px;
+      }
+      .token-form label {
+        color: #fff;
+        font-size: 13px;
+        font-weight: 950;
+        text-transform: uppercase;
+      }
+      .token-row {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+      .token-row input {
+        min-width: 0;
+        height: 46px;
+        border: 1px solid rgba(255,255,255,.16);
+        border-radius: 8px;
+        background: rgba(0,0,0,.44);
+        color: #fff;
+        font: inherit;
+        font-weight: 800;
+        outline: none;
+        padding: 0 12px;
+      }
+      .token-row input:focus {
+        border-color: rgba(57,232,255,.72);
+        box-shadow: 0 0 0 3px rgba(57,232,255,.12);
+      }
+      .token-row button {
+        min-height: 46px;
+        border: 0;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #fff, #dff7ff);
+        color: #050607;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 950;
+        padding: 0 16px;
+      }
+      .form-help {
+        margin: 0;
+        color: #aab3c2;
+        font-size: 13px;
+      }
+      .notice {
+        margin: 0;
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 14px;
+        font-weight: 850;
+      }
+      .danger {
+        border: 1px solid rgba(255,107,53,.35);
+        background: rgba(255,107,53,.12);
+        color: #ffd2c2;
+      }
       .stack {
         display: grid;
         gap: 12px;
@@ -249,6 +325,7 @@ function protectedAppUnavailableResponse(request: NextRequest) {
         header { align-items: flex-start; flex-direction: column; }
         .layout { grid-template-columns: 1fr; min-height: auto; padding-top: 18px; }
         .support { min-height: 40px; display: inline-flex; align-items: center; }
+        .token-row { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -265,6 +342,16 @@ function protectedAppUnavailableResponse(request: NextRequest) {
           <span class="kicker">Household app activation</span>
           <h1>Turn on secure app access before household money controls open.</h1>
           <p class="lead">PayShield is ready to run the paid-access, bank-link, paycheck detection, protected bucket, transfer, card-decision, and audit workflow once authenticated access is configured.</p>
+          <form class="token-form" action="/api/review-access" method="post" autocomplete="off">
+            ${accessNotice}
+            <label for="review_access_token">Owner review access</label>
+            <div class="token-row">
+              <input id="review_access_token" name="review_access_token" type="password" minlength="16" required placeholder="Enter owner token" />
+              <button type="submit">Open app</button>
+            </div>
+            <input name="return_to" type="hidden" value="/app" />
+            <p class="form-help">${reviewAccessHelp} Accepted tokens are stored only as a hashed HTTP-only cookie for eight hours.</p>
+          </form>
           <div class="actions">
             <a class="button primary" href="/launch">Open revenue + rails console</a>
             <a class="button secondary" href="/">View product profile</a>
@@ -278,7 +365,7 @@ function protectedAppUnavailableResponse(request: NextRequest) {
           </div>
           <div class="card">
             <strong>What unlocks it?</strong>
-            <span>Set <code>NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</code> and <code>CLERK_SECRET_KEY</code>. For owner review before Clerk is active, set a 16+ character <code>PAYSHIELD_REVIEW_APP_ACCESS_TOKEN</code> and open <code>/app?review_access_token=&lt;token&gt;</code>. Use <code>PAYSHIELD_ALLOW_REVIEW_APP_ACCESS=true</code> only for an isolated review deployment.</span>
+            <span>Set <code>NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</code> and <code>CLERK_SECRET_KEY</code>. For owner review before Clerk is active, set a 16+ character <code>PAYSHIELD_REVIEW_APP_ACCESS_TOKEN</code> and use the owner access form on this page. Use <code>PAYSHIELD_ALLOW_REVIEW_APP_ACCESS=true</code> only for an isolated review deployment.</span>
           </div>
           <div class="card">
             <strong>Who operates PayShield?</strong>

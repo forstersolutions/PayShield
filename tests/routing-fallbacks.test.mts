@@ -5,6 +5,7 @@ import { NextRequest } from "next/server.js";
 import { POST as createBankLinkToken } from "../src/app/api/app/bank-link/token/route.ts";
 import { POST as scheduleBillPayment } from "../src/app/api/app/bill-payments/route.ts";
 import { GET as getAppMe } from "../src/app/api/app/me/route.ts";
+import { POST as submitReviewAccess } from "../src/app/api/review-access/route.ts";
 import proxy from "../src/proxy.ts";
 
 const fallbackFiles = [
@@ -146,6 +147,9 @@ test("production app access fails closed without Clerk unless review access is e
     assert.match(pageBody, /PAYSHIELD_ALLOW_REVIEW_APP_ACCESS=true/);
     assert.match(pageBody, /PAYSHIELD_REVIEW_APP_ACCESS_TOKEN/);
     assert.match(pageBody, /review_access_token/);
+    assert.match(pageBody, /action="\/api\/review-access"/);
+    assert.match(pageBody, /Owner review access/);
+    assert.match(pageBody, /Accepted tokens are stored only as a hashed HTTP-only cookie/);
     assert.match(pageBody, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY/);
     assert.match(pageBody, /CLERK_SECRET_KEY/);
     assert.match(pageBody, /payshield-logo-clean\.png/);
@@ -155,6 +159,53 @@ test("production app access fails closed without Clerk unless review access is e
     assert.match(pageBody, /support@graystontechnologies\.com/);
 
     process.env.PAYSHIELD_REVIEW_APP_ACCESS_TOKEN = "owner-review-token-2026";
+
+    const invalidFormResponse = await submitReviewAccess(
+      new NextRequest("https://payshield.test/api/review-access", {
+        body: new URLSearchParams({
+          review_access_token: "wrong-review-token",
+        }),
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+        },
+        method: "POST",
+      }),
+    );
+
+    assert.equal(invalidFormResponse.status, 303);
+    assert.equal(
+      invalidFormResponse.headers.get("location"),
+      "https://payshield.test/app?access=invalid",
+    );
+    assert.equal(invalidFormResponse.headers.get("set-cookie"), null);
+
+    const validFormResponse = await submitReviewAccess(
+      new NextRequest("https://payshield.test/api/review-access", {
+        body: new URLSearchParams({
+          return_to: "/app",
+          review_access_token: "owner-review-token-2026",
+        }),
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+        },
+        method: "POST",
+      }),
+    );
+    const validFormCookie = validFormResponse.headers
+      .get("set-cookie")
+      ?.split(";")[0];
+
+    assert.equal(validFormResponse.status, 303);
+    assert.equal(validFormResponse.headers.get("location"), "https://payshield.test/app");
+    assert.match(validFormResponse.headers.get("set-cookie") ?? "", /payshield_review_access=/);
+    assert.doesNotMatch(
+      validFormResponse.headers.get("set-cookie") ?? "",
+      /owner-review-token-2026/,
+    );
+    assert.match(validFormResponse.headers.get("set-cookie") ?? "", /HttpOnly/);
+    assert.match(validFormResponse.headers.get("set-cookie") ?? "", /SameSite=strict/i);
+
+    assert.ok(validFormCookie);
 
     const missingTokenResponse = await runProxy(
       new NextRequest("https://payshield.test/api/app/me"),
