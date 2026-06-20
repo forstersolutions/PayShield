@@ -43,10 +43,16 @@ export type MoneyControlPlanView = {
     projectedSafeToSpendCents: number;
   };
   detectionRule: {
+    amountRangeCents?: {
+      max?: number | null;
+      min?: number | null;
+    };
     employerNamePattern: string;
     endpoint: string;
     expectedFrequency: string;
     ruleName: string;
+    syncEndpoint?: string;
+    transactionNamePattern?: string;
   };
   input: {
     employerName: string;
@@ -82,12 +88,14 @@ export type MoneyControlPlanView = {
   };
   transferPlan: {
     allowedNow: boolean;
+    destinationPayeeId?: string | null;
     destinationPayeeName: string | null;
     endpoint: string;
     maxTransferCents: number;
     providerReady: boolean;
     providerStatus: string;
     requestedTransferCents: number;
+    sourceBucketId?: string | null;
     sourceBucketName: string | null;
   };
 };
@@ -128,6 +136,15 @@ const stepTargets: Record<string, string> = {
   revenue_gate: "#money-operations",
 };
 
+const stepActionLabels: Record<string, string> = {
+  bank_connection: "Open bank control",
+  card_control: "Open card control",
+  paycheck_detection: "Save detection rule",
+  protected_buckets: "Edit buckets",
+  protected_transfer: "Create transfer intent",
+  revenue_gate: "Start checkout",
+};
+
 function formatMoney(cents: number) {
   return new Intl.NumberFormat("en-US", {
     currency: "USD",
@@ -148,6 +165,34 @@ function dollarsToCents(value: string) {
 
 function cleanStatus(value: string) {
   return value.replace(/_/g, " ");
+}
+
+function apiMessage(
+  payload: { error?: unknown; errors?: unknown; message?: unknown },
+  fallback: string,
+) {
+  if (typeof payload.error === "string" && payload.error.trim()) {
+    return payload.error;
+  }
+
+  if (Array.isArray(payload.errors) && payload.errors.length > 0) {
+    return payload.errors.filter((error) => typeof error === "string").join(" ");
+  }
+
+  if (typeof payload.message === "string" && payload.message.trim()) {
+    return payload.message;
+  }
+
+  return fallback;
+}
+
+function readinessMessage(
+  readiness: { missing?: string[] } | undefined,
+  fallback: string,
+) {
+  const missing = readiness?.missing?.filter(Boolean) ?? [];
+
+  return missing.length > 0 ? `Needs ${missing.join(", ")}.` : fallback;
 }
 
 function PlanMessage({ state }: { state: ActionState }) {
@@ -207,6 +252,7 @@ export function MoneyControlPlanPanel({
     message: "",
     status: "idle",
   });
+  const [stepStates, setStepStates] = useState<Record<string, ActionState>>({});
   const [paycheckAmount, setPaycheckAmount] = useState(
     centsToDollars(initialPlan.input.paycheckAmountCents),
   );
@@ -230,6 +276,225 @@ export function MoneyControlPlanPanel({
       ),
     [plan.allocation.buckets],
   );
+
+  function stepState(stepKey: string): ActionState {
+    return (
+      stepStates[stepKey] ?? {
+        message: "",
+        status: "idle",
+      }
+    );
+  }
+
+  function setStepState(stepKey: string, nextState: ActionState) {
+    setStepStates((current) => ({
+      ...current,
+      [stepKey]: nextState,
+    }));
+  }
+
+  function focusPlanTarget(step: ControlPlanStep) {
+    const target = stepTargets[step.key] ?? "#money-operations";
+    const element = document.querySelector<HTMLElement>(target);
+
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+      setStepState(step.key, {
+        message: "Opened the control surface for this step.",
+        status: "ready",
+      });
+      return;
+    }
+
+    setStepState(step.key, {
+      message: "This control surface is not available on the current page.",
+      status: "error",
+    });
+  }
+
+  async function startPlanCheckout(step: ControlPlanStep) {
+    setStepState(step.key, {
+      message: "Creating paid-access checkout...",
+      status: "loading",
+    });
+
+    try {
+      const response = await fetch("/api/app/billing/checkout", {
+        body: JSON.stringify({
+          cancelPath: "/app?billing=cancelled",
+          idempotencyKey: `plan-checkout-${crypto.randomUUID()}`,
+          successPath: "/app?billing=active",
+        }),
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        activation?: { warning?: string };
+        error?: string;
+        readiness?: { missing?: string[] };
+        url?: string;
+      };
+
+      if (!response.ok || !payload.url) {
+        setStepState(step.key, {
+          message: apiMessage(
+            payload,
+            readinessMessage(payload.readiness, "Checkout is not ready."),
+          ),
+          status: "error",
+        });
+        return;
+      }
+
+      setStepState(step.key, {
+        message: payload.activation?.warning || "Checkout ready. Redirecting.",
+        status: "ready",
+      });
+      window.location.assign(payload.url);
+    } catch {
+      setStepState(step.key, {
+        message: "Checkout could not be started.",
+        status: "error",
+      });
+    }
+  }
+
+  async function saveDetectionRule(step: ControlPlanStep) {
+    const minimumAmountCents =
+      plan.detectionRule.amountRangeCents?.min ??
+      Math.max(10_000, Math.round(plan.input.paycheckAmountCents * 0.6));
+
+    setStepState(step.key, {
+      message: "Saving paycheck detection rule...",
+      status: "loading",
+    });
+
+    try {
+      const response = await fetch("/api/app/paychecks/rules", {
+        body: JSON.stringify({
+          employerNamePattern: plan.detectionRule.employerNamePattern,
+          expectedFrequency: plan.detectionRule.expectedFrequency,
+          idempotencyKey: `plan-rule-${plan.detectionRule.ruleName
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "_")}`,
+          maximumAmountCents: plan.detectionRule.amountRangeCents?.max ?? "",
+          minimumAmountCents,
+          providerName: "plaid",
+          ruleName: plan.detectionRule.ruleName,
+          status: "active",
+          transactionNamePattern:
+            plan.detectionRule.transactionNamePattern ??
+            plan.detectionRule.employerNamePattern,
+        }),
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        rule?: unknown;
+      };
+
+      if (!response.ok) {
+        setStepState(step.key, {
+          message: apiMessage(payload, "Paycheck detection rule was not saved."),
+          status: "error",
+        });
+        return;
+      }
+
+      setStepState(step.key, {
+        message: apiMessage(payload, "Paycheck detection rule saved."),
+        status: "ready",
+      });
+    } catch {
+      setStepState(step.key, {
+        message: "Paycheck detection rule request failed.",
+        status: "error",
+      });
+    }
+  }
+
+  async function createTransferIntent(step: ControlPlanStep) {
+    if (
+      !plan.transferPlan.sourceBucketId ||
+      !plan.transferPlan.destinationPayeeId ||
+      plan.transferPlan.requestedTransferCents <= 0
+    ) {
+      focusPlanTarget(step);
+      setStepState(step.key, {
+        message:
+          "Choose an approved payee and transfer amount before creating an intent.",
+        status: "error",
+      });
+      return;
+    }
+
+    setStepState(step.key, {
+      message: "Creating protected transfer intent...",
+      status: "loading",
+    });
+
+    try {
+      const response = await fetch("/api/app/transfers", {
+        body: JSON.stringify({
+          amountCents: plan.transferPlan.requestedTransferCents,
+          destinationPayeeId: plan.transferPlan.destinationPayeeId,
+          idempotencyKey: `plan-transfer-${plan.transferPlan.sourceBucketId}-${plan.transferPlan.destinationPayeeId}-${plan.transferPlan.requestedTransferCents}`,
+          sourceBucketId: plan.transferPlan.sourceBucketId,
+        }),
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+      };
+
+      if (!response.ok) {
+        setStepState(step.key, {
+          message: apiMessage(payload, "Protected transfer intent was blocked."),
+          status: "error",
+        });
+        return;
+      }
+
+      setStepState(step.key, {
+        message: apiMessage(payload, "Protected transfer intent created."),
+        status: "ready",
+      });
+    } catch {
+      setStepState(step.key, {
+        message: "Protected transfer request failed.",
+        status: "error",
+      });
+    }
+  }
+
+  function runPlanStep(step: ControlPlanStep) {
+    if (step.key === "revenue_gate") {
+      void startPlanCheckout(step);
+      return;
+    }
+
+    if (step.key === "paycheck_detection") {
+      void saveDetectionRule(step);
+      return;
+    }
+
+    if (step.key === "protected_transfer") {
+      void createTransferIntent(step);
+      return;
+    }
+
+    focusPlanTarget(step);
+  }
 
   async function generatePlan() {
     setState({
@@ -269,6 +534,7 @@ export function MoneyControlPlanPanel({
       }
 
       setPlan(payload);
+      setStepStates({});
       setState({
         message:
           "Plan generated. The next action, split preview, transfer intent, and proof endpoints are updated.",
@@ -406,6 +672,22 @@ export function MoneyControlPlanPanel({
               <NextIcon className="size-4" aria-hidden="true" />
               Open rail
             </a>
+            <button
+              className="brand-button-primary mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] px-3 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={stepState(plan.nextAction.key).status === "loading"}
+              onClick={() => runPlanStep(plan.nextAction)}
+              type="button"
+            >
+              {stepState(plan.nextAction.key).status === "loading" ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <NextIcon className="size-4" aria-hidden="true" />
+              )}
+              {stepActionLabels[plan.nextAction.key] ?? "Run step"}
+            </button>
+            <div className="mt-3">
+              <PlanMessage state={stepState(plan.nextAction.key)} />
+            </div>
           </div>
         </div>
 
@@ -500,22 +782,24 @@ export function MoneyControlPlanPanel({
             <div className="brand-panel rounded-[8px] p-4">
               <p className="brand-kicker">Operating steps</p>
               <p className="mt-1 text-sm font-bold leading-6 text-[#aab3c2]">
+                Run this plan from top to bottom. Checkout, detection rules, and
+                protected-transfer intents execute here; richer bank, bucket,
+                and card controls open in their dedicated lanes.
                 Revenue gate, Bank connection, Paycheck detection, Protected
-                buckets, Protected transfer, and Card control stay in one
-                sequence.
+                transfer, and Card control remain in the same operating queue.
               </p>
               <div className="mt-3 grid gap-2">
                 {plan.operatingSteps.map((step) => {
                   const Icon = stepIcons[step.key] ?? ArrowRight;
+                  const currentStepState = stepState(step.key);
 
                   return (
-                    <a
+                    <article
                       className={`grid gap-3 rounded-[8px] border p-3 transition hover:border-[#39e8ff]/35 sm:grid-cols-[2.35rem_1fr_auto] ${
                         step.canRunNow
                           ? "border-[#68f0c2]/25 bg-[#68f0c2]/[0.07]"
                           : "border-[#ffb237]/25 bg-[#ffb237]/10"
                       }`}
-                      href={stepTargets[step.key] ?? "#money-operations"}
                       key={step.key}
                     >
                       <span
@@ -541,16 +825,41 @@ export function MoneyControlPlanPanel({
                           </span>
                         ) : null}
                       </span>
-                      <span
-                        className={`self-start rounded-[8px] px-2.5 py-1 text-xs font-black capitalize ${
-                          step.canRunNow
-                            ? "bg-[#68f0c2]/10 text-[#9af7d5]"
-                            : "bg-[#ffb237]/10 text-[#ffe4ad]"
-                        }`}
-                      >
-                        {cleanStatus(step.status)}
+                      <span className="grid gap-2 self-start">
+                        <span
+                          className={`rounded-[8px] px-2.5 py-1 text-center text-xs font-black capitalize ${
+                            step.canRunNow
+                              ? "bg-[#68f0c2]/10 text-[#9af7d5]"
+                              : "bg-[#ffb237]/10 text-[#ffe4ad]"
+                          }`}
+                        >
+                          {cleanStatus(step.status)}
+                        </span>
+                        <button
+                          className={`inline-flex h-9 min-w-32 items-center justify-center gap-2 rounded-[8px] px-3 text-xs font-black disabled:cursor-not-allowed disabled:opacity-50 ${
+                            step.canRunNow
+                              ? "brand-button-blue"
+                              : "brand-button-primary"
+                          }`}
+                          disabled={currentStepState.status === "loading"}
+                          onClick={() => runPlanStep(step)}
+                          type="button"
+                        >
+                          {currentStepState.status === "loading" ? (
+                            <Loader2
+                              className="size-3.5 animate-spin"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <Icon className="size-3.5" aria-hidden="true" />
+                          )}
+                          {stepActionLabels[step.key] ?? "Run step"}
+                        </button>
                       </span>
-                    </a>
+                      <div className="sm:col-span-3 sm:pl-[3.1rem]">
+                        <PlanMessage state={currentStepState} />
+                      </div>
+                    </article>
                   );
                 })}
               </div>

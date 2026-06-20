@@ -353,6 +353,13 @@ requireText(
 requireText("src/app/components/money-control-plan-panel.tsx", "Paycheck split preview");
 requireText("src/app/components/money-control-plan-panel.tsx", "Projected Safe to Spend");
 requireText("src/app/components/money-control-plan-panel.tsx", "Operating steps");
+requireText("src/app/components/money-control-plan-panel.tsx", "Run this plan from top to bottom");
+requireText("src/app/components/money-control-plan-panel.tsx", "Start checkout");
+requireText("src/app/components/money-control-plan-panel.tsx", "Save detection rule");
+requireText("src/app/components/money-control-plan-panel.tsx", "Create transfer intent");
+requireText("src/app/components/money-control-plan-panel.tsx", "/api/app/billing/checkout");
+requireText("src/app/components/money-control-plan-panel.tsx", "/api/app/paychecks/rules");
+requireText("src/app/components/money-control-plan-panel.tsx", "/api/app/transfers");
 requireText("src/app/components/money-control-plan-panel.tsx", "Detection and release");
 requireText("src/app/components/money-control-plan-panel.tsx", "Transfer guardrail");
 requireText("src/app/components/money-control-plan-panel.tsx", "Proof artifacts");

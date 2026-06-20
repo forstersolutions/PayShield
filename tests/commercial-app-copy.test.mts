@@ -132,6 +132,13 @@ test("app command center exposes a guided real-money setup surface", async () =>
   assert.match(controlPlan, /Paycheck split preview/);
   assert.match(controlPlan, /Projected Safe to Spend/);
   assert.match(controlPlan, /Operating steps/);
+  assert.match(controlPlan, /Run this plan from top to bottom/);
+  assert.match(controlPlan, /Start checkout/);
+  assert.match(controlPlan, /Save detection rule/);
+  assert.match(controlPlan, /Create transfer intent/);
+  assert.match(controlPlan, /\/api\/app\/billing\/checkout/);
+  assert.match(controlPlan, /\/api\/app\/paychecks\/rules/);
+  assert.match(controlPlan, /\/api\/app\/transfers/);
   assert.match(controlPlan, /Detection and release/);
   assert.match(controlPlan, /Transfer guardrail/);
   assert.match(controlPlan, /Proof artifacts/);
