@@ -458,8 +458,10 @@ export function getCoreReadiness(env = process.env, options = {}) {
 
 export function getCoreHealth(env = process.env) {
   const readiness = getCoreReadiness(env, { coreOnline: true });
+  const moneyRails = getMoneyRailReadiness(env);
 
   return {
+    moneyRails,
     ok: true,
     readiness,
     routes: [
@@ -2131,7 +2133,7 @@ function buildActivationSetupGroups(body, siteUrl) {
         "PLAID_COUNTRY_CODES",
         "PLAID_WEBHOOK_URL",
         "PAYSHIELD_TOKEN_VAULT_KEY_ID",
-        "PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL",
+        "PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL or PAYSHIELD_CORE_API_URL",
         "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET",
         "PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY",
       ],
@@ -2320,7 +2322,7 @@ function buildActivationPlan(env, snapshot, commercialAccess, moneyRails) {
           : "plaid_needed",
       setupChecklist: [
         "Set PLAID_CLIENT_ID, PLAID_SECRET, PLAID_ENV, and PLAID_PRODUCTS.",
-        "Set PAYSHIELD_TOKEN_VAULT_KEY_ID, PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL, PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET, and PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY.",
+        "Set PAYSHIELD_TOKEN_VAULT_KEY_ID, PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET, and PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY; use PAYSHIELD_CORE_API_URL as the default vault receiver or override with PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL.",
         "Verify /api/app/bank-link/exchange records the masked account and vault reference.",
       ],
       title: "Connect banks",
@@ -4102,7 +4104,7 @@ function getMoneyRailReadiness(env = process.env) {
         ? ["PAYSHIELD_TOKEN_VAULT_KEY_ID"]
         : []),
       ...(plaidConfigured && !vault.webhookConfigured
-        ? ["PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL"]
+        ? ["PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL or PAYSHIELD_CORE_API_URL"]
         : []),
       ...(plaidConfigured && !vault.webhookSigningConfigured
         ? ["PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET"]
@@ -4124,6 +4126,7 @@ function getMoneyRailReadiness(env = process.env) {
     tokenVaultEncryptionConfigured: vault.encryptionKeyConfigured,
     tokenVaultEncryptionReady: vault.encryptionKeyReady,
     tokenVaultHandoffReady: vault.webhookReady,
+    tokenVaultWebhookSource: vault.webhookSource,
     tokenVaultStoreReady: vault.custodyReady,
     transferConfigured,
     transferReady: neobank.liveMoneyReady && transferConfigured,
@@ -4158,6 +4161,61 @@ function cleanTokenVaultUrl(env = process.env) {
   }
 }
 
+function cleanCoreApiUrl(env = process.env) {
+  const value = env.PAYSHIELD_CORE_API_URL?.trim();
+
+  if (!value) {
+    return "";
+  }
+
+  try {
+    const url = new URL(value);
+    const localHttp =
+      url.protocol === "http:" &&
+      ["127.0.0.1", "::1", "localhost"].includes(url.hostname) &&
+      env.VERCEL_ENV !== "production";
+
+    if (url.username || url.password || url.search || url.hash) {
+      return "";
+    }
+
+    if (url.protocol !== "https:" && !localHttp) {
+      return "";
+    }
+
+    return url.toString().replace(/\/+$/, "");
+  } catch {
+    return "";
+  }
+}
+
+function tokenVaultWebhookUrl(env = process.env) {
+  const explicit = cleanTokenVaultUrl(env);
+
+  if (explicit) {
+    return {
+      source: "explicit",
+      url: explicit,
+    };
+  }
+
+  const coreApiUrl = cleanCoreApiUrl(env);
+
+  if (coreApiUrl) {
+    return {
+      source: "core_service",
+      url: `${coreApiUrl}/api/token-vault/plaid`,
+    };
+  }
+
+  return {
+    source: env.PAYSHIELD_CORE_API_URL?.trim()
+      ? "core_service_misconfigured"
+      : "missing",
+    url: "",
+  };
+}
+
 function tokenVaultEncryptionReadiness(env = process.env) {
   const raw = env.PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY?.trim() || "";
 
@@ -4186,22 +4244,23 @@ function tokenVaultEncryptionReadiness(env = process.env) {
 
 function tokenVaultReadiness(env = process.env) {
   const keyId = env.PAYSHIELD_TOKEN_VAULT_KEY_ID?.trim() || "";
-  const webhookUrl = cleanTokenVaultUrl(env);
+  const webhook = tokenVaultWebhookUrl(env);
   const webhookSigningConfigured = envPresent(env, "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET");
   const encryption = tokenVaultEncryptionReadiness(env);
 
   return {
     custodyReady:
-      Boolean(keyId && webhookUrl && webhookSigningConfigured) &&
+      Boolean(keyId && webhook.url && webhookSigningConfigured) &&
       encryption.encryptionKeyReady,
     encryptionKeyConfigured: encryption.encryptionKeyConfigured,
     encryptionKeyReady: encryption.encryptionKeyReady,
     keyConfigured: Boolean(keyId),
     keyId,
-    webhookConfigured: Boolean(webhookUrl),
-    webhookReady: Boolean(keyId && webhookUrl && webhookSigningConfigured),
+    webhookConfigured: Boolean(webhook.url),
+    webhookReady: Boolean(keyId && webhook.url && webhookSigningConfigured),
+    webhookSource: webhook.source,
     webhookSigningConfigured,
-    webhookUrl,
+    webhookUrl: webhook.url,
   };
 }
 

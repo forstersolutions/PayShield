@@ -83,6 +83,7 @@ export function GET() {
           moneyRails.tokenVaultEncryptionConfigured,
         tokenVaultEncryptionReady: moneyRails.tokenVaultEncryptionReady,
         tokenVaultHandoffReady: moneyRails.tokenVaultHandoffReady,
+        tokenVaultWebhookSource: moneyRails.tokenVaultWebhookSource,
         tokenVaultStoreReady: moneyRails.tokenVaultStoreReady,
         transactionSyncReady: moneyRails.transactionSyncReady,
         transferConfigured: moneyRails.transferConfigured,

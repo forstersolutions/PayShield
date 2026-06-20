@@ -48,6 +48,7 @@ async function parseJson(response: Response) {
       tokenVaultEncryptionConfigured?: unknown;
       tokenVaultEncryptionReady?: unknown;
       tokenVaultHandoffReady?: unknown;
+      tokenVaultWebhookSource?: unknown;
       transferReady?: unknown;
       transactionSyncReady?: unknown;
     };
@@ -485,6 +486,29 @@ test("reports commercial and money rail readiness gates", async () => {
   assert.equal(
     signedProviderConfiguredBody.moneyRails?.providerWebhookSigningConfigured,
     true,
+  );
+});
+
+test("reports core service as the default token-vault receiver", async () => {
+  process.env.PAYSHIELD_CORE_API_URL = "https://core.payshield.test";
+  process.env.PLAID_CLIENT_ID = "plaid-client";
+  process.env.PLAID_SECRET = "plaid-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY =
+    "0123456789abcdef0123456789abcdef";
+
+  const response = GET();
+  const body = await parseJson(response);
+  const missing = body.moneyRails?.remainingGates as string[];
+
+  assert.equal(body.moneyRails?.bankLinkReady, true);
+  assert.equal(body.moneyRails?.tokenVaultHandoffReady, true);
+  assert.equal(body.moneyRails?.tokenVaultStoreReady, true);
+  assert.equal(body.moneyRails?.tokenVaultWebhookSource, "core_service");
+  assert.equal(
+    missing.includes("PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL or PAYSHIELD_CORE_API_URL"),
+    false,
   );
 });
 

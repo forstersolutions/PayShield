@@ -1097,7 +1097,10 @@ test("bank link token requires signed token-vault handoff and encrypted custody 
   assert.equal(readiness.plaidConfigured, true);
   assert.equal(readiness.tokenVaultConfigured, true);
   assert.equal(readiness.tokenVaultStoreReady, false);
-  assert.equal(missing.includes("PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL"), true);
+  assert.equal(
+    missing.includes("PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL or PAYSHIELD_CORE_API_URL"),
+    true,
+  );
   assert.equal(missing.includes("PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET"), true);
 });
 

@@ -1022,8 +1022,37 @@ test("core bank link token fails closed without signed token vault handoff", asy
     assert.equal(readiness.plaidConfigured, true);
     assert.equal(readiness.tokenVaultConfigured, true);
     assert.equal(readiness.tokenVaultStoreReady, false);
-    assert.equal(missing.includes("PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL"), true);
+    assert.equal(
+      missing.includes("PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL or PAYSHIELD_CORE_API_URL"),
+      true,
+    );
     assert.equal(missing.includes("PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET"), true);
+  });
+});
+
+test("core readiness can use the core service URL as the token-vault receiver", async () => {
+  process.env.PLAID_CLIENT_ID = "plaid-client";
+  process.env.PLAID_SECRET = "plaid-secret";
+  process.env.PAYSHIELD_CORE_API_URL = "https://core.payshield.test";
+  process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY =
+    "0123456789abcdef0123456789abcdef";
+
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(baseUrl, "/health");
+    const moneyRails = body.moneyRails as Record<string, unknown>;
+    const missing = moneyRails.missing as string[];
+
+    assert.equal(response.status, 200);
+    assert.equal(moneyRails.bankLinkReady, true);
+    assert.equal(moneyRails.tokenVaultHandoffReady, true);
+    assert.equal(moneyRails.tokenVaultStoreReady, true);
+    assert.equal(moneyRails.tokenVaultWebhookSource, "core_service");
+    assert.equal(
+      missing.includes("PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL or PAYSHIELD_CORE_API_URL"),
+      false,
+    );
   });
 });
 

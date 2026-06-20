@@ -122,6 +122,12 @@ test("commercial profile reports the revenue, access, bank, detection, movement,
   ]);
   assert.equal(bank?.missing.includes("PLAID_SECRET"), true);
   assert.equal(
+    bank?.missing.includes(
+      "PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL or PAYSHIELD_CORE_API_URL",
+    ),
+    true,
+  );
+  assert.equal(
     bank?.missing.includes("PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY"),
     true,
   );
@@ -151,7 +157,6 @@ test("commercial profile passes when production revenue and money-rail variables
       PLAID_CLIENT_ID                           Encrypted           Production          1m ago
       PLAID_SECRET                              Encrypted           Production          1m ago
       PAYSHIELD_TOKEN_VAULT_KEY_ID              Encrypted           Production          1m ago
-      PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL         Encrypted           Production          1m ago
       PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET      Encrypted           Production          1m ago
       PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY      Encrypted           Production          1m ago
       PAYSHIELD_PROVIDER_WEBHOOK_SECRET         Encrypted           Production          1m ago

@@ -69,6 +69,7 @@ type OperationsReadiness = {
     tokenVaultEncryptionReady?: boolean;
     tokenVaultConfigured?: boolean;
     tokenVaultHandoffReady?: boolean;
+    tokenVaultWebhookSource?: string;
     tokenVaultStoreReady?: boolean;
     transactionSyncReady?: boolean;
     transferConfigured?: boolean;
@@ -288,6 +289,10 @@ function friendlyGateLabel(gate: string) {
 
   if (gate.includes("TOKEN_VAULT_ENCRYPTION_KEY")) {
     return "Token custody encryption key";
+  }
+
+  if (gate.includes("PAYSHIELD_CORE_API_URL") && gate.includes("TOKEN_VAULT")) {
+    return "Vault receiver or core service URL";
   }
 
   if (gate.includes("TOKEN_VAULT_WEBHOOK")) {
@@ -1413,7 +1418,9 @@ export function MoneyOperationsPanel({
     ...neobankGates,
   ];
   const tokenCustodyMetric = readiness?.moneyRails?.tokenVaultEncryptionReady
-    ? "encrypted custody"
+    ? readiness.moneyRails.tokenVaultWebhookSource === "core_service"
+      ? "core vault"
+      : "encrypted custody"
     : readiness?.moneyRails?.tokenVaultStoreReady
       ? "vault ready"
       : readiness?.moneyRails?.tokenVaultHandoffReady

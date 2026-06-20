@@ -93,7 +93,7 @@ function buildActivationSetupGroups(input: {
         "PLAID_COUNTRY_CODES",
         "PLAID_WEBHOOK_URL",
         "PAYSHIELD_TOKEN_VAULT_KEY_ID",
-        "PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL",
+        "PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL or PAYSHIELD_CORE_API_URL",
         "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET",
         "PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY",
       ],
@@ -240,7 +240,7 @@ function buildActivationPlan(input: {
           : "plaid_needed",
       setupChecklist: [
         "Set PLAID_CLIENT_ID, PLAID_SECRET, PLAID_ENV, and PLAID_PRODUCTS.",
-        "Set PAYSHIELD_TOKEN_VAULT_KEY_ID, PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL, PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET, and PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY.",
+        "Set PAYSHIELD_TOKEN_VAULT_KEY_ID, PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET, and PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY; use PAYSHIELD_CORE_API_URL as the default vault receiver or override with PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL.",
         "Verify /api/app/bank-link/exchange records the masked account and vault reference.",
       ],
       title: "Connect banks",

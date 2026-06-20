@@ -558,7 +558,7 @@ export default function LaunchConsolePage() {
         "PLAID_SECRET",
         "PLAID_ENV",
         "PAYSHIELD_TOKEN_VAULT_KEY_ID",
-        "PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL",
+        "PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL or PAYSHIELD_CORE_API_URL",
         "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET",
       ],
       icon: Link2,

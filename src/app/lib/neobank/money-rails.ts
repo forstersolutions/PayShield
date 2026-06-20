@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { getCoreServiceConfig, joinCorePath } from "./core-config.ts";
 import { getProviderAdapterConfig } from "./provider-adapter.ts";
 import { getNeobankReadiness } from "./readiness.ts";
 import type { BucketId } from "./types.ts";
@@ -17,6 +18,12 @@ function envPresent(name: string) {
 function envTrue(name: string) {
   return process.env[name]?.trim().toLowerCase() === "true";
 }
+
+type TokenVaultWebhookSource =
+  | "core_service"
+  | "core_service_misconfigured"
+  | "explicit"
+  | "missing";
 
 function cleanTokenVaultUrl(value: string | undefined) {
   if (!value?.trim()) {
@@ -42,6 +49,35 @@ function cleanTokenVaultUrl(value: string | undefined) {
   } catch {
     return "";
   }
+}
+
+function tokenVaultWebhookUrl() {
+  const explicit = cleanTokenVaultUrl(
+    process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL,
+  );
+
+  if (explicit) {
+    return {
+      source: "explicit" as TokenVaultWebhookSource,
+      url: explicit,
+    };
+  }
+
+  const core = getCoreServiceConfig();
+
+  if (core.ok) {
+    return {
+      source: "core_service" as TokenVaultWebhookSource,
+      url: joinCorePath(core.baseUrl, "/api/token-vault/plaid"),
+    };
+  }
+
+  return {
+    source: core.configured
+      ? ("core_service_misconfigured" as TokenVaultWebhookSource)
+      : ("missing" as TokenVaultWebhookSource),
+    url: "",
+  };
 }
 
 function cleanList(value: string | undefined, fallback: string[]) {
@@ -102,14 +138,13 @@ function tokenVaultEncryptionReadiness() {
 
 function tokenVaultReadiness() {
   const keyId = process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID?.trim() || "";
-  const webhookUrl = cleanTokenVaultUrl(
-    process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL,
-  );
+  const webhook = tokenVaultWebhookUrl();
   const webhookSigningConfigured = envPresent(
     "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET",
   );
   const keyConfigured = Boolean(keyId);
-  const webhookReady = keyConfigured && Boolean(webhookUrl) && webhookSigningConfigured;
+  const webhookReady =
+    keyConfigured && Boolean(webhook.url) && webhookSigningConfigured;
   const encryption = tokenVaultEncryptionReadiness();
 
   return {
@@ -118,9 +153,10 @@ function tokenVaultReadiness() {
     encryptionKeyReady: encryption.encryptionKeyReady,
     keyConfigured,
     keyId,
-    webhookConfigured: Boolean(webhookUrl),
+    webhookConfigured: Boolean(webhook.url),
     webhookReady,
-    webhookUrl,
+    webhookSource: webhook.source,
+    webhookUrl: webhook.url,
     webhookSigningConfigured,
   };
 }
@@ -235,7 +271,7 @@ export function getMoneyRailReadiness() {
     }
 
     if (!vault.webhookConfigured) {
-      missing.push("PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL");
+      missing.push("PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL or PAYSHIELD_CORE_API_URL");
     }
 
     if (!vault.webhookSigningConfigured) {
@@ -268,6 +304,7 @@ export function getMoneyRailReadiness() {
     tokenVaultEncryptionConfigured: vault.encryptionKeyConfigured,
     tokenVaultEncryptionReady: vault.encryptionKeyReady,
     tokenVaultHandoffReady: vault.webhookReady,
+    tokenVaultWebhookSource: vault.webhookSource,
     tokenVaultStoreReady: vault.custodyReady,
     transferConfigured,
     transferReady: neobank.liveMoneyReady && transferConfigured,
