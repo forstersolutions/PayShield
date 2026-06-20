@@ -52,6 +52,10 @@ test("app command center exposes a guided real-money setup surface", async () =>
     "src/app/components/money-setup-console.tsx",
     "utf8",
   );
+  const dashboard = await readFile(
+    "src/app/components/neobank-dashboard.tsx",
+    "utf8",
+  );
   const moneyEngine = await readFile(
     "src/app/components/money-engine-console.tsx",
     "utf8",
@@ -104,6 +108,16 @@ test("app command center exposes a guided real-money setup surface", async () =>
   assert.match(commandCenter, /Sync linked-bank activity/);
   assert.match(commandCenter, /Detect the paycheck/);
   assert.match(commandCenter, /Audit export/);
+  assert.match(dashboard, /Real operating path/);
+  assert.match(dashboard, /Make money, connect banks, detect payroll, protect funds/);
+  assert.match(dashboard, /Start checkout/);
+  assert.match(dashboard, /Open app flow/);
+  assert.match(dashboard, /Owner setup/);
+  assert.match(dashboard, /POST \/api\/public\/billing\/checkout/);
+  assert.match(dashboard, /POST \/api\/app\/bank-link\/token/);
+  assert.match(dashboard, /POST \/api\/app\/paychecks\/sync/);
+  assert.match(dashboard, /POST \/api\/app\/transfers/);
+  assert.match(dashboard, /MoneyEngineConsole/);
 });
 
 test("money operations surface shows revenue, rails, records, and export", async () => {

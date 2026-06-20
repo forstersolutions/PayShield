@@ -1,6 +1,7 @@
 import {
   AlertTriangle,
   ArrowRight,
+  BadgeDollarSign,
   Building2,
   CalendarClock,
   CheckCircle2,
@@ -9,19 +10,27 @@ import {
   Database,
   KeyRound,
   Landmark,
+  Link2,
   LockKeyhole,
   Mail,
+  Radar,
+  RefreshCw,
+  Split,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { BillRoutingWorkspace } from "@/app/components/bill-routing-workspace";
 import { BucketControlPanel } from "@/app/components/bucket-control-panel";
+import { MoneyEngineConsole } from "@/app/components/money-engine-console";
 import { PayShieldHeaderLogo } from "@/app/components/pay-shield-mark";
 import { PublicCheckoutForm } from "@/app/components/public-checkout-form";
 import { WaitlistForm } from "@/app/components/waitlist-form";
 import { REGULATED_PARTNER_DISCLOSURE } from "@/app/lib/brand";
+import { getCommercialReadiness } from "@/app/lib/commercial/billing.ts";
 import { createNeobankSnapshot } from "@/app/lib/neobank/demo-state.ts";
 import { formatCents } from "@/app/lib/neobank/ledger.ts";
+import { getMoneyRailReadiness } from "@/app/lib/neobank/money-rails.ts";
+import { createHouseholdActivationPacket } from "@/app/lib/neobank/operations.ts";
 import type { BucketBalance } from "@/app/lib/neobank/types.ts";
 
 const protectionCopy: Record<BucketBalance["protection"], string> = {
@@ -77,6 +86,9 @@ const profileSteps = [
 
 export function NeobankDashboard() {
   const snapshot = createNeobankSnapshot();
+  const activationPacket = createHouseholdActivationPacket();
+  const commercialReadiness = getCommercialReadiness();
+  const moneyRailReadiness = getMoneyRailReadiness();
   const safeSpend =
     snapshot.buckets.find((bucket) => bucket.id === "safe_spending")
       ?.availableCents ?? 0;
@@ -89,6 +101,65 @@ export function NeobankDashboard() {
   const safeSpendPercent = Math.round(
     (safeSpend / Math.max(1, safeSpend + protectedCents)) * 100,
   );
+  const operatingSteps = [
+    {
+      body: "Stripe Checkout records paid household access before private money tools open.",
+      endpoint: "POST /api/public/billing/checkout",
+      href: "#profile",
+      icon: BadgeDollarSign,
+      ready: commercialReadiness.checkoutConfigured,
+      status: commercialReadiness.checkoutConfigured
+        ? commercialReadiness.paidAccessReady
+          ? "paid access ready"
+          : "activation setup"
+        : "Stripe setup",
+      title: `Collect ${commercialReadiness.priceLabel}`,
+    },
+    {
+      body: "Plaid Link creates the bank connection and the exchange route stores the token vault reference.",
+      endpoint: "POST /api/app/bank-link/token",
+      href: "/app#money-operations",
+      icon: Link2,
+      ready: moneyRailReadiness.bankLinkReady,
+      status: moneyRailReadiness.bankLinkReady
+        ? "bank link ready"
+        : moneyRailReadiness.plaidConfigured
+          ? "vault setup"
+          : "Plaid setup",
+      title: "Connect the bank source",
+    },
+    {
+      body: "Transaction sync and signed provider events turn payroll activity into bucket funding.",
+      endpoint: "POST /api/app/paychecks/sync",
+      href: "/app#money-operations",
+      icon: RefreshCw,
+      ready: moneyRailReadiness.transactionSyncReady,
+      status: moneyRailReadiness.transactionSyncReady
+        ? "sync ready"
+        : "core storage",
+      title: "Sync and recognize payroll",
+    },
+    {
+      body: "Custom categories, priorities, payees, and release rules define what is protected.",
+      endpoint: "POST /api/app/buckets",
+      href: "#bucket-studio",
+      icon: Split,
+      ready: true,
+      status: "customizable",
+      title: "Build protected buckets",
+    },
+    {
+      body: "Safe to Spend, approved payees, and bucket balances decide transfers and card swipes.",
+      endpoint: "POST /api/app/transfers",
+      href: "/app#money-operations",
+      icon: Radar,
+      ready: moneyRailReadiness.transferReady || snapshot.readiness.liveMoneyReady,
+      status: moneyRailReadiness.transferReady
+        ? "movement ready"
+        : "intent validation",
+      title: "Release only approved money",
+    },
+  ];
 
   return (
     <section
@@ -170,6 +241,30 @@ export function NeobankDashboard() {
               them: secure buckets, approved biller rules, recovery controls,
               and one clean Safe to Spend number.
             </p>
+
+            <div className="mt-7 grid gap-2 sm:grid-cols-3">
+              <a
+                className="brand-button-primary inline-flex min-h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black"
+                href="#profile"
+              >
+                <BadgeDollarSign className="size-4" aria-hidden="true" />
+                Start checkout
+              </a>
+              <Link
+                className="brand-button-blue inline-flex min-h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black"
+                href="/app#money-operations"
+              >
+                <Link2 className="size-4" aria-hidden="true" />
+                Open app flow
+              </Link>
+              <Link
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[8px] border border-[#ffb237]/30 bg-[#ffb237]/10 px-4 text-sm font-black text-[#ffe4ad] hover:bg-[#ffb237]/15"
+                href="/launch"
+              >
+                <KeyRound className="size-4" aria-hidden="true" />
+                Owner setup
+              </Link>
+            </div>
 
             <div className="mt-7 grid gap-3 sm:grid-cols-3">
               {productStats.map((stat) => (
@@ -262,6 +357,70 @@ export function NeobankDashboard() {
 
           <section className="grid gap-5">
             <div className="brand-panel rounded-[8px] p-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="brand-kicker">Real operating path</p>
+                  <h2 className="mt-1 text-2xl font-black text-white">
+                    Make money, connect banks, detect payroll, protect funds.
+                  </h2>
+                </div>
+                <Link
+                  className="brand-button-blue inline-flex min-h-10 items-center justify-center gap-2 rounded-[8px] px-3 text-sm font-black"
+                  href="/app#money-operations"
+                >
+                  Run workflow
+                  <ArrowRight className="size-4" aria-hidden="true" />
+                </Link>
+              </div>
+              <div className="mt-5 grid gap-3">
+                {operatingSteps.map((step, index) => {
+                  const Icon = step.icon;
+
+                  return (
+                    <a
+                      className="grid gap-3 rounded-[8px] border border-white/10 bg-black/35 p-3 transition hover:border-[#39e8ff]/35 hover:bg-[#39e8ff]/10 sm:grid-cols-[2.75rem_minmax(0,1fr)_auto]"
+                      href={step.href}
+                      key={step.title}
+                    >
+                      <span
+                        className={`grid size-11 place-items-center rounded-[8px] border ${
+                          step.ready
+                            ? "border-[#68f0c2]/25 bg-[#68f0c2]/10 text-[#68f0c2]"
+                            : "border-[#ffb237]/25 bg-[#ffb237]/10 text-[#ffcf72]"
+                        }`}
+                      >
+                        <Icon className="size-5" aria-hidden="true" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="text-xs font-black uppercase text-[#8f99aa]">
+                          {String(index + 1).padStart(2, "0")} / workflow
+                        </span>
+                        <span className="mt-1 block text-base font-black text-white">
+                          {step.title}
+                        </span>
+                        <span className="mt-1 block text-sm leading-6 text-[#c9d0da]">
+                          {step.body}
+                        </span>
+                        <span className="mt-2 block overflow-x-auto font-mono text-[0.68rem] font-black uppercase text-[#39e8ff]">
+                          {step.endpoint}
+                        </span>
+                      </span>
+                      <span
+                        className={`inline-flex h-8 items-center justify-center rounded-[8px] px-2.5 text-xs font-black capitalize ${
+                          step.ready
+                            ? "bg-[#68f0c2]/10 text-[#9af7d5]"
+                            : "bg-[#ffb237]/10 text-[#ffe4ad]"
+                        }`}
+                      >
+                        {step.status}
+                      </span>
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="brand-panel rounded-[8px] p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="brand-kicker">Household ledger</p>
@@ -303,6 +462,12 @@ export function NeobankDashboard() {
         buckets={snapshot.buckets}
         payees={snapshot.payees}
       />
+
+      <div className="relative z-10 border-y border-white/10 bg-[#050607]">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <MoneyEngineConsole initialPacket={activationPacket} />
+        </div>
+      </div>
 
       <div className="relative z-10 border-y border-white/10 bg-[#090b0d]">
         <div
