@@ -1025,25 +1025,46 @@ export async function persistBillPaymentSchedule(input, env = process.env) {
 
     const result = await client.query(
       `
-        INSERT INTO bill_payment_schedules (
+        WITH inserted AS (
+          INSERT INTO bill_payment_schedules (
+            id,
+            household_id,
+            journal_entry_id,
+            idempotency_key,
+            payee_id,
+            bucket_id,
+            amount_cents,
+            scheduled_for,
+            memo,
+            decision_code,
+            reason,
+            provider_bill_payment_id,
+            provider_status,
+            status
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8::date, $9, $10, $11, $12, $13, $14)
+          ON CONFLICT (household_id, idempotency_key) DO NOTHING
+          RETURNING id, provider_bill_payment_id, provider_status, status
+        )
+        SELECT
           id,
-          household_id,
-          journal_entry_id,
-          idempotency_key,
-          payee_id,
-          bucket_id,
-          amount_cents,
-          scheduled_for,
-          memo,
-          decision_code,
-          reason,
           provider_bill_payment_id,
           provider_status,
-          status
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::date, $9, $10, $11, $12, $13, $14)
-        ON CONFLICT (household_id, idempotency_key) DO NOTHING
-        RETURNING id
+          status,
+          false AS replayed
+        FROM inserted
+        UNION ALL
+        SELECT
+          id,
+          provider_bill_payment_id,
+          provider_status,
+          status,
+          true AS replayed
+        FROM bill_payment_schedules
+        WHERE household_id = $2
+          AND idempotency_key = $4
+          AND NOT EXISTS (SELECT 1 FROM inserted)
+        LIMIT 1
       `,
       [
         id,
@@ -1063,13 +1084,27 @@ export async function persistBillPaymentSchedule(input, env = process.env) {
       ],
     );
 
+    const row = result.rows[0];
+
     await client.query("COMMIT");
+
+    if (!row) {
+      return {
+        persisted: false,
+        persistence: "postgres_missing",
+        persistenceReason:
+          "Bill payment schedule write returned no durable record.",
+      };
+    }
 
     return {
       persisted: true,
       persistence: "postgres",
-      postgresId: id,
-      replayed: result.rowCount === 0,
+      postgresId: row.id ?? id,
+      providerBillPaymentId: row.provider_bill_payment_id || null,
+      providerStatus: row.provider_status || null,
+      replayed: Boolean(row.replayed),
+      status: row.status || null,
     };
   } catch (error) {
     if (client) {
@@ -1083,6 +1118,63 @@ export async function persistBillPaymentSchedule(input, env = process.env) {
     return persistenceFailed(error);
   } finally {
     client?.release();
+  }
+}
+
+export async function updateBillPaymentProviderStatus(
+  input,
+  env = process.env,
+) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return persistenceSkipped("bill payment provider status", env);
+  }
+
+  try {
+    const result = await pool.query(
+      `
+        UPDATE bill_payment_schedules
+        SET
+          provider_bill_payment_id = $3,
+          status = $4,
+          provider_status = $5,
+          updated_at = now()
+        WHERE household_id = $1
+          AND idempotency_key = $2
+        RETURNING id, provider_bill_payment_id, provider_status, status
+      `,
+      [
+        input.householdId,
+        input.idempotencyKey,
+        input.providerBillPaymentId || null,
+        input.status,
+        input.providerStatus,
+      ],
+    );
+
+    if (result.rowCount === 0) {
+      return {
+        persisted: false,
+        persistence: "postgres_missing",
+        persistenceReason:
+          "Bill payment provider status update found no matching durable schedule.",
+      };
+    }
+
+    const row = result.rows[0];
+
+    return {
+      persisted: true,
+      persistence: "postgres",
+      postgresId: row?.id ?? null,
+      providerBillPaymentId: row?.provider_bill_payment_id || null,
+      providerStatus: row?.provider_status || null,
+      replayed: false,
+      status: row?.status || null,
+    };
+  } catch (error) {
+    return persistenceFailed(error);
   }
 }
 
@@ -2826,22 +2918,43 @@ export async function persistTransferIntent(input, env = process.env) {
     const id = recordId("transfer_intent", input.householdId, input.idempotencyKey);
     const result = await pool.query(
       `
-        INSERT INTO transfer_intents (
-          id,
-          household_id,
-          source_bucket_id,
-          destination_payee_id,
-          amount_cents,
-          provider_name,
-          provider_transfer_id,
-          idempotency_key,
-          status,
-          provider_status,
-          failure_code
+        WITH inserted AS (
+          INSERT INTO transfer_intents (
+            id,
+            household_id,
+            source_bucket_id,
+            destination_payee_id,
+            amount_cents,
+            provider_name,
+            provider_transfer_id,
+            idempotency_key,
+            status,
+            provider_status,
+            failure_code
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          ON CONFLICT (household_id, idempotency_key) DO NOTHING
+          RETURNING id, provider_transfer_id, provider_status, status
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-        ON CONFLICT (household_id, idempotency_key) DO NOTHING
-        RETURNING id
+        SELECT
+          id,
+          provider_transfer_id,
+          provider_status,
+          status,
+          false AS replayed
+        FROM inserted
+        UNION ALL
+        SELECT
+          id,
+          provider_transfer_id,
+          provider_status,
+          status,
+          true AS replayed
+        FROM transfer_intents
+        WHERE household_id = $2
+          AND idempotency_key = $8
+          AND NOT EXISTS (SELECT 1 FROM inserted)
+        LIMIT 1
       `,
       [
         id,
@@ -2858,11 +2971,25 @@ export async function persistTransferIntent(input, env = process.env) {
       ],
     );
 
+    const row = result.rows[0];
+
+    if (!row) {
+      return {
+        persisted: false,
+        persistence: "postgres_missing",
+        persistenceReason:
+          "Transfer intent write returned no durable record.",
+      };
+    }
+
     return {
       persisted: true,
       persistence: "postgres",
-      postgresId: id,
-      replayed: result.rowCount === 0,
+      postgresId: row.id ?? id,
+      providerStatus: row.provider_status || null,
+      providerTransferId: row.provider_transfer_id || null,
+      replayed: Boolean(row.replayed),
+      status: row.status || null,
     };
   } catch (error) {
     return persistenceFailed(error);

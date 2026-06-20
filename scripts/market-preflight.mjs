@@ -627,6 +627,37 @@ requireText("scripts/smoke-core-service.mjs", "/api/app/bill-payments");
 requireText("services/core/server.mjs", "path === \"/app/bill-payments\"");
 requireText("services/core/product.mjs", "createBillPayment");
 requireText("services/core/product.mjs", "scheduleBillPayment");
+requireText("services/core/product.mjs", "updateBillPaymentProviderStatus");
+requireText(
+  "services/core/product.mjs",
+  "Pending bill payment schedule resumed with the configured provider.",
+);
+requireText(
+  "services/core/product.mjs",
+  "Provider bill payment was created but the durable schedule status could not be updated.",
+);
+requireTextOrderInSection(
+  "services/core/product.mjs",
+  "export async function createBillPayment",
+  "function isUnlockMode",
+  "persistOperationalJournal(",
+  "providerCreateBillPayment(",
+);
+requireTextOrderInSection(
+  "services/core/product.mjs",
+  "export async function createBillPayment",
+  "function isUnlockMode",
+  "persistBillPaymentSchedule(",
+  "providerCreateBillPayment(",
+);
+requireTextOrderInSection(
+  "services/core/product.mjs",
+  "export async function createBillPayment",
+  "function isUnlockMode",
+  "decisionPersistence.replayed",
+  "providerCreateBillPayment(",
+);
+requireText("services/core/database.mjs", "updateBillPaymentProviderStatus");
 requireText("scripts/smoke-docker-receiver.mjs", "runDockerReceiverSmoke");
 requireText("scripts/smoke-docker-receiver.mjs", "Dockerfile.receiver");
 requireText("scripts/smoke-docker-receiver.mjs", "sendSignedWebhookTest");
@@ -1038,7 +1069,11 @@ requireText(
 );
 requireText(
   "services/core/product.mjs",
-  "did not replay the provider transfer request",
+  "Pending transfer intent resumed with the configured provider.",
+);
+requireText(
+  "services/core/product.mjs",
+  "will not replay provider execution after a durable terminal or blocked status",
 );
 requireText("services/core/product.mjs", "provider_pending");
 requireTextOrderInSection(

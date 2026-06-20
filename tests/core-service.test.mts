@@ -208,6 +208,7 @@ test("core transfer execution persists a durable intent before live provider cal
   );
   const persistIndex = transferSource.indexOf("persistTransferIntent(");
   const replayIndex = transferSource.indexOf("persistence.replayed");
+  const resumeIndex = transferSource.indexOf("resumePendingProviderExecution");
   const providerIndex = transferSource.indexOf("providerCreateAchTransfer(");
   const statusUpdateIndex = transferSource.indexOf(
     "updateTransferIntentProviderStatus(",
@@ -220,18 +221,24 @@ test("core transfer execution persists a durable intent before live provider cal
     "duplicate idempotency keys must replay before provider execution",
   );
   assert.ok(
+    resumeIndex > persistIndex && resumeIndex < providerIndex,
+    "pending durable intents must be classified before provider execution",
+  );
+  assert.ok(
     statusUpdateIndex > providerIndex,
     "provider results must update the durable intent",
   );
   assert.match(transferSource, /provider_pending/);
   assert.match(
     transferSource,
-    /did not replay the provider transfer request/,
+    /Pending transfer intent resumed with the configured provider/,
   );
   assert.match(
     transferSource,
-    /persisted before provider execution/,
+    /will not replay provider execution after a durable terminal or blocked status/,
   );
+  assert.match(transferSource, /persisted before provider execution/);
+  assert.match(databaseSource, /WITH inserted AS/);
   assert.match(
     databaseSource,
     /export async function updateTransferIntentProviderStatus/,
@@ -241,6 +248,82 @@ test("core transfer execution persists a durable intent before live provider cal
     databaseSource,
     /WHERE household_id = \$1[\s\S]+AND idempotency_key = \$2/,
   );
+});
+
+test("core bill payment execution persists the ledger and schedule before live provider calls", () => {
+  const productSource = readFileSync(
+    new URL("../services/core/product.mjs", import.meta.url),
+    "utf8",
+  );
+  const databaseSource = readFileSync(
+    new URL("../services/core/database.mjs", import.meta.url),
+    "utf8",
+  );
+  const createBillPaymentStart = productSource.indexOf(
+    "export async function createBillPayment",
+  );
+  const createBillPaymentEnd = productSource.indexOf(
+    "function isUnlockMode",
+    createBillPaymentStart,
+  );
+
+  assert.notEqual(createBillPaymentStart, -1);
+  assert.notEqual(createBillPaymentEnd, -1);
+
+  const billPaymentSource = productSource.slice(
+    createBillPaymentStart,
+    createBillPaymentEnd,
+  );
+  const journalIndex = billPaymentSource.indexOf("persistOperationalJournal(");
+  const scheduleIndex = billPaymentSource.indexOf("persistBillPaymentSchedule(");
+  const replayIndex = billPaymentSource.indexOf("decisionPersistence.replayed");
+  const resumeIndex = billPaymentSource.indexOf(
+    "resumePendingBillPaymentProviderExecution",
+  );
+  const providerIndex = billPaymentSource.indexOf("providerCreateBillPayment(");
+  const statusUpdateIndex = billPaymentSource.indexOf(
+    "updateBillPaymentProviderStatus(",
+  );
+
+  assert.ok(journalIndex >= 0, "bill payment ledger entry must be persisted");
+  assert.ok(
+    scheduleIndex > journalIndex,
+    "bill payment schedule must follow ledger persistence",
+  );
+  assert.ok(
+    providerIndex > scheduleIndex,
+    "bill payment provider call must follow durable schedule persistence",
+  );
+  assert.ok(
+    replayIndex > scheduleIndex && replayIndex < providerIndex,
+    "duplicate schedules must be classified before provider execution",
+  );
+  assert.ok(
+    resumeIndex > scheduleIndex && resumeIndex < providerIndex,
+    "pending bill schedules must be resumable before provider execution",
+  );
+  assert.ok(
+    statusUpdateIndex > providerIndex,
+    "provider results must update the durable bill schedule",
+  );
+  assert.match(
+    billPaymentSource,
+    /Pending bill payment schedule resumed with the configured provider/,
+  );
+  assert.match(
+    billPaymentSource,
+    /will not replay provider execution after a durable terminal or blocked status/,
+  );
+  assert.match(
+    billPaymentSource,
+    /Provider bill payment was created but the durable schedule status could not be updated/,
+  );
+  assert.match(
+    databaseSource,
+    /export async function updateBillPaymentProviderStatus/,
+  );
+  assert.match(databaseSource, /bill_payment_schedules/);
+  assert.match(databaseSource, /provider_bill_payment_id/);
 });
 
 test("core profile route binds authenticated users to a household identity", async () => {

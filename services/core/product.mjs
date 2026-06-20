@@ -28,6 +28,7 @@ import {
   persistTransferIntent,
   persistUnlockRequest,
   resolveReconciliationExceptionRecord,
+  updateBillPaymentProviderStatus,
   updateTransferIntentProviderStatus,
 } from "./database.mjs";
 
@@ -6655,7 +6656,13 @@ export async function createTransferIntent(payload, env = process.env) {
     };
   }
 
-  if (liveProviderExecution && persistence.replayed) {
+  const resumePendingProviderExecution =
+    liveProviderExecution &&
+    persistence.replayed &&
+    persistence.status === "provider_pending" &&
+    !persistence.providerTransferId;
+
+  if (liveProviderExecution && persistence.replayed && !resumePendingProviderExecution) {
     return {
       body: {
         intent: {
@@ -6676,12 +6683,13 @@ export async function createTransferIntent(payload, env = process.env) {
           source: ledger.ledgerSource,
         },
         message:
-          "Transfer intent already exists. PayShield did not replay the provider transfer request.",
+          "Transfer intent already exists. PayShield will not replay provider execution after a durable terminal or blocked status.",
         destinationPayee,
         persistence,
         providerTransfer: {
-          providerTransferId: "durable-intent-replayed",
-          status: "replayed",
+          providerTransferId:
+            persistence.providerTransferId || "durable-intent-replayed",
+          status: persistence.providerStatus || "replayed",
         },
         sourceBucket,
       },
@@ -6821,7 +6829,9 @@ export async function createTransferIntent(payload, env = process.env) {
         source: ledger.ledgerSource,
       },
       message:
-        providerTransfer.status === "created"
+        providerTransfer.status === "created" && resumePendingProviderExecution
+          ? "Pending transfer intent resumed with the configured provider."
+          : providerTransfer.status === "created"
           ? "Protected transfer created with the configured provider."
           : "Transfer intent validated. Provider execution remains locked until approved money-rail credentials are active.",
       destinationPayee,
@@ -6896,6 +6906,8 @@ export async function createBillPayment(payload, env = process.env) {
   });
   const readiness = getCoreReadiness(env, { coreOnline: true });
   const payee = controls.payees.find((candidate) => candidate.id === payeeId);
+  const liveProviderExecution =
+    decision.accepted && readiness.liveMoneyReady && Boolean(payee);
   let providerBillPayment = decision.accepted
     ? {
         providerBillPaymentId: "bill-pay-provider-contract-required",
@@ -6905,39 +6917,6 @@ export async function createBillPayment(payload, env = process.env) {
         providerBillPaymentId: "bill-pay-not-scheduled",
         status: "blocked",
       };
-
-  if (decision.accepted && readiness.liveMoneyReady && payee) {
-    try {
-      providerBillPayment = await providerCreateBillPayment(env, {
-        amountCents,
-        idempotencyKey,
-        payee,
-      });
-    } catch (error) {
-      const exceptionPersistence = await recordMoneyRailProviderException(
-        {
-          actor,
-          amountCents,
-          error,
-          idempotencyKey,
-          operation: "createBillPayment",
-          payeeId,
-          rail: "bill_payment",
-        },
-        env,
-      );
-      const result = providerErrorResult(error, "payshield-bill-payments");
-
-      return {
-        body: {
-          ...result.body,
-          exceptionPersistence,
-          readiness,
-        },
-        status: persistenceFailed(exceptionPersistence) ? 503 : result.status,
-      };
-    }
-  }
 
   const postedEntry = decision.accepted
     ? book.findByIdempotencyKey(idempotencyKey)
@@ -6963,7 +6942,7 @@ export async function createBillPayment(payload, env = process.env) {
     };
   }
 
-  const decisionPersistence = await persistBillPaymentSchedule(
+  let decisionPersistence = await persistBillPaymentSchedule(
     {
       amountCents,
       bucketId: decision.bucketId || null,
@@ -6973,16 +6952,13 @@ export async function createBillPayment(payload, env = process.env) {
       journalEntryId: journalPersistence.postgresId || null,
       memo: memo || null,
       payeeId,
-      providerBillPaymentId: providerBillPayment.providerBillPaymentId,
-      providerStatus:
-        providerBillPayment.status === "created" ? "created" : "blocked",
+      providerBillPaymentId: liveProviderExecution
+        ? null
+        : providerBillPayment.providerBillPaymentId,
+      providerStatus: liveProviderExecution ? "submitted" : "blocked",
       reason: decision.reason,
       scheduledFor,
-      status: decision.accepted
-        ? providerBillPayment.status === "created"
-          ? "submitted"
-          : "scheduled"
-        : "rejected",
+      status: decision.accepted ? "scheduled" : "rejected",
     },
     env,
   );
@@ -6999,6 +6975,130 @@ export async function createBillPayment(payload, env = process.env) {
       },
       status: 503,
     };
+  }
+
+  const resumePendingBillPaymentProviderExecution =
+    liveProviderExecution &&
+    decisionPersistence.replayed &&
+    decisionPersistence.status === "scheduled" &&
+    decisionPersistence.providerStatus === "submitted" &&
+    !decisionPersistence.providerBillPaymentId;
+
+  if (
+    liveProviderExecution &&
+    decisionPersistence.replayed &&
+    !resumePendingBillPaymentProviderExecution
+  ) {
+    providerBillPayment = {
+      providerBillPaymentId:
+        decisionPersistence.providerBillPaymentId ||
+        "durable-bill-payment-replayed",
+      status: decisionPersistence.providerStatus || "replayed",
+    };
+
+    return {
+      body: {
+        balances: buildBucketBalances(book, controls.buckets),
+        controlPersistence: {
+          bucketProfile: controls.bucketPersistence,
+          payees: controls.payeePersistence,
+        },
+        decision: {
+          ...decision,
+          providerStatus: providerBillPayment.status,
+        },
+        ledgerEntries: book.allEntries(),
+        decisionPersistence,
+        journalPersistence,
+        ledger: {
+          entryCount: book.allEntries().length,
+          source: ledger.ledgerSource,
+        },
+        message:
+          "Bill payment schedule already exists. PayShield will not replay provider execution after a durable terminal or blocked status.",
+        mode: "core_ledger",
+        providerBillPayment,
+        readiness,
+      },
+      status: 200,
+    };
+  }
+
+  if (liveProviderExecution && payee) {
+    try {
+      providerBillPayment = await providerCreateBillPayment(env, {
+        amountCents,
+        idempotencyKey,
+        payee,
+      });
+    } catch (error) {
+      const failurePersistence = await updateBillPaymentProviderStatus(
+        {
+          householdId: actor.householdId,
+          idempotencyKey,
+          providerBillPaymentId: null,
+          providerStatus: "failed",
+          status: "failed",
+        },
+        env,
+      );
+      const exceptionPersistence = await recordMoneyRailProviderException(
+        {
+          actor,
+          amountCents,
+          error,
+          idempotencyKey,
+          operation: "createBillPayment",
+          payeeId,
+          rail: "bill_payment",
+        },
+        env,
+      );
+      const result = providerErrorResult(error, "payshield-bill-payments");
+
+      return {
+        body: {
+          ...result.body,
+          decisionPersistence,
+          exceptionPersistence,
+          failurePersistence,
+          journalPersistence,
+          readiness,
+        },
+        status:
+          persistenceFailed(failurePersistence) ||
+          persistenceFailed(exceptionPersistence)
+            ? 503
+            : result.status,
+      };
+    }
+
+    decisionPersistence = await updateBillPaymentProviderStatus(
+      {
+        householdId: actor.householdId,
+        idempotencyKey,
+        providerBillPaymentId: providerBillPayment.providerBillPaymentId,
+        providerStatus: "created",
+        status: "submitted",
+      },
+      env,
+    );
+
+    if (persistenceFailed(decisionPersistence)) {
+      return {
+        body: {
+          decision,
+          decisionPersistence,
+          error:
+            "Provider bill payment was created but the durable schedule status could not be updated.",
+          journalPersistence,
+          providerBillPayment,
+          readiness,
+          service: "payshield-bill-payments",
+        },
+        status: 503,
+      };
+    }
   }
 
   return {
@@ -7020,7 +7120,12 @@ export async function createBillPayment(payload, env = process.env) {
         source: ledger.ledgerSource,
       },
       message: decision.accepted
-        ? "Bill payment scheduled in the protected bucket model. Provider execution requires active money-movement controls."
+        ? providerBillPayment.status === "created" &&
+          resumePendingBillPaymentProviderExecution
+          ? "Pending bill payment schedule resumed with the configured provider."
+          : providerBillPayment.status === "created"
+            ? "Bill payment submitted with the configured provider."
+            : "Bill payment scheduled in the protected bucket model. Provider execution requires active money-movement controls."
         : "Bill payment was not scheduled.",
       mode: "core_ledger",
       providerBillPayment,
