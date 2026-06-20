@@ -1547,25 +1547,19 @@ test("core money-control routes require Postgres when durable storage mode is en
       (profile.body.persistence as Record<string, unknown>).persistence,
       "postgres_required",
     );
-    assert.equal(
-      (directDeposit.body.persistence as Record<string, unknown>).persistence,
-      "postgres_required",
-    );
-    assert.equal(
-      (paycheckRule.body.persistence as Record<string, unknown>).persistence,
-      "postgres_required",
-    );
-    assert.equal(
-      (
-        paycheckDetection.body.bucketPersistence as Record<string, unknown>
-      ).persistence,
-      "postgres_required",
-    );
-    assert.equal(paycheckSync.body.code, "postgres_ledger_required");
-    assert.equal(
-      (transfer.body.bucketPersistence as Record<string, unknown>).persistence,
-      "postgres_required",
-    );
+    for (const route of [
+      directDeposit,
+      paycheckRule,
+      paycheckDetection,
+      paycheckSync,
+      transfer,
+    ]) {
+      assert.equal(route.body.code, "postgres_identity_required");
+      assert.equal(
+        (route.body.identityPersistence as Record<string, unknown>).persistence,
+        "postgres_required",
+      );
+    }
     assert.equal(
       (bankConnection.body.persistence as Record<string, unknown>).persistence,
       "postgres_required",
@@ -1876,19 +1870,19 @@ test("core money operations fail closed when configured ledger persistence fails
     assert.equal(paycheck.response.status, 503);
     assert.equal(
       paycheck.body.error,
-      "Operational controls could not be loaded from durable core storage.",
+      "Household identity could not be persisted before paycheck detection.",
     );
     assert.equal(
-      (paycheck.body.bucketPersistence as Record<string, unknown>).persistence,
+      (paycheck.body.identityPersistence as Record<string, unknown>).persistence,
       "postgres_error",
     );
     assert.equal(transfer.response.status, 503);
     assert.equal(
       transfer.body.error,
-      "Operational controls could not be loaded from durable core storage.",
+      "Household identity could not be persisted before protected transfers.",
     );
     assert.equal(
-      (transfer.body.bucketPersistence as Record<string, unknown>).persistence,
+      (transfer.body.identityPersistence as Record<string, unknown>).persistence,
       "postgres_error",
     );
   });

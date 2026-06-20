@@ -45,6 +45,14 @@ test("commercial app copy avoids non-production positioning", async () => {
   assert.deepEqual(findings, []);
 });
 
+test("authenticated app identity uses stable Clerk subject instead of email", async () => {
+  const auth = await readFile("src/app/lib/neobank/auth.ts", "utf8");
+
+  assert.match(auth, /clerkSubject: session\.userId/);
+  assert.match(auth, /userId: session\.userId/);
+  assert.doesNotMatch(auth, /payShieldUserIdForEmail\(email\) \|\| session\.userId/);
+});
+
 test("app command center exposes a guided real-money setup surface", async () => {
   const appPage = await readFile("src/app/app/page.tsx", "utf8");
   const commandCenter = await readFile(

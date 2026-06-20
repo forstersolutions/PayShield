@@ -278,7 +278,8 @@ requireText("src/app/components/public-checkout-form.tsx", "Start protected acce
 requireText("src/app/api/public/billing/checkout/route.ts", "payShieldUserIdForEmail");
 requireText("src/app/api/public/billing/checkout/route.ts", "requireCheckoutSession: true");
 requireText("src/app/lib/neobank/identity.ts", "payShieldUserIdForEmail");
-requireText("src/app/lib/neobank/auth.ts", "payShieldUserIdForEmail");
+requireText("src/app/lib/neobank/auth.ts", "clerkSubject: session.userId");
+requireText("src/app/lib/neobank/auth.ts", "userId: session.userId");
 requireText("src/app/lib/neobank/core-client.ts", "x-payshield-clerk-subject");
 requireText("services/core/server.mjs", "x-payshield-clerk-subject");
 requireText("src/app/lib/commercial/stripe-webhook.ts", "customerEmail");

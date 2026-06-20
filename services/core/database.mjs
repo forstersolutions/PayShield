@@ -567,6 +567,21 @@ async function ensureHouseholdIdentity(client, input) {
   });
 }
 
+function scopeInputToIdentity(input, identity) {
+  if (!identity?.householdId || !identity?.user?.id) {
+    return input;
+  }
+
+  return {
+    ...input,
+    actorUserId: identity.user.id,
+    householdId: identity.householdId,
+    userId: identity.user.id,
+    userEmail: identity.user.email,
+    userName: identity.user.name,
+  };
+}
+
 function payeeIdFor(input) {
   if (input.id) {
     return input.id;
@@ -687,7 +702,10 @@ export async function persistPayee(input, env = process.env) {
   try {
     client = await pool.connect();
     await client.query("BEGIN");
-    await ensureHouseholdIdentity(client, input);
+    const scopedInput = scopeInputToIdentity(
+      input,
+      await ensureHouseholdIdentity(client, input),
+    );
 
     const result = await client.query(
       `
@@ -710,7 +728,7 @@ export async function persistPayee(input, env = process.env) {
       `,
       [
         id,
-        input.householdId,
+        scopedInput.householdId,
         input.allowedBucketId,
         input.name,
         input.maxCents,
@@ -1247,8 +1265,11 @@ export async function persistBucketProfile(input, env = process.env) {
     client = await pool.connect();
     await client.query("BEGIN");
 
-    await ensureHouseholdIdentity(client, input);
-    await ensurePayees(client, input);
+    const scopedInput = scopeInputToIdentity(
+      input,
+      await ensureHouseholdIdentity(client, input),
+    );
+    await ensurePayees(client, scopedInput);
 
     const replay = await client.query(
       `
@@ -1258,7 +1279,7 @@ export async function persistBucketProfile(input, env = process.env) {
           AND idempotency_key = $2
         LIMIT 1
       `,
-      [input.householdId, idempotencyKey],
+      [scopedInput.householdId, idempotencyKey],
     );
 
     if (replay.rows[0]) {
@@ -1275,7 +1296,7 @@ export async function persistBucketProfile(input, env = process.env) {
       };
     }
 
-    const beforeProfile = await readBucketProfile(client, input.householdId);
+    const beforeProfile = await readBucketProfile(client, scopedInput.householdId);
     const submittedSlugs = input.buckets.map((bucket) => bucket.id);
 
     await client.query(
@@ -1291,11 +1312,14 @@ export async function persistBucketProfile(input, env = process.env) {
           household_id = EXCLUDED.household_id,
           account_type = EXCLUDED.account_type
       `,
-      [recordId("ledger_asset", input.householdId, "program_cash"), input.householdId],
+      [
+        recordId("ledger_asset", scopedInput.householdId, "program_cash"),
+        scopedInput.householdId,
+      ],
     );
 
     for (const bucket of input.buckets) {
-      const bucketId = recordId("bucket", input.householdId, bucket.id);
+      const bucketId = recordId("bucket", scopedInput.householdId, bucket.id);
       const rule = bucketRuleForProtection(bucket.protection);
       const ruleId = recordId("bucket_rule", bucketId);
 
@@ -1327,7 +1351,7 @@ export async function persistBucketProfile(input, env = process.env) {
         `,
         [
           bucketId,
-          input.householdId,
+          scopedInput.householdId,
           bucket.id,
           bucket.name,
           bucket.targetCents,
@@ -1353,8 +1377,8 @@ export async function persistBucketProfile(input, env = process.env) {
             bucket_id = EXCLUDED.bucket_id
         `,
         [
-          recordId("ledger_bucket", input.householdId, bucket.id),
-          input.householdId,
+          recordId("ledger_bucket", scopedInput.householdId, bucket.id),
+          scopedInput.householdId,
           bucket.id,
         ],
       );
@@ -1389,10 +1413,14 @@ export async function persistBucketProfile(input, env = process.env) {
           AND status = 'active'
           AND NOT (slug = ANY($2::text[]))
       `,
-      [input.householdId, submittedSlugs],
+      [scopedInput.householdId, submittedSlugs],
     );
 
-    const eventId = recordId("bucket_change", input.householdId, idempotencyKey);
+    const eventId = recordId(
+      "bucket_change",
+      scopedInput.householdId,
+      idempotencyKey,
+    );
 
     await client.query(
       `
@@ -1409,8 +1437,8 @@ export async function persistBucketProfile(input, env = process.env) {
       `,
       [
         eventId,
-        input.householdId,
-        input.actorUserId,
+        scopedInput.householdId,
+        scopedInput.actorUserId,
         JSON.stringify(beforeProfile),
         JSON.stringify(input.buckets),
         idempotencyKey,
@@ -1454,15 +1482,19 @@ export async function persistCommercialBillingEvent(input, env = process.env) {
   try {
     client = await pool.connect();
     await client.query("BEGIN");
+    let householdId = input.householdId || null;
+    let userId = input.userId || null;
 
     if (input.householdId && input.userId) {
-      await ensureHouseholdIdentity(client, {
+      const identity = await ensureHouseholdIdentity(client, {
         actorUserId: input.userId,
         betaAccessStatus: input.accessStatus === "active" ? "approved" : "pending",
         householdId: input.householdId,
         userEmail: input.userEmail,
         userName: input.userName,
       });
+      householdId = identity.householdId;
+      userId = identity.user.id;
     } else if (input.householdId) {
       await ensureHousehold(client, {
         betaAccessStatus: input.accessStatus === "active" ? "approved" : "pending",
@@ -1496,8 +1528,8 @@ export async function persistCommercialBillingEvent(input, env = process.env) {
         input.eventType,
         input.customerId || null,
         input.subscriptionId || null,
-        input.householdId || null,
-        input.userId || null,
+        householdId,
+        userId,
         input.accessStatus,
         JSON.stringify(input.payload),
       ],
@@ -1505,7 +1537,7 @@ export async function persistCommercialBillingEvent(input, env = process.env) {
 
     let subscriptionId = null;
 
-    if (input.householdId && input.subscriptionId && result.rowCount > 0) {
+    if (householdId && input.subscriptionId && result.rowCount > 0) {
       subscriptionId = recordId(
         "commercial_subscription",
         input.providerName,
@@ -1543,8 +1575,8 @@ export async function persistCommercialBillingEvent(input, env = process.env) {
         `,
         [
           subscriptionId,
-          input.householdId,
-          input.userId || null,
+          householdId,
+          userId,
           input.providerName,
           input.customerId || "unknown",
           input.subscriptionId,
@@ -1608,18 +1640,22 @@ export async function persistCommercialCheckoutIntent(input, env = process.env) 
   try {
     client = await pool.connect();
     await client.query("BEGIN");
-    await ensureHouseholdIdentity(client, {
+    const scopedInput = scopeInputToIdentity(input, await ensureHouseholdIdentity(client, {
       actorUserId: input.userId,
       betaAccessStatus: "approved",
       clerkSubject: input.clerkSubject,
       householdId: input.householdId,
       userEmail: input.userEmail,
       userName: input.userName,
-    });
+    }));
 
     const id =
       input.id ||
-      recordId("checkout_intent", input.householdId, input.idempotencyKey);
+      recordId(
+        "checkout_intent",
+        scopedInput.householdId,
+        scopedInput.idempotencyKey,
+      );
     const result = await client.query(
       `
         INSERT INTO commercial_checkout_intents (
@@ -1664,8 +1700,8 @@ export async function persistCommercialCheckoutIntent(input, env = process.env) 
       `,
       [
         id,
-        input.householdId,
-        input.userId,
+        scopedInput.householdId,
+        scopedInput.userId,
         input.providerName,
         input.providerCheckoutId || null,
         input.checkoutMode,

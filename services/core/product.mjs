@@ -620,6 +620,64 @@ function actorFromPayload(payload) {
   return normalizeActor(safeObject(payload?.__payshieldActor));
 }
 
+function actorFromIdentity(actor, identity) {
+  return normalizeActor({
+    ...actor,
+    clerkSubject: identity.user?.clerkSubject || actor.clerkSubject,
+    email: identity.user?.email || actor.email,
+    householdId: identity.householdId,
+    id: identity.user?.id || actor.id,
+    kycStatus: identity.user?.kycStatus || actor.kycStatus,
+    name: identity.user?.name || actor.name,
+    profileAccess: identity.profileAccess || actor.profileAccess,
+    userId: identity.user?.id || actor.id,
+  });
+}
+
+async function resolveActorIdentity(env, actorInput, operation) {
+  const actor = normalizeActor(actorInput);
+  const identityPersistence = await persistHouseholdIdentity(
+    {
+      actorUserId: actor.id,
+      betaAccessStatus: actor.profileAccess,
+      clerkSubject: actor.clerkSubject,
+      householdId: actor.householdId,
+      kycStatus: actor.kycStatus,
+      userEmail: actor.email,
+      userName: actor.name,
+    },
+    env,
+  );
+
+  if (persistenceFailed(identityPersistence)) {
+    return {
+      ok: false,
+      result: {
+        body: {
+          code:
+            identityPersistence.persistence === "postgres_required"
+              ? "postgres_identity_required"
+              : "postgres_identity_error",
+          error:
+            identityPersistence.persistence === "postgres_required"
+              ? `Household identity requires PAYSHIELD_LEDGER_DATABASE_URL before ${operation}.`
+              : `Household identity could not be persisted before ${operation}.`,
+          identityPersistence,
+          readiness: getCoreReadiness(env, { coreOnline: true }),
+          service: "payshield-household-identity",
+        },
+        status: 503,
+      },
+    };
+  }
+
+  return {
+    actor: actorFromIdentity(actor, identityPersistence.identity),
+    identityPersistence,
+    ok: true,
+  };
+}
+
 function bucketIdFromAccount(accountId) {
   const prefix = "liability:bucket:";
 
@@ -1653,7 +1711,17 @@ export async function getProfile(env = process.env, actorInput = demoUser) {
 }
 
 export async function getBalances(env = process.env, actorInput = demoUser) {
-  const actor = normalizeActor(actorInput);
+  const actorResolution = await resolveActorIdentity(
+    env,
+    actorInput,
+    "balance lookup",
+  );
+
+  if (!actorResolution.ok) {
+    return actorResolution.result;
+  }
+
+  const actor = actorResolution.actor;
   const controls = await loadOperationalControls(env, actor);
 
   if (controls.error) {
@@ -1941,10 +2009,18 @@ function activeCommercialAccess(commercialAccess) {
 }
 
 async function requireActivePaidAccess(env, actorInput, operation) {
-  const actor = normalizeActor(actorInput);
+  const actorResolution = await resolveActorIdentity(env, actorInput, operation);
+
+  if (!actorResolution.ok) {
+    return actorResolution;
+  }
+
+  const actor = actorResolution.actor;
 
   if (!commercialPaidAccessRequired(env)) {
     return {
+      actor,
+      identityPersistence: actorResolution.identityPersistence,
       ok: true,
     };
   }
@@ -1980,7 +2056,9 @@ async function requireActivePaidAccess(env, actorInput, operation) {
 
   if (activeCommercialAccess(commercialAccess)) {
     return {
+      actor,
       commercialAccess,
+      identityPersistence: actorResolution.identityPersistence,
       ok: true,
     };
   }
@@ -3225,7 +3303,17 @@ function buildRevenueAndRails(
 }
 
 async function buildHouseholdOperations(env = process.env, actorInput = demoUser) {
-  const actor = normalizeActor(actorInput);
+  const actorResolution = await resolveActorIdentity(
+    env,
+    actorInput,
+    "household operations",
+  );
+
+  if (!actorResolution.ok) {
+    return actorResolution.result;
+  }
+
+  const actor = actorResolution.actor;
   const controls = await loadOperationalControls(env, actor);
 
   if (controls.error) {
@@ -3521,7 +3609,17 @@ export async function getHouseholdAuditExport(env = process.env, actorInput = de
 }
 
 export async function resolveReconciliationException(payload, env = process.env) {
-  const actor = actorFromPayload(payload);
+  const actorResolution = await resolveActorIdentity(
+    env,
+    actorFromPayload(payload),
+    "reconciliation resolution",
+  );
+
+  if (!actorResolution.ok) {
+    return actorResolution.result;
+  }
+
+  const actor = actorResolution.actor;
   const exceptionId = cleanText(payload?.exceptionId || payload?.id, 180);
   const idempotencyKey = cleanText(payload?.idempotencyKey, 220);
   const reason =
@@ -3644,7 +3742,17 @@ export async function resolveReconciliationException(payload, env = process.env)
 }
 
 export async function getBucketProfile(env = process.env, actorInput = demoUser) {
-  const actor = normalizeActor(actorInput);
+  const actorResolution = await resolveActorIdentity(
+    env,
+    actorInput,
+    "bucket profile lookup",
+  );
+
+  if (!actorResolution.ok) {
+    return actorResolution.result;
+  }
+
+  const actor = actorResolution.actor;
   const snapshot = createNeobankSnapshot(undefined, env, {}, actor);
   const persistence = await loadBucketProfile(actor.householdId, env);
 
@@ -4035,7 +4143,7 @@ export function startOnboarding(env = process.env, actorInput = demoUser) {
 export async function createDirectDepositSetup(payload = {}, env = process.env) {
   const readiness = getCoreReadiness(env, { coreOnline: true });
   const liveGate = assertLiveMoneyReady(readiness);
-  const actor = actorFromPayload(payload);
+  let actor = actorFromPayload(payload);
   const paidAccess = await requireActivePaidAccess(
     env,
     actor,
@@ -4045,6 +4153,8 @@ export async function createDirectDepositSetup(payload = {}, env = process.env) 
   if (!paidAccess.ok) {
     return paidAccess.result;
   }
+
+  actor = paidAccess.actor;
 
   const providerName =
     cleanText(payload?.providerName, 40).toLowerCase() ||
@@ -4186,7 +4296,7 @@ async function startOnboardingWithPaidAccess(env = process.env, actorInput = dem
   const readiness = getCoreReadiness(env, { coreOnline: true });
   const liveGate = assertLiveMoneyReady(readiness);
   const blocked = providerBlockedResult(readiness);
-  const actor = normalizeActor(actorInput);
+  let actor = normalizeActor(actorInput);
   const paidAccess = await requireActivePaidAccess(
     env,
     actor,
@@ -4196,6 +4306,8 @@ async function startOnboardingWithPaidAccess(env = process.env, actorInput = dem
   if (!paidAccess.ok) {
     return paidAccess.result;
   }
+
+  actor = paidAccess.actor;
 
   let customer = {
     providerCustomerId: "provider-contract-required",
@@ -4506,7 +4618,7 @@ async function findMatchingPaycheckRule(input, env = process.env) {
 }
 
 export async function savePaycheckDetectionRule(payload, env = process.env) {
-  const actor = actorFromPayload(payload);
+  let actor = actorFromPayload(payload);
   const ruleName = cleanText(payload?.ruleName, 80);
   const employerNamePattern = cleanRulePattern(payload?.employerNamePattern, 100);
   const transactionNamePattern = cleanRulePattern(
@@ -4575,6 +4687,8 @@ export async function savePaycheckDetectionRule(payload, env = process.env) {
   if (!paidAccess.ok) {
     return paidAccess.result;
   }
+
+  actor = paidAccess.actor;
 
   let bankConnectionId = null;
 
@@ -5252,12 +5366,14 @@ export async function receiveTokenVaultHandoff(payload = {}, env = process.env) 
 
 export async function createBankLinkToken(payload = {}, env = process.env) {
   const readiness = getMoneyRailReadiness(env);
-  const actor = actorFromPayload(payload);
+  let actor = actorFromPayload(payload);
   const paidAccess = await requireActivePaidAccess(env, actor, "bank linking");
 
   if (!paidAccess.ok) {
     return paidAccess.result;
   }
+
+  actor = paidAccess.actor;
 
   if (!readiness.plaidConfigured || !readiness.tokenVaultStoreReady) {
     return {
@@ -5300,7 +5416,7 @@ export async function createBankLinkToken(payload = {}, env = process.env) {
 
 export async function exchangeBankPublicToken(payload = {}, env = process.env) {
   const readiness = getMoneyRailReadiness(env);
-  const actor = actorFromPayload(payload);
+  let actor = actorFromPayload(payload);
   const publicToken = safeString(payload.publicToken, 240);
 
   if (!publicToken) {
@@ -5322,6 +5438,8 @@ export async function exchangeBankPublicToken(payload = {}, env = process.env) {
   if (!paidAccess.ok) {
     return paidAccess.result;
   }
+
+  actor = paidAccess.actor;
 
   if (!readiness.plaidConfigured || !readiness.tokenVaultStoreReady) {
     return {
@@ -5404,7 +5522,7 @@ function plaidSyncTransactions(pages) {
 }
 
 export async function syncLinkedBankPaychecks(payload = {}, env = process.env) {
-  const actor = actorFromPayload(payload);
+  let actor = actorFromPayload(payload);
   const paidAccess = await requireActivePaidAccess(
     env,
     actor,
@@ -5414,6 +5532,8 @@ export async function syncLinkedBankPaychecks(payload = {}, env = process.env) {
   if (!paidAccess.ok) {
     return paidAccess.result;
   }
+
+  actor = paidAccess.actor;
 
   const readiness = getCoreReadiness(env, { coreOnline: true });
   const moneyReadiness = getMoneyRailReadiness(env);
@@ -5994,7 +6114,7 @@ async function persistOperationalJournal(entry, env = process.env, actorInput = 
 }
 
 export async function detectPaycheck(payload, env = process.env) {
-  const actor = actorFromPayload(payload);
+  let actor = actorFromPayload(payload);
   const amountCents = toIntegerCents(payload?.amountCents, {
     max: 2_000_000,
     min: 1,
@@ -6019,6 +6139,8 @@ export async function detectPaycheck(payload, env = process.env) {
   if (!paidAccess.ok) {
     return paidAccess.result;
   }
+
+  actor = paidAccess.actor;
 
   const controls = await loadOperationalControls(env, actor);
 
@@ -6192,7 +6314,7 @@ export async function detectPaycheck(payload, env = process.env) {
 }
 
 export async function createTransferIntent(payload, env = process.env) {
-  const actor = actorFromPayload(payload);
+  let actor = actorFromPayload(payload);
   const amountCents = toIntegerCents(payload?.amountCents, {
     max: 500_000,
     min: 1,
@@ -6222,6 +6344,8 @@ export async function createTransferIntent(payload, env = process.env) {
   if (!paidAccess.ok) {
     return paidAccess.result;
   }
+
+  actor = paidAccess.actor;
 
   const controls = await loadOperationalControls(env, actor);
 
@@ -6440,7 +6564,7 @@ function cleanScheduledDate(value) {
 }
 
 export async function createBillPayment(payload, env = process.env) {
-  const actor = actorFromPayload(payload);
+  let actor = actorFromPayload(payload);
   const amountCents = toIntegerCents(payload?.amountCents, { min: 1 });
   const payeeId = cleanText(payload?.payeeId, 120);
   const scheduledFor = cleanScheduledDate(payload?.scheduledFor);
@@ -6463,6 +6587,8 @@ export async function createBillPayment(payload, env = process.env) {
   if (!paidAccess.ok) {
     return paidAccess.result;
   }
+
+  actor = paidAccess.actor;
 
   const controls = await loadOperationalControls(env, actor);
 
@@ -6616,7 +6742,7 @@ function isUnlockMode(value) {
 }
 
 export async function createUnlock(payload, env = process.env) {
-  const actor = actorFromPayload(payload);
+  let actor = actorFromPayload(payload);
   const amountCents = toIntegerCents(payload?.amountCents, { min: 1, max: 200_000 });
   const reason = cleanText(payload?.reason, 140);
 
@@ -6644,6 +6770,8 @@ export async function createUnlock(payload, env = process.env) {
   if (!paidAccess.ok) {
     return paidAccess.result;
   }
+
+  actor = paidAccess.actor;
 
   const input = {
     amountCents,
@@ -6748,7 +6876,7 @@ export async function createUnlock(payload, env = process.env) {
 }
 
 export async function authorizeCard(payload, env = process.env) {
-  const actor = actorFromPayload(payload);
+  let actor = actorFromPayload(payload);
   const amountCents = toIntegerCents(payload?.amountCents, { min: 1 });
 
   if (amountCents === null) {
@@ -6769,6 +6897,8 @@ export async function authorizeCard(payload, env = process.env) {
   if (!paidAccess.ok) {
     return paidAccess.result;
   }
+
+  actor = paidAccess.actor;
 
   const input = {
     amountCents,

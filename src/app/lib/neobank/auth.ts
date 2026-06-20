@@ -7,7 +7,6 @@ import {
   reviewAppAccessAllowed,
 } from "./app-access.ts";
 import { demoUser } from "./demo-state.ts";
-import { payShieldUserIdForEmail } from "./identity.ts";
 
 export type AppSession = {
   authMode: "clerk" | "demo" | "public_checkout";
@@ -150,7 +149,7 @@ export async function getAppSession(): Promise<AppSession> {
     clerkSubject: session.userId,
     email,
     name,
-    userId: payShieldUserIdForEmail(email) || session.userId,
+    userId: session.userId,
   };
 }
 
