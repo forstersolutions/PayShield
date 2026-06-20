@@ -157,6 +157,9 @@ test("operations endpoint exposes the revenue and money-control record", async (
   const activationPlan = body.activationPlan as Record<string, unknown>;
   const activationStages = activationPlan.stages as Array<Record<string, unknown>>;
   const revenueAndRails = body.revenueAndRails as Record<string, unknown>;
+  const operatingCockpit = body.operatingCockpit as Record<string, unknown>;
+  const cockpitLanes = operatingCockpit.lanes as Array<Record<string, unknown>>;
+  const nextAction = operatingCockpit.nextAction as Record<string, unknown>;
   const rails = revenueAndRails.rails as Array<Record<string, unknown>>;
 
   assert.equal(response.status, 200);
@@ -189,6 +192,34 @@ test("operations endpoint exposes the revenue and money-control record", async (
     true,
   );
   assert.equal((revenueAndRails.summary as Record<string, unknown>).priceLabel, "$19/month");
+  assert.equal(operatingCockpit.service, "payshield-operating-cockpit");
+  assert.equal(
+    operatingCockpit.headline,
+    "Charge -> connect -> detect -> protect -> move",
+  );
+  assert.equal(operatingCockpit.mode, "credential_gated");
+  assert.equal(operatingCockpit.readyLaneCount, 1);
+  assert.equal(operatingCockpit.totalLaneCount, 7);
+  assert.equal(nextAction.key, "revenue");
+  assert.equal(nextAction.primaryEndpoint, "POST /api/app/billing/checkout");
+  assert.equal(
+    cockpitLanes.some(
+      (lane) =>
+        lane.key === "bank_connection" &&
+        lane.primaryEndpoint === "POST /api/app/bank-link/token" &&
+        lane.ready === false,
+    ),
+    true,
+  );
+  assert.equal(
+    cockpitLanes.some(
+      (lane) =>
+        lane.key === "protection_rules" &&
+        lane.ready === true &&
+        lane.canRunNow === true,
+    ),
+    true,
+  );
   assert.equal(
     rails.some(
       (rail) =>

@@ -168,6 +168,41 @@ type RevenueAndRails = {
   };
 };
 
+type OperatingCockpit = {
+  blockerCount?: number;
+  headline?: string;
+  lanes?: Array<{
+    blockers?: string[];
+    canRunNow?: boolean;
+    key: string;
+    label: string;
+    primaryEndpoint: string;
+    ready?: boolean;
+    state?: string;
+    userAction?: string;
+    value?: string;
+  }>;
+  mode?: string;
+  moneySummary?: {
+    priceLabel?: string;
+    protectedCents?: number;
+    safeToSpendCents?: number;
+    totalCents?: number;
+  };
+  nextAction?: {
+    blockers?: string[];
+    canRunNow?: boolean;
+    key?: string;
+    label?: string;
+    primaryEndpoint?: string;
+    state?: string;
+    userAction?: string;
+  };
+  readyLaneCount?: number;
+  service?: string;
+  totalLaneCount?: number;
+};
+
 type OperationsPacket = {
   balances?: {
     protectedCents?: number;
@@ -195,6 +230,7 @@ type OperationsPacket = {
     auditFound?: boolean;
     persistence?: string;
   };
+  operatingCockpit?: OperatingCockpit;
   operations?: Record<string, unknown[]>;
   revenueAndRails?: RevenueAndRails;
   statusCards?: Array<{
@@ -1488,6 +1524,7 @@ export function MoneyOperationsPanel({
     ...localTimeline,
     ...(operations?.timeline ?? []),
   ].slice(0, 8);
+  const operatingCockpit = operations?.operatingCockpit;
   const revenueAndRails = operations?.revenueAndRails;
   const revenueRails = revenueAndRails?.rails ?? [];
   const serverRecordCount = recordCount(operations);
@@ -2040,6 +2077,46 @@ export function MoneyOperationsPanel({
                 protects buckets, and releases money only through approved
                 routes. Each button calls the route that powers that rail.
               </p>
+              <div className="mt-4 grid gap-2 rounded-[8px] border border-white/10 bg-black/35 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <span className="text-xs font-black uppercase text-[#8f99aa]">
+                    Operating cockpit
+                  </span>
+                  <span className="rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 px-2.5 py-1 text-xs font-black uppercase text-[#dffaff]">
+                    {(operatingCockpit?.mode ?? "credential_gated").replace(
+                      /_/g,
+                      " ",
+                    )}
+                  </span>
+                </div>
+                <p className="text-lg font-black text-white">
+                  {operatingCockpit?.headline ??
+                    "Charge -> connect -> detect -> protect -> move"}
+                </p>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <span className="rounded-[8px] border border-[#68f0c2]/20 bg-[#68f0c2]/10 p-2">
+                    <span className="brand-kicker">Ready lanes</span>
+                    <span className="mt-1 block text-xl font-black text-white">
+                      {operatingCockpit?.readyLaneCount ?? activeRailCount}/
+                      {operatingCockpit?.totalLaneCount ?? railStack.length}
+                    </span>
+                  </span>
+                  <span className="rounded-[8px] border border-[#ffb237]/20 bg-[#ffb237]/10 p-2">
+                    <span className="brand-kicker">Next action</span>
+                    <span className="mt-1 block text-sm font-black text-white">
+                      {operatingCockpit?.nextAction?.label ??
+                        nextExecutableRail.title}
+                    </span>
+                  </span>
+                  <span className="rounded-[8px] border border-[#39e8ff]/20 bg-[#39e8ff]/10 p-2">
+                    <span className="brand-kicker">Endpoint</span>
+                    <span className="mt-1 block overflow-x-auto font-mono text-[0.68rem] font-black uppercase text-[#39e8ff]">
+                      {operatingCockpit?.nextAction?.primaryEndpoint ??
+                        nextExecutableRail.endpoint}
+                    </span>
+                  </span>
+                </div>
+              </div>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <button
                   className="brand-button-primary inline-flex min-h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"

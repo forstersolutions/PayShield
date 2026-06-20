@@ -402,6 +402,13 @@ requireTextOrderInSection(
 );
 requireText("src/app/components/money-operations-panel.tsx", "Revenue and rails");
 requireText("src/app/components/money-operations-panel.tsx", "The commercial operating map.");
+requireText("src/app/components/money-operations-panel.tsx", "Operating cockpit");
+requireText("src/app/components/money-operations-panel.tsx", "operatingCockpit");
+requireText("src/app/components/money-operations-panel.tsx", "Ready lanes");
+requireText(
+  "src/app/components/money-operations-panel.tsx",
+  "Charge -> connect -> detect -> protect -> move",
+);
 requireText("src/app/components/money-operations-panel.tsx", "Manage billing");
 requireText("src/app/components/money-operations-panel.tsx", "/api/app/billing/portal");
 requireText("src/app/components/money-operations-panel.tsx", "/api/app/paychecks/rules");
@@ -489,6 +496,9 @@ requireText("src/app/api/app/activation/route.ts", "createHouseholdActivationPac
 requireText("src/app/api/launch/activation/route.ts", "createHouseholdActivationPacket");
 requireText("src/app/lib/neobank/operations.ts", "npx vercel env add");
 requireText("src/app/lib/neobank/operations.ts", "revenueAndRails");
+requireText("src/app/lib/neobank/operations.ts", "buildOperatingCockpit");
+requireText("src/app/lib/neobank/operations.ts", "payshield-operating-cockpit");
+requireText("src/app/lib/neobank/operations.ts", "operatingCockpit");
 requireText("src/app/lib/neobank/operations.ts", "Get paid");
 requireText("src/app/lib/neobank/operations.ts", "/api/launch/activation");
 requireText("src/app/lib/neobank/operations.ts", "npm run vercel:env:audit -- --profile commercial");
@@ -497,6 +507,9 @@ requireText("services/core/server.mjs", "/app/activation");
 requireText("services/core/product.mjs", "getHouseholdActivation");
 requireText("services/core/product.mjs", "npx vercel env add");
 requireText("services/core/product.mjs", "revenueAndRails");
+requireText("services/core/product.mjs", "buildOperatingCockpit");
+requireText("services/core/product.mjs", "payshield-operating-cockpit");
+requireText("services/core/product.mjs", "operatingCockpit");
 requireText("services/core/product.mjs", "Get paid");
 requireText("services/core/product.mjs", "npm run vercel:env:audit -- --profile commercial");
 requireText("src/app/api/app/billing/portal/route.ts", "/api/app/billing/status");

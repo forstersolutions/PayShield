@@ -737,6 +737,9 @@ test("core operations endpoint exposes household money-control records", async (
     const activationPlan = body.activationPlan as Record<string, unknown>;
     const activationStages = activationPlan.stages as Array<Record<string, unknown>>;
     const revenueAndRails = body.revenueAndRails as Record<string, unknown>;
+    const operatingCockpit = body.operatingCockpit as Record<string, unknown>;
+    const cockpitLanes = operatingCockpit.lanes as Array<Record<string, unknown>>;
+    const nextAction = operatingCockpit.nextAction as Record<string, unknown>;
     const rails = revenueAndRails.rails as Array<Record<string, unknown>>;
     const revenueStage = activationStages.find((stage) => stage.key === "revenue");
     const paycheckStage = activationStages.find(
@@ -791,6 +794,34 @@ test("core operations endpoint exposes household money-control records", async (
       true,
     );
     assert.equal((revenueAndRails.summary as Record<string, unknown>).priceLabel, "$19/month");
+    assert.equal(operatingCockpit.service, "payshield-operating-cockpit");
+    assert.equal(
+      operatingCockpit.headline,
+      "Charge -> connect -> detect -> protect -> move",
+    );
+    assert.equal(operatingCockpit.mode, "credential_gated");
+    assert.equal(operatingCockpit.readyLaneCount, 1);
+    assert.equal(operatingCockpit.totalLaneCount, 7);
+    assert.equal(nextAction.key, "revenue");
+    assert.equal(nextAction.primaryEndpoint, "POST /api/app/billing/checkout");
+    assert.equal(
+      cockpitLanes.some(
+        (lane) =>
+          lane.key === "money_movement" &&
+          lane.primaryEndpoint === "POST /api/app/transfers" &&
+          lane.canRunNow === true,
+      ),
+      true,
+    );
+    assert.equal(
+      cockpitLanes.some(
+        (lane) =>
+          lane.key === "card_control" &&
+          lane.primaryEndpoint === "POST /api/card/authorize" &&
+          lane.ready === false,
+      ),
+      true,
+    );
     assert.equal(
       rails.some(
         (rail) =>

@@ -3372,6 +3372,172 @@ function buildRevenueAndRails(
   };
 }
 
+function buildOperatingCockpit(
+  env,
+  snapshot,
+  commercialAccess,
+  moneyRails,
+  protectedCents,
+  safeToSpendCents,
+  activationPlan,
+  revenueAndRails,
+) {
+  const railsByKey = new Map(revenueAndRails.rails.map((rail) => [rail.key, rail]));
+  const stageByKey = new Map(
+    activationPlan.stages.map((stage) => [stage.key, stage]),
+  );
+  const priceLabel = commercialAccess.priceLabel || "$19/month";
+  const commercialReady = commercialActivationReady(env, commercialAccess);
+  const transactionRail = railsByKey.get("transaction_sync");
+  const moneyMovementStage = stageByKey.get("money_movement");
+  const cardControlStage = stageByKey.get("card_control");
+  const lanes = [
+    {
+      blockers: commercialActivationMissing(env),
+      canRunNow: commercialAccess.readyForCheckout,
+      key: "revenue",
+      label: "Charge household",
+      ownerAction:
+        "Configure Stripe checkout, webhook signing, and core activation.",
+      primaryEndpoint: "POST /api/app/billing/checkout",
+      ready: commercialReady,
+      state: commercialReady
+        ? "paid_access_active"
+        : commercialAccess.readyForCheckout
+          ? "checkout_available"
+          : "stripe_setup_required",
+      userAction: `Subscribe at ${priceLabel}`,
+      value: priceLabel,
+    },
+    {
+      blockers: uniqueList(railsByKey.get("bank_connection")?.blockers ?? []),
+      canRunNow: moneyRails.bankLinkReady,
+      key: "bank_connection",
+      label: "Connect bank",
+      ownerAction:
+        "Open Plaid Link and vault the provider token outside the browser.",
+      primaryEndpoint: "POST /api/app/bank-link/token",
+      ready: moneyRails.bankLinkReady,
+      state:
+        railsByKey.get("bank_connection")?.state ??
+        (moneyRails.bankLinkReady ? "ready" : "setup_needed"),
+      userAction: "Connect external funding source",
+      value: moneyRails.plaidEnv || "plaid",
+    },
+    {
+      blockers: uniqueList(transactionRail?.blockers ?? []),
+      canRunNow: moneyRails.transactionSyncReady,
+      key: "transaction_sync",
+      label: "Sync activity",
+      ownerAction:
+        "Use linked-bank transaction sync to find payroll-like deposits.",
+      primaryEndpoint: "POST /api/app/paychecks/sync",
+      ready: moneyRails.transactionSyncReady,
+      state:
+        transactionRail?.state ??
+        (moneyRails.transactionSyncReady ? "ready" : "setup_needed"),
+      userAction: "Sync linked-bank activity",
+      value: moneyRails.detectionMode,
+    },
+    {
+      blockers: uniqueList(
+        stageByKey.get("paycheck_detection")?.requiredGates ?? [],
+      ),
+      canRunNow:
+        moneyRails.paycheckDetectionReady || moneyRails.transactionSyncReady,
+      key: "paycheck_detection",
+      label: "Detect paycheck",
+      ownerAction:
+        "Turn payroll deposits into balanced protected-bucket journal entries.",
+      primaryEndpoint: "POST /api/app/paychecks/detect",
+      ready: moneyRails.paycheckDetectionReady,
+      state: stageByKey.get("paycheck_detection")?.status ?? "setup_needed",
+      userAction: "Run paycheck detection",
+      value: `${Math.round(
+        (protectedCents / Math.max(1, protectedCents + safeToSpendCents)) * 100,
+      )}% protected`,
+    },
+    {
+      blockers: [],
+      canRunNow: true,
+      key: "protection_rules",
+      label: "Protect funds",
+      ownerAction:
+        "Customize buckets, payees, due cadence, priorities, and unlock rules.",
+      primaryEndpoint: "POST /api/app/buckets",
+      ready: true,
+      state: snapshot.readiness.postgresSchemaVerified ? "durable" : "control_model",
+      userAction: "Save bucket profile",
+      value: `${protectedCents} protected cents`,
+    },
+    {
+      blockers: uniqueList(moneyMovementStage?.requiredGates ?? []),
+      canRunNow: true,
+      key: "money_movement",
+      label: "Move protected funds",
+      ownerAction:
+        "Validate bucket balance, payee approval, and provider handoff before release.",
+      primaryEndpoint: "POST /api/app/transfers",
+      ready: moneyRails.transferReady,
+      state: moneyMovementStage?.status ?? "intent_validation_active",
+      userAction: "Create transfer intent",
+      value: moneyRails.transferReady ? "provider ready" : "intent validation",
+    },
+    {
+      blockers: uniqueList(cardControlStage?.requiredGates ?? []),
+      canRunNow: true,
+      key: "card_control",
+      label: "Control spending",
+      ownerAction:
+        "Approve only Safe to Spend and configured biller exceptions.",
+      primaryEndpoint: "POST /api/card/authorize",
+      ready: snapshot.readiness.liveMoneyReady,
+      state: cardControlStage?.status ?? "ledger_decisions_active",
+      userAction: "Check card swipe",
+      value: `${safeToSpendCents} safe cents`,
+    },
+  ];
+  const nextLane =
+    lanes.find((lane) => !lane.ready) ??
+    lanes.find((lane) => lane.canRunNow) ??
+    lanes[0];
+
+  return {
+    blockerCount: lanes.reduce(
+      (total, lane) => total + lane.blockers.length,
+      0,
+    ),
+    headline: "Charge -> connect -> detect -> protect -> move",
+    lanes,
+    mode: snapshot.readiness.liveMoneyReady ? "live_money" : "credential_gated",
+    moneySummary: {
+      priceLabel,
+      protectedCents,
+      safeToSpendCents,
+      totalCents: protectedCents + safeToSpendCents,
+    },
+    nextAction: {
+      blockers: nextLane.blockers,
+      canRunNow: nextLane.canRunNow,
+      key: nextLane.key,
+      label: nextLane.label,
+      ownerAction: nextLane.ownerAction,
+      primaryEndpoint: nextLane.primaryEndpoint,
+      state: nextLane.state,
+      userAction: nextLane.userAction,
+    },
+    proof: {
+      activationEndpoint: "/api/app/activation",
+      auditEndpoint: "/api/app/audit/export",
+      operationsEndpoint: "/api/app/operations",
+      supportContact: "support@graystontechnologies.com",
+    },
+    readyLaneCount: lanes.filter((lane) => lane.ready).length,
+    service: "payshield-operating-cockpit",
+    totalLaneCount: lanes.length,
+  };
+}
+
 async function buildHouseholdOperations(env = process.env, actorInput = demoUser) {
   const actorResolution = await resolveActorIdentity(
     env,
@@ -3418,13 +3584,38 @@ async function buildHouseholdOperations(env = process.env, actorInput = demoUser
   const protectedCents = snapshot.buckets
     .filter((bucket) => bucket.id !== "safe_spending")
     .reduce((sum, bucket) => sum + bucket.availableCents, 0);
+  const safeToSpendCents = safeSpend?.availableCents ?? 0;
+  const activationPlan = buildActivationPlan(
+    env,
+    snapshot,
+    commercialAccess,
+    moneyRails,
+  );
+  const revenueAndRails = buildRevenueAndRails(
+    env,
+    snapshot,
+    commercialAccess,
+    moneyRails,
+    protectedCents,
+    safeToSpendCents,
+  );
+  const operatingCockpit = buildOperatingCockpit(
+    env,
+    snapshot,
+    commercialAccess,
+    moneyRails,
+    protectedCents,
+    safeToSpendCents,
+    activationPlan,
+    revenueAndRails,
+  );
 
   return {
     body: {
       balances: {
         protectedCents,
-        safeToSpendCents: safeSpend?.availableCents ?? 0,
-        totalCents: protectedCents + (safeSpend?.availableCents ?? 0),
+        safeToSpendCents,
+        totalCents: protectedCents + safeToSpendCents,
       },
       buckets: snapshot.buckets,
       card: snapshot.card,
@@ -3442,20 +3633,9 @@ async function buildHouseholdOperations(env = process.env, actorInput = demoUser
         userId: actor.id,
       },
       commercialAccess,
-      activationPlan: buildActivationPlan(
-        env,
-        snapshot,
-        commercialAccess,
-        moneyRails,
-      ),
-      revenueAndRails: buildRevenueAndRails(
-        env,
-        snapshot,
-        commercialAccess,
-        moneyRails,
-        protectedCents,
-        safeSpend?.availableCents ?? 0,
-      ),
+      activationPlan,
+      revenueAndRails,
+      operatingCockpit,
       ledger: {
         durableEntryCount: durableAudit.journalEntries.length,
         entryCount: snapshot.ledgerEntries.length,
@@ -3556,6 +3736,7 @@ function activationPacketFromOperations(body, env = process.env) {
     currentState: {
       commercialAccess: body.commercialAccess,
       moneyRails: body.moneyRails,
+      operatingCockpit: body.operatingCockpit,
       readiness: body.readiness,
       revenueAndRails: body.revenueAndRails,
       statusCards: body.statusCards,
@@ -3595,6 +3776,7 @@ function activationPacketFromOperations(body, env = process.env) {
     },
     service: "payshield-activation-console",
     support: body.support,
+    operatingCockpit: body.operatingCockpit,
     revenueAndRails: body.revenueAndRails,
   };
 }
@@ -3656,6 +3838,7 @@ export async function getHouseholdAuditExport(env = process.env, actorInput = de
       activationPlan: body.activationPlan,
       commercialAccess: body.commercialAccess,
       revenueAndRails: body.revenueAndRails,
+      operatingCockpit: body.operatingCockpit,
       ledger: {
         entries: body.operations.journalEntries,
         entryCount: body.ledger.entryCount,
