@@ -380,6 +380,13 @@ export function HouseholdCommandCenter() {
           </nav>
         </header>
 
+        <MoneyOperationsPanel
+          buckets={snapshot.buckets}
+          initialOperations={initialOperations}
+          initialReadiness={initialOperationsReadiness}
+          payees={snapshot.payees}
+        />
+
         <section
           className="grid gap-6 border-b border-white/10 py-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]"
           id="money-flow"
@@ -388,9 +395,9 @@ export function HouseholdCommandCenter() {
             <p className="inline-flex items-center gap-2 rounded-[8px] border border-[#39e8ff]/30 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black uppercase text-[#dffaff]">
               Revenue + real money controls
             </p>
-            <h1 className="mt-6 max-w-3xl pb-2 text-4xl font-black leading-[1.16] text-white sm:text-5xl lg:text-[3.3rem]">
+            <h2 className="mt-6 max-w-3xl pb-2 text-4xl font-black leading-[1.16] text-white sm:text-5xl lg:text-[3.3rem]">
               Charge the household. Connect the paycheck. Protect the money.
-            </h1>
+            </h2>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-[#c9d0da]">
               PayShield is usable as one guided operating flow: collect the
               subscription, connect the household funding source, detect payroll,
@@ -506,13 +513,6 @@ export function HouseholdCommandCenter() {
             </div>
           </div>
         </section>
-
-        <MoneyOperationsPanel
-          buckets={snapshot.buckets}
-          initialOperations={initialOperations}
-          initialReadiness={initialOperationsReadiness}
-          payees={snapshot.payees}
-        />
 
         <MoneyControlPlanPanel initialPlan={initialControlPlan} />
 

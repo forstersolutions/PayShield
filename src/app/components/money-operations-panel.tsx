@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   CreditCard,
   FileDown,
+  KeyRound,
   Landmark,
   Link2,
   Loader2,
@@ -2024,6 +2025,125 @@ export function MoneyOperationsPanel({
       id="money-operations"
     >
       <div className="grid gap-8">
+        <div className="brand-panel rounded-[8px] p-4 sm:p-5">
+          <div className="grid gap-5 xl:grid-cols-[0.76fr_1.24fr]">
+            <div className="accent-rule pt-5">
+              <p className="inline-flex items-center gap-2 rounded-[8px] border border-[#68f0c2]/30 bg-[#68f0c2]/10 px-3 py-2 text-sm font-black uppercase text-[#d9ffef]">
+                <BadgeDollarSign className="size-4" aria-hidden="true" />
+                Revenue-to-protection console
+              </p>
+              <h2 className="mt-4 text-3xl font-black leading-tight text-white sm:text-4xl">
+                Run the money product from here.
+              </h2>
+              <p className="mt-4 text-sm font-bold leading-6 text-[#c9d0da]">
+                The app earns first, then connects the bank, detects payroll,
+                protects buckets, and releases money only through approved
+                routes. Each button calls the route that powers that rail.
+              </p>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <button
+                  className="brand-button-primary inline-flex min-h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={nextExecutableRail.state.status === "loading"}
+                  onClick={() => {
+                    void nextExecutableRail.onAction();
+                  }}
+                  type="button"
+                >
+                  {nextExecutableRail.state.status === "loading" ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <NextExecutableIcon className="size-4" aria-hidden="true" />
+                  )}
+                  Run next: {nextExecutableRail.actionLabel}
+                </button>
+                <a
+                  className="brand-button-blue inline-flex min-h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black"
+                  href="/launch"
+                >
+                  <KeyRound className="size-4" aria-hidden="true" />
+                  Configure providers
+                </a>
+              </div>
+              <div className="mt-4">
+                <StateMessage state={nextExecutableRail.state} />
+              </div>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              {railStack.map((rail, index) => {
+                const Icon = rail.icon;
+                const ready = rail.tone === "ready";
+
+                return (
+                  <button
+                    className={`group grid min-h-[13.875rem] content-start gap-3 rounded-[8px] border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-55 ${
+                      ready
+                        ? "border-[#68f0c2]/25 bg-[#68f0c2]/[0.08] hover:border-[#68f0c2]/45"
+                        : "border-[#ffb237]/25 bg-[#ffb237]/[0.085] hover:border-[#ffcf72]/45"
+                    }`}
+                    disabled={rail.state.status === "loading"}
+                    key={rail.key}
+                    onClick={() => {
+                      void rail.onAction();
+                    }}
+                    type="button"
+                  >
+                    <span className="flex items-start justify-between gap-3">
+                      <span
+                        className={`grid size-10 place-items-center rounded-[8px] border ${
+                          ready
+                            ? "border-[#68f0c2]/25 bg-black/30 text-[#68f0c2]"
+                            : "border-[#ffb237]/25 bg-black/30 text-[#ffcf72]"
+                        }`}
+                      >
+                        {rail.state.status === "loading" ? (
+                          <Loader2
+                            className="size-5 animate-spin"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <Icon className="size-5" aria-hidden="true" />
+                        )}
+                      </span>
+                      <span
+                        className={`rounded-[8px] px-2.5 py-1 text-xs font-black ${
+                          ready
+                            ? "bg-[#68f0c2]/10 text-[#9af7d5]"
+                            : "bg-[#ffb237]/10 text-[#ffe4ad]"
+                        }`}
+                      >
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                    </span>
+                    <span>
+                      <span className="block text-sm font-black text-white">
+                        {rail.title}
+                      </span>
+                      <span className="mt-1 block text-xs font-bold leading-5 text-[#aab3c2]">
+                        {rail.actionLabel}
+                      </span>
+                    </span>
+                    <span className="mt-auto block truncate font-mono text-[0.68rem] font-black uppercase text-[#39e8ff]">
+                      {rail.endpoint}
+                    </span>
+                    <span
+                      className={`text-xs font-bold leading-5 ${
+                        ready ? "text-[#9af7d5]" : "text-[#ffe4ad]"
+                      }`}
+                    >
+                      {ready
+                        ? "Ready now"
+                        : rail.blockers[0]
+                          ? `Needs ${rail.blockers[0]}`
+                          : rail.status}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
         <div className="grid gap-5 lg:grid-cols-[0.82fr_1.18fr]">
           <div className="accent-rule pt-5 lg:col-span-2">
             <p className="inline-flex items-center gap-2 rounded-[8px] border border-[#39e8ff]/30 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black uppercase tracking-[0.14em] text-[#dffaff]">
@@ -2313,19 +2433,24 @@ export function MoneyOperationsPanel({
             </div>
           </div>
 
-          <div className="brand-panel rounded-[8px] p-4 sm:p-5 lg:col-span-2">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="brand-kicker">Detailed rail diagnostics</p>
-                <h3 className="mt-1 text-2xl font-black text-white">
+          <details className="brand-panel rounded-[8px] p-4 sm:p-5 lg:col-span-2">
+            <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-4">
+              <span>
+                <span className="brand-kicker">Detailed rail diagnostics</span>
+                <span className="mt-1 block text-2xl font-black text-white">
                   Every endpoint and blocker in one place.
-                </h3>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-[#c9d0da]">
-                  Use this deeper view when you need to inspect the checkout,
-                  bank-link, paycheck, routing, transfer, and card-control
-                  rails behind the four operating controls above.
-                </p>
-              </div>
+                </span>
+                <span className="mt-3 block max-w-2xl text-sm leading-6 text-[#c9d0da]">
+                  Expand this when you need to inspect the checkout, bank-link,
+                  paycheck, routing, transfer, and card-control rails behind the
+                  operating controls above.
+                </span>
+              </span>
+              <span className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 px-4 text-sm font-black text-[#dffaff]">
+                Open diagnostics
+              </span>
+            </summary>
+            <div className="mt-5 flex justify-end">
               <button
                 className="brand-button-blue inline-flex h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={portalState.status === "loading"}
@@ -2361,7 +2486,7 @@ export function MoneyOperationsPanel({
             <div className="mt-3">
               <StateMessage state={portalState} />
             </div>
-          </div>
+          </details>
         </div>
 
         {revenueRails.length > 0 ? (
