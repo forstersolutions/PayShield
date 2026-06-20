@@ -141,6 +141,12 @@ test("money operations surface shows revenue, rails, records, and export", async
   assert.match(moneyOperations, /Runnable lanes/);
   assert.match(moneyOperations, /Setup blockers/);
   assert.match(moneyOperations, /Exception queue/);
+  assert.match(moneyOperations, /Next executable action/);
+  assert.match(moneyOperations, /Owner revenue lane/);
+  assert.match(moneyOperations, /Get paid and prove control/);
+  assert.match(moneyOperations, /Household money lane/);
+  assert.match(moneyOperations, /Connect, protect, release/);
+  assert.match(moneyOperations, /WorkflowCheckpoint/);
   assert.match(moneyOperations, /Operations ledger/);
   assert.match(moneyOperations, /Export audit/);
   assert.match(moneyOperations, /Activate paid access/);

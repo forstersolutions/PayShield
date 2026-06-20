@@ -553,6 +553,52 @@ function CapabilityCard({
   );
 }
 
+function WorkflowCheckpoint({
+  detail,
+  endpoint,
+  label,
+  ready,
+  value,
+}: {
+  detail: string;
+  endpoint: string;
+  label: string;
+  ready: boolean;
+  value: string;
+}) {
+  return (
+    <article
+      className={`grid gap-3 rounded-[8px] border p-3 ${
+        ready
+          ? "border-[#68f0c2]/25 bg-[#68f0c2]/[0.07]"
+          : "border-white/10 bg-black/35"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <span>
+          <span className="brand-kicker">{label}</span>
+          <span className="mt-1 block text-lg font-black text-white">
+            {value}
+          </span>
+        </span>
+        <span
+          className={`rounded-[8px] px-2.5 py-1 text-xs font-black ${
+            ready
+              ? "bg-[#68f0c2]/10 text-[#9af7d5]"
+              : "bg-[#ffb237]/10 text-[#ffe4ad]"
+          }`}
+        >
+          {ready ? "Ready" : "Setup"}
+        </span>
+      </div>
+      <p className="text-sm font-bold leading-6 text-[#c9d0da]">{detail}</p>
+      <code className="overflow-x-auto font-mono text-[0.68rem] font-black uppercase text-[#39e8ff]">
+        {endpoint}
+      </code>
+    </article>
+  );
+}
+
 export function MoneyOperationsPanel({
   buckets,
   initialOperations,
@@ -1663,6 +1709,64 @@ export function MoneyOperationsPanel({
     (total, rail) => total + rail.blockers.length,
     0,
   );
+  const nextExecutableRail =
+    railStack.find((rail) => rail.tone !== "ready") ?? railStack[0];
+  const NextExecutableIcon = nextExecutableRail.icon;
+  const ownerWorkflow = [
+    {
+      detail:
+        "Stripe creates the paid household record before private money controls open.",
+      endpoint: "POST /api/app/billing/checkout",
+      label: "Revenue",
+      ready: Boolean(readiness?.commercial?.checkoutOperationalReady),
+      value:
+        operations?.commercialAccess?.priceLabel ??
+        readiness?.commercial?.priceLabel ??
+        "$19/month",
+    },
+    {
+      detail:
+        "Clerk and the core service bind every private record to one household.",
+      endpoint: "GET /api/app/me",
+      label: "Access",
+      ready: Boolean(readiness?.neobank?.backendConfigured),
+      value: readiness?.neobank?.mode ?? "gated",
+    },
+    {
+      detail:
+        "Postgres, token custody, provider events, and audit export prove what happened.",
+      endpoint: "GET /api/app/audit/export",
+      label: "Evidence",
+      ready: Boolean(operations?.operationalAudit?.auditFound),
+      value: `${serverRecordCount + localTimeline.length} records`,
+    },
+  ];
+  const householdWorkflow = [
+    {
+      detail:
+        "Bank Link records the external funding source and moves tokens into server custody.",
+      endpoint: "POST /api/app/bank-link/token",
+      label: "Connect",
+      ready: Boolean(readiness?.moneyRails?.bankLinkReady),
+      value: readiness?.moneyRails?.plaidEnv ?? "plaid",
+    },
+    {
+      detail:
+        "Payroll rules and sync turn deposits into protected bucket funding.",
+      endpoint: "POST /api/app/paychecks/sync",
+      label: "Detect",
+      ready: Boolean(readiness?.moneyRails?.paycheckDetectionReady),
+      value: `${detectionRules.length} rule${detectionRules.length === 1 ? "" : "s"}`,
+    },
+    {
+      detail:
+        "Transfers and card decisions release only approved Safe to Spend or biller money.",
+      endpoint: "POST /api/app/transfers",
+      label: "Release",
+      ready: Boolean(readiness?.moneyRails?.transferReady),
+      value: selectedBucket ? formatMoney(selectedBucket.availableCents) : "bucket",
+    },
+  ];
   const flowSteps = railStack.map((rail) => ({
     key: rail.key,
     label: rail.title,
@@ -1859,6 +1963,97 @@ export function MoneyOperationsPanel({
                 <p className="mt-2 text-3xl font-black text-white">
                   {openExceptionCount}
                 </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="brand-panel rounded-[8px] p-4 sm:p-5 lg:col-span-2">
+            <div className="grid gap-5 xl:grid-cols-[0.86fr_1.14fr]">
+              <div className="self-start rounded-[8px] border border-[#ffb237]/25 bg-[#ffb237]/10 p-4">
+                <p className="brand-kicker">Next executable action</p>
+                <h3 className="mt-2 text-3xl font-black leading-tight text-white">
+                  {nextExecutableRail.title}
+                </h3>
+                <p className="mt-3 text-sm font-bold leading-6 text-[#ffe4bd]">
+                  {nextExecutableRail.body}
+                </p>
+                <code className="mt-4 block overflow-x-auto rounded-[8px] border border-white/10 bg-black/35 px-3 py-2 font-mono text-xs font-black uppercase text-[#ffcf72]">
+                  {nextExecutableRail.endpoint}
+                </code>
+                <button
+                  className="brand-button-primary mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={nextExecutableRail.state.status === "loading"}
+                  onClick={() => {
+                    void nextExecutableRail.onAction();
+                  }}
+                  type="button"
+                >
+                  {nextExecutableRail.state.status === "loading" ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <NextExecutableIcon className="size-4" aria-hidden="true" />
+                  )}
+                  {nextExecutableRail.actionLabel}
+                </button>
+                <div className="mt-3">
+                  <StateMessage state={nextExecutableRail.state} />
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="brand-kicker">Owner revenue lane</p>
+                      <h3 className="mt-1 text-xl font-black text-white">
+                        Get paid and prove control.
+                      </h3>
+                    </div>
+                    <BadgeDollarSign
+                      className="size-5 text-[#68f0c2]"
+                      aria-hidden="true"
+                    />
+                  </div>
+                  <div className="mt-3 grid gap-3">
+                    {ownerWorkflow.map((item) => (
+                      <WorkflowCheckpoint
+                        detail={item.detail}
+                        endpoint={item.endpoint}
+                        key={item.label}
+                        label={item.label}
+                        ready={item.ready}
+                        value={item.value}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="brand-kicker">Household money lane</p>
+                      <h3 className="mt-1 text-xl font-black text-white">
+                        Connect, protect, release.
+                      </h3>
+                    </div>
+                    <ShieldAlert
+                      className="size-5 text-[#39e8ff]"
+                      aria-hidden="true"
+                    />
+                  </div>
+                  <div className="mt-3 grid gap-3">
+                    {householdWorkflow.map((item) => (
+                      <WorkflowCheckpoint
+                        detail={item.detail}
+                        endpoint={item.endpoint}
+                        key={item.label}
+                        label={item.label}
+                        ready={item.ready}
+                        value={item.value}
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
