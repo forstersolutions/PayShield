@@ -280,6 +280,7 @@ FROM (
     ('table:provider_token_secrets', to_regclass('public.provider_token_secrets') IS NOT NULL),
     ('table:provider_token_vault_events', to_regclass('public.provider_token_vault_events') IS NOT NULL),
     ('table:provider_events', to_regclass('public.provider_events') IS NOT NULL),
+    ('table:production_gate_evidence', to_regclass('public.production_gate_evidence') IS NOT NULL),
     ('table:reconciliation_exceptions', to_regclass('public.reconciliation_exceptions') IS NOT NULL),
     ('table:${migrationLedgerTable}', to_regclass('public.${migrationLedgerTable}') IS NOT NULL),
     ('function:assert_journal_entry_balanced_by_id', to_regprocedure('public.assert_journal_entry_balanced_by_id(text)') IS NOT NULL),

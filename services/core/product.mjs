@@ -29,7 +29,7 @@ import {
 } from "./database.mjs";
 
 const serviceName = "payshield-core";
-export const coreLedgerSchemaVersion = "0011";
+export const coreLedgerSchemaVersion = "0012";
 
 const gateDefinitions = [
   {

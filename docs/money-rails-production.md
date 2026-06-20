@@ -73,7 +73,7 @@ PAYSHIELD_CORE_REQUIRE_SERVICE_TOKEN=true
 PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE=true
 PAYSHIELD_LEDGER_DATABASE_URL=
 PAYSHIELD_LEDGER_SCHEMA_VERIFIED=true
-PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0011
+PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0012
 ```
 
 Bank connection and transaction detection:
@@ -213,4 +213,4 @@ npm run market:status -- https://payshield-lime.vercel.app --expect-site-url htt
 - Bank linking.
 - Paycheck detection.
 - Transfer/provider readiness.
-- Core backend, core service auth, Clerk auth, and Postgres ledger schema `0011`.
+- Core backend, core service auth, Clerk auth, and Postgres ledger schema `0012`.

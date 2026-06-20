@@ -125,6 +125,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "services/core/migrations/0009_commercial_checkout_intents.sql",
   "services/core/migrations/0010_reconciliation_exception_details.sql",
   "services/core/migrations/0011_bank_transaction_sync.sql",
+  "services/core/migrations/0012_production_gate_evidence.sql",
   "scripts/core-migrations.mjs",
   "SECURITY.md",
   ".dockerignore",
@@ -413,6 +414,10 @@ requireText("services/core/migrations/0010_reconciliation_exception_details.sql"
 requireText("services/core/migrations/0010_reconciliation_exception_details.sql", "reconciliation_exceptions_idempotency_idx");
 requireText("services/core/migrations/0011_bank_transaction_sync.sql", "sync_cursor");
 requireText("services/core/migrations/0011_bank_transaction_sync.sql", "last_transaction_sync_request_id");
+requireText("services/core/migrations/0012_production_gate_evidence.sql", "production_gate_evidence");
+requireText("services/core/migrations/0012_production_gate_evidence.sql", "evidence_ref");
+requireText("services/core/migrations/0012_production_gate_evidence.sql", "approved_at");
+requireText("services/core/migrations/0012_production_gate_evidence.sql", "gate_id");
 requireText("services/core/server.mjs", "/token-vault/plaid");
 requireText("services/core/server.mjs", "x-payshield-provider-signature");
 requireText("services/core/product.mjs", "receiveTokenVaultHandoff");

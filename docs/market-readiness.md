@@ -56,7 +56,7 @@ are active.
   `core_schema_migrations` ledger with checksums, and
   `npm run core:migrations:verify` output that returns the non-secret
   `PAYSHIELD_LEDGER_SCHEMA_VERIFIED=true` and
-  `PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0011` values only after the
+  `PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0012` values only after the
   required tables, triggers, functions, and migration checksums are present.
   The live-money Postgres gate does not pass from a database URL alone.
 - Core Docker smoke command that builds `Dockerfile.core`, starts the service
@@ -506,7 +506,7 @@ The go/no-go command fails if it detects those values.
 - Applied Postgres ledger schema verified with
   `npm run core:migrations:verify`; set
   `PAYSHIELD_LEDGER_SCHEMA_VERIFIED=true` and
-  `PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0011` only from that successful
+  `PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0012` only from that successful
   verification output.
 - ACH authorization flow, Reg E/error-resolution workflow, dispute operations,
   fee disclosures, privacy policy, and customer support procedures.
