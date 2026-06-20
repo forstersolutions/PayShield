@@ -419,8 +419,14 @@ requireText("services/core/migrations/0012_production_gate_evidence.sql", "evide
 requireText("services/core/migrations/0012_production_gate_evidence.sql", "approved_at");
 requireText("services/core/migrations/0012_production_gate_evidence.sql", "gate_id");
 requireText("services/core/server.mjs", "/token-vault/plaid");
+requireText(
+  "services/core/server.mjs",
+  'if (request.method === "POST" && path === "/launch/gate-evidence")',
+);
 requireText("services/core/server.mjs", "x-payshield-provider-signature");
 requireText("services/core/product.mjs", "receiveTokenVaultHandoff");
+requireText("services/core/product.mjs", "recordProductionGateEvidence");
+requireText("services/core/database.mjs", "persistProductionGateEvidence");
 requireText("services/core/product.mjs", "syncLinkedBankPaychecks");
 requireText("services/core/product.mjs", "/transactions/sync");
 requireText("services/core/product.mjs", "requireActivePaidAccess");

@@ -234,6 +234,23 @@ function bankConnectionFromRow(row) {
   };
 }
 
+function productionGateEvidenceFromRow(row) {
+  return {
+    approvedAt: timestampString(row.approved_at),
+    approvedBy: row.approved_by || null,
+    createdAt: timestampString(row.created_at),
+    evidenceRef: row.evidence_ref,
+    evidenceSummary: row.evidence_summary,
+    expiresAt: timestampString(row.expires_at),
+    gateId: row.gate_id,
+    id: row.id,
+    metadata: row.metadata || {},
+    scope: row.scope,
+    status: row.status,
+    updatedAt: timestampString(row.updated_at),
+  };
+}
+
 function timestampString(value) {
   if (value instanceof Date) {
     return value.toISOString();
@@ -2700,6 +2717,67 @@ export async function persistTransferIntent(input, env = process.env) {
       persistence: "postgres",
       postgresId: id,
       replayed: result.rowCount === 0,
+    };
+  } catch (error) {
+    return persistenceFailed(error);
+  }
+}
+
+export async function persistProductionGateEvidence(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return persistenceSkipped("production gate evidence", env);
+  }
+
+  try {
+    const result = await pool.query(
+      `
+        INSERT INTO production_gate_evidence (
+          id,
+          gate_id,
+          scope,
+          status,
+          evidence_ref,
+          evidence_summary,
+          approved_by,
+          approved_at,
+          expires_at,
+          metadata
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
+        ON CONFLICT (id) DO UPDATE SET
+          gate_id = EXCLUDED.gate_id,
+          scope = EXCLUDED.scope,
+          status = EXCLUDED.status,
+          evidence_ref = EXCLUDED.evidence_ref,
+          evidence_summary = EXCLUDED.evidence_summary,
+          approved_by = EXCLUDED.approved_by,
+          approved_at = EXCLUDED.approved_at,
+          expires_at = EXCLUDED.expires_at,
+          metadata = EXCLUDED.metadata,
+          updated_at = now()
+        RETURNING *
+      `,
+      [
+        input.id,
+        input.gateId,
+        input.scope,
+        input.status,
+        input.evidenceRef,
+        input.evidenceSummary,
+        input.approvedBy || null,
+        input.approvedAt || null,
+        input.expiresAt || null,
+        JSON.stringify(input.metadata || {}),
+      ],
+    );
+
+    return {
+      evidence: productionGateEvidenceFromRow(result.rows[0]),
+      persisted: true,
+      persistence: "postgres",
+      postgresId: input.id,
     };
   } catch (error) {
     return persistenceFailed(error);

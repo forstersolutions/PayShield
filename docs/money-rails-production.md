@@ -76,6 +76,23 @@ PAYSHIELD_LEDGER_SCHEMA_VERIFIED=true
 PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0012
 ```
 
+After schema `0012` is applied, launch approvals should be recorded through the
+core evidence route instead of living only in environment toggles:
+
+```bash
+curl -X POST "$PAYSHIELD_CORE_API_URL/launch/gate-evidence" \
+  -H "authorization: Bearer $PAYSHIELD_CORE_SERVICE_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{
+    "gateId": "provider_contract",
+    "scope": "provider",
+    "status": "approved",
+    "evidenceRef": "redacted-provider-contract-approval-001",
+    "evidenceSummary": "Provider contract approval recorded in the approved external system.",
+    "approvedBy": "Grayston Operations"
+  }'
+```
+
 Bank connection and transaction detection:
 
 ```bash

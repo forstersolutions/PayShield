@@ -170,6 +170,7 @@ test("core health exposes product operation routes and fail-closed readiness", a
     assert.equal(routes.includes("POST /app/paychecks/sync"), true);
     assert.equal(routes.includes("POST /app/transfers"), true);
     assert.equal(routes.includes("POST /app/reconciliation/resolve"), true);
+    assert.equal(routes.includes("POST /launch/gate-evidence"), true);
   });
 });
 
@@ -653,6 +654,43 @@ test("core checkout route records paid-access intent before webhook activation",
       timeline.some((item) => item.label === "Checkout intent"),
       true,
     );
+  });
+});
+
+test("core launch gate evidence route requires redacted durable approval records", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const unsafe = await getJson(
+      baseUrl,
+      "/api/launch/gate-evidence",
+      jsonPost({
+        approvedBy: "Grayston Ops",
+        evidenceRef: "secret-token-contract",
+        evidenceSummary: "Provider contract approval.",
+        gateId: "provider_contract",
+        scope: "provider",
+        status: "approved",
+      }),
+    );
+
+    assert.equal(unsafe.response.status, 400);
+    assert.match(String(unsafe.body.error), /redacted handles/i);
+
+    const missingPostgres = await getJson(
+      baseUrl,
+      "/api/launch/gate-evidence",
+      jsonPost({
+        approvedBy: "Grayston Ops",
+        evidenceRef: "notion-provider-contract-approval-001",
+        evidenceSummary: "Provider contract approval recorded outside PayShield.",
+        gateId: "provider_contract",
+        scope: "provider",
+        status: "approved",
+      }),
+    );
+
+    assert.equal(missingPostgres.response.status, 503);
+    assert.equal(missingPostgres.body.code, "postgres_ledger_required");
+    assert.match(String(missingPostgres.body.error), /schema 0012/);
   });
 });
 

@@ -21,6 +21,7 @@ import {
   persistPayee,
   persistPaycheckDetection,
   persistPaycheckDetectionRule,
+  persistProductionGateEvidence,
   persistProviderTokenSecret,
   persistReconciliationException,
   persistTransferIntent,
@@ -30,6 +31,26 @@ import {
 
 const serviceName = "payshield-core";
 export const coreLedgerSchemaVersion = "0012";
+const productionGateEvidenceScopes = new Set([
+  "provider",
+  "sponsor_disclosure",
+  "counsel",
+  "operations",
+  "ledger",
+  "auth",
+  "core",
+  "commercial",
+  "money_rail",
+  "live_money",
+]);
+const productionGateEvidenceStatuses = new Set([
+  "approved",
+  "pending",
+  "rejected",
+  "revoked",
+]);
+const sensitiveEvidenceRefPattern =
+  /(secret|token|password|credential|access[_-]?token)/i;
 
 const gateDefinitions = [
   {
@@ -489,6 +510,7 @@ export function getCoreHealth(env = process.env) {
       "POST /app/transfers",
       "POST /app/unlocks",
       "POST /app/reconciliation/resolve",
+      "POST /launch/gate-evidence",
       "POST /card/authorize",
       "POST /provider/webhooks",
     ],
@@ -5255,6 +5277,136 @@ export async function syncLinkedBankPaychecks(payload = {}, env = process.env) {
 
 function persistenceFailed(result) {
   return ["postgres_error", "postgres_required"].includes(result?.persistence);
+}
+
+function productionGateEvidenceId(gateId, evidenceRef) {
+  return `gate_evidence_${createHash("sha256")
+    .update(`${gateId}:${evidenceRef}`)
+    .digest("hex")
+    .slice(0, 32)}`;
+}
+
+function parseIsoTimestamp(value, { defaultNow = false } = {}) {
+  const raw = cleanText(value, 80);
+
+  if (!raw) {
+    return defaultNow ? new Date().toISOString() : null;
+  }
+
+  const date = new Date(raw);
+
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+export async function recordProductionGateEvidence(payload, env = process.env) {
+  const gateId = cleanText(payload?.gateId || payload?.gate_id, 80);
+  const scope = cleanText(payload?.scope, 40).toLowerCase();
+  const status = cleanText(payload?.status, 40).toLowerCase();
+  const evidenceRef = cleanText(
+    payload?.evidenceRef || payload?.evidence_ref,
+    240,
+  );
+  const evidenceSummary = cleanText(
+    payload?.evidenceSummary || payload?.evidence_summary,
+    500,
+  );
+  const approvedBy = cleanText(payload?.approvedBy || payload?.approved_by, 160);
+  const approvedAt =
+    status === "approved"
+      ? parseIsoTimestamp(payload?.approvedAt || payload?.approved_at, {
+          defaultNow: true,
+        })
+      : parseIsoTimestamp(payload?.approvedAt || payload?.approved_at);
+  const expiresAt = parseIsoTimestamp(payload?.expiresAt || payload?.expires_at);
+
+  if (
+    !gateId ||
+    !/^[a-z0-9_:-]+$/i.test(gateId) ||
+    !productionGateEvidenceScopes.has(scope) ||
+    !productionGateEvidenceStatuses.has(status) ||
+    !evidenceRef ||
+    !evidenceSummary
+  ) {
+    return {
+      body: {
+        error:
+          "Provide gateId, scope, status, evidenceRef, and evidenceSummary for production gate evidence.",
+        service: "payshield-production-gate-evidence",
+      },
+      status: 400,
+    };
+  }
+
+  if (sensitiveEvidenceRefPattern.test(evidenceRef)) {
+    return {
+      body: {
+        error:
+          "Evidence references must be redacted handles or URLs and cannot contain secret, token, password, credential, or access-token material.",
+        service: "payshield-production-gate-evidence",
+      },
+      status: 400,
+    };
+  }
+
+  if (status === "approved" && (!approvedBy || !approvedAt)) {
+    return {
+      body: {
+        error: "Approved launch gates require approvedBy and a valid approvedAt timestamp.",
+        service: "payshield-production-gate-evidence",
+      },
+      status: 400,
+    };
+  }
+
+  if (!databaseConfigured(env)) {
+    return {
+      body: {
+        code: "postgres_ledger_required",
+        error:
+          "Production gate evidence requires PAYSHIELD_LEDGER_DATABASE_URL and schema 0012 before approvals can be recorded.",
+        service: "payshield-production-gate-evidence",
+      },
+      status: 503,
+    };
+  }
+
+  const persistence = await persistProductionGateEvidence(
+    {
+      approvedAt,
+      approvedBy: status === "approved" ? approvedBy : null,
+      evidenceRef,
+      evidenceSummary,
+      expiresAt,
+      gateId,
+      id: productionGateEvidenceId(gateId, evidenceRef),
+      metadata: safeObject(payload?.metadata),
+      scope,
+      status,
+    },
+    env,
+  );
+
+  if (persistenceFailed(persistence)) {
+    return {
+      body: {
+        error: "Production gate evidence could not be persisted.",
+        persistence,
+        service: "payshield-production-gate-evidence",
+      },
+      status: 503,
+    };
+  }
+
+  return {
+    body: {
+      accepted: true,
+      evidence: persistence.evidence,
+      persisted: true,
+      persistence: persistence.persistence,
+      service: "payshield-production-gate-evidence",
+    },
+    status: 200,
+  };
 }
 
 async function persistOperationalJournal(entry, env = process.env, actorInput = demoUser) {

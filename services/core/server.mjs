@@ -25,6 +25,7 @@ import {
   recordBankConnection,
   recordCommercialBillingEvent,
   recordCommercialCheckoutIntent,
+  recordProductionGateEvidence,
   resolveReconciliationException,
   saveBucketProfile,
   startOnboarding,
@@ -400,6 +401,11 @@ export function createCoreServer() {
 
       if (request.method === "POST" && path === "/app/reconciliation/resolve") {
         await withJsonBody(request, response, resolveReconciliationException);
+        return;
+      }
+
+      if (request.method === "POST" && path === "/launch/gate-evidence") {
+        await withJsonBody(request, response, recordProductionGateEvidence);
         return;
       }
 
