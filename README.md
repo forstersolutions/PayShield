@@ -9,6 +9,10 @@ and fail-closed activation gates for the full neobank path.
 Account opening, card controls, and money movement stay locked until approved
 provider credentials, disclosures, and operating controls are active. Product
 and support requests route to `support@graystontechnologies.com`.
+Production app review can be opened without broad public access by setting a
+16+ character `PAYSHIELD_REVIEW_APP_ACCESS_TOKEN` and visiting
+`/app?review_access_token=<token>`; Clerk remains required for commercial app
+access.
 
 ## Getting Started
 

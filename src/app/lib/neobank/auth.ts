@@ -3,6 +3,7 @@ import { NextResponse } from "next/server.js";
 import {
   appAuthNotConfiguredBody,
   clerkAppConfigured,
+  reviewAppAccessCookieName,
   reviewAppAccessAllowed,
 } from "./app-access.ts";
 import { demoUser } from "./demo-state.ts";
@@ -74,9 +75,46 @@ function cleanIdentityText(value: unknown, maxLength: number) {
     : "";
 }
 
+function cookieValue(cookieHeader: string | null, name: string) {
+  if (!cookieHeader) {
+    return null;
+  }
+
+  const prefix = `${name}=`;
+  const pair = cookieHeader
+    .split(";")
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(prefix));
+
+  if (!pair) {
+    return null;
+  }
+
+  try {
+    return decodeURIComponent(pair.slice(prefix.length));
+  } catch {
+    return pair.slice(prefix.length);
+  }
+}
+
+async function reviewTokenFromRequestHeaders() {
+  try {
+    const headerList = await headers();
+
+    return (
+      headerList.get("x-payshield-review-token") ??
+      cookieValue(headerList.get("cookie"), reviewAppAccessCookieName)
+    );
+  } catch {
+    return null;
+  }
+}
+
 export async function getAppSession(): Promise<AppSession> {
   if (!clerkAppConfigured()) {
-    if (!reviewAppAccessAllowed()) {
+    const reviewToken = await reviewTokenFromRequestHeaders();
+
+    if (!reviewAppAccessAllowed(process.env, reviewToken)) {
       throw new AppAuthNotConfiguredError();
     }
 

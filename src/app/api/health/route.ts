@@ -64,6 +64,8 @@ export function GET() {
         mode: appAccess.mode,
         productionLocked: appAccess.productionLocked,
         reviewAccessAllowed: appAccess.reviewAccessAllowed,
+        reviewTokenAccepted: appAccess.reviewTokenAccepted,
+        reviewTokenConfigured: appAccess.reviewTokenConfigured,
       },
       moneyRails: {
         bankLinkReady: moneyRails.bankLinkReady,

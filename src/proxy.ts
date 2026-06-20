@@ -2,6 +2,9 @@ import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server
 import {
   appAuthNotConfiguredBody,
   getAppAccessReadiness,
+  reviewAppAccessCookieValue,
+  reviewAppAccessCookieName,
+  reviewAppAccessQueryParam,
 } from "./app/lib/neobank/app-access.ts";
 
 function isProtectedRoute(request: NextRequest) {
@@ -17,6 +20,51 @@ function isProtectedRoute(request: NextRequest) {
     pathname === "/api/app" ||
     pathname.startsWith("/api/app/")
   );
+}
+
+function reviewTokenFromRequest(request: NextRequest) {
+  return (
+    request.nextUrl.searchParams.get(reviewAppAccessQueryParam) ??
+    request.headers.get("x-payshield-review-token") ??
+    request.cookies.get(reviewAppAccessCookieName)?.value ??
+    null
+  );
+}
+
+function requestHasReviewQueryToken(request: NextRequest) {
+  return request.nextUrl.searchParams.has(reviewAppAccessQueryParam);
+}
+
+function stripReviewQueryToken(request: NextRequest) {
+  const nextUrl = request.nextUrl.clone();
+
+  nextUrl.searchParams.delete(reviewAppAccessQueryParam);
+
+  return nextUrl;
+}
+
+function attachReviewCookie(
+  response: NextResponse,
+  request: NextRequest,
+  tokenAccepted: boolean,
+) {
+  const reviewToken = request.nextUrl.searchParams.get(reviewAppAccessQueryParam);
+
+  if (!reviewToken || !tokenAccepted) {
+    return response;
+  }
+
+  response.cookies.set({
+    httpOnly: true,
+    maxAge: 60 * 60 * 8,
+    name: reviewAppAccessCookieName,
+    path: "/",
+    sameSite: "strict",
+    secure: request.nextUrl.protocol === "https:",
+    value: reviewAppAccessCookieValue(reviewToken),
+  });
+
+  return response;
 }
 
 async function runConfiguredClerkMiddleware(
@@ -230,7 +278,7 @@ function protectedAppUnavailableResponse(request: NextRequest) {
           </div>
           <div class="card">
             <strong>What unlocks it?</strong>
-            <span>Set <code>NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</code> and <code>CLERK_SECRET_KEY</code>. Use <code>PAYSHIELD_ALLOW_REVIEW_APP_ACCESS=true</code> only for a controlled review deployment.</span>
+            <span>Set <code>NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</code> and <code>CLERK_SECRET_KEY</code>. For owner review before Clerk is active, set a 16+ character <code>PAYSHIELD_REVIEW_APP_ACCESS_TOKEN</code> and open <code>/app?review_access_token=&lt;token&gt;</code>. Use <code>PAYSHIELD_ALLOW_REVIEW_APP_ACCESS=true</code> only for an isolated review deployment.</span>
           </div>
           <div class="card">
             <strong>Who operates PayShield?</strong>
@@ -252,14 +300,32 @@ function protectedAppUnavailableResponse(request: NextRequest) {
 }
 
 export default async function proxy(request: NextRequest, event: NextFetchEvent) {
-  const appAccess = getAppAccessReadiness();
+  const reviewToken = reviewTokenFromRequest(request);
+  const appAccess = getAppAccessReadiness(process.env, reviewToken);
 
   if (isProtectedRoute(request) && appAccess.locked) {
     return protectedAppUnavailableResponse(request);
   }
 
+  if (
+    isProtectedRoute(request) &&
+    appAccess.reviewTokenAccepted &&
+    requestHasReviewQueryToken(request) &&
+    (request.method === "GET" || request.method === "HEAD")
+  ) {
+    return attachReviewCookie(
+      NextResponse.redirect(stripReviewQueryToken(request)),
+      request,
+      appAccess.reviewTokenAccepted,
+    );
+  }
+
   if (!appAccess.clerkConfigured) {
-    return NextResponse.next();
+    return attachReviewCookie(
+      NextResponse.next(),
+      request,
+      appAccess.reviewTokenAccepted,
+    );
   }
 
   return runConfiguredClerkMiddleware(request, event);

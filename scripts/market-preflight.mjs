@@ -365,9 +365,13 @@ requireText("src/app/api/app/paychecks/sync/route.ts", "payshield-paycheck-trans
 requireText("src/app/api/app/paychecks/sync/route.ts", "/api/app/paychecks/sync");
 requireText("src/proxy.ts", "protectedAppUnavailableResponse");
 requireText("src/proxy.ts", "appAuthNotConfiguredBody");
+requireText("src/proxy.ts", "review_access_token");
+requireText("src/proxy.ts", "reviewAppAccessCookieValue");
+requireText("src/proxy.ts", "reviewAppAccessCookieName");
 requireText("src/proxy.ts", "PAYSHIELD_ALLOW_REVIEW_APP_ACCESS=true");
 requireText("src/proxy.ts", 'pathname.startsWith("/api/app/")');
 requireText("src/app/lib/neobank/app-access.ts", "PAYSHIELD_ALLOW_REVIEW_APP_ACCESS");
+requireText("src/app/lib/neobank/app-access.ts", "PAYSHIELD_REVIEW_APP_ACCESS_TOKEN");
 requireText("src/app/lib/neobank/app-access.ts", 'env.VERCEL_ENV !== "production"');
 requireText("src/app/api/health/route.ts", "appAccess");
 requireText("src/app/lib/neobank/core-config.ts", "PAYSHIELD_CORE_API_URL");

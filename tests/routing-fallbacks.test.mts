@@ -56,6 +56,7 @@ test("production app access fails closed without Clerk unless review access is e
     allowReview: process.env.PAYSHIELD_ALLOW_REVIEW_APP_ACCESS,
     clerkPublishable: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
     clerkSecret: process.env.CLERK_SECRET_KEY,
+    reviewToken: process.env.PAYSHIELD_REVIEW_APP_ACCESS_TOKEN,
     vercelEnv: process.env.VERCEL_ENV,
   };
 
@@ -63,6 +64,7 @@ test("production app access fails closed without Clerk unless review access is e
     delete process.env.CLERK_SECRET_KEY;
     delete process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
     delete process.env.PAYSHIELD_ALLOW_REVIEW_APP_ACCESS;
+    delete process.env.PAYSHIELD_REVIEW_APP_ACCESS_TOKEN;
     process.env.VERCEL_ENV = "production";
 
     const apiResponse = await runProxy(
@@ -142,6 +144,8 @@ test("production app access fails closed without Clerk unless review access is e
     assert.match(pageBody, /Household app activation/);
     assert.match(pageBody, /Turn on secure app access/);
     assert.match(pageBody, /PAYSHIELD_ALLOW_REVIEW_APP_ACCESS=true/);
+    assert.match(pageBody, /PAYSHIELD_REVIEW_APP_ACCESS_TOKEN/);
+    assert.match(pageBody, /review_access_token/);
     assert.match(pageBody, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY/);
     assert.match(pageBody, /CLERK_SECRET_KEY/);
     assert.match(pageBody, /payshield-logo-clean\.png/);
@@ -149,6 +153,63 @@ test("production app access fails closed without Clerk unless review access is e
     assert.match(pageBody, /Open revenue \+ rails console/);
     assert.match(pageBody, /href="\/api\/health"/);
     assert.match(pageBody, /support@graystontechnologies\.com/);
+
+    process.env.PAYSHIELD_REVIEW_APP_ACCESS_TOKEN = "owner-review-token-2026";
+
+    const missingTokenResponse = await runProxy(
+      new NextRequest("https://payshield.test/api/app/me"),
+    );
+
+    assert.equal(missingTokenResponse.status, 503);
+
+    const invalidTokenResponse = await runProxy(
+      new NextRequest(
+        "https://payshield.test/api/app/me?review_access_token=wrong-review-token",
+      ),
+    );
+
+    assert.equal(invalidTokenResponse.status, 503);
+
+    const tokenStartResponse = await runProxy(
+      new NextRequest(
+        "https://payshield.test/app?review_access_token=owner-review-token-2026",
+      ),
+    );
+    const reviewCookie = tokenStartResponse.headers
+      .get("set-cookie")
+      ?.split(";")[0];
+
+    assert.equal(tokenStartResponse.status, 307);
+    assert.equal(tokenStartResponse.headers.get("location"), "https://payshield.test/app");
+    assert.match(tokenStartResponse.headers.get("set-cookie") ?? "", /payshield_review_access=/);
+    assert.doesNotMatch(
+      tokenStartResponse.headers.get("set-cookie") ?? "",
+      /owner-review-token-2026/,
+    );
+    assert.match(tokenStartResponse.headers.get("set-cookie") ?? "", /HttpOnly/);
+    assert.match(tokenStartResponse.headers.get("set-cookie") ?? "", /SameSite=strict/i);
+
+    assert.ok(reviewCookie);
+
+    const cookieAllowedResponse = await runProxy(
+      new NextRequest("https://payshield.test/api/app/me", {
+        headers: {
+          cookie: reviewCookie,
+        },
+      }),
+    );
+
+    assert.notEqual(cookieAllowedResponse.status, 503);
+
+    const headerAllowedResponse = await runProxy(
+      new NextRequest("https://payshield.test/api/app/me", {
+        headers: {
+          "x-payshield-review-token": "owner-review-token-2026",
+        },
+      }),
+    );
+
+    assert.notEqual(headerAllowedResponse.status, 503);
 
     process.env.PAYSHIELD_ALLOW_REVIEW_APP_ACCESS = "true";
 
@@ -175,6 +236,12 @@ test("production app access fails closed without Clerk unless review access is e
       delete process.env.PAYSHIELD_ALLOW_REVIEW_APP_ACCESS;
     } else {
       process.env.PAYSHIELD_ALLOW_REVIEW_APP_ACCESS = originalEnv.allowReview;
+    }
+
+    if (originalEnv.reviewToken === undefined) {
+      delete process.env.PAYSHIELD_REVIEW_APP_ACCESS_TOKEN;
+    } else {
+      process.env.PAYSHIELD_REVIEW_APP_ACCESS_TOKEN = originalEnv.reviewToken;
     }
 
     if (originalEnv.vercelEnv === undefined) {

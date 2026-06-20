@@ -27,6 +27,15 @@ async function parseJson(response: Response) {
       stripeSecretMode?: unknown;
       webhookSigningSecretConfigured?: unknown;
     };
+    appAccess?: {
+      clerkConfigured?: unknown;
+      locked?: unknown;
+      mode?: unknown;
+      productionLocked?: unknown;
+      reviewAccessAllowed?: unknown;
+      reviewTokenAccepted?: unknown;
+      reviewTokenConfigured?: unknown;
+    };
     moneyRails?: {
       bankLinkReady?: unknown;
       paycheckDetectionReady?: unknown;
@@ -60,6 +69,7 @@ async function parseJson(response: Response) {
 beforeEach(() => {
   delete process.env.CLERK_SECRET_KEY;
   delete process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  delete process.env.PAYSHIELD_ALLOW_REVIEW_APP_ACCESS;
   delete process.env.PAYSHIELD_REQUIRE_WAITLIST_WEBHOOK;
   delete process.env.PAYSHIELD_WAITLIST_STORAGE;
   delete process.env.PAYSHIELD_WAITLIST_WEBHOOK_SECRET;
@@ -91,12 +101,31 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_COMMERCIAL_PRICE_ID;
   delete process.env.PAYSHIELD_COMMERCIAL_PRICE_LABEL;
   delete process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL;
+  delete process.env.PAYSHIELD_REVIEW_APP_ACCESS_TOKEN;
   delete process.env.STRIPE_SECRET_KEY;
   delete process.env.STRIPE_WEBHOOK_SECRET;
   delete process.env.BLOB_READ_WRITE_TOKEN;
   delete process.env.UPSTASH_REDIS_REST_TOKEN;
   delete process.env.UPSTASH_REDIS_REST_URL;
   delete process.env.VERCEL_ENV;
+});
+
+test("reports tokenized review access without exposing the token", async () => {
+  process.env.VERCEL_ENV = "production";
+  process.env.PAYSHIELD_REVIEW_APP_ACCESS_TOKEN = "owner-review-token-2026";
+
+  const response = GET();
+  const body = await parseJson(response);
+  const serialized = JSON.stringify(body);
+
+  assert.equal(body.appAccess?.clerkConfigured, false);
+  assert.equal(body.appAccess?.locked, true);
+  assert.equal(body.appAccess?.mode, "locked");
+  assert.equal(body.appAccess?.productionLocked, true);
+  assert.equal(body.appAccess?.reviewAccessAllowed, false);
+  assert.equal(body.appAccess?.reviewTokenAccepted, false);
+  assert.equal(body.appAccess?.reviewTokenConfigured, true);
+  assert.equal(serialized.includes("owner-review-token-2026"), false);
 });
 
 test("reports demo waitlist mode without exposing webhook details", async () => {

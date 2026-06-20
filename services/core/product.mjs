@@ -2105,7 +2105,11 @@ function buildActivationSetupGroups(body, siteUrl) {
         `curl -fsS ${siteUrl}/api/app/me`,
       ],
       endpoint: "GET /api/app/me",
-      env: ["NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", "CLERK_SECRET_KEY"],
+      env: [
+        "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+        "CLERK_SECRET_KEY",
+        "PAYSHIELD_REVIEW_APP_ACCESS_TOKEN",
+      ],
       key: "access",
       productAction:
         "Map every signed-in person to one PayShield household before private records open.",

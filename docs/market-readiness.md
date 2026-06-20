@@ -18,8 +18,9 @@ are active.
 - Interactive bill-routing panel for scheduling approved payees against their
   protected buckets, with amount/date validation and visible provider-gated
   execution status.
-- Clerk-ready app access boundary for `/app` and `/api/app/*`, with demo mode
-  retained until Clerk keys are configured.
+- Clerk-ready app access boundary for `/app` and `/api/app/*`, with protected
+  routes locked in production until Clerk keys are configured or a tokenized
+  owner review session is opened through `PAYSHIELD_REVIEW_APP_ACCESS_TOKEN`.
 - Dedicated regulated core backend scaffold, Dockerfile, compose manifest, and
   Postgres ledger migrations for households, users, provider customers, ledger
   accounts, journal entries, journal lines, payees, provider events,

@@ -405,6 +405,8 @@ export default function LaunchConsolePage() {
       env: [
         "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
         "CLERK_SECRET_KEY",
+        "PAYSHIELD_REVIEW_APP_ACCESS_TOKEN 16+ chars for tokenized owner review",
+        "/app?review_access_token=<token> sets the secure review cookie",
         "PAYSHIELD_ALLOW_REVIEW_APP_ACCESS for controlled review only",
       ],
       icon: LockKeyhole,
