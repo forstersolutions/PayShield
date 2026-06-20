@@ -418,6 +418,52 @@ function providerErrorResult(error, service) {
   };
 }
 
+export async function recordMoneyRailProviderException(
+  {
+    actor,
+    amountCents,
+    destinationPayeeId = "",
+    error,
+    idempotencyKey,
+    operation,
+    payeeId = "",
+    rail,
+    sourceBucketId = "",
+  },
+  env = process.env,
+) {
+  const providerName =
+    getProviderAdapterConfig(env).providerName ||
+    safeString(env.PAYSHIELD_BAAS_PROVIDER, 80) ||
+    "configured_rail";
+  const providerError =
+    error instanceof ProviderAdapterError
+      ? error.message
+      : "Configured provider adapter request failed.";
+
+  return persistReconciliationException(
+    {
+      householdId: actor.householdId,
+      idempotencyKey: `money-rail:${rail}:${idempotencyKey}`,
+      metadata: {
+        amountCents,
+        destinationPayeeId: destinationPayeeId || null,
+        operation,
+        payeeId: payeeId || null,
+        providerError: safeString(providerError, 240),
+        sourceBucketId: sourceBucketId || null,
+      },
+      providerEventId: `${rail}:${idempotencyKey}`,
+      providerName,
+      reasonCode: "provider_adapter_error",
+      severity: "critical",
+      source: "money_rail",
+      summary: `${operation} failed before provider execution was confirmed.`,
+    },
+    env,
+  );
+}
+
 function gateOk(definition, env, options) {
   if (definition.kind === "true") {
     return envTrue(env, definition.env);
@@ -6448,14 +6494,28 @@ export async function createTransferIntent(payload, env = process.env) {
         sourceBucketId: payload.sourceBucketId,
       });
     } catch (error) {
+      const exceptionPersistence = await recordMoneyRailProviderException(
+        {
+          actor,
+          amountCents,
+          destinationPayeeId,
+          error,
+          idempotencyKey,
+          operation: "createAchTransfer",
+          rail: "transfer",
+          sourceBucketId: payload.sourceBucketId,
+        },
+        env,
+      );
       const result = providerErrorResult(error, "payshield-transfer-intents");
 
       return {
         body: {
           ...result.body,
+          exceptionPersistence,
           readiness,
         },
-        status: result.status,
+        status: persistenceFailed(exceptionPersistence) ? 503 : result.status,
       };
     }
   }
@@ -6634,14 +6694,27 @@ export async function createBillPayment(payload, env = process.env) {
         payee,
       });
     } catch (error) {
+      const exceptionPersistence = await recordMoneyRailProviderException(
+        {
+          actor,
+          amountCents,
+          error,
+          idempotencyKey,
+          operation: "createBillPayment",
+          payeeId,
+          rail: "bill_payment",
+        },
+        env,
+      );
       const result = providerErrorResult(error, "payshield-bill-payments");
 
       return {
         body: {
           ...result.body,
+          exceptionPersistence,
           readiness,
         },
-        status: result.status,
+        status: persistenceFailed(exceptionPersistence) ? 503 : result.status,
       };
     }
   }

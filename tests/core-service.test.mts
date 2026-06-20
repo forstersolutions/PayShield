@@ -4,7 +4,10 @@ import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, test } from "node:test";
 import { createCoreServer } from "../services/core/server.mjs";
-import { replayJournalEntriesForBalances } from "../services/core/product.mjs";
+import {
+  recordMoneyRailProviderException,
+  replayJournalEntriesForBalances,
+} from "../services/core/product.mjs";
 
 const coreEnvKeys = [
   "CLERK_SECRET_KEY",
@@ -574,6 +577,49 @@ test("core reconciliation resolution validates and requires durable closeout", a
     assert.match(String(blocked.body.error), /Postgres operations store/i);
     assert.equal(resolution.persistence, "memory");
   });
+});
+
+test("core records money-rail provider failures as reconciliation exceptions", async () => {
+  process.env.PAYSHIELD_BAAS_ADAPTER = "http_json";
+  process.env.PAYSHIELD_BAAS_API_BASE_URL = "http://127.0.0.1:8999";
+  process.env.PAYSHIELD_BAAS_API_KEY = "provider-key";
+  process.env.PAYSHIELD_BAAS_PROVIDER = "test-baas";
+
+  const persistence = (await recordMoneyRailProviderException({
+    actor: {
+      householdId: "household_provider_failure",
+      id: "user_provider_failure",
+    },
+    amountCents: 25_000,
+    destinationPayeeId: "payee_abc_apartments",
+    error: new Error("Provider transfer failed with status 500."),
+    idempotencyKey: "provider-failure-transfer",
+    operation: "createAchTransfer",
+    rail: "transfer",
+    sourceBucketId: "rent",
+  })) as {
+    exception: Record<string, unknown>;
+    persistence: string;
+  };
+  const exception = persistence.exception;
+  const metadata = exception.metadata as Record<string, unknown>;
+
+  assert.equal(persistence.persistence, "memory");
+  assert.equal(exception.householdId, "household_provider_failure");
+  assert.equal(
+    exception.idempotencyKey,
+    "money-rail:transfer:provider-failure-transfer",
+  );
+  assert.equal(exception.providerEventId, "transfer:provider-failure-transfer");
+  assert.equal(exception.providerName, "test-baas");
+  assert.equal(exception.reasonCode, "provider_adapter_error");
+  assert.equal(exception.severity, "critical");
+  assert.equal(exception.source, "money_rail");
+  assert.equal(exception.status, "open");
+  assert.equal(metadata.amountCents, 25_000);
+  assert.equal(metadata.destinationPayeeId, "payee_abc_apartments");
+  assert.equal(metadata.operation, "createAchTransfer");
+  assert.equal(metadata.sourceBucketId, "rent");
 });
 
 test("core balances endpoint mirrors protected paycheck model", async () => {
