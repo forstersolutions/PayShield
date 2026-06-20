@@ -18,6 +18,7 @@ import {
   getCoreReadiness,
   getHouseholdActivation,
   getHouseholdAuditExport,
+  getHouseholdControlPlan,
   getHouseholdOperations,
   getProfile,
   handleProviderWebhook,
@@ -319,6 +320,11 @@ export function createCoreServer() {
         return;
       }
 
+      if (request.method === "GET" && path === "/app/control-plan") {
+        await writeResult(response, getHouseholdControlPlan(process.env, actor));
+        return;
+      }
+
       if (request.method === "GET" && path === "/app/audit/export") {
         await writeResult(response, getHouseholdAuditExport(process.env, actor));
         return;
@@ -326,6 +332,13 @@ export function createCoreServer() {
 
       if (request.method === "POST" && path === "/app/buckets") {
         await withJsonBody(request, response, saveBucketProfile);
+        return;
+      }
+
+      if (request.method === "POST" && path === "/app/control-plan") {
+        await withJsonBody(request, response, (payload) =>
+          getHouseholdControlPlan(process.env, payload.__payshieldActor, payload),
+        );
         return;
       }
 

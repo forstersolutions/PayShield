@@ -12,6 +12,10 @@ import { POST as createBankLinkToken } from "../src/app/api/app/bank-link/token/
 import { POST as openBillingPortal } from "../src/app/api/app/billing/portal/route.ts";
 import { GET as getBillingStatus } from "../src/app/api/app/billing/status/route.ts";
 import { POST as scheduleBillPayment } from "../src/app/api/app/bill-payments/route.ts";
+import {
+  GET as getControlPlan,
+  POST as generateControlPlan,
+} from "../src/app/api/app/control-plan/route.ts";
 import { GET as getOperations } from "../src/app/api/app/operations/route.ts";
 import { POST as authorizeCard } from "../src/app/api/card/authorize/route.ts";
 import { POST as providerWebhook } from "../src/app/api/provider/webhooks/route.ts";
@@ -187,6 +191,106 @@ test("operations API delegates household records to configured core service", as
       assert.equal(captured.method, "GET");
       assert.equal(captured.url, "/api/app/operations");
       assert.equal(captured.userId, "user_demo_001");
+    },
+  );
+});
+
+test("control-plan API delegates household plan reads to configured core service", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    (request, response) => {
+      captured.authorization = request.headers.authorization;
+      captured.method = request.method;
+      captured.url = request.url;
+      captured.userId = request.headers["x-payshield-user-id"];
+
+      response.writeHead(200, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          coreDelegated: true,
+          service: "payshield-household-control-plan",
+          summary: {
+            projectedSafeToSpendCents: 88_000,
+          },
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-control-secret";
+
+      const response = await getControlPlan();
+      const body = await parseJson(response);
+      const summary = body.summary as Record<string, unknown>;
+
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("x-payshield-core-proxied"), "true");
+      assert.equal(body.coreDelegated, true);
+      assert.equal(summary.projectedSafeToSpendCents, 88_000);
+      assert.equal(captured.authorization, "Bearer core-control-secret");
+      assert.equal(captured.method, "GET");
+      assert.equal(captured.url, "/api/app/control-plan");
+      assert.equal(captured.userId, "user_demo_001");
+    },
+  );
+});
+
+test("control-plan API delegates generated paycheck plans to configured core service", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    async (request, response) => {
+      captured.authorization = request.headers.authorization;
+      captured.body = await readRequestBody(request);
+      captured.method = request.method;
+      captured.url = request.url;
+      captured.userId = request.headers["x-payshield-user-id"];
+
+      response.writeHead(200, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          coreDelegated: true,
+          detectionRule: {
+            ruleName: "Core payroll rule",
+          },
+          service: "payshield-household-control-plan",
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-control-post-secret";
+
+      const response = await generateControlPlan(
+        makeRequest("/api/app/control-plan", {
+          employerName: "Core Payroll",
+          paycheckAmountCents: 240_000,
+        }),
+      );
+      const body = await parseJson(response);
+      const requestBody = JSON.parse(String(captured.body)) as Record<
+        string,
+        unknown
+      >;
+      const detectionRule = body.detectionRule as Record<string, unknown>;
+
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("x-payshield-core-proxied"), "true");
+      assert.equal(body.coreDelegated, true);
+      assert.equal(detectionRule.ruleName, "Core payroll rule");
+      assert.equal(captured.authorization, "Bearer core-control-post-secret");
+      assert.equal(captured.method, "POST");
+      assert.equal(captured.url, "/api/app/control-plan");
+      assert.equal(captured.userId, "user_demo_001");
+      assert.equal(requestBody.employerName, "Core Payroll");
+      assert.equal(requestBody.paycheckAmountCents, 240_000);
     },
   );
 });

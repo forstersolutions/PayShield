@@ -74,6 +74,8 @@ test("app command center exposes a guided real-money setup surface", async () =>
     "src/app/api/app/control-plan/route.ts",
     "utf8",
   );
+  const coreProduct = await readFile("services/core/product.mjs", "utf8");
+  const coreServer = await readFile("services/core/server.mjs", "utf8");
 
   assert.match(appPage, /HouseholdCommandCenter/);
   assert.match(commandCenter, /getCommercialReadiness/);
@@ -146,7 +148,12 @@ test("app command center exposes a guided real-money setup surface", async () =>
   assert.match(controlPlanBuilder, /POST \/api\/app\/transfers/);
   assert.match(controlPlanRoute, /createHouseholdMoneyControlPlan/);
   assert.match(controlPlanRoute, /normalizeMoneyControlPlanInput/);
+  assert.match(controlPlanRoute, /forwardCoreRequest/);
   assert.match(controlPlanRoute, /cache-control/);
+  assert.match(coreProduct, /getHouseholdControlPlan/);
+  assert.match(coreProduct, /payshield-household-control-plan/);
+  assert.match(coreProduct, /projectedSafeToSpendCents/);
+  assert.match(coreServer, /path === "\/app\/control-plan"/);
   const appLoading = await readFile("src/app/app/loading.tsx", "utf8");
   const launchLoading = await readFile("src/app/launch/loading.tsx", "utf8");
   const loadingShell = await readFile(

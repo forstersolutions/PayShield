@@ -4,6 +4,7 @@ import {
   getAppSession,
   unauthorizedAppResponse,
 } from "../../../lib/neobank/auth.ts";
+import { forwardCoreRequest } from "../../../lib/neobank/core-client.ts";
 import {
   createHouseholdMoneyControlPlan,
   normalizeMoneyControlPlanInput,
@@ -15,7 +16,16 @@ const noStoreHeaders = {
 
 export async function GET() {
   try {
-    await getAppSession();
+    const session = await getAppSession();
+    const coreResponse = await forwardCoreRequest({
+      method: "GET",
+      path: "/api/app/control-plan",
+      session,
+    });
+
+    if (coreResponse) {
+      return coreResponse;
+    }
 
     return NextResponse.json(createHouseholdMoneyControlPlan(), {
       headers: noStoreHeaders,
@@ -28,7 +38,17 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    await getAppSession();
+    const session = await getAppSession();
+    const coreResponse = await forwardCoreRequest({
+      method: "POST",
+      path: "/api/app/control-plan",
+      request,
+      session,
+    });
+
+    if (coreResponse) {
+      return coreResponse;
+    }
 
     const payload = (await request.json().catch(() => ({}))) as unknown;
     const normalized = normalizeMoneyControlPlanInput(payload);

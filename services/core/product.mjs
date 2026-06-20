@@ -492,8 +492,10 @@ export function getCoreHealth(env = process.env) {
       "GET /app/billing/status",
       "GET /app/buckets",
       "GET /app/operations",
+      "GET /app/control-plan",
       "GET /app/audit/export",
       "POST /app/buckets",
+      "POST /app/control-plan",
       "POST /token-vault/plaid",
       "POST /app/bank-link/token",
       "POST /app/bank-link/exchange",
@@ -2285,6 +2287,520 @@ function commercialActivationReady(env, commercialAccess) {
   return commercialAccess.readyForCheckout && commercialActivationMissing(env).length === 0;
 }
 
+const controlPlanFrequencies = new Set([
+  "weekly",
+  "biweekly",
+  "semimonthly",
+  "monthly",
+  "unknown",
+]);
+
+function friendlyControlPlanGateLabel(gate) {
+  const value = cleanText(gate, 160);
+
+  if (!value) {
+    return "Setup gate";
+  }
+
+  if (
+    value.includes("TOKEN_VAULT_WEBHOOK_URL or PAYSHIELD_CORE_API_URL") ||
+    (value.includes("TOKEN_VAULT") && value.includes("PAYSHIELD_CORE_API_URL"))
+  ) {
+    return "Vault receiver or core service URL";
+  }
+
+  if (value === "core_service_auth") {
+    return "Core service auth";
+  }
+
+  if (value.includes("STRIPE_SECRET_KEY")) {
+    return "Stripe API key";
+  }
+
+  if (value.includes("STRIPE_WEBHOOK_SECRET")) {
+    return "Stripe webhook signing";
+  }
+
+  if (value.includes("PAYSHIELD_COMMERCIAL_PRICE_ID")) {
+    return "Checkout price or payment link";
+  }
+
+  if (value.includes("PAYSHIELD_CORE_API_URL")) {
+    return "Core activation service";
+  }
+
+  if (value.includes("PAYSHIELD_CORE_SERVICE_TOKEN")) {
+    return "Core service auth";
+  }
+
+  if (value.includes("live-mode") || value.includes("Stripe live-mode")) {
+    return "Live Stripe mode";
+  }
+
+  if (value.includes("PLAID_CLIENT_ID") || value.includes("PLAID_SECRET")) {
+    return "Plaid credentials";
+  }
+
+  if (value.includes("TOKEN_VAULT_ENCRYPTION_KEY")) {
+    return "Token custody encryption key";
+  }
+
+  if (value.includes("TOKEN_VAULT_WEBHOOK")) {
+    return "Signed token-vault handoff";
+  }
+
+  if (value.includes("TOKEN_VAULT") || value.includes("token vault")) {
+    return "Token vault custody";
+  }
+
+  if (value.includes("PROVIDER_WEBHOOK")) {
+    return "Provider webhook signing";
+  }
+
+  if (value.includes("PAYSHIELD_BAAS_ADAPTER")) {
+    return "Provider adapter type";
+  }
+
+  if (value.includes("PAYSHIELD_BAAS_API_BASE_URL")) {
+    return "Provider adapter URL";
+  }
+
+  if (value.includes("PAYSHIELD_BAAS_API_KEY")) {
+    return "Provider API key";
+  }
+
+  if (value.includes("PAYSHIELD_BAAS_PROVIDER")) {
+    return "Provider name";
+  }
+
+  if (
+    value.includes("TRANSFER") ||
+    value.includes("transfer") ||
+    value.includes("transfer/BaaS")
+  ) {
+    return "Transfer rail credentials";
+  }
+
+  if (value === "provider_adapter") {
+    return "Provider adapter";
+  }
+
+  if (value === "provider_contract") {
+    return "Provider contract";
+  }
+
+  if (value === "provider_credentials") {
+    return "Provider credentials";
+  }
+
+  if (value === "sponsor_disclosures") {
+    return "Approved sponsor disclosures";
+  }
+
+  if (value === "counsel_signoff") {
+    return "Counsel signoff";
+  }
+
+  if (value === "operations_runbooks") {
+    return "Operations runbooks";
+  }
+
+  if (value === "postgres_ledger") {
+    return "Verified Postgres ledger";
+  }
+
+  if (value === "dedicated_backend") {
+    return "Always-on core backend";
+  }
+
+  if (value === "clerk_auth") {
+    return "Clerk authentication";
+  }
+
+  return value.replace(/^PAYSHIELD_/, "").replace(/_/g, " ").toLowerCase();
+}
+
+function uniqueFriendlyControlPlanGates(gates) {
+  return uniqueList(gates.map(friendlyControlPlanGateLabel));
+}
+
+function controlPlanCents(value, fallback, options = {}) {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+
+  return toIntegerCents(value, options);
+}
+
+function normalizeControlPlanFrequency(value) {
+  const frequency = cleanText(value, 20).toLowerCase();
+
+  return controlPlanFrequencies.has(frequency) ? frequency : "biweekly";
+}
+
+function protectedControlBuckets(buckets = []) {
+  return buckets
+    .filter((bucket) => bucket.id !== "safe_spending")
+    .sort((left, right) => left.priority - right.priority);
+}
+
+function controlPayeeForBucket(payees = [], bucketId) {
+  return payees.find(
+    (payee) => payee.status === "approved" && payee.allowedBucketId === bucketId,
+  );
+}
+
+function defaultControlTransferBucket(buckets = [], payees = []) {
+  return (
+    protectedControlBuckets(buckets).find(
+      (bucket) =>
+        bucket.availableCents > 0 && controlPayeeForBucket(payees, bucket.id),
+    ) ?? protectedControlBuckets(buckets)[0]
+  );
+}
+
+function normalizeHouseholdControlPlanInput(payload, buckets = [], payees = []) {
+  const record = safeObject(payload);
+  const errors = [];
+  const paycheckAmountCents = controlPlanCents(record.paycheckAmountCents, 300_000, {
+    max: 2_000_000,
+    min: 10_000,
+  });
+  const requestedTransferCents = controlPlanCents(record.requestedTransferCents, 25_000, {
+    max: 500_000,
+    min: 0,
+  });
+  const bucketIds = new Set(buckets.map((bucket) => bucket.id));
+  const preferredBucket = cleanText(record.preferredTransferBucketId, 80);
+  const defaultBucket = defaultControlTransferBucket(buckets, payees);
+  const preferredTransferBucketId =
+    preferredBucket && bucketIds.has(preferredBucket)
+      ? preferredBucket
+      : defaultBucket?.id ?? null;
+  const preferredPayeeId = cleanText(record.preferredPayeeId, 120) || null;
+
+  if (paycheckAmountCents === null) {
+    errors.push("paycheckAmountCents must be integer cents from 10000 to 2000000.");
+  }
+
+  if (requestedTransferCents === null) {
+    errors.push("requestedTransferCents must be integer cents from 0 to 500000.");
+  }
+
+  if (errors.length > 0) {
+    return {
+      errors,
+      input: null,
+      ok: false,
+    };
+  }
+
+  return {
+    errors: [],
+    input: {
+      employerName: cleanText(record.employerName, 80) || "Payroll deposit",
+      expectedFrequency: normalizeControlPlanFrequency(record.expectedFrequency),
+      paycheckAmountCents: paycheckAmountCents ?? 300_000,
+      preferredPayeeId,
+      preferredTransferBucketId,
+      requestedTransferCents: requestedTransferCents ?? 25_000,
+      ruleName: cleanText(record.ruleName, 80) || "Primary payroll",
+    },
+    ok: true,
+  };
+}
+
+function buildHouseholdControlAllocation(buckets, paycheckAmountCents) {
+  let remaining = paycheckAmountCents;
+  const planBuckets = protectedControlBuckets(buckets).map((bucket) => {
+    const targetCents = Number.isInteger(bucket.targetCents) ? bucket.targetCents : 0;
+    const availableCents = Number.isInteger(bucket.availableCents)
+      ? bucket.availableCents
+      : 0;
+    const projectedFundingCents = Math.min(targetCents, Math.max(0, remaining));
+
+    remaining -= projectedFundingCents;
+
+    return {
+      availableCents,
+      bucketId: bucket.id,
+      due: bucket.due,
+      name: bucket.name,
+      priority: bucket.priority,
+      projectedFundingCents,
+      protection: bucket.protection,
+      shortCents: Math.max(0, targetCents - projectedFundingCents),
+      targetCents,
+    };
+  });
+
+  return {
+    buckets: planBuckets,
+    projectedProtectedCents: planBuckets.reduce(
+      (sum, bucket) => sum + bucket.projectedFundingCents,
+      0,
+    ),
+    projectedSafeToSpendCents: Math.max(0, remaining),
+  };
+}
+
+function buildHouseholdControlTransferPlan({ buckets, moneyRails, payees, planInput }) {
+  const selectedBucket =
+    buckets.find((bucket) => bucket.id === planInput.preferredTransferBucketId) ??
+    defaultControlTransferBucket(buckets, payees);
+  const approvedPayees = selectedBucket
+    ? payees.filter(
+        (payee) =>
+          payee.status === "approved" && payee.allowedBucketId === selectedBucket.id,
+      )
+    : [];
+  const selectedPayee =
+    approvedPayees.find((payee) => payee.id === planInput.preferredPayeeId) ??
+    approvedPayees[0] ??
+    null;
+  const maxTransferCents =
+    selectedBucket && selectedPayee
+      ? Math.min(selectedBucket.availableCents, selectedPayee.maxCents)
+      : 0;
+  const requestedTransferCents = Math.min(
+    planInput.requestedTransferCents,
+    maxTransferCents,
+  );
+
+  return {
+    allowedNow:
+      requestedTransferCents > 0 &&
+      Boolean(selectedBucket) &&
+      Boolean(selectedPayee),
+    approvedPayeeCount: approvedPayees.length,
+    destinationPayeeId: selectedPayee?.id ?? null,
+    destinationPayeeName: selectedPayee?.name ?? null,
+    endpoint: "POST /api/app/transfers",
+    maxTransferCents,
+    providerReady: moneyRails.transferReady,
+    providerStatus: moneyRails.transferReady
+      ? "provider_handoff_ready"
+      : "intent_validation_only",
+    requestedTransferCents,
+    sourceBucketId: selectedBucket?.id ?? null,
+    sourceBucketName: selectedBucket?.name ?? null,
+  };
+}
+
+function controlPlanFromOperations(body, env, payload = {}) {
+  const buckets = body.buckets ?? [];
+  const payees = body.controls?.payees ?? [];
+  const normalized = normalizeHouseholdControlPlanInput(payload, buckets, payees);
+
+  if (!normalized.ok) {
+    return {
+      body: {
+        errors: normalized.errors,
+        service: "payshield-household-control-plan",
+      },
+      status: 400,
+    };
+  }
+
+  const planInput = normalized.input;
+  const allocation = buildHouseholdControlAllocation(
+    buckets,
+    planInput.paycheckAmountCents,
+  );
+  const liveMoneyGates = missingCoreGates(body.readiness);
+  const bankLinkGates = body.moneyRails.missing.filter(
+    (gate) => gate.includes("PLAID") || gate.includes("TOKEN_VAULT"),
+  );
+  const detectionGates = body.moneyRails.missing.filter(
+    (gate) =>
+      gate.includes("PLAID") ||
+      gate.includes("TOKEN_VAULT") ||
+      gate.includes("PROVIDER_WEBHOOK"),
+  );
+  const transferGates = [
+    ...body.moneyRails.missing.filter(
+      (gate) =>
+        gate.includes("TRANSFER") ||
+        gate.includes("transfer") ||
+        gate.includes("PAYSHIELD_BAAS"),
+    ),
+    ...body.moneyRails.providerAdapterMissing,
+    ...liveMoneyGates,
+  ];
+  const paidAccessReady = commercialActivationReady(env, body.commercialAccess);
+  const paymentCollectionReady = Boolean(body.commercialAccess.readyForCheckout);
+  const transferPlan = buildHouseholdControlTransferPlan({
+    buckets,
+    moneyRails: body.moneyRails,
+    payees,
+    planInput,
+  });
+  const operatingSteps = [
+    {
+      blockers: uniqueFriendlyControlPlanGates(commercialActivationMissing(env)),
+      canRunNow: paymentCollectionReady,
+      endpoint: "POST /api/app/billing/checkout",
+      key: "revenue_gate",
+      ownerAction:
+        "Configure Stripe checkout, webhook signing, and core activation storage.",
+      ready: paidAccessReady,
+      status: paymentCollectionReady
+        ? paidAccessReady
+          ? "collecting_and_activating"
+          : "collecting_activation_pending"
+        : "stripe_setup_needed",
+      title: "Revenue gate",
+      userAction: `Start ${body.commercialAccess.priceLabel} household access.`,
+    },
+    {
+      blockers: uniqueFriendlyControlPlanGates(bankLinkGates),
+      canRunNow: body.moneyRails.bankLinkReady,
+      endpoint: "POST /api/app/bank-link/token",
+      key: "bank_connection",
+      ownerAction:
+        "Configure Plaid credentials, signed token-vault handoff, and encrypted token custody.",
+      ready: body.moneyRails.bankLinkReady,
+      status: body.moneyRails.bankLinkReady ? "ready" : "provider_setup_needed",
+      title: "Bank connection",
+      userAction: "Connect the bank source used for payroll detection.",
+    },
+    {
+      blockers: uniqueFriendlyControlPlanGates(detectionGates),
+      canRunNow: true,
+      endpoint: "POST /api/app/paychecks/rules",
+      key: "paycheck_detection",
+      ownerAction:
+        "Turn on Plaid transaction sync and provider webhook signing for automatic detection.",
+      ready: body.moneyRails.paycheckDetectionReady,
+      status: body.moneyRails.paycheckDetectionReady
+        ? "automatic"
+        : "controlled_rule_ready",
+      title: "Paycheck detection",
+      userAction: `Save ${planInput.ruleName} for ${planInput.employerName}.`,
+    },
+    {
+      blockers: [],
+      canRunNow: true,
+      endpoint: "POST /api/app/buckets",
+      key: "protected_buckets",
+      ownerAction:
+        "Confirm bucket targets, priority order, due rules, approved payees, and unlock behavior.",
+      ready: true,
+      status:
+        body.controls?.bucketPersistence?.persistence === "postgres"
+          ? "durable"
+          : "customizable_now",
+      title: "Protected buckets",
+      userAction: "Protect obligations before Safe to Spend is calculated.",
+    },
+    {
+      blockers: uniqueFriendlyControlPlanGates(transferGates),
+      canRunNow: transferPlan.allowedNow,
+      endpoint: "POST /api/app/transfers",
+      key: "protected_transfer",
+      ownerAction:
+        "Configure transfer credentials and live-money gates before provider execution.",
+      ready: body.moneyRails.transferReady,
+      status: transferPlan.providerStatus,
+      title: "Protected transfer",
+      userAction:
+        transferPlan.sourceBucketName && transferPlan.destinationPayeeName
+          ? `Validate ${transferPlan.sourceBucketName} payment to ${transferPlan.destinationPayeeName}.`
+          : "Approve a protected-bucket payee before release.",
+    },
+    {
+      blockers: uniqueFriendlyControlPlanGates(liveMoneyGates),
+      canRunNow: true,
+      endpoint: "POST /api/card/authorize",
+      key: "card_control",
+      ownerAction:
+        "Connect a card gateway after provider, ledger, auth, counsel, and runbook gates pass.",
+      ready: body.readiness.liveMoneyReady,
+      status: body.readiness.liveMoneyReady
+        ? "gateway_ready"
+        : "ledger_decision_ready",
+      title: "Card control",
+      userAction: "Check purchases against Safe to Spend and approved billers.",
+    },
+  ];
+  const nextAction =
+    operatingSteps.find((step) => !step.canRunNow) ??
+    operatingSteps.find((step) => !step.ready) ??
+    operatingSteps[0];
+
+  return {
+    body: {
+      allocation,
+      bankConnection: {
+        endpoint: "POST /api/app/bank-link/token",
+        linkedSourceCount: body.operations.bankConnections.filter(
+          (connection) => connection.status === "connected",
+        ).length,
+        plaidEnv: body.moneyRails.plaidEnv,
+        ready: body.moneyRails.bankLinkReady,
+        tokenCustodyReady: body.moneyRails.tokenVaultStoreReady,
+      },
+      detectionRule: {
+        amountRangeCents: {
+          max: null,
+          min: Math.max(10_000, Math.round(planInput.paycheckAmountCents * 0.6)),
+        },
+        employerNamePattern: planInput.employerName,
+        endpoint: "POST /api/app/paychecks/rules",
+        expectedFrequency: planInput.expectedFrequency,
+        ruleName: planInput.ruleName,
+        syncEndpoint: "POST /api/app/paychecks/sync",
+        transactionNamePattern: planInput.employerName,
+      },
+      generatedAt: new Date().toISOString(),
+      household: body.household,
+      input: planInput,
+      monetization: {
+        endpoint: "POST /api/app/billing/checkout",
+        paidAccessReady,
+        paymentCollectionReady,
+        priceLabel: body.commercialAccess.priceLabel,
+        status: paidAccessReady
+          ? "paid_access_ready"
+          : paymentCollectionReady
+            ? "payment_collection_ready"
+            : "checkout_setup_needed",
+      },
+      nextAction,
+      operatingSteps,
+      proof: {
+        auditEndpoint: "/api/app/audit/export",
+        healthEndpoint: "/api/health",
+        operationsEndpoint: "/api/app/operations",
+        planEndpoint: "/api/app/control-plan",
+      },
+      service: "payshield-household-control-plan",
+      source: {
+        bucketPersistence: body.controls?.bucketPersistence?.persistence ?? "memory",
+        ledger: body.ledger.source,
+        payeePersistence: body.controls?.payeePersistence?.persistence ?? "memory",
+      },
+      summary: {
+        approvedPayeeCount: payees.filter((payee) => payee.status === "approved").length,
+        bucketCount: allocation.buckets.length,
+        nextActionKey: nextAction.key,
+        paycheckAmountCents: planInput.paycheckAmountCents,
+        projectedProtectedCents: allocation.projectedProtectedCents,
+        projectedSafeToSpendCents: allocation.projectedSafeToSpendCents,
+        protectedTargetCents: allocation.buckets.reduce(
+          (sum, bucket) => sum + bucket.targetCents,
+          0,
+        ),
+        readyStepCount: operatingSteps.filter((step) => step.canRunNow).length,
+        totalStepCount: operatingSteps.length,
+      },
+      support: body.support,
+      transferPlan,
+    },
+    status: 200,
+  };
+}
+
 function buildActivationPlan(env, snapshot, commercialAccess, moneyRails) {
   const coreMissing = missingCoreGates(snapshot.readiness);
   const priceLabel = commercialAccess.priceLabel || "$19/month";
@@ -2810,6 +3326,20 @@ async function buildHouseholdOperations(env = process.env, actorInput = demoUser
 
 export async function getHouseholdOperations(env = process.env, actorInput = demoUser) {
   return buildHouseholdOperations(env, actorInput);
+}
+
+export async function getHouseholdControlPlan(
+  env = process.env,
+  actorInput = demoUser,
+  payload = {},
+) {
+  const result = await buildHouseholdOperations(env, actorInput);
+
+  if (result.status !== 200) {
+    return result;
+  }
+
+  return controlPlanFromOperations(result.body, env, payload);
 }
 
 function activationPacketFromOperations(body, env = process.env) {

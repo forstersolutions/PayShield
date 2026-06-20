@@ -163,6 +163,8 @@ test("core health exposes product operation routes and fail-closed readiness", a
     assert.equal(routes.includes("POST /commercial/billing-events"), true);
     assert.equal(routes.includes("POST /card/authorize"), true);
     assert.equal(routes.includes("GET /app/operations"), true);
+    assert.equal(routes.includes("GET /app/control-plan"), true);
+    assert.equal(routes.includes("POST /app/control-plan"), true);
     assert.equal(routes.includes("GET /app/audit/export"), true);
     assert.equal(routes.includes("POST /app/onboarding/start"), true);
     assert.equal(routes.includes("POST /app/paychecks/rules"), true);
@@ -256,6 +258,114 @@ test("core operations endpoint exposes household money-control records", async (
       ),
       true,
     );
+  });
+});
+
+test("core control-plan endpoint derives a usable household money plan from operations", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(baseUrl, "/api/app/control-plan");
+    const summary = body.summary as Record<string, unknown>;
+    const allocation = body.allocation as Record<string, unknown>;
+    const buckets = allocation.buckets as Array<Record<string, unknown>>;
+    const operatingSteps = body.operatingSteps as Array<Record<string, unknown>>;
+    const monetization = body.monetization as Record<string, unknown>;
+    const transferPlan = body.transferPlan as Record<string, unknown>;
+    const proof = body.proof as Record<string, unknown>;
+    const source = body.source as Record<string, unknown>;
+
+    assert.equal(response.status, 200);
+    assert.equal(body.service, "payshield-household-control-plan");
+    assert.equal(summary.paycheckAmountCents, 300_000);
+    assert.equal(summary.projectedProtectedCents, 155_000);
+    assert.equal(summary.projectedSafeToSpendCents, 145_000);
+    assert.equal(summary.readyStepCount, 4);
+    assert.equal(source.ledger, "control_model");
+    assert.equal(monetization.priceLabel, "$19/month");
+    assert.equal(monetization.endpoint, "POST /api/app/billing/checkout");
+    assert.equal(
+      operatingSteps.some(
+        (step) =>
+          step.key === "revenue_gate" &&
+          step.title === "Revenue gate" &&
+          step.endpoint === "POST /api/app/billing/checkout" &&
+          (step.blockers as string[]).includes("Stripe API key"),
+      ),
+      true,
+    );
+    assert.equal(
+      operatingSteps.some(
+        (step) =>
+          step.key === "bank_connection" &&
+          step.endpoint === "POST /api/app/bank-link/token",
+      ),
+      true,
+    );
+    assert.equal(
+      operatingSteps.some(
+        (step) =>
+          step.key === "paycheck_detection" &&
+          step.endpoint === "POST /api/app/paychecks/rules" &&
+          step.canRunNow === true,
+      ),
+      true,
+    );
+    assert.equal(
+      buckets.some(
+        (bucket) =>
+          bucket.bucketId === "rent" &&
+          bucket.projectedFundingCents === 50_000,
+      ),
+      true,
+    );
+    assert.equal(transferPlan.endpoint, "POST /api/app/transfers");
+    assert.equal(proof.planEndpoint, "/api/app/control-plan");
+    assert.equal(proof.operationsEndpoint, "/api/app/operations");
+  });
+});
+
+test("core control-plan post validates and regenerates paycheck projections", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(
+      baseUrl,
+      "/api/app/control-plan",
+      jsonPost(
+        {
+          employerName: "Acme Payroll",
+          expectedFrequency: "weekly",
+          paycheckAmountCents: 220_000,
+          requestedTransferCents: 20_000,
+          ruleName: "Acme weekly payroll",
+        },
+        {
+          headers: {
+            "x-payshield-user-id": "user_control_plan",
+          },
+        },
+      ),
+    );
+    const summary = body.summary as Record<string, unknown>;
+    const detectionRule = body.detectionRule as Record<string, unknown>;
+    const household = body.household as Record<string, unknown>;
+
+    assert.equal(response.status, 200);
+    assert.equal(summary.paycheckAmountCents, 220_000);
+    assert.equal(summary.projectedProtectedCents, 155_000);
+    assert.equal(summary.projectedSafeToSpendCents, 65_000);
+    assert.equal(detectionRule.employerNamePattern, "Acme Payroll");
+    assert.equal(detectionRule.ruleName, "Acme weekly payroll");
+    assert.equal(household.userId, "user_control_plan");
+
+    const invalid = await getJson(
+      baseUrl,
+      "/api/app/control-plan",
+      jsonPost({
+        paycheckAmountCents: 1,
+      }),
+    );
+
+    assert.equal(invalid.response.status, 400);
+    assert.equal(invalid.body.service, "payshield-household-control-plan");
+    assert.equal(Array.isArray(invalid.body.errors), true);
   });
 });
 

@@ -365,6 +365,13 @@ requireText("src/app/lib/neobank/control-plan.ts", "POST /api/app/paychecks/rule
 requireText("src/app/lib/neobank/control-plan.ts", "POST /api/app/transfers");
 requireText("src/app/api/app/control-plan/route.ts", "createHouseholdMoneyControlPlan");
 requireText("src/app/api/app/control-plan/route.ts", "normalizeMoneyControlPlanInput");
+requireText("src/app/api/app/control-plan/route.ts", "forwardCoreRequest");
+requireText("services/core/product.mjs", "getHouseholdControlPlan");
+requireText("services/core/product.mjs", "payshield-household-control-plan");
+requireText("services/core/product.mjs", "projectedSafeToSpendCents");
+requireText("services/core/server.mjs", 'path === "/app/control-plan"');
+requireText("services/core/product.mjs", "GET /app/control-plan");
+requireText("services/core/product.mjs", "POST /app/control-plan");
 requireText("src/app/components/money-engine-console.tsx", "Money engine console");
 requireText(
   "src/app/components/money-engine-console.tsx",
