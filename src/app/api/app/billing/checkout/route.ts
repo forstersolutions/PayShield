@@ -164,6 +164,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       result.status === 200
         ? {
+            activation: {
+              autoActivationReady: result.readiness.checkoutOperationalReady,
+              mode: result.readiness.checkoutOperationalReady
+                ? "automatic"
+                : "payment_collection_only",
+              warning: result.readiness.checkoutOperationalReady
+                ? ""
+                : "Payment collection can start, but webhook activation and core persistence must be finished before paid app access unlocks automatically.",
+            },
             checkoutIntent,
             checkoutSessionId: result.checkoutSessionId,
             corePersistence: finalIntent?.body.persistence ?? null,

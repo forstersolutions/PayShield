@@ -43,18 +43,25 @@ export function PayShieldLogo({
 }
 
 export function PayShieldHeaderLogo({
-  className = "h-10 w-auto max-w-[12.5rem] sm:h-11 sm:max-w-[14rem]",
+  className = "",
   priority = false,
 }: BrandImageProps) {
   return (
-    <Image
-      alt="PayShield"
-      className={`pay-header-logo object-contain ${className}`}
-      height={306}
-      priority={priority}
-      src="/images/payshield-logo-clean.png"
-      width={855}
-    />
+    <span
+      className={`pay-header-logo ${className}`}
+      style={{
+        alignItems: "center",
+        display: "inline-flex",
+        gap: "0.55rem",
+        lineHeight: 1,
+      }}
+    >
+      <PayShieldMark className="size-8 sm:size-9" priority={priority} />
+      <span className="grid min-w-0 gap-0.5">
+        <span className="pay-header-logo-word">PayShield</span>
+        <span className="pay-header-logo-subline">by Grayston</span>
+      </span>
+    </span>
   );
 }
 

@@ -131,6 +131,7 @@ export async function POST(request: NextRequest) {
     cancelPath: cleanPath(payload.cancelPath, "/?billing=cancelled"),
     email,
     origin: request.nextUrl.origin,
+    requireAccessActivation: true,
     requireCheckoutSession: true,
     successPath: cleanPath(payload.successPath, "/app?billing=active"),
     userId,
@@ -224,4 +225,3 @@ export async function POST(request: NextRequest) {
     },
   );
 }
-

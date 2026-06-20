@@ -50,6 +50,7 @@ type OperationsReadiness = {
     checkoutOperationalReady?: boolean;
     mode?: string;
     paidAccessReady?: boolean;
+    paymentCollectionReady?: boolean;
     paymentLinkMode?: string;
     priceLabel?: string;
     productionLiveStripeReady?: boolean;
@@ -839,6 +840,10 @@ export function MoneyOperationsPanel({
         method: "POST",
       });
       const payload = (await response.json().catch(() => ({}))) as {
+        activation?: {
+          autoActivationReady?: boolean;
+          warning?: string;
+        };
         checkoutIntent?: CheckoutIntent;
         error?: string;
         readiness?: { missing?: string[] };
@@ -862,7 +867,9 @@ export function MoneyOperationsPanel({
       }
 
       setBillingState({
-        message: "Checkout intent recorded. Redirecting to checkout.",
+        message:
+          payload.activation?.warning ||
+          "Checkout intent recorded. Redirecting to checkout.",
         status: "ready",
       });
       appendOperation({
@@ -1882,6 +1889,92 @@ export function MoneyOperationsPanel({
     title: string;
     tone: "attention" | "ready";
   }>;
+  const commercialReality = [
+    {
+      blockers: readiness?.commercial?.paymentCollectionReady
+        ? []
+        : [...new Set(commercialGates.map(friendlyGateLabel))],
+      detail:
+        "Stripe checkout collects the subscription. Webhook and core activation turn that payment into paid app access.",
+      endpoint: "POST /api/public/billing/checkout + POST /api/app/billing/checkout",
+      icon: BadgeDollarSign,
+      label: "Make money",
+      provider: "Stripe",
+      ready: Boolean(readiness?.commercial?.paymentCollectionReady),
+      status: readiness?.commercial?.paymentCollectionReady
+        ? readiness?.commercial?.paidAccessReady
+          ? "collecting + activating"
+          : "collecting, activation pending"
+        : "Stripe setup needed",
+    },
+    {
+      blockers: readiness?.moneyRails?.bankLinkReady
+        ? []
+        : [...new Set(bankLinkGates.map(friendlyGateLabel))],
+      detail:
+        "Plaid Link opens from the app, exchanges the public token, and stores token custody outside the browser.",
+      endpoint: "POST /api/app/bank-link/token + POST /api/app/bank-link/exchange",
+      icon: Link2,
+      label: "Connect banks",
+      provider: "Plaid Link",
+      ready: Boolean(readiness?.moneyRails?.bankLinkReady),
+      status: readiness?.moneyRails?.bankLinkReady
+        ? "ready"
+        : readiness?.moneyRails?.plaidConfigured
+          ? "vault setup needed"
+          : "Plaid setup needed",
+    },
+    {
+      blockers: readiness?.moneyRails?.paycheckDetectionReady
+        ? []
+        : [...new Set(detectionGates.map(friendlyGateLabel))],
+      detail:
+        "Payroll rules, Plaid transaction sync, and signed provider events detect income before Safe to Spend is recalculated.",
+      endpoint: "POST /api/app/paychecks/rules + POST /api/app/paychecks/sync",
+      icon: Radar,
+      label: "Detect payroll",
+      provider: readiness?.moneyRails?.detectionMode ?? "Plaid/provider events",
+      ready: Boolean(readiness?.moneyRails?.paycheckDetectionReady),
+      status: readiness?.moneyRails?.paycheckDetectionReady
+        ? "automatic"
+        : "rule setup available",
+    },
+    {
+      blockers: [],
+      detail:
+        "Custom buckets, target amounts, due cadence, payees, and unlock rules define what money is protected first.",
+      endpoint: "POST /api/app/buckets + POST /api/app/payees",
+      icon: Split,
+      label: "Protect funds",
+      provider: "PayShield ledger",
+      ready: true,
+      status: "customizable now",
+    },
+    {
+      blockers: readiness?.moneyRails?.transferReady
+        ? []
+        : [...new Set(transferGates.map(friendlyGateLabel))],
+      detail:
+        "Transfers and card decisions validate Safe to Spend, approved payees, bucket balances, and provider handoff state.",
+      endpoint: "POST /api/app/transfers + POST /api/card/authorize",
+      icon: ArrowRightLeft,
+      label: "Move money",
+      provider: "BaaS/transfer adapter",
+      ready: Boolean(readiness?.moneyRails?.transferReady),
+      status: readiness?.moneyRails?.transferReady
+        ? "provider handoff ready"
+        : "intent validation active",
+    },
+  ] satisfies Array<{
+    blockers: string[];
+    detail: string;
+    endpoint: string;
+    icon: LucideIcon;
+    label: string;
+    provider: string;
+    ready: boolean;
+    status: string;
+  }>;
 
   return (
     <section
@@ -1905,6 +1998,80 @@ export function MoneyOperationsPanel({
               ledger, and validate every transfer or card decision against
               protected funds.
             </p>
+            <div className="mt-6 rounded-[8px] border border-[#39e8ff]/25 bg-[#06141a]/80 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="brand-kicker">Commercial reality board</p>
+                  <h3 className="mt-1 text-2xl font-black text-white">
+                    Revenue, bank link, detection, protection, and movement are real lanes.
+                  </h3>
+                </div>
+                <span className="inline-flex min-h-9 items-center rounded-[8px] border border-white/10 bg-black/35 px-3 text-xs font-black uppercase text-[#dffaff]">
+                  Provider-gated
+                </span>
+              </div>
+              <div className="mt-4 grid gap-3 lg:grid-cols-5">
+                {commercialReality.map((lane) => {
+                  const Icon = lane.icon;
+
+                  return (
+                    <article
+                      className={`grid min-h-64 content-start gap-3 rounded-[8px] border p-3 ${
+                        lane.ready
+                          ? "border-[#68f0c2]/25 bg-[#68f0c2]/[0.07]"
+                          : "border-[#ffb237]/25 bg-[#ffb237]/[0.08]"
+                      }`}
+                      key={lane.label}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <span
+                          className={`grid size-10 place-items-center rounded-[8px] border ${
+                            lane.ready
+                              ? "border-[#68f0c2]/25 bg-black/30 text-[#68f0c2]"
+                              : "border-[#ffb237]/25 bg-black/30 text-[#ffcf72]"
+                          }`}
+                        >
+                          <Icon className="size-5" aria-hidden="true" />
+                        </span>
+                        <span
+                          className={`rounded-[8px] px-2.5 py-1 text-[0.68rem] font-black capitalize ${
+                            lane.ready
+                              ? "bg-[#68f0c2]/10 text-[#9af7d5]"
+                              : "bg-[#ffb237]/10 text-[#ffe4ad]"
+                          }`}
+                        >
+                          {lane.status}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-xs font-black uppercase text-[#8f99aa]">
+                          {lane.provider}
+                        </p>
+                        <h4 className="mt-1 text-lg font-black text-white">
+                          {lane.label}
+                        </h4>
+                        <p className="mt-2 text-sm font-bold leading-6 text-[#c9d0da]">
+                          {lane.detail}
+                        </p>
+                      </div>
+                      <code className="mt-auto block overflow-x-auto rounded-[8px] border border-white/10 bg-black/40 px-3 py-2 font-mono text-[0.68rem] font-black uppercase text-[#39e8ff]">
+                        {lane.endpoint}
+                      </code>
+                      {lane.blockers.length ? (
+                        <p className="text-xs font-bold leading-5 text-[#ffe4ad]">
+                          Needs {lane.blockers.slice(0, 2).join(", ")}
+                          {lane.blockers.length > 2 ? " +" : ""}.
+                        </p>
+                      ) : (
+                        <p className="text-xs font-bold leading-5 text-[#9af7d5]">
+                          Ready from the current app state.
+                        </p>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
             <div className="mt-6 rounded-[8px] border border-white/10 bg-black/35 p-3">
               <p className="brand-kicker">Money path</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">

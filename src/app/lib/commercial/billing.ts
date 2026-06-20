@@ -180,6 +180,7 @@ export function getCommercialReadiness() {
     activationCoreReady,
     activationCoreServiceAuthConfigured,
     checkoutConfigured,
+    paymentCollectionReady: checkoutConfigured && productionLiveStripeReady,
     checkoutOperationalReady:
       checkoutConfigured &&
       webhook.signingSecretConfigured &&
@@ -256,11 +257,14 @@ export async function createCommercialCheckoutSession(input: {
   cancelPath?: string;
   email?: string;
   origin: string;
+  requireAccessActivation?: boolean;
   requireCheckoutSession?: boolean;
   successPath?: string;
   userId: string;
 }) {
   const readiness = getCommercialReadiness();
+  const checkoutSessionConfigured =
+    readiness.stripeSecretConfigured && readiness.stripePriceConfigured;
 
   if (!readiness.checkoutConfigured) {
     return {
@@ -272,18 +276,11 @@ export async function createCommercialCheckoutSession(input: {
     };
   }
 
-  if (!readiness.checkoutOperationalReady) {
-    return {
-      error:
-        "Commercial checkout is gated until webhook activation, core persistence, and live Stripe mode are ready.",
-      errorCode: "checkout_activation_not_ready",
-      readiness,
-      status: 424,
-      url: "",
-    };
-  }
-
-  if (input.requireCheckoutSession && readiness.paymentLinkUrl) {
+  if (
+    input.requireCheckoutSession &&
+    readiness.paymentLinkUrl &&
+    !checkoutSessionConfigured
+  ) {
     return {
       error:
         "Public checkout requires Stripe Checkout Session mode so PayShield can attach household identity metadata. Configure STRIPE_SECRET_KEY and PAYSHIELD_COMMERCIAL_PRICE_ID instead of a static payment link.",
@@ -294,8 +291,34 @@ export async function createCommercialCheckoutSession(input: {
     };
   }
 
-  if (readiness.paymentLinkUrl) {
+  if (!readiness.productionLiveStripeReady) {
     return {
+      error:
+        "Commercial checkout requires a live Stripe checkout asset in production.",
+      errorCode: "checkout_live_mode_required",
+      readiness,
+      status: 424,
+      url: "",
+    };
+  }
+
+  if (input.requireAccessActivation && !readiness.checkoutOperationalReady) {
+    return {
+      error:
+        "Commercial checkout is gated until webhook activation and core persistence are ready.",
+      errorCode: "checkout_activation_not_ready",
+      readiness,
+      status: 424,
+      url: "",
+    };
+  }
+
+  if (
+    readiness.paymentLinkUrl &&
+    !(input.requireCheckoutSession && checkoutSessionConfigured)
+  ) {
+    return {
+      accessActivationReady: readiness.checkoutOperationalReady,
       readiness,
       status: 200,
       url: readiness.paymentLinkUrl,
@@ -351,6 +374,7 @@ export async function createCommercialCheckoutSession(input: {
   }
 
   return {
+    accessActivationReady: readiness.checkoutOperationalReady,
     checkoutSessionId: payload.id,
     readiness,
     status: 200,

@@ -53,6 +53,7 @@ export function HouseholdCommandCenter() {
       checkoutConfigured: commercialReadiness.checkoutConfigured,
       mode: commercialReadiness.mode,
       paidAccessReady: commercialReadiness.paidAccessReady,
+      paymentCollectionReady: commercialReadiness.paymentCollectionReady,
       priceLabel: commercialReadiness.priceLabel,
       activationCoreReady: commercialReadiness.activationCoreReady,
       activationCoreServiceAuthConfigured:

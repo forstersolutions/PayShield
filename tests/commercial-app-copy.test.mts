@@ -110,6 +110,28 @@ test("app command center exposes a guided real-money setup surface", async () =>
   assert.match(commandCenter, /Usable product map/);
   assert.match(commandCenter, /The app is monetized before rails turn on/);
   assert.match(commandCenter, /Open owner activation console/);
+  const appLoading = await readFile("src/app/app/loading.tsx", "utf8");
+  const launchLoading = await readFile("src/app/launch/loading.tsx", "utf8");
+  const loadingShell = await readFile(
+    "src/app/components/route-loading-shell.tsx",
+    "utf8",
+  );
+
+  assert.match(appLoading, /Loading the money-control cockpit/);
+  assert.match(appLoading, /Collect paid access/);
+  assert.match(appLoading, /Connect bank source/);
+  assert.match(launchLoading, /Loading the activation cockpit/);
+  assert.match(launchLoading, /Verify revenue switch/);
+  assert.match(launchLoading, /Check live gates/);
+  assert.match(loadingShell, /PayShieldHeaderLogo/);
+  assert.match(loadingShell, /Preparing operating flow/);
+  const brandMark = await readFile(
+    "src/app/components/pay-shield-mark.tsx",
+    "utf8",
+  );
+
+  assert.match(brandMark, /PayShieldMark/);
+  assert.match(brandMark, /by Grayston/);
   assert.match(dashboard, /Real operating path/);
   assert.match(dashboard, /Make money, connect banks, detect payroll, protect funds/);
   assert.match(dashboard, /Start checkout/);
@@ -129,6 +151,15 @@ test("money operations surface shows revenue, rails, records, and export", async
   );
 
   assert.match(moneyOperations, /The revenue and money-control operating lane/);
+  assert.match(moneyOperations, /Commercial reality board/);
+  assert.match(
+    moneyOperations,
+    /Revenue, bank link, detection, protection, and movement are real lanes/,
+  );
+  assert.match(moneyOperations, /paymentCollectionReady/);
+  assert.match(moneyOperations, /collecting, activation pending/);
+  assert.match(moneyOperations, /POST \/api\/public\/billing\/checkout/);
+  assert.match(moneyOperations, /POST \/api\/app\/bank-link\/exchange/);
   assert.match(moneyOperations, /Use PayShield/);
   assert.match(moneyOperations, /Four controls run the money product/);
   assert.match(moneyOperations, /Charge the household/);
@@ -168,6 +199,13 @@ test("money operations surface shows revenue, rails, records, and export", async
     /Only payees approved for the selected protected bucket appear\s+here/,
   );
   assert.match(moneyOperations, /Approve a payee for this bucket/);
+  const appCheckoutRoute = await readFile(
+    "src/app/api/app/billing/checkout/route.ts",
+    "utf8",
+  );
+
+  assert.match(appCheckoutRoute, /payment_collection_only/);
+  assert.match(appCheckoutRoute, /autoActivationReady/);
 });
 
 test("bill routing workspace exposes protected payee setup before scheduling", async () => {

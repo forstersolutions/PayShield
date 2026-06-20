@@ -47,6 +47,7 @@ export function GET() {
         checkoutOperationalReady: commercial.checkoutOperationalReady,
         mode: commercial.mode,
         paidAccessReady: commercial.paidAccessReady,
+        paymentCollectionReady: commercial.paymentCollectionReady,
         paymentLinkMode: commercial.paymentLinkMode,
         priceLabel: commercial.priceLabel,
         productionLiveStripeReady: commercial.productionLiveStripeReady,

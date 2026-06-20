@@ -520,7 +520,7 @@ test("paid access checkout can return a configured payment link", async () => {
   }
 });
 
-test("paid access checkout blocks payment links without activation persistence", async () => {
+test("authenticated paid access checkout can collect while activation persistence is pending", async () => {
   process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL =
     "https://buy.stripe.com/live_missing_core";
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
@@ -532,14 +532,19 @@ test("paid access checkout blocks payment links without activation persistence",
     }),
   );
   const body = await parseJson(response);
+  const activation = body.activation as Record<string, unknown>;
   const readiness = body.readiness as Record<string, unknown>;
   const checkoutIntent = body.checkoutIntent as Record<string, unknown>;
 
-  assert.equal(response.status, 424);
+  assert.equal(response.status, 200);
+  assert.equal(body.url, "https://buy.stripe.com/live_missing_core");
+  assert.equal(activation.autoActivationReady, false);
+  assert.equal(activation.mode, "payment_collection_only");
   assert.equal(readiness.checkoutConfigured, true);
   assert.equal(readiness.checkoutOperationalReady, false);
-  assert.equal(checkoutIntent.status, "blocked");
-  assert.equal(checkoutIntent.errorCode, "checkout_activation_not_ready");
+  assert.equal(readiness.paymentCollectionReady, true);
+  assert.equal(checkoutIntent.status, "payment_link");
+  assert.equal(checkoutIntent.errorCode, null);
 });
 
 test("paid access checkout session uses the authenticated customer identity", async () => {

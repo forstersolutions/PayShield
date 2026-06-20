@@ -70,6 +70,8 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
 [
   "src/app/page.tsx",
   "src/app/layout.tsx",
+  "src/app/app/loading.tsx",
+  "src/app/launch/loading.tsx",
   "src/app/icon.svg",
   "src/app/manifest.ts",
   "src/app/privacy/page.tsx",
@@ -258,6 +260,10 @@ requireText("src/app/components/neobank-dashboard.tsx", "Provider readiness");
 requireText("src/app/components/neobank-dashboard.tsx", "support@graystontechnologies.com");
 requireText("src/app/page.tsx", "NeobankDashboard");
 requireText("src/app/app/page.tsx", 'dynamic = "force-dynamic"');
+requireText("src/app/app/loading.tsx", "RouteLoadingShell");
+requireText("src/app/app/loading.tsx", "Loading the money-control cockpit.");
+requireText("src/app/launch/loading.tsx", "RouteLoadingShell");
+requireText("src/app/launch/loading.tsx", "Loading the activation cockpit.");
 requireText("src/app/components/waitlist-form.tsx", "Contact Grayston support");
 requireText("src/app/components/neobank-dashboard.tsx", "PublicCheckoutForm");
 requireText("src/app/components/public-checkout-form.tsx", "/api/public/billing/checkout");
@@ -292,6 +298,13 @@ requireText("src/app/components/household-command-center.tsx", "POST /api/app/pa
 requireText("src/app/api/app/bill-payments/route.ts", "/api/app/bill-payments");
 requireText("src/app/api/app/bill-payments/route.ts", "simulateBillPayment");
 requireText("src/app/components/money-operations-panel.tsx", "Save detection rule");
+requireText("src/app/components/money-operations-panel.tsx", "Commercial reality board");
+requireText(
+  "src/app/components/money-operations-panel.tsx",
+  "Revenue, bank link, detection, protection, and movement are real lanes.",
+);
+requireText("src/app/components/money-operations-panel.tsx", "collecting, activation pending");
+requireText("src/app/components/money-operations-panel.tsx", "/api/app/bank-link/exchange");
 requireText("src/app/components/money-operations-panel.tsx", "Revenue and rails");
 requireText("src/app/components/money-operations-panel.tsx", "The commercial operating map.");
 requireText("src/app/components/money-operations-panel.tsx", "Manage billing");
@@ -379,8 +392,11 @@ requireText("src/app/lib/neobank/core-config.ts", "PAYSHIELD_CORE_API_URL");
 requireText("src/app/lib/neobank/core-config.ts", "VERCEL_ENV");
 requireText("src/app/lib/neobank/core-client.ts", "x-payshield-provider-signature");
 requireText("src/app/lib/commercial/billing.ts", "requireCheckoutSession");
+requireText("src/app/lib/commercial/billing.ts", "paymentCollectionReady");
 requireText("src/app/lib/commercial/billing.ts", "requirePaidAccessForFallback");
 requireText("src/app/lib/commercial/billing.ts", "metadata[payshield_customer_email]");
+requireText("src/app/api/app/billing/checkout/route.ts", "payment_collection_only");
+requireText("src/app/api/app/billing/checkout/route.ts", "autoActivationReady");
 requireText("src/app/lib/commercial/stripe-webhook.ts", "billingIdentityUserId");
 requireText("src/app/lib/commercial/stripe-webhook.ts", "subscriptionDetailsObject");
 requireText("src/app/lib/commercial/stripe-webhook.ts", "payshield_customer_email");

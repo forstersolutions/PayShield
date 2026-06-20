@@ -138,28 +138,78 @@ textarea {
   align-self: flex-start;
   align-items: center;
   justify-content: center;
-  padding: 0.22rem 0.58rem 0.22rem 0.46rem;
-  border: 1px solid rgba(57, 232, 255, 0.26);
+  padding: 0.2rem 0.54rem 0.2rem 0.42rem;
+  border: 1px solid rgba(57, 232, 255, 0.22);
   border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(233, 244, 255, 0.92)),
-    #f7fbff;
+    linear-gradient(135deg, rgba(57, 232, 255, 0.13), rgba(255, 178, 55, 0.05)),
+    rgba(4, 7, 10, 0.78);
   box-shadow:
-    0 16px 38px rgba(21, 136, 255, 0.16),
-    0 0 0 1px rgba(255, 255, 255, 0.12);
+    0 18px 46px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
   text-decoration: none;
+  backdrop-filter: blur(18px);
 }
 
 .pay-header-logo {
-  display: block;
-  filter: drop-shadow(0 8px 14px rgba(21, 136, 255, 0.14));
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.55rem;
+  line-height: 1;
+}
+
+.pay-header-logo-word {
+  color: #ffffff;
+  font-size: 1.08rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-shadow: 0 0 18px rgba(57, 232, 255, 0.16);
+}
+
+.pay-header-logo-subline {
+  color: #91ddeb;
+  font-size: 0.64rem;
+  font-weight: 850;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
 .pay-header-brand:hover {
-  border-color: rgba(57, 232, 255, 0.45);
+  border-color: rgba(57, 232, 255, 0.44);
+  background:
+    linear-gradient(135deg, rgba(57, 232, 255, 0.18), rgba(255, 178, 55, 0.07)),
+    rgba(6, 10, 14, 0.9);
   box-shadow:
-    0 18px 42px rgba(21, 136, 255, 0.22),
-    0 0 0 1px rgba(255, 255, 255, 0.18);
+    0 20px 52px rgba(21, 136, 255, 0.18),
+    0 0 0 1px rgba(255, 255, 255, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.11);
+}
+
+.route-loading-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.route-loading-shimmer::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.075) 46%,
+    transparent 72%
+  );
+  transform: translateX(-100%);
+  animation: route-loading-sweep 1.7s ease-in-out infinite;
+}
+
+@keyframes route-loading-sweep {
+  to {
+    transform: translateX(100%);
+  }
 }
 
 .pay-primary-nav {
@@ -274,5 +324,10 @@ textarea {
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+
+  .route-loading-shimmer::after {
+    animation: none;
+    transform: none;
   }
 }
