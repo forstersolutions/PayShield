@@ -5,6 +5,7 @@ import { getWaitlistCaptureConfig } from "../../lib/waitlist-capture-config.ts";
 import { getNeobankReadiness } from "../../lib/neobank/readiness.ts";
 import { getAppAccessReadiness } from "../../lib/neobank/app-access.ts";
 import {
+  buildActivationRunway,
   buildCommercialOperatingState,
   buildGuidedMoneyFlow,
 } from "../../lib/neobank/operations.ts";
@@ -32,6 +33,14 @@ export function GET() {
   });
   const guidedMoneyFlow = buildGuidedMoneyFlow({
     commercial,
+    moneyRails,
+    neobank,
+    protectedCents,
+    safeToSpendCents,
+  });
+  const activationRunway = buildActivationRunway({
+    commercial,
+    guidedMoneyFlow,
     moneyRails,
     neobank,
     protectedCents,
@@ -94,6 +103,7 @@ export function GET() {
         reviewTokenAccepted: appAccess.reviewTokenAccepted,
         reviewTokenConfigured: appAccess.reviewTokenConfigured,
       },
+      activationRunway,
       commercialOperatingState,
       guidedMoneyFlow,
       moneyRails: {

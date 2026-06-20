@@ -280,7 +280,60 @@ type GuidedMoneyFlow = {
   };
 };
 
+type ActivationRunwayMilestone = {
+  blockers?: string[];
+  canRunNow?: boolean;
+  customerOutcome?: string;
+  endpoint: string;
+  key: string;
+  label: string;
+  operatorOutcome?: string;
+  primaryAction: string;
+  proofArtifacts?: string[];
+  ready?: boolean;
+  revenueImpact?: string;
+  setupAction?: string;
+  title: string;
+};
+
+type ActivationRunway = {
+  customerPath?: string[];
+  headline?: string;
+  milestones?: ActivationRunwayMilestone[];
+  mode?: string;
+  nextMilestone?: {
+    blockers?: string[];
+    canRunNow?: boolean;
+    endpoint?: string;
+    key?: string;
+    label?: string;
+    primaryAction?: string;
+    revenueImpact?: string;
+    setupAction?: string;
+    title?: string;
+  };
+  ownerPath?: string[];
+  proof?: {
+    activationEndpoint?: string;
+    auditEndpoint?: string;
+    healthEndpoint?: string;
+    operationsEndpoint?: string;
+    productionStatusCommand?: string;
+    requiredBeforeLiveMoney?: string[];
+    supportContact?: string;
+  };
+  progress?: {
+    blockedMilestoneCount?: number;
+    percent?: number;
+    readyMilestoneCount?: number;
+    runnableMilestoneCount?: number;
+    totalMilestoneCount?: number;
+  };
+  service?: string;
+};
+
 type OperationsPacket = {
+  activationRunway?: ActivationRunway;
   balances?: {
     protectedCents?: number;
     safeToSpendCents?: number;
@@ -1608,6 +1661,7 @@ export function MoneyOperationsPanel({
     ...(operations?.timeline ?? []),
   ].slice(0, 8);
   const guidedMoneyFlow = operations?.guidedMoneyFlow;
+  const activationRunway = operations?.activationRunway;
   const guidedSteps = guidedMoneyFlow?.steps ?? [];
   const revenueAndRails = operations?.revenueAndRails;
   const revenueRails = revenueAndRails?.rails ?? [];
@@ -1857,6 +1911,26 @@ export function MoneyOperationsPanel({
   const guidedPercent =
     guidedMoneyFlow?.progress?.percent ??
     Math.round((guidedReadyCount / Math.max(1, guidedTotalCount)) * 100);
+  const runwayMilestones = activationRunway?.milestones ?? [];
+  const runwayReadyCount =
+    activationRunway?.progress?.readyMilestoneCount ??
+    runwayMilestones.filter((milestone) => milestone.ready).length;
+  const runwayTotalCount =
+    activationRunway?.progress?.totalMilestoneCount ??
+    runwayMilestones.length;
+  const runwayRunnableCount =
+    activationRunway?.progress?.runnableMilestoneCount ??
+    runwayMilestones.filter((milestone) => milestone.canRunNow).length;
+  const runwayBlockedCount =
+    activationRunway?.progress?.blockedMilestoneCount ??
+    runwayMilestones.filter((milestone) => (milestone.blockers?.length ?? 0) > 0)
+      .length;
+  const runwayNextMilestone = activationRunway?.nextMilestone;
+  const runwayProofItems = [
+    activationRunway?.proof?.operationsEndpoint,
+    activationRunway?.proof?.activationEndpoint,
+    activationRunway?.proof?.auditEndpoint,
+  ].filter((item): item is string => Boolean(item));
   const displayGuidedSteps: GuidedMoneyFlowStep[] = guidedSteps.length
     ? guidedSteps
     : railStack.map((rail) => ({
@@ -2259,6 +2333,112 @@ export function MoneyOperationsPanel({
                     {guidedNextStep?.endpoint ?? nextExecutableRail.endpoint}
                   </code>
                 </div>
+                {activationRunway ? (
+                  <div className="mt-4 rounded-[8px] border border-white/10 bg-black/35 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="brand-kicker">Activation runway</p>
+                        <h3 className="mt-1 text-xl font-black text-white">
+                          {activationRunway.headline ??
+                            "Collect revenue, connect money, prove protection."}
+                        </h3>
+                      </div>
+                      <span className="rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 px-2.5 py-1 text-xs font-black uppercase text-[#dffaff]">
+                        {formatStateLabel(activationRunway.mode)}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                      <span className="rounded-[8px] border border-[#68f0c2]/20 bg-[#68f0c2]/10 p-2">
+                        <span className="brand-kicker">Milestones</span>
+                        <span className="mt-1 block text-lg font-black text-white">
+                          {runwayReadyCount}/{runwayTotalCount}
+                        </span>
+                      </span>
+                      <span className="rounded-[8px] border border-[#39e8ff]/20 bg-[#39e8ff]/10 p-2">
+                        <span className="brand-kicker">Runnable</span>
+                        <span className="mt-1 block text-lg font-black text-white">
+                          {runwayRunnableCount}
+                        </span>
+                      </span>
+                      <span className="rounded-[8px] border border-[#ffb237]/20 bg-[#ffb237]/10 p-2">
+                        <span className="brand-kicker">Gated</span>
+                        <span className="mt-1 block text-lg font-black text-white">
+                          {runwayBlockedCount}
+                        </span>
+                      </span>
+                    </div>
+
+                    <div className="mt-3 rounded-[8px] border border-[#ffb237]/20 bg-[#ffb237]/10 p-3">
+                      <p className="brand-kicker">Next revenue unlock</p>
+                      <p className="mt-1 text-base font-black text-white">
+                        {runwayNextMilestone?.title ?? "Collect the first paid household"}
+                      </p>
+                      <p className="mt-2 text-sm font-bold leading-6 text-[#ffe4bd]">
+                        {runwayNextMilestone?.revenueImpact ??
+                          "Start paid household revenue before private money controls unlock."}
+                      </p>
+                      <p className="mt-2 text-xs font-bold leading-5 text-[#ffcf72]">
+                        {runwayNextMilestone?.canRunNow
+                          ? "Runnable from the current configuration."
+                          : runwayNextMilestone?.setupAction ??
+                            "Provider setup is required before this milestone can run."}
+                      </p>
+                    </div>
+
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {runwayMilestones.slice(0, 6).map((milestone) => (
+                        <div
+                          className={`rounded-[8px] border p-2 ${
+                            milestone.ready
+                              ? "border-[#68f0c2]/20 bg-[#68f0c2]/10"
+                              : milestone.canRunNow
+                                ? "border-[#39e8ff]/20 bg-[#39e8ff]/10"
+                                : "border-white/10 bg-black/30"
+                          }`}
+                          key={milestone.key}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-black uppercase text-[#8f99aa]">
+                              {milestone.label}
+                            </span>
+                            <span
+                              className={`rounded-[8px] px-2 py-0.5 text-[0.68rem] font-black ${
+                                milestone.ready
+                                  ? "bg-[#68f0c2]/10 text-[#9af7d5]"
+                                  : milestone.canRunNow
+                                    ? "bg-[#39e8ff]/10 text-[#dffaff]"
+                                    : "bg-[#ffb237]/10 text-[#ffe4ad]"
+                              }`}
+                            >
+                              {milestone.ready
+                                ? "ready"
+                                : milestone.canRunNow
+                                  ? "run"
+                                  : "setup"}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-sm font-black leading-5 text-white">
+                            {milestone.title}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {runwayProofItems.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {runwayProofItems.map((endpoint) => (
+                          <code
+                            className="rounded-[8px] border border-white/10 bg-black/35 px-2 py-1 font-mono text-[0.68rem] font-black uppercase text-[#39e8ff]"
+                            key={endpoint}
+                          >
+                            {endpoint}
+                          </code>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <button

@@ -220,6 +220,11 @@ test("money operations surface shows revenue, rails, records, and export", async
   assert.match(moneyOperations, /Run the money product from here/);
   assert.match(moneyOperations, /Guided money flow/);
   assert.match(moneyOperations, /guidedMoneyFlow/);
+  assert.match(moneyOperations, /Activation runway/);
+  assert.match(moneyOperations, /activationRunway/);
+  assert.match(moneyOperations, /runwayMilestones/);
+  assert.match(moneyOperations, /Next revenue unlock/);
+  assert.match(moneyOperations, /Collect revenue, connect money, prove protection/);
   assert.match(moneyOperations, /displayGuidedSteps/);
   assert.match(moneyOperations, /Next best action/);
   assert.match(moneyOperations, /Pay -> connect -> route -> detect -> protect -> release/);

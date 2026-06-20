@@ -407,6 +407,13 @@ requireText("src/app/components/money-operations-panel.tsx", "Revenue and rails"
 requireText("src/app/components/money-operations-panel.tsx", "The commercial operating map.");
 requireText("src/app/components/money-operations-panel.tsx", "Guided money flow");
 requireText("src/app/components/money-operations-panel.tsx", "guidedMoneyFlow");
+requireText("src/app/components/money-operations-panel.tsx", "Activation runway");
+requireText("src/app/components/money-operations-panel.tsx", "activationRunway");
+requireText("src/app/components/money-operations-panel.tsx", "Next revenue unlock");
+requireText(
+  "src/app/components/money-operations-panel.tsx",
+  "Collect revenue, connect money, prove protection",
+);
 requireText("src/app/components/money-operations-panel.tsx", "displayGuidedSteps");
 requireText(
   "src/app/components/money-operations-panel.tsx",
@@ -502,6 +509,8 @@ requireText("src/app/api/launch/activation/route.ts", "createHouseholdActivation
 requireText("src/app/lib/neobank/operations.ts", "npx vercel env add");
 requireText("src/app/lib/neobank/operations.ts", "revenueAndRails");
 requireText("src/app/lib/neobank/operations.ts", "buildOperatingCockpit");
+requireText("src/app/lib/neobank/operations.ts", "buildActivationRunway");
+requireText("src/app/lib/neobank/operations.ts", "payshield-activation-runway");
 requireText("src/app/lib/neobank/operations.ts", "payshield-operating-cockpit");
 requireText("src/app/lib/neobank/operations.ts", "operatingCockpit");
 requireText("src/app/lib/neobank/operations.ts", "Get paid");

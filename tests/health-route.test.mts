@@ -36,6 +36,15 @@ async function parseJson(response: Response) {
       revenueModel?: Record<string, unknown>;
       totalRailCount?: unknown;
     };
+    activationRunway?: {
+      headline?: unknown;
+      milestones?: Array<Record<string, unknown>>;
+      mode?: unknown;
+      nextMilestone?: Record<string, unknown>;
+      progress?: Record<string, unknown>;
+      proof?: Record<string, unknown>;
+      service?: unknown;
+    };
     guidedMoneyFlow?: {
       headline?: unknown;
       mode?: unknown;
@@ -387,6 +396,33 @@ test("reports commercial and money rail readiness gates", async () => {
   assert.equal(
     missingBody.commercialOperatingState?.headline,
     "Subscribe -> connect bank -> detect paycheck -> protect -> release",
+  );
+  assert.equal(missingBody.activationRunway?.service, "payshield-activation-runway");
+  assert.equal(
+    missingBody.activationRunway?.headline,
+    "Collect revenue, connect money, prove protection.",
+  );
+  assert.equal(missingBody.activationRunway?.mode, "setup_to_first_payment");
+  assert.equal(missingBody.activationRunway?.nextMilestone?.key, "first_revenue");
+  assert.equal(
+    missingBody.activationRunway?.nextMilestone?.endpoint,
+    "POST /api/app/billing/checkout",
+  );
+  assert.equal(
+    missingBody.activationRunway?.progress?.readyMilestoneCount,
+    1,
+  );
+  assert.equal(
+    missingBody.activationRunway?.progress?.totalMilestoneCount,
+    6,
+  );
+  assert.equal(
+    missingBody.activationRunway?.milestones?.some(
+      (milestone) =>
+        milestone.key === "first_audit_proof" &&
+        milestone.endpoint === "GET /api/app/audit/export",
+    ),
+    true,
   );
   assert.equal(
     missingBody.guidedMoneyFlow?.headline,

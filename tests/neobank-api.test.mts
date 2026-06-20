@@ -169,6 +169,7 @@ test("operations endpoint exposes the revenue and money-control record", async (
   const statusCards = body.statusCards as Array<Record<string, unknown>>;
   const timeline = body.timeline as Array<Record<string, unknown>>;
   const activationPlan = body.activationPlan as Record<string, unknown>;
+  const activationRunway = body.activationRunway as Record<string, unknown>;
   const activationStages = activationPlan.stages as Array<Record<string, unknown>>;
   const revenueAndRails = body.revenueAndRails as Record<string, unknown>;
   const operatingCockpit = body.operatingCockpit as Record<string, unknown>;
@@ -181,6 +182,9 @@ test("operations endpoint exposes the revenue and money-control record", async (
   const nextAction = operatingCockpit.nextAction as Record<string, unknown>;
   const rails = revenueAndRails.rails as Array<Record<string, unknown>>;
   const guidedSteps = guidedMoneyFlow.steps as Array<Record<string, unknown>>;
+  const runwayMilestones = activationRunway.milestones as Array<
+    Record<string, unknown>
+  >;
   const commercialRails = commercialOperatingState.rails as Array<
     Record<string, unknown>
   >;
@@ -196,6 +200,54 @@ test("operations endpoint exposes the revenue and money-control record", async (
   assert.equal(timeline[0]?.rail, "ledger");
   assert.equal(activationPlan.revenueReady, false);
   assert.equal(activationPlan.nextStageKey, "revenue");
+  assert.equal(activationRunway.service, "payshield-activation-runway");
+  assert.equal(
+    activationRunway.headline,
+    "Collect revenue, connect money, prove protection.",
+  );
+  assert.equal(activationRunway.mode, "setup_to_first_payment");
+  assert.equal(
+    (activationRunway.nextMilestone as Record<string, unknown>).key,
+    "first_revenue",
+  );
+  assert.equal(
+    (activationRunway.nextMilestone as Record<string, unknown>).primaryAction,
+    "Start checkout",
+  );
+  assert.equal(
+    (activationRunway.progress as Record<string, unknown>).readyMilestoneCount,
+    1,
+  );
+  assert.equal(
+    (activationRunway.progress as Record<string, unknown>).totalMilestoneCount,
+    6,
+  );
+  assert.deepEqual(
+    runwayMilestones.map((milestone) => milestone.key),
+    [
+      "first_revenue",
+      "first_bank_connection",
+      "first_detected_paycheck",
+      "first_protection_profile",
+      "first_audit_proof",
+      "first_live_decision",
+    ],
+  );
+  assert.equal(
+    runwayMilestones.some(
+      (milestone) =>
+        milestone.key === "first_protection_profile" &&
+        milestone.ready === true &&
+        milestone.canRunNow === true &&
+        String(milestone.revenueImpact).includes("immediate value"),
+    ),
+    true,
+  );
+  assert.equal(
+    ((activationRunway.proof as Record<string, unknown>)
+      .requiredBeforeLiveMoney as unknown[]).includes("postgres_ledger"),
+    true,
+  );
   assert.deepEqual(activationPlan.businessModel, {
     billingProvider: "Stripe",
     priceLabel: "$19/month",
