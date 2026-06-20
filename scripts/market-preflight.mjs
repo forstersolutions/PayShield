@@ -323,10 +323,15 @@ requireText("src/app/api/app/bill-payments/route.ts", "/api/app/bill-payments");
   );
 });
 requireText("src/app/components/money-operations-panel.tsx", "Save detection rule");
-requireText("src/app/components/money-operations-panel.tsx", "Commercial reality board");
+requireText("src/app/components/money-operations-panel.tsx", "Start here / Money operations");
+requireText("src/app/components/money-operations-panel.tsx", "What actually turns on");
 requireText(
   "src/app/components/money-operations-panel.tsx",
-  "Revenue, bank link, detection, protection, and movement are real lanes.",
+  "Revenue, bank link, detection, protection, and movement are",
+);
+requireText(
+  "src/app/components/money-operations-panel.tsx",
+  "the app lanes.",
 );
 requireText("src/app/components/money-operations-panel.tsx", "collecting, activation pending");
 requireText("src/app/components/money-operations-panel.tsx", "/api/app/bank-link/exchange");

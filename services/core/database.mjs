@@ -308,6 +308,22 @@ function payeeFromRow(row) {
   };
 }
 
+function householdIdentityFromRow(row = {}) {
+  return {
+    householdId: row.household_id,
+    profileAccess: row.beta_access_status || "approved",
+    user: {
+      clerkSubject: row.clerk_subject || null,
+      email: row.email,
+      householdId: row.household_id,
+      id: row.id,
+      kycStatus: row.kyc_status || "provider_pending",
+      name: row.name,
+      profileAccess: row.beta_access_status || "approved",
+    },
+  };
+}
+
 function paycheckDetectionRuleFromRow(row = {}) {
   return {
     amountRangeCents: {
@@ -483,9 +499,32 @@ async function ensureHousehold(client, input) {
 }
 
 async function ensureHouseholdIdentity(client, input) {
-  await ensureHousehold(client, input);
+  let actorUserId = input.actorUserId;
+  let householdId = input.householdId;
 
-  await client.query(
+  if (input.clerkSubject) {
+    const existing = await client.query(
+      `
+        SELECT id, household_id
+        FROM app_users
+        WHERE clerk_subject = $1
+        LIMIT 1
+      `,
+      [input.clerkSubject],
+    );
+
+    if (existing.rows[0]) {
+      actorUserId = existing.rows[0].id;
+      householdId = existing.rows[0].household_id;
+    }
+  }
+
+  await ensureHousehold(client, {
+    ...input,
+    householdId,
+  });
+
+  const result = await client.query(
     `
       INSERT INTO app_users (
         id,
@@ -502,16 +541,30 @@ async function ensureHouseholdIdentity(client, input) {
         email = EXCLUDED.email,
         name = EXCLUDED.name,
         kyc_status = EXCLUDED.kyc_status
+      RETURNING id, household_id, clerk_subject, email, name, kyc_status
     `,
     [
-      input.actorUserId,
-      input.householdId,
+      actorUserId,
+      householdId,
       input.clerkSubject || null,
       input.userEmail || "private-household@example.com",
       input.userName || "PayShield household",
       input.kycStatus || "provider_pending",
     ],
   );
+  const household = await client.query(
+    `
+      SELECT beta_access_status
+      FROM households
+      WHERE id = $1
+    `,
+    [householdId],
+  );
+
+  return householdIdentityFromRow({
+    ...result.rows[0],
+    beta_access_status: household.rows[0]?.beta_access_status,
+  });
 }
 
 function payeeIdFor(input) {
@@ -528,6 +581,54 @@ function payeeIdFor(input) {
       .slice(0, 48) || "payee";
 
   return `payee_modeled_${slug}`;
+}
+
+export async function persistHouseholdIdentity(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return {
+      ...persistenceSkipped("household identity", env),
+      identity: householdIdentityFromRow({
+        beta_access_status: input.betaAccessStatus || "approved",
+        clerk_subject: input.clerkSubject || null,
+        email: input.userEmail || "private-household@example.com",
+        household_id: input.householdId,
+        id: input.actorUserId,
+        kyc_status: input.kycStatus || "provider_pending",
+        name: input.userName || "PayShield household",
+      }),
+    };
+  }
+
+  let client = null;
+
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const identity = await ensureHouseholdIdentity(client, input);
+
+    await client.query("COMMIT");
+
+    return {
+      identity,
+      persisted: true,
+      persistence: "postgres",
+    };
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Ignore rollback failures; the original error is more useful.
+      }
+    }
+
+    return persistenceFailed(error);
+  } finally {
+    client?.release();
+  }
 }
 
 export async function loadPayees(householdId, env = process.env) {

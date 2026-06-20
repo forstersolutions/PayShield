@@ -1986,37 +1986,37 @@ export function MoneyOperationsPanel({
           <div className="accent-rule pt-5 lg:col-span-2">
             <p className="inline-flex items-center gap-2 rounded-[8px] border border-[#39e8ff]/30 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black uppercase tracking-[0.14em] text-[#dffaff]">
               <Landmark className="size-4" aria-hidden="true" />
-              Money operations
+              Start here / Money operations
             </p>
             <h2 className="mt-4 text-3xl font-black leading-tight text-white sm:text-4xl">
-              The revenue and money-control operating lane.
+              Get paid, connect the bank, then protect the paycheck.
             </h2>
             <p className="mt-4 max-w-2xl text-base leading-7 text-[#c9d0da]">
-              This is how PayShield makes money and controls the paycheck:
-              charge the household, bind that customer to an account, connect
-              the bank source, set paycheck routing, detect income, split the
-              ledger, and validate every transfer or card decision against
-              protected funds.
+              This is the working path inside PayShield: charge the household,
+              bind that customer to a household record, connect the bank source,
+              detect payroll, split the ledger, and validate every transfer or
+              card decision against protected funds.
             </p>
             <div className="mt-6 rounded-[8px] border border-[#39e8ff]/25 bg-[#06141a]/80 p-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="brand-kicker">Commercial reality board</p>
+                  <p className="brand-kicker">What actually turns on</p>
                   <h3 className="mt-1 text-2xl font-black text-white">
-                    Revenue, bank link, detection, protection, and movement are real lanes.
+                    Revenue, bank link, detection, protection, and movement are
+                    the app lanes.
                   </h3>
                 </div>
                 <span className="inline-flex min-h-9 items-center rounded-[8px] border border-white/10 bg-black/35 px-3 text-xs font-black uppercase text-[#dffaff]">
-                  Provider-gated
+                  Credential-gated
                 </span>
               </div>
-              <div className="mt-4 grid gap-3 lg:grid-cols-5">
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {commercialReality.map((lane) => {
                   const Icon = lane.icon;
 
                   return (
                     <article
-                      className={`grid min-h-64 content-start gap-3 rounded-[8px] border p-3 ${
+                      className={`grid min-h-56 content-start gap-3 rounded-[8px] border p-3 ${
                         lane.ready
                           ? "border-[#68f0c2]/25 bg-[#68f0c2]/[0.07]"
                           : "border-[#ffb237]/25 bg-[#ffb237]/[0.08]"

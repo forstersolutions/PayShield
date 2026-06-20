@@ -330,9 +330,15 @@ export function HouseholdCommandCenter() {
           >
             <a
               className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
-              href="#money-engine"
+              href="#money-operations"
             >
-              Engine
+              Start
+            </a>
+            <a
+              className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
+              href="#money-flow"
+            >
+              Flow
             </a>
             <a
               className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
@@ -345,12 +351,6 @@ export function HouseholdCommandCenter() {
               href="#control-plan"
             >
               Plan
-            </a>
-            <a
-              className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
-              href="#money-operations"
-            >
-              Rails
             </a>
             <a
               className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
@@ -372,9 +372,9 @@ export function HouseholdCommandCenter() {
             </a>
             <Link
               className="pay-primary-nav-link pay-primary-nav-cta brand-button-primary gap-2 rounded-[8px] px-4 py-2 font-black"
-              href="#money-flow"
+              href="#money-operations"
             >
-              Money flow
+              Run money flow
               <ArrowRight className="size-4" aria-hidden="true" />
             </Link>
           </nav>
@@ -507,14 +507,14 @@ export function HouseholdCommandCenter() {
           </div>
         </section>
 
-        <MoneyControlPlanPanel initialPlan={initialControlPlan} />
-
         <MoneyOperationsPanel
           buckets={snapshot.buckets}
           initialOperations={initialOperations}
           initialReadiness={initialOperationsReadiness}
           payees={snapshot.payees}
         />
+
+        <MoneyControlPlanPanel initialPlan={initialControlPlan} />
 
         <section
           id="activation-console"

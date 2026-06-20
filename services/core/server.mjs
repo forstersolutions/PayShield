@@ -291,7 +291,7 @@ export function createCoreServer() {
 
     try {
       if (request.method === "GET" && path === "/app/me") {
-        json(response, 200, getProfile(process.env, actor));
+        await writeResult(response, getProfile(process.env, actor));
         return;
       }
 

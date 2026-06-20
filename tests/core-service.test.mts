@@ -176,6 +176,60 @@ test("core health exposes product operation routes and fail-closed readiness", a
   });
 });
 
+test("core profile route binds authenticated users to a household identity", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(baseUrl, "/api/app/me", {
+      headers: {
+        "x-payshield-auth-mode": "clerk",
+        "x-payshield-clerk-subject": "clerk_user_identity_001",
+        "x-payshield-user-email": "identity@example.com",
+        "x-payshield-user-id": "user_identity_001",
+        "x-payshield-user-name": "Identity Household",
+      },
+    });
+    const identityPersistence = body.identityPersistence as Record<
+      string,
+      unknown
+    >;
+    const identity = identityPersistence.identity as Record<string, unknown>;
+    const user = body.user as Record<string, unknown>;
+
+    assert.equal(response.status, 200);
+    assert.equal(body.householdId, "household_user_identity_001");
+    assert.equal(body.service, undefined);
+    assert.equal(identityPersistence.persistence, "memory");
+    assert.equal(identityPersistence.persisted, false);
+    assert.equal(identity.householdId, "household_user_identity_001");
+    assert.equal(user.clerkSubject, "clerk_user_identity_001");
+    assert.equal(user.email, "identity@example.com");
+    assert.equal(user.id, "user_identity_001");
+    assert.equal(user.name, "Identity Household");
+    assert.equal((body.auth as Record<string, unknown>).userId, "user_identity_001");
+  });
+});
+
+test("core profile route fails closed when durable identity storage is required", async () => {
+  process.env.PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE = "true";
+
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(baseUrl, "/api/app/me", {
+      headers: {
+        "x-payshield-user-id": "user_requires_identity_db",
+      },
+    });
+    const identityPersistence = body.identityPersistence as Record<
+      string,
+      unknown
+    >;
+
+    assert.equal(response.status, 503);
+    assert.equal(body.code, "postgres_identity_required");
+    assert.equal(body.service, "payshield-household-identity");
+    assert.equal(identityPersistence.persistence, "postgres_required");
+    assert.match(String(body.error), /PAYSHIELD_LEDGER_DATABASE_URL/);
+  });
+});
+
 test("core operations endpoint exposes household money-control records", async () => {
   await withCoreServer(async (baseUrl) => {
     const { body, response } = await getJson(baseUrl, "/api/app/operations");

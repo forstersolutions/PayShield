@@ -207,11 +207,15 @@ test("money operations surface shows revenue, rails, records, and export", async
     "utf8",
   );
 
-  assert.match(moneyOperations, /The revenue and money-control operating lane/);
-  assert.match(moneyOperations, /Commercial reality board/);
+  assert.match(moneyOperations, /Start here \/ Money operations/);
   assert.match(
     moneyOperations,
-    /Revenue, bank link, detection, protection, and movement are real lanes/,
+    /Get paid, connect the bank, then protect the paycheck/,
+  );
+  assert.match(moneyOperations, /What actually turns on/);
+  assert.match(
+    moneyOperations,
+    /Revenue, bank link, detection, protection, and movement are\s+the app lanes/,
   );
   assert.match(moneyOperations, /paymentCollectionReady/);
   assert.match(moneyOperations, /collecting, activation pending/);

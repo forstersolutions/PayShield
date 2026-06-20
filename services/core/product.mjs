@@ -16,6 +16,7 @@ import {
   persistCommercialBillingEvent,
   persistCommercialCheckoutIntent,
   persistDirectDepositSetup,
+  persistHouseholdIdentity,
   persistJournalEntry,
   persistMoneyRailEvent,
   persistPayee,
@@ -1592,24 +1593,62 @@ export async function recordBankConnection(payload, env = process.env) {
   };
 }
 
-export function getProfile(env = process.env, actorInput = demoUser) {
+export async function getProfile(env = process.env, actorInput = demoUser) {
   const actor = normalizeActor(actorInput);
-  const snapshot = createNeobankSnapshot(undefined, env, {}, actor);
+  const identityPersistence = await persistHouseholdIdentity(
+    {
+      actorUserId: actor.id,
+      betaAccessStatus: actor.profileAccess,
+      clerkSubject: actor.clerkSubject,
+      householdId: actor.householdId,
+      kycStatus: actor.kycStatus,
+      userEmail: actor.email,
+      userName: actor.name,
+    },
+    env,
+  );
+
+  if (persistenceFailed(identityPersistence)) {
+    return {
+      body: {
+        code:
+          identityPersistence.persistence === "postgres_required"
+            ? "postgres_identity_required"
+            : "postgres_identity_error",
+        error:
+          identityPersistence.persistence === "postgres_required"
+            ? "Household identity requires PAYSHIELD_LEDGER_DATABASE_URL before production, live-money, or durable-core operation."
+            : "Household identity could not be persisted.",
+        identityPersistence,
+        readiness: getCoreReadiness(env, { coreOnline: true }),
+        service: "payshield-household-identity",
+      },
+      status: 503,
+    };
+  }
+
+  const identity = identityPersistence.identity;
+  const user = identity?.user || actor;
+  const snapshot = createNeobankSnapshot(undefined, env, {}, user);
 
   return {
-    auth: {
-      authMode: "core_service",
-      userId: snapshot.user.id,
+    body: {
+      auth: {
+        authMode: "core_service",
+        userId: snapshot.user.id,
+      },
+      householdId: snapshot.householdId,
+      identityPersistence,
+      kycStatus: snapshot.user.kycStatus,
+      profile: {
+        access: snapshot.user.profileAccess,
+        audience: "US households",
+        release: "commercial_control_profile",
+      },
+      readiness: snapshot.readiness,
+      user: snapshot.user,
     },
-    householdId: snapshot.householdId,
-    kycStatus: snapshot.user.kycStatus,
-    profile: {
-      access: snapshot.user.profileAccess,
-      audience: "US households",
-      release: "commercial_control_profile",
-    },
-    readiness: snapshot.readiness,
-    user: snapshot.user,
+    status: 200,
   };
 }
 
