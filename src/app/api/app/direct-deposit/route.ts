@@ -9,6 +9,7 @@ import {
   requireDurableCoreService,
   requiredCoreUnavailable,
 } from "../../../lib/neobank/core-required.ts";
+import { readAppJsonPayload } from "../../../lib/neobank/request-body.ts";
 
 function cleanText(value: unknown, maxLength: number) {
   return typeof value === "string"
@@ -28,12 +29,16 @@ export async function POST(request: NextRequest) {
       return coreRequired;
     }
 
-    const payload = (await request.json().catch(() => ({}))) as {
-      idempotencyKey?: unknown;
-      providerAccountId?: unknown;
-      providerCustomerId?: unknown;
-      providerName?: unknown;
-    };
+    const payloadResult = await readAppJsonPayload(
+      request,
+      "payshield-direct-deposit-setup",
+    );
+
+    if (!payloadResult.ok) {
+      return payloadResult.response;
+    }
+
+    const payload = payloadResult.payload;
     const coreResponse = await forwardCoreRequest({
       body: {
         idempotencyKey: cleanText(payload.idempotencyKey, 120),

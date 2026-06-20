@@ -9,6 +9,7 @@ import {
   createHouseholdMoneyControlPlan,
   normalizeMoneyControlPlanInput,
 } from "../../../lib/neobank/control-plan.ts";
+import { readAppJsonPayload } from "../../../lib/neobank/request-body.ts";
 
 const noStoreHeaders = {
   "cache-control": "no-store",
@@ -50,8 +51,16 @@ export async function POST(request: NextRequest) {
       return coreResponse;
     }
 
-    const payload = (await request.json().catch(() => ({}))) as unknown;
-    const normalized = normalizeMoneyControlPlanInput(payload);
+    const payloadResult = await readAppJsonPayload(
+      request,
+      "payshield-household-control-plan",
+    );
+
+    if (!payloadResult.ok) {
+      return payloadResult.response;
+    }
+
+    const normalized = normalizeMoneyControlPlanInput(payloadResult.payload);
 
     if (!normalized.ok) {
       return NextResponse.json(

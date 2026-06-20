@@ -153,6 +153,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/lib/neobank/core-client.ts",
   "src/app/lib/neobank/core-config.ts",
   "src/app/lib/neobank/control-plan.ts",
+  "src/app/lib/neobank/request-body.ts",
   "src/app/lib/neobank/demo-state.ts",
   "src/app/lib/neobank/identity.ts",
   "src/app/lib/neobank/ledger.ts",
@@ -553,6 +554,10 @@ requireText("src/app/lib/commercial/request-body.ts", "Request body is too large
 requireText("src/app/api/public/billing/checkout/route.ts", "readCommercialCheckoutPayload");
 requireText("src/app/api/app/billing/checkout/route.ts", "readCommercialJsonPayload");
 requireText("src/app/api/app/billing/portal/route.ts", "readCommercialJsonPayload");
+requireText("src/app/lib/neobank/request-body.ts", "maxAppJsonRequestBytes");
+requireText("src/app/lib/neobank/request-body.ts", "readAppJsonPayload");
+requireText("src/app/api/app/control-plan/route.ts", "readAppJsonPayload");
+requireText("src/app/api/app/direct-deposit/route.ts", "readAppJsonPayload");
 requireText("src/app/lib/commercial/billing.ts", "metadata[payshield_customer_email]");
 requireText("src/app/api/app/billing/checkout/route.ts", "payment_collection_only");
 requireText("src/app/api/app/billing/checkout/route.ts", "autoActivationReady");

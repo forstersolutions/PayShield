@@ -345,6 +345,30 @@ test("control plan post validates and regenerates paycheck projections", async (
   assert.equal(Array.isArray(badBody.errors), true);
 });
 
+test("control plan post rejects oversized and malformed request bodies", async () => {
+  const oversized = await generateControlPlan(
+    makeRawRequest(
+      "/api/app/control-plan",
+      JSON.stringify({
+        employerName: "x".repeat(20_000),
+        paycheckAmountCents: 300_000,
+      }),
+    ),
+  );
+  const malformed = await generateControlPlan(
+    makeRawRequest("/api/app/control-plan", "{"),
+  );
+  const oversizedBody = await parseJson(oversized);
+  const malformedBody = await parseJson(malformed);
+
+  assert.equal(oversized.status, 413);
+  assert.equal(oversizedBody.error, "Request body is too large.");
+  assert.equal(oversizedBody.service, "payshield-household-control-plan");
+  assert.equal(malformed.status, 400);
+  assert.equal(malformedBody.error, "Invalid request body.");
+  assert.equal(malformedBody.service, "payshield-household-control-plan");
+});
+
 test("activation endpoint exposes operator launch checklist and smoke commands", async () => {
   const response = await getActivation();
   const body = await parseJson(response);
@@ -1393,6 +1417,41 @@ test("direct deposit route requires the dedicated authenticated core service", a
   assert.equal(body.code, "core_service_required");
   assert.equal(body.service, "payshield-direct-deposit-setup");
   assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
+});
+
+test("direct deposit route rejects oversized configured-core request bodies before proxying", async () => {
+  process.env.PAYSHIELD_CORE_API_URL = "https://core.payshield.test";
+  process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-secret";
+  const originalFetch = globalThis.fetch;
+  let coreCalls = 0;
+
+  globalThis.fetch = async () => {
+    coreCalls += 1;
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { "content-type": "application/json" },
+      status: 200,
+    });
+  };
+
+  try {
+    const response = await setupDirectDeposit(
+      makeRawRequest(
+        "/api/app/direct-deposit",
+        JSON.stringify({
+          idempotencyKey: "route-direct-deposit-primary",
+          notes: "x".repeat(20_000),
+        }),
+      ),
+    );
+    const body = await parseJson(response);
+
+    assert.equal(response.status, 413);
+    assert.equal(body.error, "Request body is too large.");
+    assert.equal(body.service, "payshield-direct-deposit-setup");
+    assert.equal(coreCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("paycheck detection requires the dedicated core instead of local ledger simulation", async () => {
