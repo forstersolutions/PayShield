@@ -335,6 +335,77 @@ class ProviderAdapterError extends Error {
   }
 }
 
+const maxProviderAdapterResponseBytes = 256 * 1024;
+
+async function readBoundedProviderResponseText(response, operation) {
+  if (!response.body) {
+    return "";
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let byteLength = 0;
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      if (!value) {
+        continue;
+      }
+
+      byteLength += value.byteLength;
+
+      if (byteLength > maxProviderAdapterResponseBytes) {
+        await reader.cancel().catch(() => {});
+        throw new ProviderAdapterError(
+          `Provider ${operation} response is too large.`,
+        );
+      }
+
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(byteLength);
+  let offset = 0;
+
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return new TextDecoder().decode(bytes);
+}
+
+async function readProviderJsonPayload(response, operation) {
+  const text = await readBoundedProviderResponseText(response, operation);
+
+  if (!text) {
+    return {};
+  }
+
+  try {
+    const payload = JSON.parse(text);
+
+    return safeObject(payload);
+  } catch {
+    if (!response.ok) {
+      return {};
+    }
+
+    throw new ProviderAdapterError(
+      `Provider ${operation} did not return a valid JSON response.`,
+    );
+  }
+}
+
 async function providerAdapterRequest(env, operation, path, body) {
   const config = getProviderAdapterConfig(env);
 
@@ -371,7 +442,7 @@ async function providerAdapterRequest(env, operation, path, body) {
     );
   }
 
-  const payload = await response.json().catch(() => ({}));
+  const payload = await readProviderJsonPayload(response, operation);
 
   if (!response.ok) {
     throw new ProviderAdapterError(
@@ -381,7 +452,7 @@ async function providerAdapterRequest(env, operation, path, body) {
     );
   }
 
-  return safeObject(payload);
+  return payload;
 }
 
 function providerField(payload, fields) {

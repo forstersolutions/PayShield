@@ -1124,12 +1124,24 @@ requireText("src/app/api/health/route.ts", "tokenVaultEncryptionReady");
 requireText("src/app/api/health/route.ts", "tokenVaultHandoffReady");
 requireText("src/app/lib/neobank/provider-adapter.ts", "PAYSHIELD_BAAS_ADAPTER");
 requireText("src/app/lib/neobank/provider-adapter.ts", "PAYSHIELD_BAAS_API_BASE_URL");
+requireText("src/app/lib/neobank/provider.ts", "maxProviderAdapterResponseBytes");
+requireText("src/app/lib/neobank/provider.ts", "readProviderJsonPayload");
+requireText(
+  "src/app/lib/neobank/provider.ts",
+  "Provider ${operation} response is too large.",
+);
 requireText("src/app/lib/neobank/readiness.ts", "provider_adapter");
 requireText("src/proxy.ts", "clerkMiddleware");
 requireText("src/proxy.ts", 'pathname === "/api/app"');
 requireText("services/core/server.mjs", "payshield-core");
 requireText("services/core/server.mjs", 'path === "/card/authorize"');
 requireText("services/core/server.mjs", "PAYSHIELD_CORE_SERVICE_TOKEN");
+requireText("services/core/product.mjs", "maxProviderAdapterResponseBytes");
+requireText("services/core/product.mjs", "readProviderJsonPayload");
+requireText(
+  "services/core/product.mjs",
+  "Provider ${operation} response is too large.",
+);
 requireText("services/core/product.mjs", "getCoreReadiness");
 requireText("services/core/product.mjs", "provider_adapter");
 requireText("services/core/product.mjs", "providerAdapterRequest");

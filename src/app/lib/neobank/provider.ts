@@ -255,6 +255,82 @@ export class ProviderAdapterError extends Error {
   }
 }
 
+const maxProviderAdapterResponseBytes = 256 * 1024;
+
+async function readBoundedProviderResponseText(
+  response: Response,
+  operation: string,
+) {
+  if (!response.body) {
+    return "";
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let byteLength = 0;
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      if (!value) {
+        continue;
+      }
+
+      byteLength += value.byteLength;
+
+      if (byteLength > maxProviderAdapterResponseBytes) {
+        await reader.cancel().catch(() => {});
+        throw new ProviderAdapterError(
+          `Provider ${operation} response is too large.`,
+        );
+      }
+
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(byteLength);
+  let offset = 0;
+
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return new TextDecoder().decode(bytes);
+}
+
+async function readProviderJsonPayload(response: Response, operation: string) {
+  const text = await readBoundedProviderResponseText(response, operation);
+
+  if (!text) {
+    return {};
+  }
+
+  try {
+    const payload = JSON.parse(text) as unknown;
+
+    return payload && typeof payload === "object" && !Array.isArray(payload)
+      ? (payload as Record<string, unknown>)
+      : {};
+  } catch {
+    if (!response.ok) {
+      return {};
+    }
+
+    throw new ProviderAdapterError(
+      `Provider ${operation} did not return a valid JSON response.`,
+    );
+  }
+}
+
 class HttpJsonBankingProvider implements BankingProvider {
   private readonly config = getProviderAdapterConfig();
 
@@ -290,10 +366,7 @@ class HttpJsonBankingProvider implements BankingProvider {
       );
     }
 
-    const payload = (await response.json().catch(() => ({}))) as Record<
-      string,
-      unknown
-    >;
+    const payload = await readProviderJsonPayload(response, operation);
 
     if (!response.ok) {
       throw new ProviderAdapterError(

@@ -118,3 +118,38 @@ test("live banking provider rejects adapter responses missing provider ids", asy
     ProviderAdapterError,
   );
 });
+
+test("live banking provider rejects oversized adapter responses without leaking payloads", async () => {
+  setLiveProviderEnv();
+
+  globalThis.fetch = async () =>
+    Response.json({
+      payload: "x".repeat(300_000),
+      providerTransferId: "oversized-provider-transfer",
+    });
+
+  const provider = getBankingProvider();
+
+  await assert.rejects(
+    () =>
+      provider.createAchTransfer({
+        amountCents: 2500,
+        destinationPayeeId: "payee_abc_apartments",
+        idempotencyKey: "oversized-transfer-test",
+        sourceBucketId: "rent",
+      }),
+    (error: unknown) => {
+      assert.equal(error instanceof ProviderAdapterError, true);
+      assert.equal(
+        (error as Error).message,
+        "Provider createAchTransfer response is too large.",
+      );
+      assert.equal(
+        (error as Error).message.includes("oversized-provider-transfer"),
+        false,
+      );
+
+      return true;
+    },
+  );
+});
