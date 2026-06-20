@@ -736,7 +736,17 @@ test("core operations endpoint exposes household money-control records", async (
     const timeline = body.timeline as Array<Record<string, unknown>>;
     const activationPlan = body.activationPlan as Record<string, unknown>;
     const activationStages = activationPlan.stages as Array<Record<string, unknown>>;
+    const activationRunway = body.activationRunway as Record<string, unknown>;
+    const runwayMilestones = activationRunway.milestones as Array<
+      Record<string, unknown>
+    >;
+    const commercialOperatingState = body.commercialOperatingState as Record<
+      string,
+      unknown
+    >;
     const revenueAndRails = body.revenueAndRails as Record<string, unknown>;
+    const guidedMoneyFlow = body.guidedMoneyFlow as Record<string, unknown>;
+    const guidedSteps = guidedMoneyFlow.steps as Array<Record<string, unknown>>;
     const operatingCockpit = body.operatingCockpit as Record<string, unknown>;
     const cockpitLanes = operatingCockpit.lanes as Array<Record<string, unknown>>;
     const nextAction = operatingCockpit.nextAction as Record<string, unknown>;
@@ -759,6 +769,78 @@ test("core operations endpoint exposes household money-control records", async (
     );
     assert.equal(timeline[0]?.status, "posted");
     assert.equal(activationPlan.nextStageKey, "revenue");
+    assert.equal(activationRunway.service, "payshield-activation-runway");
+    assert.equal(
+      activationRunway.headline,
+      "Collect revenue, connect money, prove protection.",
+    );
+    assert.equal(activationRunway.mode, "setup_to_first_payment");
+    assert.equal(
+      (activationRunway.nextMilestone as Record<string, unknown>).key,
+      "first_revenue",
+    );
+    assert.equal(
+      (activationRunway.progress as Record<string, unknown>).readyMilestoneCount,
+      1,
+    );
+    assert.equal(
+      (activationRunway.proof as Record<string, unknown>).supportContact,
+      undefined,
+    );
+    assert.deepEqual(
+      runwayMilestones.map((milestone) => milestone.key),
+      [
+        "first_revenue",
+        "first_bank_connection",
+        "first_detected_paycheck",
+        "first_protection_profile",
+        "first_audit_proof",
+        "first_live_decision",
+      ],
+    );
+    assert.equal(
+      runwayMilestones.some(
+        (milestone) =>
+          milestone.key === "first_protection_profile" &&
+          milestone.ready === true &&
+          milestone.canRunNow === true &&
+          String(milestone.revenueImpact).includes("immediate value"),
+      ),
+      true,
+    );
+    assert.equal(guidedMoneyFlow.service, "payshield-guided-money-flow");
+    assert.equal(
+      guidedMoneyFlow.headline,
+      "Pay -> connect -> route -> detect -> protect -> release",
+    );
+    assert.equal(guidedMoneyFlow.mode, "setup_to_revenue");
+    assert.equal(
+      (guidedMoneyFlow.progress as Record<string, unknown>).totalStepCount,
+      8,
+    );
+    assert.equal(
+      guidedSteps.some(
+        (step) =>
+          step.key === "protected_buckets" &&
+          step.ready === true &&
+          step.endpoint === "POST /api/app/buckets",
+      ),
+      true,
+    );
+    assert.equal(
+      commercialOperatingState.service,
+      "payshield-commercial-operating-state",
+    );
+    assert.equal(
+      commercialOperatingState.headline,
+      "Subscribe -> connect bank -> detect paycheck -> protect -> release",
+    );
+    assert.equal(commercialOperatingState.totalRailCount, 6);
+    assert.equal(
+      (commercialOperatingState.revenueModel as Record<string, unknown>)
+        .publicCheckoutEndpoint,
+      "POST /api/public/billing/checkout",
+    );
     assert.deepEqual(activationPlan.businessModel, {
       billingProvider: "Stripe",
       priceLabel: "$19/month",
@@ -977,6 +1059,12 @@ test("core activation endpoint exposes operator launch checklist", async () => {
     const { body, response } = await getJson(baseUrl, "/api/app/activation");
     const activationPlan = body.activationPlan as Record<string, unknown>;
     const revenueAndRails = body.revenueAndRails as Record<string, unknown>;
+    const activationRunway = body.activationRunway as Record<string, unknown>;
+    const guidedMoneyFlow = body.guidedMoneyFlow as Record<string, unknown>;
+    const commercialOperatingState = body.commercialOperatingState as Record<
+      string,
+      unknown
+    >;
     const currentState = body.currentState as Record<string, unknown>;
     const nextAction = body.nextAction as Record<string, unknown>;
     const operatorRunbook = body.operatorRunbook as Record<string, unknown>;
@@ -988,6 +1076,12 @@ test("core activation endpoint exposes operator launch checklist", async () => {
     assert.equal(response.status, 200);
     assert.equal(body.service, "payshield-activation-console");
     assert.equal(activationPlan.nextStageKey, "revenue");
+    assert.equal(activationRunway.service, "payshield-activation-runway");
+    assert.equal(guidedMoneyFlow.service, "payshield-guided-money-flow");
+    assert.equal(
+      commercialOperatingState.service,
+      "payshield-commercial-operating-state",
+    );
     assert.equal(Array.isArray(revenueAndRails.rails), true);
     assert.equal(nextAction.primaryEndpoint, "POST /api/app/billing/checkout");
     assert.equal(operatorRunbook.activationEndpoint, "/api/launch/activation");
@@ -1032,6 +1126,14 @@ test("core activation endpoint exposes operator launch checklist", async () => {
       (currentState.commercialAccess as Record<string, unknown>).state,
       "needs_setup",
     );
+    assert.equal(
+      (currentState.guidedMoneyFlow as Record<string, unknown>).service,
+      "payshield-guided-money-flow",
+    );
+    assert.equal(
+      (currentState.commercialOperatingState as Record<string, unknown>).service,
+      "payshield-commercial-operating-state",
+    );
   });
 });
 
@@ -1041,6 +1143,8 @@ test("core audit export packages ledger and operations for support handoff", asy
     const ledger = body.ledger as Record<string, unknown>;
     const support = body.support as Record<string, unknown>;
     const activationPlan = body.activationPlan as Record<string, unknown>;
+    const activationRunway = body.activationRunway as Record<string, unknown>;
+    const guidedMoneyFlow = body.guidedMoneyFlow as Record<string, unknown>;
 
     assert.equal(response.status, 200);
     assert.equal(body.service, "payshield-audit-export");
@@ -1049,6 +1153,8 @@ test("core audit export packages ledger and operations for support handoff", asy
     assert.equal(Array.isArray(ledger.entries), true);
     assert.equal(support.contact, "support@graystontechnologies.com");
     assert.equal(activationPlan.totalStages, 6);
+    assert.equal(activationRunway.service, "payshield-activation-runway");
+    assert.equal(guidedMoneyFlow.service, "payshield-guided-money-flow");
   });
 });
 

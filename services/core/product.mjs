@@ -3609,6 +3609,732 @@ function buildOperatingCockpit(
   };
 }
 
+function buildCommercialOperatingState(
+  env,
+  snapshot,
+  commercialAccess,
+  moneyRails,
+  protectedCents,
+  safeToSpendCents,
+) {
+  const liveMoneyMissing = missingCoreGates(snapshot.readiness);
+  const revenueBlockers = commercialActivationMissing(env);
+  const bankBlockers = uniqueList(
+    moneyRails.missing.filter(
+      (gate) =>
+        gate.includes("PLAID") ||
+        gate.includes("TOKEN_VAULT") ||
+        gate.includes("token vault"),
+    ),
+  );
+  const detectionBlockers = uniqueList(
+    moneyRails.missing.filter(
+      (gate) =>
+        gate.includes("PLAID") ||
+        gate.includes("TOKEN_VAULT") ||
+        gate.includes("PROVIDER_WEBHOOK"),
+    ),
+  );
+  const movementBlockers = uniqueList([
+    ...moneyRails.missing.filter(
+      (gate) =>
+        gate.includes("TRANSFER") ||
+        gate.includes("transfer") ||
+        gate.includes("PAYSHIELD_BAAS"),
+    ),
+    ...moneyRails.providerAdapterMissing,
+    ...liveMoneyMissing,
+  ]);
+  const commercialReady = commercialActivationReady(env, commercialAccess);
+  const rails = [
+    {
+      blockers: revenueBlockers,
+      canRunNow: commercialAccess.readyForCheckout,
+      endpoint: "POST /api/app/billing/checkout",
+      key: "revenue",
+      label: "Collect household subscription",
+      ownerSwitch: "Stripe Checkout + webhook + core paid-access activation",
+      provider: "Stripe",
+      ready: commercialReady,
+      state: commercialReady
+        ? "paid_access_active"
+        : commercialAccess.readyForCheckout
+          ? "payment_collection_ready"
+          : "stripe_setup_required",
+      userOutcome:
+        "Household payment creates the commercial access record that unlocks money workflows.",
+    },
+    {
+      blockers: bankBlockers,
+      canRunNow: moneyRails.bankLinkReady,
+      endpoint: "POST /api/app/bank-link/token",
+      key: "bank_connection",
+      label: "Connect the household bank",
+      ownerSwitch: "Plaid credentials + signed token vault + encrypted custody",
+      provider: "Plaid Link",
+      ready: moneyRails.bankLinkReady,
+      state: moneyRails.bankLinkReady
+        ? "bank_link_ready"
+        : moneyRails.plaidConfigured
+          ? "token_custody_needed"
+          : "plaid_setup_required",
+      userOutcome:
+        "User-approved bank connection is exchanged for a server-side token custody reference.",
+    },
+    {
+      blockers: detectionBlockers,
+      canRunNow:
+        moneyRails.paycheckDetectionReady || moneyRails.transactionSyncReady,
+      endpoint: "POST /api/app/paychecks/sync",
+      key: "paycheck_detection",
+      label: "Detect payroll and split buckets",
+      ownerSwitch: "Payroll rules + Plaid sync/provider events + durable ledger",
+      provider:
+        moneyRails.detectionMode === "plaid_transactions_sync"
+          ? "Plaid Transactions"
+          : "Provider events",
+      ready: moneyRails.paycheckDetectionReady,
+      state: moneyRails.paycheckDetectionReady
+        ? "automatic_detection_ready"
+        : moneyRails.transactionSyncReady
+          ? "sync_ready_rule_gate"
+          : "detection_setup_required",
+      userOutcome:
+        "Income posts to the ledger, funds protected buckets first, then computes Safe to Spend.",
+    },
+    {
+      blockers: [],
+      canRunNow: true,
+      endpoint: "POST /api/app/buckets",
+      key: "protection_rules",
+      label: "Customize protected buckets",
+      ownerSwitch: "Bucket targets + priority + payees + unlock rules",
+      provider: "PayShield ledger",
+      ready: true,
+      state: snapshot.readiness.postgresSchemaVerified
+        ? "durable_controls_ready"
+        : "editable_control_model",
+      userOutcome:
+        "Households define exactly which obligations get protected before spending.",
+    },
+    {
+      blockers: movementBlockers,
+      canRunNow: moneyRails.transferReady,
+      endpoint: "POST /api/app/transfers",
+      key: "money_movement",
+      label: "Move only approved protected money",
+      ownerSwitch: "Transfer/BaaS provider + live-money evidence gates",
+      provider: "BaaS or transfer adapter",
+      ready: moneyRails.transferReady,
+      state: moneyRails.transferReady
+        ? "provider_handoff_ready"
+        : moneyRails.transferConfigured
+          ? "live_gates_needed"
+          : "intent_validation_only",
+      userOutcome:
+        "Provider handoff is created only after bucket balance and destination checks pass.",
+    },
+    {
+      blockers: liveMoneyMissing,
+      canRunNow: snapshot.readiness.liveMoneyReady,
+      endpoint: "POST /api/card/authorize",
+      key: "card_control",
+      label: "Approve only Safe to Spend",
+      ownerSwitch: "Card gateway + live-money evidence gates",
+      provider: "Card authorization gateway",
+      ready: snapshot.readiness.liveMoneyReady,
+      state: snapshot.readiness.liveMoneyReady
+        ? "gateway_ready"
+        : "ledger_decision_path_ready",
+      userOutcome:
+        "Card swipes approve from Safe to Spend or an approved biller bucket, then decline everything else.",
+    },
+  ];
+  const nextRail = rails.find((rail) => !rail.ready) ?? rails[0];
+
+  return {
+    activeRailCount: rails.filter((rail) => rail.ready).length,
+    headline: "Subscribe -> connect bank -> detect paycheck -> protect -> release",
+    mode: snapshot.readiness.liveMoneyReady
+      ? "live_money_operating"
+      : commercialAccess.readyForCheckout
+        ? "revenue_ready_provider_gated"
+        : "commercial_setup_required",
+    moneySummary: {
+      priceLabel: commercialAccess.priceLabel,
+      protectedCents,
+      safeToSpendCents,
+      totalCents: protectedCents + safeToSpendCents,
+    },
+    nextRail: {
+      blockers: nextRail.blockers,
+      endpoint: nextRail.endpoint,
+      key: nextRail.key,
+      label: nextRail.label,
+      ownerSwitch: nextRail.ownerSwitch,
+      state: nextRail.state,
+    },
+    rails,
+    revenueModel: {
+      billingProvider: "Stripe",
+      checkoutEndpoint: "POST /api/app/billing/checkout",
+      checkoutMode: commercialAccess.mode,
+      canActivatePaidAccess: commercialReady,
+      canCollectPayment: commercialAccess.readyForCheckout,
+      priceLabel: commercialAccess.priceLabel,
+      publicCheckoutEndpoint: "POST /api/public/billing/checkout",
+      webhookEndpoint: "/api/app/billing/webhook",
+    },
+    service: "payshield-commercial-operating-state",
+    totalRailCount: rails.length,
+  };
+}
+
+function buildGuidedMoneyFlow(
+  snapshot,
+  commercialAccess,
+  moneyRails,
+  protectedCents,
+  safeToSpendCents,
+  env,
+) {
+  const liveMoneyMissing = missingCoreGates(snapshot.readiness);
+  const revenueBlockers = commercialActivationMissing(env);
+  const bankBlockers = uniqueList(
+    moneyRails.missing.filter(
+      (gate) =>
+        gate.includes("PLAID") ||
+        gate.includes("TOKEN_VAULT") ||
+        gate.includes("token vault"),
+    ),
+  );
+  const detectionBlockers = uniqueList(
+    moneyRails.missing.filter(
+      (gate) =>
+        gate.includes("PLAID") ||
+        gate.includes("TOKEN_VAULT") ||
+        gate.includes("PROVIDER_WEBHOOK"),
+    ),
+  );
+  const coreLedgerBlockers = liveMoneyMissing.filter((gate) =>
+    ["postgres_ledger", "dedicated_backend", "core_service_auth"].includes(gate),
+  );
+  const movementBlockers = uniqueList([
+    ...moneyRails.missing.filter(
+      (gate) =>
+        gate.includes("TRANSFER") ||
+        gate.includes("transfer") ||
+        gate.includes("PAYSHIELD_BAAS"),
+    ),
+    ...moneyRails.providerAdapterMissing,
+    ...liveMoneyMissing,
+  ]);
+  const commercialReady = commercialActivationReady(env, commercialAccess);
+  const steps = [
+    {
+      blockers: revenueBlockers,
+      canRunNow: commercialAccess.readyForCheckout,
+      endpoint: "POST /api/app/billing/checkout",
+      evidence:
+        "Checkout session, signed webhook event, and durable paid-access record.",
+      key: "commercial_access",
+      label: "Earn",
+      ownerAction:
+        "Set Stripe Checkout, webhook signing, and core activation so paid access is recorded automatically.",
+      primaryAction: "Start checkout",
+      ready: commercialReady,
+      runMode: commercialReady
+        ? "live_revenue"
+        : commercialAccess.readyForCheckout
+          ? "payment_collection"
+          : "setup_required",
+      status: commercialReady
+        ? "paid_access_active"
+        : commercialAccess.readyForCheckout
+          ? "checkout_ready"
+          : "stripe_setup_required",
+      title: "Charge the household",
+      userOutcome:
+        "PayShield can collect the household subscription before private money controls open.",
+      uiTarget: "money-operations",
+    },
+    {
+      blockers: bankBlockers,
+      canRunNow: moneyRails.bankLinkReady,
+      endpoint: "POST /api/app/bank-link/token",
+      evidence:
+        "Plaid Link token, public-token exchange, masked account, and token vault reference.",
+      key: "bank_connection",
+      label: "Connect",
+      ownerAction:
+        "Configure Plaid, token-vault handoff, webhook signing, and encrypted custody.",
+      primaryAction: "Connect bank",
+      ready: moneyRails.bankLinkReady,
+      runMode: moneyRails.bankLinkReady ? "provider_live" : "setup_required",
+      status: moneyRails.bankLinkReady
+        ? "bank_link_ready"
+        : moneyRails.plaidConfigured
+          ? "token_custody_needed"
+          : "plaid_setup_required",
+      title: "Connect the funding source",
+      userOutcome:
+        "The household authorizes the external account PayShield will inspect for income and release rules.",
+      uiTarget: "money-operations",
+    },
+    {
+      blockers: uniqueList([...liveMoneyMissing, ...movementBlockers]),
+      canRunNow: snapshot.readiness.liveMoneyReady,
+      endpoint: "POST /api/app/direct-deposit",
+      evidence:
+        "Provider account opening record, masked routing instructions, and household routing status.",
+      key: "direct_deposit",
+      label: "Route",
+      ownerAction:
+        "Connect the account/card provider before direct-deposit instructions are shown to households.",
+      primaryAction: "Set paycheck routing",
+      ready: snapshot.readiness.liveMoneyReady,
+      runMode: snapshot.readiness.liveMoneyReady ? "provider_live" : "provider_gate",
+      status: snapshot.readiness.liveMoneyReady
+        ? "routing_ready"
+        : "provider_activation_required",
+      title: "Route paychecks into PayShield",
+      userOutcome:
+        "Payroll lands inside the controlled account path before ordinary spending can reach it.",
+      uiTarget: "money-operations",
+    },
+    {
+      blockers: uniqueList([...detectionBlockers, ...coreLedgerBlockers]),
+      canRunNow:
+        moneyRails.transactionSyncReady || moneyRails.paycheckDetectionReady,
+      endpoint: "POST /api/app/paychecks/sync",
+      evidence:
+        "Saved payroll rule, synced transaction cursor, provider event, and idempotent detection record.",
+      key: "transaction_sync",
+      label: "Detect",
+      ownerAction:
+        "Wire Plaid transaction sync and durable core storage so payroll activity becomes paycheck detections.",
+      primaryAction: "Sync bank activity",
+      ready: moneyRails.transactionSyncReady,
+      runMode: moneyRails.transactionSyncReady
+        ? "provider_live"
+        : "setup_required",
+      status: moneyRails.transactionSyncReady
+        ? "sync_ready"
+        : moneyRails.bankLinkReady
+          ? "core_storage_needed"
+          : "bank_link_needed",
+      title: "Recognize payroll deposits",
+      userOutcome:
+        "Provider activity is converted into paycheck events PayShield can split into protected buckets.",
+      uiTarget: "money-operations",
+    },
+    {
+      blockers: uniqueList([...detectionBlockers, ...coreLedgerBlockers]),
+      canRunNow: moneyRails.paycheckDetectionReady,
+      endpoint: "POST /api/app/paychecks/detect",
+      evidence:
+        "Balanced journal entry, bucket funding record, and recalculated Safe to Spend.",
+      key: "paycheck_detection",
+      label: "Split",
+      ownerAction:
+        "Activate signed provider events and durable ledger writes before automatic paycheck splits run.",
+      primaryAction: "Run paycheck split",
+      ready: moneyRails.paycheckDetectionReady,
+      runMode: moneyRails.paycheckDetectionReady ? "ledger_live" : "core_gate",
+      status: moneyRails.paycheckDetectionReady
+        ? "automatic_detection_ready"
+        : moneyRails.transactionSyncReady
+          ? "rule_gate"
+          : "core_required",
+      title: "Split income before spending",
+      userOutcome:
+        "Rent, vehicle, insurance, and custom obligations fund before Safe to Spend is updated.",
+      uiTarget: "money-operations",
+    },
+    {
+      blockers: [],
+      canRunNow: true,
+      endpoint: "POST /api/app/buckets",
+      evidence:
+        "Bucket profile, priority order, payee assignments, unlock rules, and audit export.",
+      key: "protected_buckets",
+      label: "Protect",
+      ownerAction:
+        "Let the household customize buckets, targets, due cadence, payees, and release controls.",
+      primaryAction: "Edit buckets",
+      ready: true,
+      runMode: snapshot.readiness.postgresSchemaVerified
+        ? "durable_controls"
+        : "control_model",
+      status: snapshot.readiness.postgresSchemaVerified
+        ? "durable_controls_ready"
+        : "customizable_now",
+      title: "Customize protected buckets",
+      userOutcome:
+        "The household decides exactly what gets protected before everyday spending.",
+      uiTarget: "bucket-studio",
+    },
+    {
+      blockers: movementBlockers,
+      canRunNow: moneyRails.transferReady,
+      endpoint: "POST /api/app/transfers",
+      evidence:
+        "Transfer intent, approved payee, source bucket validation, provider handoff, and reconciliation record.",
+      key: "protected_transfer",
+      label: "Release",
+      ownerAction:
+        "Configure the transfer/BaaS adapter and live-money gates before provider movement executes.",
+      primaryAction: "Create transfer intent",
+      ready: moneyRails.transferReady,
+      runMode: moneyRails.transferReady ? "provider_live" : "intent_gate",
+      status: moneyRails.transferReady
+        ? "provider_handoff_ready"
+        : moneyRails.transferConfigured
+          ? "live_gates_needed"
+          : "intent_validation_only",
+      title: "Release only approved money",
+      userOutcome:
+        "Protected funds move only to approved destinations after bucket and provider checks pass.",
+      uiTarget: "money-operations",
+    },
+    {
+      blockers: liveMoneyMissing,
+      canRunNow: snapshot.readiness.liveMoneyReady,
+      endpoint: "POST /api/card/authorize",
+      evidence:
+        "Authorization request, Safe-to-Spend decision, approved biller exception, and audit record.",
+      key: "card_control",
+      label: "Spend",
+      ownerAction:
+        "Attach the card gateway only after provider, ledger, counsel, and runbook gates pass.",
+      primaryAction: "Check card swipe",
+      ready: snapshot.readiness.liveMoneyReady,
+      runMode: snapshot.readiness.liveMoneyReady ? "gateway_live" : "ledger_gate",
+      status: snapshot.readiness.liveMoneyReady
+        ? "gateway_ready"
+        : "ledger_decision_path_ready",
+      title: "Approve only Safe to Spend",
+      userOutcome:
+        "Every card decision is answered from Safe to Spend or an approved bill-only bucket.",
+      uiTarget: "card-authorization",
+    },
+  ];
+  const nextStep = steps.find((step) => !step.ready) ?? steps[0];
+  const readyStepCount = steps.filter((step) => step.ready).length;
+  const availableNowCount = steps.filter((step) => step.canRunNow).length;
+
+  return {
+    headline: "Pay -> connect -> route -> detect -> protect -> release",
+    mode: snapshot.readiness.liveMoneyReady
+      ? "live_money_flow"
+      : commercialAccess.readyForCheckout
+        ? "revenue_ready_provider_gated"
+        : "setup_to_revenue",
+    nextStep: {
+      blockers: nextStep.blockers,
+      canRunNow: nextStep.canRunNow,
+      endpoint: nextStep.endpoint,
+      key: nextStep.key,
+      label: nextStep.label,
+      primaryAction: nextStep.primaryAction,
+      runMode: nextStep.runMode,
+      status: nextStep.status,
+      title: nextStep.title,
+      uiTarget: nextStep.uiTarget,
+    },
+    progress: {
+      availableNowCount,
+      blockedStepCount: steps.filter((step) => step.blockers.length > 0).length,
+      percent: Math.round((readyStepCount / Math.max(1, steps.length)) * 100),
+      readyStepCount,
+      totalStepCount: steps.length,
+    },
+    service: "payshield-guided-money-flow",
+    steps,
+    summary:
+      "One guided operating path collects revenue, links the funding source, identifies payroll, funds protected buckets first, and releases only approved money.",
+    totals: {
+      priceLabel: commercialAccess.priceLabel,
+      protectedCents,
+      safeToSpendCents,
+      totalCents: protectedCents + safeToSpendCents,
+    },
+  };
+}
+
+function buildActivationRunway(
+  snapshot,
+  commercialAccess,
+  moneyRails,
+  protectedCents,
+  safeToSpendCents,
+  guidedMoneyFlow,
+  env,
+) {
+  const guidedStepByKey = new Map(
+    guidedMoneyFlow.steps.map((step) => [step.key, step]),
+  );
+  const priceLabel = commercialAccess.priceLabel || "$19/month";
+  const coreGateMissing = missingCoreGates(snapshot.readiness);
+  const durableEvidenceReady =
+    snapshot.readiness.postgresSchemaVerified &&
+    snapshot.readiness.backendConfigured &&
+    moneyRails.transactionSyncReady;
+  const liveDecisionReady =
+    snapshot.readiness.liveMoneyReady && moneyRails.transferReady;
+  const milestones = [
+    {
+      blockers: commercialActivationMissing(env),
+      canRunNow: commercialAccess.readyForCheckout,
+      customerOutcome:
+        "The household pays for access before private money controls unlock.",
+      endpoint: "POST /api/app/billing/checkout",
+      key: "first_revenue",
+      label: "Earn",
+      operatorOutcome:
+        "Stripe checkout, webhook signing, and core activation create the paid-access record.",
+      primaryAction: "Start checkout",
+      proofArtifacts: [
+        "checkout_intent",
+        "signed_stripe_webhook",
+        "commercial_access_record",
+      ],
+      ready: commercialActivationReady(env, commercialAccess),
+      revenueImpact: `Starts ${priceLabel} household revenue.`,
+      setupAction:
+        "Configure Stripe secret, price or payment link, webhook secret, and core service auth.",
+      title: "Collect the first paid household",
+    },
+    {
+      blockers: uniqueList(
+        moneyRails.missing.filter(
+          (gate) =>
+            gate.includes("PLAID") ||
+            gate.includes("TOKEN_VAULT") ||
+            gate.includes("token vault"),
+        ),
+      ),
+      canRunNow: moneyRails.bankLinkReady,
+      customerOutcome:
+        "The household links the external account PayShield will inspect for income.",
+      endpoint: "POST /api/app/bank-link/token",
+      key: "first_bank_connection",
+      label: "Connect",
+      operatorOutcome:
+        "Plaid Link exchanges the public token and stores only server-side custody references in app records.",
+      primaryAction: "Connect bank",
+      proofArtifacts: [
+        "link_token",
+        "public_token_exchange",
+        "token_vault_reference",
+      ],
+      ready: moneyRails.bankLinkReady,
+      revenueImpact:
+        "Turns a paid signup into an account that can reach paycheck protection.",
+      setupAction:
+        "Configure Plaid credentials, signed token-vault handoff, and encrypted token custody.",
+      title: "Connect the funding source",
+    },
+    {
+      blockers: uniqueList([
+        ...moneyRails.missing.filter(
+          (gate) =>
+            gate.includes("PLAID") ||
+            gate.includes("TOKEN_VAULT") ||
+            gate.includes("PROVIDER_WEBHOOK"),
+        ),
+        ...coreGateMissing.filter((gate) =>
+          ["postgres_ledger", "dedicated_backend", "core_service_auth"].includes(
+            gate,
+          ),
+        ),
+      ]),
+      canRunNow:
+        moneyRails.paycheckDetectionReady || moneyRails.transactionSyncReady,
+      customerOutcome:
+        "Payroll activity becomes a paycheck event before Safe to Spend changes.",
+      endpoint: "POST /api/app/paychecks/sync",
+      key: "first_detected_paycheck",
+      label: "Detect",
+      operatorOutcome:
+        "Transaction sync, provider events, and idempotency keys create a durable detection record.",
+      primaryAction: "Sync bank activity",
+      proofArtifacts: [
+        "paycheck_rule",
+        "transaction_sync_cursor",
+        "idempotent_detection_record",
+      ],
+      ready: moneyRails.paycheckDetectionReady,
+      revenueImpact:
+        "Creates the first visible protection moment after a household pays.",
+      setupAction:
+        "Configure transaction sync, provider webhook signing, durable core storage, and detection rules.",
+      title: "Recognize payroll automatically",
+    },
+    {
+      blockers: [],
+      canRunNow: true,
+      customerOutcome:
+        "The household chooses protected categories, target amounts, priorities, payees, and unlock rules.",
+      endpoint: "POST /api/app/buckets",
+      key: "first_protection_profile",
+      label: "Protect",
+      operatorOutcome:
+        "Bucket profiles define what must be funded before ordinary spending updates.",
+      primaryAction: "Edit buckets",
+      proofArtifacts: [
+        "bucket_profile",
+        "payee_assignments",
+        "safe_to_spend_preview",
+      ],
+      ready: true,
+      revenueImpact:
+        "Gives the product its immediate value even before live provider movement opens.",
+      setupAction:
+        "No provider setup required for configuration; durable ledger evidence requires the core database.",
+      title: "Customize the protection rules",
+    },
+    {
+      blockers: durableEvidenceReady
+        ? []
+        : uniqueList(
+            ["postgres_ledger", "dedicated_backend", "core_service_auth"].filter(
+              (gate) => coreGateMissing.includes(gate),
+            ),
+          ),
+      canRunNow: durableEvidenceReady,
+      customerOutcome:
+        "A paycheck split is provable, reversible, and auditable without mutating posted journal entries.",
+      endpoint: "GET /api/app/audit/export",
+      key: "first_audit_proof",
+      label: "Prove",
+      operatorOutcome:
+        "Postgres ledger, core auth, and sync events prove every balance and exception path.",
+      primaryAction: "Export audit",
+      proofArtifacts: [
+        "balanced_journal_entry",
+        "bucket_balance_snapshot",
+        "audit_export",
+      ],
+      ready: durableEvidenceReady,
+      revenueImpact:
+        "Creates support, compliance, and household trust evidence for retention.",
+      setupAction:
+        "Deploy the always-on core, verify Postgres schema 0013, and require durable storage.",
+      title: "Prove the ledger evidence",
+    },
+    {
+      blockers: liveDecisionReady
+        ? []
+        : uniqueList([
+            ...moneyRails.providerAdapterMissing,
+            ...moneyRails.missing.filter(
+              (gate) =>
+                gate.includes("TRANSFER") ||
+                gate.includes("transfer") ||
+                gate.includes("PAYSHIELD_BAAS"),
+            ),
+            ...coreGateMissing,
+          ]),
+      canRunNow: liveDecisionReady,
+      customerOutcome:
+        "Approved transfers and card decisions release only Safe to Spend or assigned bill money.",
+      endpoint: "POST /api/card/authorize",
+      key: "first_live_decision",
+      label: "Release",
+      operatorOutcome:
+        "Provider adapter, card gateway, counsel approvals, runbooks, and ledger checks answer live-money decisions.",
+      primaryAction: "Check card swipe",
+      proofArtifacts: [
+        "safe_to_spend_authorization",
+        "approved_biller_exception",
+        "provider_reconciliation_record",
+      ],
+      ready: liveDecisionReady,
+      revenueImpact:
+        "Completes the product promise households pay for: protected money cannot be casually spent.",
+      setupAction:
+        "Configure the BaaS/card provider, transfer adapter, sponsor approvals, counsel signoff, runbooks, and live-money gate.",
+      title: "Authorize real-world release",
+    },
+  ];
+  const nextMilestone =
+    milestones.find((milestone) => !milestone.ready) ?? milestones[0];
+  const readyMilestoneCount = milestones.filter((milestone) => milestone.ready).length;
+  const runnableMilestoneCount = milestones.filter(
+    (milestone) => milestone.canRunNow,
+  ).length;
+
+  return {
+    customerPath: [
+      "Pay for access",
+      "Connect funding source",
+      "Confirm paycheck rules",
+      "Customize buckets and payees",
+      "Review Safe to Spend",
+      "Release only approved money",
+    ],
+    headline: "Collect revenue, connect money, prove protection.",
+    milestones,
+    mode: liveDecisionReady
+      ? "live_decision_ready"
+      : commercialAccess.readyForCheckout
+        ? "selling_with_provider_setup"
+        : "setup_to_first_payment",
+    nextMilestone: {
+      blockers: nextMilestone.blockers,
+      canRunNow: nextMilestone.canRunNow,
+      endpoint: nextMilestone.endpoint,
+      key: nextMilestone.key,
+      label: nextMilestone.label,
+      primaryAction: nextMilestone.primaryAction,
+      revenueImpact: nextMilestone.revenueImpact,
+      setupAction: nextMilestone.setupAction,
+      title: nextMilestone.title,
+    },
+    ownerPath: [
+      "Configure Stripe and core access activation",
+      "Turn on Clerk household identity",
+      "Configure Plaid and token custody",
+      "Verify Postgres ledger schema 0013",
+      "Connect BaaS/card provider adapter",
+      "Record counsel, sponsor, and runbook approvals before live money",
+    ],
+    proof: {
+      activationEndpoint: "/api/app/activation",
+      auditEndpoint: "/api/app/audit/export",
+      healthEndpoint: "/api/health",
+      operationsEndpoint: "/api/app/operations",
+      productionStatusCommand:
+        "npm run market:status -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app",
+      requiredBeforeLiveMoney: uniqueList([
+        ...coreGateMissing,
+        ...moneyRails.providerAdapterMissing,
+        ...moneyRails.missing,
+      ]),
+    },
+    progress: {
+      blockedMilestoneCount: milestones.filter(
+        (milestone) => milestone.blockers.length > 0,
+      ).length,
+      percent: Math.round(
+        (readyMilestoneCount / Math.max(1, milestones.length)) * 100,
+      ),
+      readyMilestoneCount,
+      runnableMilestoneCount,
+      totalMilestoneCount: milestones.length,
+    },
+    service: "payshield-activation-runway",
+    syncedWithGuidedFlow: {
+      nextGuidedStep: guidedMoneyFlow.nextStep.key,
+      protectedBucketStatus:
+        guidedStepByKey.get("protected_buckets")?.status ?? "unknown",
+      releaseStatus:
+        guidedStepByKey.get("protected_transfer")?.status ?? "unknown",
+    },
+  };
+}
+
 async function buildHouseholdOperations(env = process.env, actorInput = demoUser) {
   const actorResolution = await resolveActorIdentity(
     env,
@@ -3680,6 +4406,31 @@ async function buildHouseholdOperations(env = process.env, actorInput = demoUser
     activationPlan,
     revenueAndRails,
   );
+  const commercialOperatingState = buildCommercialOperatingState(
+    env,
+    snapshot,
+    commercialAccess,
+    moneyRails,
+    protectedCents,
+    safeToSpendCents,
+  );
+  const guidedMoneyFlow = buildGuidedMoneyFlow(
+    snapshot,
+    commercialAccess,
+    moneyRails,
+    protectedCents,
+    safeToSpendCents,
+    env,
+  );
+  const activationRunway = buildActivationRunway(
+    snapshot,
+    commercialAccess,
+    moneyRails,
+    protectedCents,
+    safeToSpendCents,
+    guidedMoneyFlow,
+    env,
+  );
 
   return {
     body: {
@@ -3705,6 +4456,9 @@ async function buildHouseholdOperations(env = process.env, actorInput = demoUser
       },
       commercialAccess,
       activationPlan,
+      activationRunway,
+      commercialOperatingState,
+      guidedMoneyFlow,
       revenueAndRails,
       operatingCockpit,
       ledger: {
@@ -3806,6 +4560,8 @@ function activationPacketFromOperations(body, env = process.env) {
     activationPlan: body.activationPlan,
     currentState: {
       commercialAccess: body.commercialAccess,
+      commercialOperatingState: body.commercialOperatingState,
+      guidedMoneyFlow: body.guidedMoneyFlow,
       moneyRails: body.moneyRails,
       operatingCockpit: body.operatingCockpit,
       readiness: body.readiness,
@@ -3847,6 +4603,9 @@ function activationPacketFromOperations(body, env = process.env) {
     },
     service: "payshield-activation-console",
     support: body.support,
+    activationRunway: body.activationRunway,
+    commercialOperatingState: body.commercialOperatingState,
+    guidedMoneyFlow: body.guidedMoneyFlow,
     operatingCockpit: body.operatingCockpit,
     revenueAndRails: body.revenueAndRails,
   };
@@ -3907,7 +4666,10 @@ export async function getHouseholdAuditExport(env = process.env, actorInput = de
       generatedAt: body.generatedAt,
       household: body.household,
       activationPlan: body.activationPlan,
+      activationRunway: body.activationRunway,
       commercialAccess: body.commercialAccess,
+      commercialOperatingState: body.commercialOperatingState,
+      guidedMoneyFlow: body.guidedMoneyFlow,
       revenueAndRails: body.revenueAndRails,
       operatingCockpit: body.operatingCockpit,
       ledger: {
