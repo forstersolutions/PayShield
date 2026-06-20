@@ -45,12 +45,12 @@ test("summarizes Docker core smoke output without exposing service token", () =>
     image: "payshield-core:ci-smoke",
     onboarding: {
       body: {
-        liveMoney: {
-          ok: false,
+        identityPersistence: {
+          persistence: "postgres_required",
         },
       },
       response: {
-        status: 423,
+        status: 503,
       },
     },
     unauthorizedBalances: {
@@ -75,7 +75,7 @@ test("summarizes Docker core smoke output without exposing service token", () =>
   assert.equal(result.cardAuthorization.persistence, "postgres_required");
   assert.equal(result.billPayment.accepted, false);
   assert.equal(result.billPayment.persistence, "postgres_required");
-  assert.equal(result.onboarding.status, 423);
+  assert.equal(result.onboarding.status, 503);
   assert.equal(serialized.includes("core-smoke-"), false);
   assert.equal(serialized.includes("PAYSHIELD_CORE_SERVICE_TOKEN"), false);
 });

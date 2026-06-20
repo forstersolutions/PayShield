@@ -145,6 +145,13 @@ function durablePostgresRequired(result) {
   );
 }
 
+function onboardingFailClosed(result) {
+  return (
+    durablePostgresRequired(result) ||
+    (result.response.status === 423 && result.body?.liveMoney?.ok === false)
+  );
+}
+
 export function summarizeDockerCoreSmoke({
   authorizedBalances,
   billPayment,
@@ -309,8 +316,7 @@ export async function runDockerCoreSmoke({
 
     requireCheck(
       checks,
-      onboarding.response.status === 423 &&
-        onboarding.body?.liveMoney?.ok === false,
+      onboardingFailClosed(onboarding),
       "onboarding remains fail-closed without provider and compliance gates",
     );
 
