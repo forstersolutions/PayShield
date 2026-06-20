@@ -172,6 +172,7 @@ test("operations endpoint exposes the revenue and money-control record", async (
   const activationStages = activationPlan.stages as Array<Record<string, unknown>>;
   const revenueAndRails = body.revenueAndRails as Record<string, unknown>;
   const operatingCockpit = body.operatingCockpit as Record<string, unknown>;
+  const guidedMoneyFlow = body.guidedMoneyFlow as Record<string, unknown>;
   const commercialOperatingState = body.commercialOperatingState as Record<
     string,
     unknown
@@ -179,6 +180,7 @@ test("operations endpoint exposes the revenue and money-control record", async (
   const cockpitLanes = operatingCockpit.lanes as Array<Record<string, unknown>>;
   const nextAction = operatingCockpit.nextAction as Record<string, unknown>;
   const rails = revenueAndRails.rails as Array<Record<string, unknown>>;
+  const guidedSteps = guidedMoneyFlow.steps as Array<Record<string, unknown>>;
   const commercialRails = commercialOperatingState.rails as Array<
     Record<string, unknown>
   >;
@@ -225,6 +227,42 @@ test("operations endpoint exposes the revenue and money-control record", async (
   assert.equal(
     commercialOperatingState.service,
     "payshield-commercial-operating-state",
+  );
+  assert.equal(guidedMoneyFlow.service, "payshield-guided-money-flow");
+  assert.equal(
+    guidedMoneyFlow.headline,
+    "Pay -> connect -> route -> detect -> protect -> release",
+  );
+  assert.equal(guidedMoneyFlow.mode, "setup_to_revenue");
+  assert.equal((guidedMoneyFlow.progress as Record<string, unknown>).readyStepCount, 1);
+  assert.equal((guidedMoneyFlow.progress as Record<string, unknown>).totalStepCount, 8);
+  assert.equal((guidedMoneyFlow.nextStep as Record<string, unknown>).key, "commercial_access");
+  assert.equal(
+    (guidedMoneyFlow.nextStep as Record<string, unknown>).primaryAction,
+    "Start checkout",
+  );
+  assert.deepEqual(
+    guidedSteps.map((step) => step.key),
+    [
+      "commercial_access",
+      "bank_connection",
+      "direct_deposit",
+      "transaction_sync",
+      "paycheck_detection",
+      "protected_buckets",
+      "protected_transfer",
+      "card_control",
+    ],
+  );
+  assert.equal(
+    guidedSteps.some(
+      (step) =>
+        step.key === "protected_buckets" &&
+        step.canRunNow === true &&
+        step.endpoint === "POST /api/app/buckets" &&
+        String(step.userOutcome).includes("protected before everyday spending"),
+    ),
+    true,
   );
   assert.equal(
     (commercialOperatingState.revenueModel as Record<string, unknown>)

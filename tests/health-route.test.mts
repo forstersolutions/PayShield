@@ -36,6 +36,14 @@ async function parseJson(response: Response) {
       revenueModel?: Record<string, unknown>;
       totalRailCount?: unknown;
     };
+    guidedMoneyFlow?: {
+      headline?: unknown;
+      mode?: unknown;
+      nextStep?: Record<string, unknown>;
+      progress?: Record<string, unknown>;
+      service?: unknown;
+      steps?: Array<Record<string, unknown>>;
+    };
     appAccess?: {
       clerkConfigured?: unknown;
       locked?: unknown;
@@ -379,6 +387,28 @@ test("reports commercial and money rail readiness gates", async () => {
   assert.equal(
     missingBody.commercialOperatingState?.headline,
     "Subscribe -> connect bank -> detect paycheck -> protect -> release",
+  );
+  assert.equal(
+    missingBody.guidedMoneyFlow?.headline,
+    "Pay -> connect -> route -> detect -> protect -> release",
+  );
+  assert.equal(missingBody.guidedMoneyFlow?.service, "payshield-guided-money-flow");
+  assert.equal(missingBody.guidedMoneyFlow?.mode, "setup_to_revenue");
+  assert.equal(missingBody.guidedMoneyFlow?.progress?.readyStepCount, 1);
+  assert.equal(missingBody.guidedMoneyFlow?.progress?.totalStepCount, 8);
+  assert.equal(missingBody.guidedMoneyFlow?.nextStep?.key, "commercial_access");
+  assert.equal(
+    missingBody.guidedMoneyFlow?.nextStep?.endpoint,
+    "POST /api/app/billing/checkout",
+  );
+  assert.equal(
+    missingBody.guidedMoneyFlow?.steps?.some(
+      (step) =>
+        step.key === "protected_buckets" &&
+        step.ready === true &&
+        step.endpoint === "POST /api/app/buckets",
+    ),
+    true,
   );
   assert.equal(missingBody.commercialOperatingState?.activeRailCount, 1);
   assert.equal(missingBody.commercialOperatingState?.totalRailCount, 6);

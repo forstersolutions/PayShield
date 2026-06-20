@@ -405,13 +405,15 @@ requireTextOrderInSection(
 );
 requireText("src/app/components/money-operations-panel.tsx", "Revenue and rails");
 requireText("src/app/components/money-operations-panel.tsx", "The commercial operating map.");
-requireText("src/app/components/money-operations-panel.tsx", "Operating cockpit");
-requireText("src/app/components/money-operations-panel.tsx", "operatingCockpit");
-requireText("src/app/components/money-operations-panel.tsx", "Ready lanes");
+requireText("src/app/components/money-operations-panel.tsx", "Guided money flow");
+requireText("src/app/components/money-operations-panel.tsx", "guidedMoneyFlow");
+requireText("src/app/components/money-operations-panel.tsx", "displayGuidedSteps");
 requireText(
   "src/app/components/money-operations-panel.tsx",
-  "Charge -> connect -> detect -> protect -> move",
+  "Pay -> connect -> route -> detect -> protect -> release",
 );
+requireText("src/app/components/money-operations-panel.tsx", "Runnable now");
+requireText("src/app/components/money-operations-panel.tsx", "Needs setup");
 requireText("src/app/components/money-operations-panel.tsx", "Manage billing");
 requireText("src/app/components/money-operations-panel.tsx", "/api/app/billing/portal");
 requireText("src/app/components/money-operations-panel.tsx", "/api/app/paychecks/rules");

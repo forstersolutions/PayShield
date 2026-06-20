@@ -4,7 +4,10 @@ import { getMoneyRailReadiness } from "../../lib/neobank/money-rails.ts";
 import { getWaitlistCaptureConfig } from "../../lib/waitlist-capture-config.ts";
 import { getNeobankReadiness } from "../../lib/neobank/readiness.ts";
 import { getAppAccessReadiness } from "../../lib/neobank/app-access.ts";
-import { buildCommercialOperatingState } from "../../lib/neobank/operations.ts";
+import {
+  buildCommercialOperatingState,
+  buildGuidedMoneyFlow,
+} from "../../lib/neobank/operations.ts";
 import { createNeobankSnapshot } from "../../lib/neobank/demo-state.ts";
 
 export function GET() {
@@ -21,6 +24,13 @@ export function GET() {
     .filter((bucket) => bucket.id !== "safe_spending")
     .reduce((sum, bucket) => sum + bucket.availableCents, 0);
   const commercialOperatingState = buildCommercialOperatingState({
+    commercial,
+    moneyRails,
+    neobank,
+    protectedCents,
+    safeToSpendCents,
+  });
+  const guidedMoneyFlow = buildGuidedMoneyFlow({
     commercial,
     moneyRails,
     neobank,
@@ -85,6 +95,7 @@ export function GET() {
         reviewTokenConfigured: appAccess.reviewTokenConfigured,
       },
       commercialOperatingState,
+      guidedMoneyFlow,
       moneyRails: {
         bankLinkReady: moneyRails.bankLinkReady,
         detectionMode: moneyRails.detectionMode,

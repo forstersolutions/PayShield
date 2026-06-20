@@ -241,6 +241,45 @@ type CommercialOperatingState = {
   totalRailCount?: number;
 };
 
+type GuidedMoneyFlowStep = {
+  blockers?: string[];
+  canRunNow?: boolean;
+  endpoint: string;
+  evidence?: string;
+  key: string;
+  label: string;
+  ownerAction?: string;
+  primaryAction: string;
+  ready?: boolean;
+  runMode?: string;
+  status?: string;
+  title: string;
+  userOutcome?: string;
+  uiTarget?: string;
+};
+
+type GuidedMoneyFlow = {
+  headline?: string;
+  mode?: string;
+  nextStep?: GuidedMoneyFlowStep;
+  progress?: {
+    availableNowCount?: number;
+    blockedStepCount?: number;
+    percent?: number;
+    readyStepCount?: number;
+    totalStepCount?: number;
+  };
+  service?: string;
+  steps?: GuidedMoneyFlowStep[];
+  summary?: string;
+  totals?: {
+    priceLabel?: string;
+    protectedCents?: number;
+    safeToSpendCents?: number;
+    totalCents?: number;
+  };
+};
+
 type OperationsPacket = {
   balances?: {
     protectedCents?: number;
@@ -259,6 +298,7 @@ type OperationsPacket = {
     subscriptionStatus?: string | null;
   };
   commercialOperatingState?: CommercialOperatingState;
+  guidedMoneyFlow?: GuidedMoneyFlow;
   directDeposit?: {
     accountLast4?: string;
     accountName?: string;
@@ -1567,9 +1607,8 @@ export function MoneyOperationsPanel({
     ...localTimeline,
     ...(operations?.timeline ?? []),
   ].slice(0, 8);
-  const operatingCockpit = operations?.operatingCockpit;
-  const commercialOperatingState = operations?.commercialOperatingState;
-  const commercialRails = commercialOperatingState?.rails ?? [];
+  const guidedMoneyFlow = operations?.guidedMoneyFlow;
+  const guidedSteps = guidedMoneyFlow?.steps ?? [];
   const revenueAndRails = operations?.revenueAndRails;
   const revenueRails = revenueAndRails?.rails ?? [];
   const serverRecordCount = recordCount(operations);
@@ -1799,9 +1838,38 @@ export function MoneyOperationsPanel({
     (total, rail) => total + rail.blockers.length,
     0,
   );
+  const railByKey = new Map(railStack.map((rail) => [rail.key, rail]));
+  const guidedNextStep = guidedMoneyFlow?.nextStep;
   const nextExecutableRail =
-    railStack.find((rail) => rail.tone !== "ready") ?? railStack[0];
+    (guidedNextStep ? railByKey.get(guidedNextStep.key) : undefined) ??
+    railStack.find((rail) => rail.tone !== "ready") ??
+    railStack[0];
   const NextExecutableIcon = nextExecutableRail.icon;
+  const guidedReadyCount =
+    guidedMoneyFlow?.progress?.readyStepCount ?? activeRailCount;
+  const guidedTotalCount =
+    guidedMoneyFlow?.progress?.totalStepCount ?? railStack.length;
+  const guidedAvailableCount =
+    guidedMoneyFlow?.progress?.availableNowCount ??
+    railStack.filter((rail) => rail.tone === "ready").length;
+  const guidedBlockedCount =
+    guidedMoneyFlow?.progress?.blockedStepCount ?? blockerCount;
+  const guidedPercent =
+    guidedMoneyFlow?.progress?.percent ??
+    Math.round((guidedReadyCount / Math.max(1, guidedTotalCount)) * 100);
+  const displayGuidedSteps: GuidedMoneyFlowStep[] = guidedSteps.length
+    ? guidedSteps
+    : railStack.map((rail) => ({
+        blockers: rail.blockers,
+        canRunNow: rail.tone === "ready",
+        endpoint: rail.endpoint,
+        key: rail.key,
+        label: rail.title,
+        primaryAction: rail.actionLabel,
+        ready: rail.tone === "ready",
+        status: rail.status,
+        title: rail.title,
+      }));
   const ownerWorkflow = [
     {
       detail:
@@ -1857,10 +1925,10 @@ export function MoneyOperationsPanel({
       value: selectedBucket ? formatMoney(selectedBucket.availableCents) : "bucket",
     },
   ];
-  const flowSteps = railStack.map((rail) => ({
-    key: rail.key,
-    label: rail.title,
-    ready: rail.tone === "ready",
+  const flowSteps = displayGuidedSteps.map((step) => ({
+    key: step.key,
+    label: step.label,
+    ready: Boolean(step.ready),
   }));
   const capabilityCards = [
     {
@@ -2122,107 +2190,76 @@ export function MoneyOperationsPanel({
                 protects buckets, and releases money only through approved
                 routes. Each button calls the route that powers that rail.
               </p>
-              <div className="mt-4 grid gap-2 rounded-[8px] border border-white/10 bg-black/35 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <span className="text-xs font-black uppercase text-[#8f99aa]">
-                    Operating cockpit
-                  </span>
-                  <span className="rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 px-2.5 py-1 text-xs font-black uppercase text-[#dffaff]">
-                    {(operatingCockpit?.mode ?? "credential_gated").replace(
-                      /_/g,
-                      " ",
-                    )}
+              <div className="mt-5 rounded-[8px] border border-[#39e8ff]/25 bg-[#06141a]/80 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="brand-kicker">Guided money flow</p>
+                    <h3 className="mt-1 text-2xl font-black text-white">
+                      {guidedMoneyFlow?.headline ??
+                        "Pay -> connect -> route -> detect -> protect -> release"}
+                    </h3>
+                  </div>
+                  <span className="rounded-[8px] border border-white/10 bg-black/35 px-3 py-2 text-xs font-black uppercase text-[#dffaff]">
+                    {formatStateLabel(guidedMoneyFlow?.mode)}
                   </span>
                 </div>
-                <p className="text-lg font-black text-white">
-                  {operatingCockpit?.headline ??
-                    "Charge -> connect -> detect -> protect -> move"}
+                <p className="mt-3 text-sm font-bold leading-6 text-[#c9d0da]">
+                  {guidedMoneyFlow?.summary ??
+                    "One guided operating path collects revenue, links the funding source, identifies payroll, funds protected buckets first, and releases only approved money."}
                 </p>
-                <div className="grid gap-2 sm:grid-cols-3">
+
+                <div className="mt-4 overflow-hidden rounded-full bg-black/45">
+                  <span
+                    className="block h-2 rounded-full bg-gradient-to-r from-[#68f0c2] via-[#39e8ff] to-[#ffb237]"
+                    style={{ width: `${Math.max(2, guidedPercent)}%` }}
+                  />
+                </div>
+
+                <div className="mt-4 grid gap-2 sm:grid-cols-3">
                   <span className="rounded-[8px] border border-[#68f0c2]/20 bg-[#68f0c2]/10 p-2">
-                    <span className="brand-kicker">Ready lanes</span>
+                    <span className="brand-kicker">Ready</span>
                     <span className="mt-1 block text-xl font-black text-white">
-                      {operatingCockpit?.readyLaneCount ?? activeRailCount}/
-                      {operatingCockpit?.totalLaneCount ?? railStack.length}
-                    </span>
-                  </span>
-                  <span className="rounded-[8px] border border-[#ffb237]/20 bg-[#ffb237]/10 p-2">
-                    <span className="brand-kicker">Next action</span>
-                    <span className="mt-1 block text-sm font-black text-white">
-                      {operatingCockpit?.nextAction?.label ??
-                        nextExecutableRail.title}
+                      {guidedReadyCount}/{guidedTotalCount}
                     </span>
                   </span>
                   <span className="rounded-[8px] border border-[#39e8ff]/20 bg-[#39e8ff]/10 p-2">
-                    <span className="brand-kicker">Endpoint</span>
-                    <span className="mt-1 block overflow-x-auto font-mono text-[0.68rem] font-black uppercase text-[#39e8ff]">
-                      {operatingCockpit?.nextAction?.primaryEndpoint ??
-                        nextExecutableRail.endpoint}
+                    <span className="brand-kicker">Runnable now</span>
+                    <span className="mt-1 block text-xl font-black text-white">
+                      {guidedAvailableCount}
+                    </span>
+                  </span>
+                  <span className="rounded-[8px] border border-[#ffb237]/20 bg-[#ffb237]/10 p-2">
+                    <span className="brand-kicker">Needs setup</span>
+                    <span className="mt-1 block text-xl font-black text-white">
+                      {guidedBlockedCount}
                     </span>
                   </span>
                 </div>
-              </div>
-              {commercialRails.length ? (
-                <div className="mt-4 rounded-[8px] border border-[#39e8ff]/20 bg-[#06141a]/75 p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
+
+                <div className="mt-4 rounded-[8px] border border-[#ffb237]/25 bg-[#ffb237]/10 p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="brand-kicker">Commercial operating state</p>
-                      <h3 className="mt-1 text-xl font-black text-white">
-                        {commercialOperatingState?.headline ??
-                          "Subscribe -> connect bank -> detect paycheck -> protect -> release"}
-                      </h3>
+                      <p className="brand-kicker">Next best action</p>
+                      <p className="mt-1 text-lg font-black text-white">
+                        {guidedNextStep?.title ?? nextExecutableRail.title}
+                      </p>
                     </div>
-                    <span className="rounded-[8px] border border-white/10 bg-black/35 px-3 py-2 text-xs font-black uppercase text-[#dffaff]">
-                      {formatStateLabel(commercialOperatingState?.mode)}
+                    <span className="rounded-[8px] bg-black/35 px-2.5 py-1 text-xs font-black capitalize text-[#ffe4ad]">
+                      {formatStateLabel(guidedNextStep?.status)}
                     </span>
                   </div>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                    {commercialRails.slice(0, 6).map((rail) => (
-                      <div
-                        className={`rounded-[8px] border p-3 ${
-                          rail.ready
-                            ? "border-[#68f0c2]/25 bg-[#68f0c2]/10"
-                            : "border-[#ffb237]/25 bg-[#ffb237]/10"
-                        }`}
-                        key={rail.key}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <span>
-                            <span className="text-xs font-black uppercase text-[#8f99aa]">
-                              {rail.provider}
-                            </span>
-                            <span className="mt-1 block text-sm font-black text-white">
-                              {rail.label}
-                            </span>
-                          </span>
-                          <span
-                            className={`rounded-[8px] px-2 py-1 text-[0.68rem] font-black capitalize ${
-                              rail.ready
-                                ? "bg-[#68f0c2]/10 text-[#9af7d5]"
-                                : "bg-[#ffb237]/10 text-[#ffe4ad]"
-                            }`}
-                          >
-                            {formatStateLabel(rail.state)}
-                          </span>
-                        </div>
-                        <p className="mt-2 text-xs font-bold leading-5 text-[#c9d0da]">
-                          {rail.userOutcome}
-                        </p>
-                        <code className="mt-2 block overflow-x-auto font-mono text-[0.66rem] font-black uppercase text-[#39e8ff]">
-                          {rail.endpoint}
-                        </code>
-                        <p className="mt-2 text-xs font-bold leading-5 text-[#ffe4ad]">
-                          {rail.ready
-                            ? "Ready in the current app state."
-                            : rail.blockers?.[0]
-                              ? `Needs ${rail.blockers[0]}`
-                              : rail.ownerSwitch}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
+                  <p className="mt-2 text-sm font-bold leading-6 text-[#ffe4bd]">
+                    {guidedNextStep?.canRunNow
+                      ? "This action can run in the current production configuration."
+                      : guidedNextStep?.blockers?.[0]
+                        ? `First blocker: ${guidedNextStep.blockers[0]}.`
+                        : "Open the matching control and continue the workflow."}
+                  </p>
+                  <code className="mt-2 block overflow-x-auto font-mono text-[0.68rem] font-black uppercase text-[#ffcf72]">
+                    {guidedNextStep?.endpoint ?? nextExecutableRail.endpoint}
+                  </code>
                 </div>
-              ) : null}
+              </div>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <button
                   className="brand-button-primary inline-flex min-h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
@@ -2253,9 +2290,11 @@ export function MoneyOperationsPanel({
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              {railStack.map((rail, index) => {
-                const Icon = rail.icon;
-                const ready = rail.tone === "ready";
+              {displayGuidedSteps.map((step, index) => {
+                const rail = railByKey.get(step.key);
+                const Icon = rail?.icon ?? ShieldAlert;
+                const ready = Boolean(step.ready);
+                const loading = rail?.state.status === "loading";
 
                 return (
                   <button
@@ -2264,10 +2303,19 @@ export function MoneyOperationsPanel({
                         ? "border-[#68f0c2]/25 bg-[#68f0c2]/[0.08] hover:border-[#68f0c2]/45"
                         : "border-[#ffb237]/25 bg-[#ffb237]/[0.085] hover:border-[#ffcf72]/45"
                     }`}
-                    disabled={rail.state.status === "loading"}
-                    key={rail.key}
+                    disabled={loading}
+                    key={step.key}
                     onClick={() => {
-                      void rail.onAction();
+                      if (rail) {
+                        void rail.onAction();
+                        return;
+                      }
+
+                      if (step.uiTarget) {
+                        document
+                          .getElementById(step.uiTarget)
+                          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }
                     }}
                     type="button"
                   >
@@ -2279,7 +2327,7 @@ export function MoneyOperationsPanel({
                             : "border-[#ffb237]/25 bg-black/30 text-[#ffcf72]"
                         }`}
                       >
-                        {rail.state.status === "loading" ? (
+                        {loading ? (
                           <Loader2
                             className="size-5 animate-spin"
                             aria-hidden="true"
@@ -2300,14 +2348,14 @@ export function MoneyOperationsPanel({
                     </span>
                     <span>
                       <span className="block text-sm font-black text-white">
-                        {rail.title}
+                        {step.title}
                       </span>
                       <span className="mt-1 block text-xs font-bold leading-5 text-[#aab3c2]">
-                        {rail.actionLabel}
+                        {step.primaryAction}
                       </span>
                     </span>
                     <span className="mt-auto block truncate font-mono text-[0.68rem] font-black uppercase text-[#39e8ff]">
-                      {rail.endpoint}
+                      {step.endpoint}
                     </span>
                     <span
                       className={`text-xs font-bold leading-5 ${
@@ -2316,9 +2364,9 @@ export function MoneyOperationsPanel({
                     >
                       {ready
                         ? "Ready now"
-                        : rail.blockers[0]
-                          ? `Needs ${rail.blockers[0]}`
-                          : rail.status}
+                        : step.blockers?.[0]
+                          ? `Needs ${step.blockers[0]}`
+                          : formatStateLabel(step.status)}
                     </span>
                   </button>
                 );
@@ -2449,13 +2497,13 @@ export function MoneyOperationsPanel({
               <div className="rounded-[8px] border border-[#68f0c2]/25 bg-[#68f0c2]/10 p-3">
                 <p className="brand-kicker">Runnable lanes</p>
                 <p className="mt-2 text-3xl font-black text-white">
-                  {activeRailCount}/{railStack.length}
+                  {guidedAvailableCount}/{guidedTotalCount}
                 </p>
               </div>
               <div className="rounded-[8px] border border-[#ffb237]/25 bg-[#ffb237]/10 p-3">
                 <p className="brand-kicker">Setup blockers</p>
                 <p className="mt-2 text-3xl font-black text-white">
-                  {blockerCount}
+                  {guidedBlockedCount}
                 </p>
               </div>
               <div className="rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 p-3">

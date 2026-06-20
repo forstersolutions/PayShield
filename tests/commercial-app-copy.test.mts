@@ -218,18 +218,15 @@ test("money operations surface shows revenue, rails, records, and export", async
   assert.match(moneyOperations, /Start here \/ Money operations/);
   assert.match(moneyOperations, /Revenue-to-protection console/);
   assert.match(moneyOperations, /Run the money product from here/);
-  assert.match(moneyOperations, /Operating cockpit/);
-  assert.match(moneyOperations, /operatingCockpit/);
-  assert.match(moneyOperations, /Ready lanes/);
-  assert.match(moneyOperations, /Next action/);
-  assert.match(moneyOperations, /Charge -> connect -> detect -> protect -> move/);
+  assert.match(moneyOperations, /Guided money flow/);
+  assert.match(moneyOperations, /guidedMoneyFlow/);
+  assert.match(moneyOperations, /displayGuidedSteps/);
+  assert.match(moneyOperations, /Next best action/);
+  assert.match(moneyOperations, /Pay -> connect -> route -> detect -> protect -> release/);
+  assert.match(moneyOperations, /Runnable now/);
+  assert.match(moneyOperations, /Needs setup/);
   assert.match(moneyOperations, /Run next:/);
   assert.match(moneyOperations, /Configure providers/);
-  assert.match(moneyOperations, /Commercial operating state/);
-  assert.match(
-    moneyOperations,
-    /Subscribe -> connect bank -> detect paycheck -> protect -> release/,
-  );
   assert.match(moneyOperations, /formatStateLabel/);
   assert.match(moneyOperations, /Open diagnostics/);
   assert.match(
