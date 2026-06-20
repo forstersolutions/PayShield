@@ -197,6 +197,15 @@ test("launch console exposes the commercial money path outside locked app access
   assert.match(launchPage, /PayShield Revenue \+ Rails Console/);
   assert.match(launchPage, /Make the app earn, connect, detect, protect, and move/);
   assert.match(launchPage, /Activation workbench/);
+  assert.match(launchPage, /Blocker map/);
+  assert.match(
+    launchPage,
+    /What can be configured now versus what needs external approval/,
+  );
+  assert.match(launchPage, /Revenue activation/);
+  assert.match(launchPage, /Bank link and token custody/);
+  assert.match(launchPage, /Core ledger and household auth/);
+  assert.match(launchPage, /Provider, counsel, and live-money gates/);
   assert.match(launchPage, /copy-safe/);
   assert.match(launchPage, /MoneyEngineConsole/);
   assert.match(launchPage, /PublicCheckoutForm/);

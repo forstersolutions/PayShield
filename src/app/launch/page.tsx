@@ -176,6 +176,10 @@ function gateLabel(gate: string) {
   return gate.replace(/^PAYSHIELD_/, "").replace(/_/g, " ").toLowerCase();
 }
 
+function gateInAny(gate: string, patterns: string[]) {
+  return patterns.some((pattern) => gate.includes(pattern));
+}
+
 function StageCard({ stage }: { stage: ActivationStage }) {
   const Icon = stage.ready ? CheckCircle2 : KeyRound;
 
@@ -209,6 +213,72 @@ function StageCard({ stage }: { stage: ActivationStage }) {
         <p className="mt-2 text-xs font-black capitalize text-[#ffcf72]">
           {cleanStatus(stage.status)}
         </p>
+      </div>
+    </article>
+  );
+}
+
+function BlockerGroupCard({
+  group,
+}: {
+  group: {
+    action: string;
+    detail: string;
+    icon: LucideIcon;
+    key: string;
+    title: string;
+    gates: string[];
+  };
+}) {
+  const Icon = group.icon;
+
+  return (
+    <article
+      className={`rounded-[8px] border p-4 ${
+        group.gates.length
+          ? "border-[#ffb237]/25 bg-[#ffb237]/10"
+          : "border-[#68f0c2]/25 bg-[#68f0c2]/10"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="brand-kicker">{group.key}</p>
+          <h3 className="mt-1 text-lg font-black text-white">{group.title}</h3>
+        </div>
+        <span
+          className={`grid size-10 shrink-0 place-items-center rounded-[8px] border ${
+            group.gates.length
+              ? "border-[#ffb237]/25 bg-black/30 text-[#ffcf72]"
+              : "border-[#68f0c2]/25 bg-black/30 text-[#68f0c2]"
+          }`}
+        >
+          <Icon className="size-5" aria-hidden="true" />
+        </span>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-[#c9d0da]">{group.detail}</p>
+      <p className="mt-3 text-sm font-black leading-6 text-white">
+        {group.action}
+      </p>
+      <div className="mt-4 grid gap-2">
+        {group.gates.length ? (
+          group.gates.slice(0, 6).map((gate) => (
+            <div
+              className="grid gap-1 rounded-[8px] border border-white/10 bg-black/35 px-3 py-2"
+              key={`${group.key}-${gate}`}
+            >
+              <span className="text-sm font-black text-white">
+                {gateLabel(gate)}
+              </span>
+              <code className="overflow-x-auto font-mono text-xs font-bold text-[#ffcf72]">
+                {gate}
+              </code>
+            </div>
+          ))
+        ) : (
+          <p className="rounded-[8px] border border-[#68f0c2]/20 bg-black/30 px-3 py-2 text-sm font-black text-[#9af7d5]">
+            Ready in the current production evidence.
+          </p>
+        )}
       </div>
     </article>
   );
@@ -377,6 +447,70 @@ export default function LaunchConsolePage() {
     ...neobank.gates.filter((gate) => !gate.ok).map((gate) => gate.id),
     ...appAccess.missing,
   ]);
+  const blockerGroups = [
+    {
+      action:
+        "Create the Stripe subscription price, add the live key and webhook secret, then point webhook activation at the core service.",
+      detail:
+        "This is the money-making path. It turns a household email into paid access before private money controls open.",
+      gates: allRemainingGates.filter(
+        (gate) =>
+          gateInAny(gate, ["STRIPE", "COMMERCIAL"]) ||
+          gate === "core_service_auth",
+      ),
+      icon: BadgeDollarSign,
+      key: "Configure now",
+      title: "Revenue activation",
+    },
+    {
+      action:
+        "Add Plaid credentials, the signed token-vault webhook URL, and a 32-byte encryption key before launching bank connections.",
+      detail:
+        "This makes bank linking and paycheck detection real by keeping access tokens out of the browser.",
+      gates: allRemainingGates.filter((gate) =>
+        gateInAny(gate, ["PLAID", "TOKEN_VAULT"]),
+      ),
+      icon: Link2,
+      key: "Configure now",
+      title: "Bank link and token custody",
+    },
+    {
+      action:
+        "Deploy the always-on core service, attach Postgres, run schema verification, and configure Clerk keys for household identity.",
+      detail:
+        "This moves the product from Vercel control surfaces to durable household records, ledger journals, and authenticated access.",
+      gates: allRemainingGates.filter((gate) =>
+        [
+          "clerk_auth",
+          "core_service_auth",
+          "dedicated_backend",
+          "postgres_ledger",
+        ].includes(gate),
+      ),
+      icon: Database,
+      key: "Configure now",
+      title: "Core ledger and household auth",
+    },
+    {
+      action:
+        "Finish provider selection, record the contract and credentials, then complete counsel and operations approvals before enabling live money.",
+      detail:
+        "These gates are intentionally external because account opening, card authorization, and money movement need approved operating evidence.",
+      gates: allRemainingGates.filter((gate) =>
+        [
+          "counsel_signoff",
+          "operations_runbooks",
+          "provider_adapter",
+          "provider_contract",
+          "provider_credentials",
+          "sponsor_disclosures",
+        ].includes(gate) || gateInAny(gate, ["BAAS", "TRANSFER"]),
+      ),
+      icon: ShieldCheck,
+      key: "Approval required",
+      title: "Provider, counsel, and live-money gates",
+    },
+  ];
   const setupTracks: ConsoleTrack[] = [
     {
       body:
@@ -679,6 +813,28 @@ export default function LaunchConsolePage() {
                       All visible launch gates are ready.
                     </div>
                   )}
+                </div>
+              </div>
+
+              <div className="brand-panel min-w-0 max-w-full overflow-hidden rounded-[8px] p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="brand-kicker">Blocker map</p>
+                    <h2 className="mt-1 break-words text-2xl font-black text-white">
+                      What can be configured now versus what needs external approval.
+                    </h2>
+                  </div>
+                  <span className="rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black text-[#dffaff]">
+                    {allRemainingGates.length} open
+                  </span>
+                </div>
+                <div className="mt-5 grid gap-3">
+                  {blockerGroups.map((group) => (
+                    <BlockerGroupCard
+                      group={group}
+                      key={`${group.key}-${group.title}`}
+                    />
+                  ))}
                 </div>
               </div>
             </section>
