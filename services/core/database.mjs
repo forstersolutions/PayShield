@@ -2355,7 +2355,24 @@ export async function persistBankConnection(input, env = process.env) {
           products = EXCLUDED.products,
           status = EXCLUDED.status,
           updated_at = now()
-        RETURNING id
+        WHERE bank_connections.household_id = EXCLUDED.household_id
+          AND bank_connections.user_id = EXCLUDED.user_id
+        RETURNING
+          id,
+          household_id,
+          user_id,
+          provider_name,
+          provider_item_id,
+          provider_account_id,
+          institution_name,
+          account_name,
+          account_mask,
+          token_secret_ref,
+          sync_cursor,
+          last_transaction_sync_at,
+          last_transaction_sync_request_id,
+          status,
+          (xmax::text <> '0') AS replayed
       `,
       [
         id,
@@ -2373,11 +2390,52 @@ export async function persistBankConnection(input, env = process.env) {
       ],
     );
 
+    if (result.rowCount === 0) {
+      const existing = await pool.query(
+        `
+          SELECT
+            id,
+            provider_name,
+            provider_item_id,
+            provider_account_id,
+            institution_name,
+            status
+          FROM bank_connections
+          WHERE provider_name = $1
+            AND provider_item_id = $2
+            AND provider_account_id = $3
+          LIMIT 1
+        `,
+        [input.providerName, input.providerItemId, input.providerAccountId],
+      );
+      const row = existing.rows[0];
+
+      return {
+        conflict: row
+          ? {
+              id: row.id,
+              institutionName: row.institution_name,
+              providerAccountId: row.provider_account_id,
+              providerItemId: row.provider_item_id,
+              providerName: row.provider_name,
+              status: row.status,
+            }
+          : null,
+        persisted: false,
+        persistence: "ownership_conflict",
+        persistenceReason:
+          "Provider bank connection is already bound to a different PayShield household or user.",
+      };
+    }
+
+    const row = result.rows[0];
+
     return {
+      bankConnection: bankConnectionFromRow(row),
       persisted: true,
       persistence: "postgres",
-      postgresId: result.rows[0]?.id ?? id,
-      replayed: false,
+      postgresId: row?.id ?? id,
+      replayed: row?.replayed === true,
     };
   } catch (error) {
     return persistenceFailed(error);

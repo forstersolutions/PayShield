@@ -1638,6 +1638,25 @@ export async function recordBankConnection(payload, env = process.env) {
   };
   const persistence = await persistBankConnection(connection, env);
 
+  if (persistence.persistence === "ownership_conflict") {
+    return {
+      body: {
+        accepted: false,
+        conflict: persistence.conflict || null,
+        error:
+          "Bank connection already belongs to a different PayShield household.",
+        persistence: {
+          persisted: false,
+          persistence: persistence.persistence,
+          persistenceReason: persistence.persistenceReason,
+        },
+        readiness,
+        service: "payshield-bank-connections",
+      },
+      status: 409,
+    };
+  }
+
   if (persistenceFailed(persistence)) {
     return {
       body: {
@@ -1689,7 +1708,7 @@ export async function recordBankConnection(payload, env = process.env) {
   return {
     body: {
       auditPersistence,
-      bankConnection: connection,
+      bankConnection: persistence.bankConnection || connection,
       message: readiness.bankLinkReady
         ? "Bank connection recorded for paycheck detection and transfer handoff."
         : "Bank connection shape recorded, but background detection needs a configured token vault.",

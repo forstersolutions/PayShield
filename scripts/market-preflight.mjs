@@ -380,6 +380,26 @@ requireText(
 );
 requireText("src/app/components/money-operations-panel.tsx", "collecting, activation pending");
 requireText("src/app/components/money-operations-panel.tsx", "/api/app/bank-link/exchange");
+requireText(
+  "services/core/product.mjs",
+  "Bank connection already belongs to a different PayShield household.",
+);
+requireText("services/core/database.mjs", "ownership_conflict");
+requireText(
+  "services/core/database.mjs",
+  "WHERE bank_connections.household_id = EXCLUDED.household_id",
+);
+requireText(
+  "services/core/database.mjs",
+  "AND bank_connections.user_id = EXCLUDED.user_id",
+);
+requireTextOrderInSection(
+  "services/core/product.mjs",
+  "export async function recordBankConnection",
+  "export async function getProfile",
+  "ownership_conflict",
+  "persistMoneyRailEvent(",
+);
 requireText("src/app/components/money-operations-panel.tsx", "Revenue and rails");
 requireText("src/app/components/money-operations-panel.tsx", "The commercial operating map.");
 requireText("src/app/components/money-operations-panel.tsx", "Manage billing");

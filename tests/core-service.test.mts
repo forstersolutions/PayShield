@@ -487,6 +487,60 @@ test("core paycheck detection replays durable detections before recomputing spli
   assert.match(databaseSource, /paycheckDetectionFromRow/);
 });
 
+test("core bank connections reject provider ownership collisions", () => {
+  const productSource = readFileSync(
+    new URL("../services/core/product.mjs", import.meta.url),
+    "utf8",
+  );
+  const databaseSource = readFileSync(
+    new URL("../services/core/database.mjs", import.meta.url),
+    "utf8",
+  );
+  const recordStart = productSource.indexOf(
+    "export async function recordBankConnection",
+  );
+  const recordEnd = productSource.indexOf(
+    "export async function getProfile",
+    recordStart,
+  );
+
+  assert.notEqual(recordStart, -1);
+  assert.notEqual(recordEnd, -1);
+
+  const recordSource = productSource.slice(recordStart, recordEnd);
+  const conflictIndex = recordSource.indexOf(
+    'persistence.persistence === "ownership_conflict"',
+  );
+  const auditIndex = recordSource.indexOf("persistMoneyRailEvent(");
+
+  assert.ok(
+    conflictIndex >= 0,
+    "bank connection route must handle provider ownership conflicts",
+  );
+  assert.ok(
+    conflictIndex < auditIndex,
+    "bank connection ownership conflicts must be rejected before audit success is recorded",
+  );
+  assert.match(
+    recordSource,
+    /Bank connection already belongs to a different PayShield household/,
+  );
+  assert.match(recordSource, /status: 409/);
+  assert.match(
+    databaseSource,
+    /WHERE bank_connections\.household_id = EXCLUDED\.household_id/,
+  );
+  assert.match(
+    databaseSource,
+    /AND bank_connections\.user_id = EXCLUDED\.user_id/,
+  );
+  assert.match(databaseSource, /persistence: "ownership_conflict"/);
+  assert.match(
+    databaseSource,
+    /token_secret_ref[\s\S]+RETURNING[\s\S]+token_secret_ref/,
+  );
+});
+
 test("core profile route binds authenticated users to a household identity", async () => {
   await withCoreServer(async (baseUrl) => {
     const { body, response } = await getJson(baseUrl, "/api/app/me", {
