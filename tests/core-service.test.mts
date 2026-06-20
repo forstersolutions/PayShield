@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, test } from "node:test";
+import { shouldUpdateCommercialSubscription } from "../services/core/database.mjs";
 import { createCoreServer } from "../services/core/server.mjs";
 import {
   persistTransactionSyncException,
@@ -861,6 +862,15 @@ test("core commercial billing event intake is idempotent", async () => {
     assert.equal(commercialAccess.providerSubscriptionId, "sub_test");
     assert.equal(commercialAccess.subscriptionStatus, "active");
   });
+});
+
+test("core commercial billing ignores unhandled events for subscription state", () => {
+  assert.equal(shouldUpdateCommercialSubscription("active"), true);
+  assert.equal(shouldUpdateCommercialSubscription("past_due"), true);
+  assert.equal(shouldUpdateCommercialSubscription("canceled"), true);
+  assert.equal(shouldUpdateCommercialSubscription("pending"), true);
+  assert.equal(shouldUpdateCommercialSubscription("blocked"), true);
+  assert.equal(shouldUpdateCommercialSubscription("ignored"), false);
 });
 
 test("core checkout route records paid-access intent before webhook activation", async () => {

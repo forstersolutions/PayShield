@@ -42,6 +42,10 @@ export function durableStorageRequired(env = process.env) {
   );
 }
 
+export function shouldUpdateCommercialSubscription(accessStatus) {
+  return accessStatus !== "ignored";
+}
+
 function recordId(prefix, ...parts) {
   const digest = createHash("sha256")
     .update(parts.filter(Boolean).join(":"))
@@ -1537,7 +1541,12 @@ export async function persistCommercialBillingEvent(input, env = process.env) {
 
     let subscriptionId = null;
 
-    if (householdId && input.subscriptionId && result.rowCount > 0) {
+    if (
+      householdId &&
+      input.subscriptionId &&
+      result.rowCount > 0 &&
+      shouldUpdateCommercialSubscription(input.accessStatus)
+    ) {
       subscriptionId = recordId(
         "commercial_subscription",
         input.providerName,
@@ -1581,7 +1590,7 @@ export async function persistCommercialBillingEvent(input, env = process.env) {
           input.customerId || "unknown",
           input.subscriptionId,
           input.priceId || null,
-          input.accessStatus === "ignored" ? "pending" : input.accessStatus,
+          input.accessStatus,
           input.subscriptionStatus || "unknown",
           input.currentPeriodEnd || null,
           Boolean(input.cancelAtPeriodEnd),

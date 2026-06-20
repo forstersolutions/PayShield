@@ -469,6 +469,8 @@ requireText("src/app/api/app/billing/checkout/route.ts", "autoActivationReady");
 requireText("src/app/lib/commercial/stripe-webhook.ts", "billingIdentityUserId");
 requireText("src/app/lib/commercial/stripe-webhook.ts", "subscriptionDetailsObject");
 requireText("src/app/lib/commercial/stripe-webhook.ts", "payshield_customer_email");
+requireText("services/core/database.mjs", "shouldUpdateCommercialSubscription");
+requireText("services/core/database.mjs", 'accessStatus !== "ignored"');
 requireText("src/app/lib/neobank/money-rails.ts", "providerWebhookSigningConfigured");
 requireText("src/app/lib/neobank/money-rails.ts", "transactionSyncReady");
 requireText("src/app/lib/neobank/provider-events.ts", "classifyProviderEvent");
