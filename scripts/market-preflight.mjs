@@ -553,6 +553,31 @@ requireText("services/core/migrations/0003_ledger_integrity.sql", "DEFERRABLE IN
 requireText("services/core/migrations/0003_ledger_integrity.sql", "prevent_posted_journal_mutation");
 requireText("services/core/migrations/0006_provider_token_vault.sql", "provider_token_secrets");
 requireText("services/core/migrations/0006_provider_token_vault.sql", "ciphertext TEXT NOT NULL");
+requireText("services/core/database.mjs", "const tokenVaultEventId = recordId(");
+requireText("services/core/database.mjs", "ON CONFLICT (id) DO NOTHING");
+requireText("services/core/database.mjs", "previousKeyId");
+requireText(
+  "services/core/database.mjs",
+  "previousFingerprint === tokenFingerprint && previousKeyId === input.keyId",
+);
+requireText(
+  "services/core/database.mjs",
+  "ELSE provider_token_secrets.ciphertext",
+);
+requireText(
+  "services/core/database.mjs",
+  "ELSE provider_token_secrets.updated_at",
+);
+rejectPattern(
+  "services/core/database.mjs",
+  /String\(Date\.now\(\)\)/,
+  "Token-vault replay event identity must not depend on wall-clock time",
+);
+rejectPattern(
+  "services/core/database.mjs",
+  /randomBytes\(6\)/,
+  "Token-vault replay event identity must not use random suffixes",
+);
 requireText("services/core/migrations/0007_paycheck_detection_rules.sql", "expected_frequency");
 requireText("services/core/migrations/0007_paycheck_detection_rules.sql", "idempotency_key");
 requireText("services/core/migrations/0007_paycheck_detection_rules.sql", "detection_rule_id");
@@ -1182,6 +1207,13 @@ requireTextOrderInSection(
   "async function startOnboardingWithPaidAccess",
   "providerCreateDirectDepositInstructions(",
   "providerCompletedAt",
+);
+requireTextOrderInSection(
+  "services/core/database.mjs",
+  "export async function persistProviderTokenSecret",
+  "export async function loadPaycheckDetection",
+  "const tokenVaultEventId = recordId(",
+  "INSERT INTO provider_token_vault_events",
 );
 requireText("services/core/product.mjs", "loadPaycheckDetection");
 requireText(

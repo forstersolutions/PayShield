@@ -2715,22 +2715,32 @@ export async function persistProviderTokenSecret(input, env = process.env) {
       .digest("hex");
     const existing = await client.query(
       `
-        SELECT token_fingerprint_sha256
+        SELECT key_id, token_fingerprint_sha256
         FROM provider_token_secrets
         WHERE provider_name = $1 AND provider_item_id = $2
         FOR UPDATE
       `,
       [input.providerName, input.providerItemId],
     );
+    const previousKeyId = existing.rows[0]?.key_id ?? "";
     const previousFingerprint =
       existing.rows[0]?.token_fingerprint_sha256 ?? "";
-    const replayed = previousFingerprint === tokenFingerprint;
+    const replayed =
+      previousFingerprint === tokenFingerprint && previousKeyId === input.keyId;
     const eventType =
       existing.rowCount === 0
         ? "token_stored"
-        : replayed
+        : previousFingerprint === tokenFingerprint
           ? "token_replayed"
           : "token_rotated";
+    const tokenVaultEventId = recordId(
+      "token_vault_event",
+      input.providerName,
+      input.providerItemId,
+      input.requestId || tokenFingerprint,
+      eventType,
+      tokenFingerprint,
+    );
 
     await client.query(
       `
@@ -2750,21 +2760,80 @@ export async function persistProviderTokenSecret(input, env = process.env) {
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'active')
         ON CONFLICT (provider_name, provider_item_id)
         DO UPDATE SET
-          key_id = EXCLUDED.key_id,
-          algorithm = EXCLUDED.algorithm,
-          ciphertext = EXCLUDED.ciphertext,
-          nonce = EXCLUDED.nonce,
-          auth_tag = EXCLUDED.auth_tag,
-          token_fingerprint_sha256 = EXCLUDED.token_fingerprint_sha256,
-          request_id = EXCLUDED.request_id,
-          status = 'active',
-          updated_at = now(),
+          key_id = CASE
+            WHEN provider_token_secrets.token_fingerprint_sha256 <> EXCLUDED.token_fingerprint_sha256
+              OR provider_token_secrets.key_id <> EXCLUDED.key_id
+              OR provider_token_secrets.status <> 'active'
+            THEN EXCLUDED.key_id
+            ELSE provider_token_secrets.key_id
+          END,
+          algorithm = CASE
+            WHEN provider_token_secrets.token_fingerprint_sha256 <> EXCLUDED.token_fingerprint_sha256
+              OR provider_token_secrets.key_id <> EXCLUDED.key_id
+              OR provider_token_secrets.status <> 'active'
+            THEN EXCLUDED.algorithm
+            ELSE provider_token_secrets.algorithm
+          END,
+          ciphertext = CASE
+            WHEN provider_token_secrets.token_fingerprint_sha256 <> EXCLUDED.token_fingerprint_sha256
+              OR provider_token_secrets.key_id <> EXCLUDED.key_id
+              OR provider_token_secrets.status <> 'active'
+            THEN EXCLUDED.ciphertext
+            ELSE provider_token_secrets.ciphertext
+          END,
+          nonce = CASE
+            WHEN provider_token_secrets.token_fingerprint_sha256 <> EXCLUDED.token_fingerprint_sha256
+              OR provider_token_secrets.key_id <> EXCLUDED.key_id
+              OR provider_token_secrets.status <> 'active'
+            THEN EXCLUDED.nonce
+            ELSE provider_token_secrets.nonce
+          END,
+          auth_tag = CASE
+            WHEN provider_token_secrets.token_fingerprint_sha256 <> EXCLUDED.token_fingerprint_sha256
+              OR provider_token_secrets.key_id <> EXCLUDED.key_id
+              OR provider_token_secrets.status <> 'active'
+            THEN EXCLUDED.auth_tag
+            ELSE provider_token_secrets.auth_tag
+          END,
+          token_fingerprint_sha256 = CASE
+            WHEN provider_token_secrets.token_fingerprint_sha256 <> EXCLUDED.token_fingerprint_sha256
+              OR provider_token_secrets.status <> 'active'
+            THEN EXCLUDED.token_fingerprint_sha256
+            ELSE provider_token_secrets.token_fingerprint_sha256
+          END,
+          request_id = CASE
+            WHEN provider_token_secrets.token_fingerprint_sha256 <> EXCLUDED.token_fingerprint_sha256
+              OR provider_token_secrets.key_id <> EXCLUDED.key_id
+              OR provider_token_secrets.status <> 'active'
+            THEN EXCLUDED.request_id
+            ELSE provider_token_secrets.request_id
+          END,
+          status = CASE
+            WHEN provider_token_secrets.token_fingerprint_sha256 <> EXCLUDED.token_fingerprint_sha256
+              OR provider_token_secrets.key_id <> EXCLUDED.key_id
+              OR provider_token_secrets.status <> 'active'
+            THEN 'active'
+            ELSE provider_token_secrets.status
+          END,
+          updated_at = CASE
+            WHEN provider_token_secrets.token_fingerprint_sha256 <> EXCLUDED.token_fingerprint_sha256
+              OR provider_token_secrets.key_id <> EXCLUDED.key_id
+              OR provider_token_secrets.status <> 'active'
+            THEN now()
+            ELSE provider_token_secrets.updated_at
+          END,
           rotated_at = CASE
             WHEN provider_token_secrets.token_fingerprint_sha256 <> EXCLUDED.token_fingerprint_sha256
             THEN now()
             ELSE provider_token_secrets.rotated_at
           END,
-          revoked_at = NULL
+          revoked_at = CASE
+            WHEN provider_token_secrets.token_fingerprint_sha256 <> EXCLUDED.token_fingerprint_sha256
+              OR provider_token_secrets.key_id <> EXCLUDED.key_id
+              OR provider_token_secrets.status <> 'active'
+            THEN NULL
+            ELSE provider_token_secrets.revoked_at
+          END
       `,
       [
         id,
@@ -2793,17 +2862,10 @@ export async function persistProviderTokenSecret(input, env = process.env) {
           payload
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+        ON CONFLICT (id) DO NOTHING
       `,
       [
-        recordId(
-          "token_vault_event",
-          input.providerName,
-          input.providerItemId,
-          input.requestId || "",
-          eventType,
-          String(Date.now()),
-          randomBytes(6).toString("hex"),
-        ),
+        tokenVaultEventId,
         input.providerName,
         input.providerItemId,
         input.requestId || null,

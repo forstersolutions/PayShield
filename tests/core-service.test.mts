@@ -611,6 +611,68 @@ test("core direct deposit setup persists before provider execution", () => {
   assert.match(databaseSource, /true AS replayed/);
 });
 
+test("core token vault custody is deterministic for signed replays", () => {
+  const productSource = readFileSync(
+    new URL("../services/core/product.mjs", import.meta.url),
+    "utf8",
+  );
+  const databaseSource = readFileSync(
+    new URL("../services/core/database.mjs", import.meta.url),
+    "utf8",
+  );
+  const persistStart = databaseSource.indexOf(
+    "export async function persistProviderTokenSecret",
+  );
+  const persistEnd = databaseSource.indexOf(
+    "export async function loadPaycheckDetection",
+    persistStart,
+  );
+
+  assert.notEqual(persistStart, -1);
+  assert.notEqual(persistEnd, -1);
+
+  const persistSource = databaseSource.slice(persistStart, persistEnd);
+  const eventIdIndex = persistSource.indexOf("const tokenVaultEventId = recordId(");
+  const eventInsertIndex = persistSource.indexOf(
+    "INSERT INTO provider_token_vault_events",
+  );
+
+  assert.match(
+    persistSource,
+    /SELECT key_id, token_fingerprint_sha256/,
+  );
+  assert.match(
+    persistSource,
+    /previousFingerprint === tokenFingerprint && previousKeyId === input\.keyId/,
+  );
+  assert.match(persistSource, /const tokenVaultEventId = recordId\(/);
+  assert.ok(
+    eventIdIndex >= 0 && eventIdIndex < eventInsertIndex,
+    "token vault event id must be computed before the event insert",
+  );
+  assert.match(persistSource, /ON CONFLICT \(id\) DO NOTHING/);
+  assert.match(
+    persistSource,
+    /ELSE provider_token_secrets\.ciphertext/,
+  );
+  assert.match(
+    persistSource,
+    /ELSE provider_token_secrets\.updated_at/,
+  );
+  assert.equal(
+    persistSource.includes("String(Date.now())"),
+    false,
+    "token vault event ids must not depend on wall-clock time",
+  );
+  assert.equal(
+    persistSource.includes('randomBytes(6).toString("hex")'),
+    false,
+    "token vault event ids must not use random suffixes",
+  );
+  assert.match(productSource, /receiveTokenVaultHandoff/);
+  assert.match(productSource, /secretString\(payload\.accessToken/);
+});
+
 test("core profile route binds authenticated users to a household identity", async () => {
   await withCoreServer(async (baseUrl) => {
     const { body, response } = await getJson(baseUrl, "/api/app/me", {
