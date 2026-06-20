@@ -145,7 +145,7 @@ test("production app access fails closed without Clerk unless review access is e
     );
     const pageBody = await pageResponse.text();
 
-    assert.equal(pageResponse.status, 503);
+    assert.equal(pageResponse.status, 200);
     assert.match(pageBody, /PayShield App Activation/);
     assert.match(pageBody, /Household app activation/);
     assert.match(pageBody, /Turn on secure app access/);

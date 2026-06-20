@@ -381,7 +381,7 @@ function protectedAppUnavailableResponse(request: NextRequest) {
         ...headers,
         "content-type": "text/html; charset=utf-8",
       },
-      status: 503,
+      status: 200,
     },
   );
 }
