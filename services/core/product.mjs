@@ -3115,7 +3115,7 @@ function buildRevenueAndRails(
         key: "paycheck_detection",
         label: "Detect income",
         ownerAction:
-          "Configure Plaid/token-vault credentials, sync cursor storage, and signed provider events; controlled manual detection remains available for operator testing.",
+          "Configure Plaid/token-vault credentials, sync cursor storage, signed provider events, and durable core storage before paycheck detection runs from the app.",
         provider:
           moneyRails.detectionMode === "plaid_transactions_sync"
             ? "Plaid Transactions"
@@ -4638,7 +4638,9 @@ function getMoneyRailReadiness(env = process.env) {
 
   return {
     bankLinkReady: plaidConfigured && vault.custodyReady,
-    detectionMode: plaidConfigured ? "plaid_transactions_sync" : "manual_or_provider_webhook",
+    detectionMode: plaidConfigured
+      ? "plaid_transactions_sync"
+      : "core_detection_required",
     paycheckDetectionReady:
       plaidConfigured && vault.custodyReady && providerWebhookSigningConfigured,
     liveMoneyReady: neobank.liveMoneyReady,

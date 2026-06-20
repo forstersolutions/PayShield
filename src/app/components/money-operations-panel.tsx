@@ -1643,7 +1643,7 @@ export function MoneyOperationsPanel({
       blockers: readiness?.moneyRails?.paycheckDetectionReady
         ? []
         : [...new Set(detectionGates.map(friendlyGateLabel))],
-      body: "Save a payroll rule and run a controlled detection now; automatic detection turns on when Plaid/token-vault/provider-event signing is configured.",
+      body: "Save payroll rules and run detections through the core ledger; automatic detection turns on when Plaid, token custody, and provider-event signing are configured.",
       endpoint: "POST /api/app/paychecks/detect",
       icon: Radar,
       key: "paycheck_detection",
@@ -1654,7 +1654,7 @@ export function MoneyOperationsPanel({
         ? "Auto detection ready"
         : readiness?.moneyRails?.bankLinkReady
           ? "Provider signing needed"
-          : "Rule check ready",
+          : "Core setup required",
       title: "Detect paychecks",
       tone: readiness?.moneyRails?.paycheckDetectionReady ? "ready" : "attention",
     },
@@ -1847,7 +1847,7 @@ export function MoneyOperationsPanel({
         ? "automatic"
         : readiness?.moneyRails?.bankLinkReady
           ? "event signing"
-          : "rule mode",
+          : "core required",
       title: "Detect paychecks",
       tone: readiness?.moneyRails?.paycheckDetectionReady
         ? "ready"

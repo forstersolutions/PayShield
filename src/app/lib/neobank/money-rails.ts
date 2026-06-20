@@ -289,7 +289,9 @@ export function getMoneyRailReadiness() {
 
   return {
     bankLinkReady: plaidConfigured && vault.custodyReady,
-    detectionMode: plaidConfigured ? "plaid_transactions_sync" : "manual_or_provider_webhook",
+    detectionMode: plaidConfigured
+      ? "plaid_transactions_sync"
+      : "core_detection_required",
     paycheckDetectionReady:
       plaidConfigured && vault.custodyReady && providerWebhookSigningConfigured,
     providerWebhookSigningConfigured,

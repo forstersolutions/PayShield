@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 const customerFacingFiles = [
@@ -179,21 +179,9 @@ test("app command center exposes a guided real-money setup surface", async () =>
   assert.match(coreProduct, /payshield-household-control-plan/);
   assert.match(coreProduct, /projectedSafeToSpendCents/);
   assert.match(coreServer, /path === "\/app\/control-plan"/);
-  const appLoading = await readFile("src/app/app/loading.tsx", "utf8");
-  const launchLoading = await readFile("src/app/launch/loading.tsx", "utf8");
-  const loadingShell = await readFile(
-    "src/app/components/route-loading-shell.tsx",
-    "utf8",
-  );
-
-  assert.match(appLoading, /Loading the money-control cockpit/);
-  assert.match(appLoading, /Collect paid access/);
-  assert.match(appLoading, /Connect bank source/);
-  assert.match(launchLoading, /Loading the activation cockpit/);
-  assert.match(launchLoading, /Verify revenue switch/);
-  assert.match(launchLoading, /Check live gates/);
-  assert.match(loadingShell, /PayShieldHeaderLogo/);
-  assert.match(loadingShell, /Preparing operating flow/);
+  await assert.rejects(access("src/app/app/loading.tsx"));
+  await assert.rejects(access("src/app/launch/loading.tsx"));
+  await assert.rejects(access("src/app/components/route-loading-shell.tsx"));
   const brandMark = await readFile(
     "src/app/components/pay-shield-mark.tsx",
     "utf8",
@@ -255,7 +243,8 @@ test("money operations surface shows revenue, rails, records, and export", async
   assert.match(moneyOperations, /Sync bank activity/);
   assert.match(moneyOperations, /POST \/api\/app\/paychecks\/sync/);
   assert.match(moneyOperations, /Detect paychecks/);
-  assert.match(moneyOperations, /Rule check ready/);
+  assert.match(moneyOperations, /Core setup required/);
+  assert.match(moneyOperations, /core required/);
   assert.match(moneyOperations, /Provider activation/);
   assert.match(moneyOperations, /Protect the money/);
   assert.match(moneyOperations, /POST \/api\/app\/buckets/);

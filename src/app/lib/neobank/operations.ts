@@ -490,7 +490,7 @@ function buildRevenueAndRails(input: {
         key: "paycheck_detection",
         label: "Detect income",
         ownerAction:
-          "Configure Plaid/token-vault credentials, sync cursor storage, and signed provider events; controlled manual detection remains available for operator testing.",
+          "Configure Plaid/token-vault credentials, sync cursor storage, signed provider events, and the durable core before paycheck detection runs from the app.",
         provider:
           input.moneyRails.detectionMode === "plaid_transactions_sync"
             ? "Plaid Transactions"

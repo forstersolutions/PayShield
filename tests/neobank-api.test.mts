@@ -1068,28 +1068,18 @@ test("billing webhook attaches invoice events through nested subscription metada
   assert.equal(summary.userId, "email_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 });
 
-test("money workflows require activation-ready paid access before commercial operations", async () => {
+test("money workflows require activation-ready paid access or the dedicated core before commercial operations", async () => {
   process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL =
     "https://buy.stripe.com/live_paid_access";
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
 
-  const cases: Array<[string, () => Promise<Response>]> = [
+  const coreCases: Array<[string, () => Promise<Response>]> = [
     [
       "bank linking",
       () =>
         createBankLinkToken(
           makeRequest("/api/app/bank-link/token", {
             origin: endpoint,
-          }),
-        ),
-    ],
-    ["provider onboarding", () => startOnboarding()],
-    [
-      "direct deposit setup",
-      () =>
-        setupDirectDeposit(
-          makeRequest("/api/app/direct-deposit", {
-            idempotencyKey: "route-paid-gate-direct-deposit",
           }),
         ),
     ],
@@ -1121,6 +1111,18 @@ test("money workflows require activation-ready paid access before commercial ope
         syncPaychecks(
           makeRequest("/api/app/paychecks/sync", {
             maxPages: 1,
+          }),
+        ),
+    ],
+  ];
+  const paidAccessCases: Array<[string, () => Promise<Response>]> = [
+    ["provider onboarding", () => startOnboarding()],
+    [
+      "direct deposit setup",
+      () =>
+        setupDirectDeposit(
+          makeRequest("/api/app/direct-deposit", {
+            idempotencyKey: "route-paid-gate-direct-deposit",
           }),
         ),
     ],
@@ -1174,7 +1176,20 @@ test("money workflows require activation-ready paid access before commercial ope
     ],
   ];
 
-  for (const [operation, request] of cases) {
+  for (const [operation, request] of coreCases) {
+    const response = await request();
+    const body = await parseJson(response);
+
+    assert.equal(response.status, 503, operation);
+    assert.equal(body.code, "core_service_required", operation);
+    assert.equal(
+      String(body.error).includes("PAYSHIELD_CORE_API_URL"),
+      true,
+      `${operation} should name the missing core service`,
+    );
+  }
+
+  for (const [operation, request] of paidAccessCases) {
     const response = await request();
     const body = await parseJson(response);
 
@@ -1189,19 +1204,19 @@ test("money workflows require activation-ready paid access before commercial ope
   }
 });
 
-test("bank link token fails closed until Plaid is configured", async () => {
+test("bank link token requires the dedicated authenticated core service", async () => {
   const response = await createBankLinkToken(
     makeRequest("/api/app/bank-link/token", {}),
   );
   const body = await parseJson(response);
-  const readiness = body.readiness as Record<string, unknown>;
 
-  assert.equal(response.status, 424);
-  assert.equal(readiness.plaidConfigured, false);
-  assert.equal(Array.isArray(readiness.missing), true);
+  assert.equal(response.status, 503);
+  assert.equal(body.code, "core_service_required");
+  assert.equal(body.service, "payshield-bank-link-token");
+  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
 });
 
-test("bank link token requires signed token-vault handoff and encrypted custody before Plaid Link", async () => {
+test("bank link token still refuses local Plaid handling when credentials are present without core", async () => {
   process.env.PLAID_CLIENT_ID = "plaid-client";
   process.env.PLAID_SECRET = "plaid-secret";
   process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
@@ -1210,18 +1225,11 @@ test("bank link token requires signed token-vault handoff and encrypted custody 
     makeRequest("/api/app/bank-link/token", {}),
   );
   const body = await parseJson(response);
-  const readiness = body.readiness as Record<string, unknown>;
-  const missing = readiness.missing as string[];
 
-  assert.equal(response.status, 424);
-  assert.equal(readiness.plaidConfigured, true);
-  assert.equal(readiness.tokenVaultConfigured, true);
-  assert.equal(readiness.tokenVaultStoreReady, false);
-  assert.equal(
-    missing.includes("PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL or PAYSHIELD_CORE_API_URL"),
-    true,
-  );
-  assert.equal(missing.includes("PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET"), true);
+  assert.equal(response.status, 503);
+  assert.equal(body.code, "core_service_required");
+  assert.equal(body.service, "payshield-bank-link-token");
+  assert.match(String(body.error), /dedicated PayShield core service/);
 });
 
 test("linked-bank paycheck sync requires the dedicated core custody path", async () => {
@@ -1232,9 +1240,10 @@ test("linked-bank paycheck sync requires the dedicated core custody path", async
   );
   const body = await parseJson(response);
 
-  assert.equal(response.status, 424);
+  assert.equal(response.status, 503);
+  assert.equal(body.code, "core_service_required");
   assert.equal(body.service, "payshield-paycheck-transaction-sync");
-  assert.match(String(body.error), /encrypted token custody/i);
+  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
 });
 
 test("direct deposit route records paycheck routing setup", async () => {
@@ -1258,7 +1267,7 @@ test("direct deposit route records paycheck routing setup", async () => {
   assert.equal(setup.idempotencyKey, "route-direct-deposit-primary");
 });
 
-test("paycheck detection posts a split before safe spend", async () => {
+test("paycheck detection requires the dedicated core instead of local ledger simulation", async () => {
   const response = await detectPaycheck(
     makeRequest("/api/app/paychecks/detect", {
       amountCents: 300_000,
@@ -1268,15 +1277,14 @@ test("paycheck detection posts a split before safe spend", async () => {
     }),
   );
   const body = await parseJson(response);
-  const entry = body.ledgerEntry as Record<string, unknown>;
 
-  assert.equal(response.status, 200);
-  assert.equal(body.protectedCents, 155_000);
-  assert.equal(body.safeToSpendCents, 145_000);
-  assert.equal(entry.type, "paycheck_deposit");
+  assert.equal(response.status, 503);
+  assert.equal(body.code, "core_service_required");
+  assert.equal(body.service, "payshield-paycheck-detection");
+  assert.match(String(body.error), /dedicated PayShield core service/);
 });
 
-test("paycheck detection rule route validates recurring payroll setup", async () => {
+test("paycheck detection rule route requires durable core storage", async () => {
   const response = await savePaycheckRule(
     makeRequest("/api/app/paychecks/rules", {
       employerNamePattern: "ACME PAYROLL",
@@ -1288,15 +1296,11 @@ test("paycheck detection rule route validates recurring payroll setup", async ()
     }),
   );
   const body = await parseJson(response);
-  const rule = body.rule as Record<string, unknown>;
-  const amountRange = rule.amountRangeCents as Record<string, unknown>;
 
-  assert.equal(response.status, 200);
+  assert.equal(response.status, 503);
+  assert.equal(body.code, "core_service_required");
   assert.equal(body.service, "payshield-paycheck-detection-rules");
-  assert.equal(body.persisted, false);
-  assert.equal(rule.ruleName, "ACME payroll");
-  assert.equal(rule.expectedFrequency, "biweekly");
-  assert.equal(amountRange.min, 150_000);
+  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
 
   const invalid = await savePaycheckRule(
     makeRequest("/api/app/paychecks/rules", {
@@ -1308,11 +1312,8 @@ test("paycheck detection rule route validates recurring payroll setup", async ()
   );
   const invalidBody = await parseJson(invalid);
 
-  assert.equal(invalid.status, 400);
-  assert.equal(
-    invalidBody.error,
-    "maximumAmountCents must be greater than minimumAmountCents.",
-  );
+  assert.equal(invalid.status, 503);
+  assert.equal(invalidBody.code, "core_service_required");
 });
 
 test("transfer route validates bucket funds and returns provider gate", async () => {

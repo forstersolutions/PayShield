@@ -92,7 +92,7 @@ test("commercial readiness fails with actionable gates for current architecture-
       },
       moneyRails: {
         bankLinkReady: false,
-        detectionMode: "manual_or_provider_webhook",
+        detectionMode: "core_detection_required",
         paycheckDetectionReady: false,
         plaidConfigured: false,
         providerAdapterConfigured: false,

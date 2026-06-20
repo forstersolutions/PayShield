@@ -12,6 +12,9 @@ import { POST as createBankLinkToken } from "../src/app/api/app/bank-link/token/
 import { POST as openBillingPortal } from "../src/app/api/app/billing/portal/route.ts";
 import { GET as getBillingStatus } from "../src/app/api/app/billing/status/route.ts";
 import { POST as scheduleBillPayment } from "../src/app/api/app/bill-payments/route.ts";
+import { POST as detectPaycheck } from "../src/app/api/app/paychecks/detect/route.ts";
+import { POST as savePaycheckRule } from "../src/app/api/app/paychecks/rules/route.ts";
+import { POST as syncPaychecks } from "../src/app/api/app/paychecks/sync/route.ts";
 import {
   GET as getControlPlan,
   POST as generateControlPlan,
@@ -629,6 +632,173 @@ test("bank link exchange API delegates public token exchange to configured core 
       assert.equal(captured.url, "/api/app/bank-link/exchange");
       assert.equal(forwardedBody.publicToken, "public-sandbox-token");
       assert.equal(forwardedBody.accountId, "acc_core");
+    },
+  );
+});
+
+test("paycheck detection rule API delegates durable rule storage to configured core service", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    async (request, response) => {
+      captured.authorization = request.headers.authorization;
+      captured.body = await readRequestBody(request);
+      captured.method = request.method;
+      captured.url = request.url;
+      captured.userId = request.headers["x-payshield-user-id"];
+
+      response.writeHead(200, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          coreDelegated: true,
+          persisted: true,
+          rule: {
+            id: "rule_core",
+            ruleName: "Core payroll",
+          },
+          service: "payshield-paycheck-detection-rules",
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-rule-secret";
+
+      const response = await savePaycheckRule(
+        makeRequest("/api/app/paychecks/rules", {
+          employerNamePattern: "CORE PAYROLL",
+          expectedFrequency: "biweekly",
+          minimumAmountCents: 150_000,
+          ruleName: "Core payroll",
+        }),
+      );
+      const body = await parseJson(response);
+      const forwardedBody = JSON.parse(String(captured.body || "{}")) as Record<
+        string,
+        unknown
+      >;
+
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("x-payshield-core-proxied"), "true");
+      assert.equal(body.coreDelegated, true);
+      assert.equal(body.persisted, true);
+      assert.equal(captured.authorization, "Bearer core-rule-secret");
+      assert.equal(captured.method, "POST");
+      assert.equal(captured.url, "/api/app/paychecks/rules");
+      assert.equal(captured.userId, "user_demo_001");
+      assert.equal(forwardedBody.ruleName, "Core payroll");
+      assert.equal(forwardedBody.minimumAmountCents, 150_000);
+    },
+  );
+});
+
+test("paycheck detection API delegates ledger posting to configured core service", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    async (request, response) => {
+      captured.authorization = request.headers.authorization;
+      captured.body = await readRequestBody(request);
+      captured.method = request.method;
+      captured.url = request.url;
+
+      response.writeHead(200, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          coreDelegated: true,
+          protectedCents: 155_000,
+          safeToSpendCents: 145_000,
+          service: "payshield-paycheck-detection",
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-detect-secret";
+
+      const response = await detectPaycheck(
+        makeRequest("/api/app/paychecks/detect", {
+          amountCents: 300_000,
+          employerName: "Core Payroll",
+          idempotencyKey: "core-route-paycheck",
+        }),
+      );
+      const body = await parseJson(response);
+      const forwardedBody = JSON.parse(String(captured.body || "{}")) as Record<
+        string,
+        unknown
+      >;
+
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("x-payshield-core-proxied"), "true");
+      assert.equal(body.coreDelegated, true);
+      assert.equal(body.safeToSpendCents, 145_000);
+      assert.equal(captured.authorization, "Bearer core-detect-secret");
+      assert.equal(captured.method, "POST");
+      assert.equal(captured.url, "/api/app/paychecks/detect");
+      assert.equal(forwardedBody.employerName, "Core Payroll");
+      assert.equal(forwardedBody.amountCents, 300_000);
+    },
+  );
+});
+
+test("linked-bank paycheck sync API delegates transaction sync to configured core service", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    async (request, response) => {
+      captured.authorization = request.headers.authorization;
+      captured.body = await readRequestBody(request);
+      captured.method = request.method;
+      captured.url = request.url;
+
+      response.writeHead(200, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          coreDelegated: true,
+          detectionCount: 1,
+          service: "payshield-paycheck-transaction-sync",
+          sync: {
+            addedCount: 2,
+            modifiedCount: 0,
+            pageCount: 1,
+            removedCount: 0,
+          },
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-sync-secret";
+
+      const response = await syncPaychecks(
+        makeRequest("/api/app/paychecks/sync", {
+          maxPages: 1,
+        }),
+      );
+      const body = await parseJson(response);
+      const forwardedBody = JSON.parse(String(captured.body || "{}")) as Record<
+        string,
+        unknown
+      >;
+
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("x-payshield-core-proxied"), "true");
+      assert.equal(body.coreDelegated, true);
+      assert.equal(body.detectionCount, 1);
+      assert.equal(captured.authorization, "Bearer core-sync-secret");
+      assert.equal(captured.method, "POST");
+      assert.equal(captured.url, "/api/app/paychecks/sync");
+      assert.equal(forwardedBody.maxPages, 1);
     },
   );
 });

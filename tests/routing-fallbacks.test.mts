@@ -47,9 +47,14 @@ test("route fallbacks provide branded recovery paths", async () => {
 
 test("app route serves the operating screen instead of the root loading shell", async () => {
   const appPage = await readFile("src/app/app/page.tsx", "utf8");
+  const launchPage = await readFile("src/app/launch/page.tsx", "utf8");
 
   assert.match(appPage, /dynamic = "force-dynamic"/);
+  assert.match(launchPage, /dynamic = "force-dynamic"/);
   await assert.rejects(access("src/app/loading.tsx"));
+  await assert.rejects(access("src/app/app/loading.tsx"));
+  await assert.rejects(access("src/app/launch/loading.tsx"));
+  await assert.rejects(access("src/app/components/route-loading-shell.tsx"));
 });
 
 test("production app access fails closed without Clerk unless review access is explicit", async () => {

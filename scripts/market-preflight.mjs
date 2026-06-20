@@ -70,8 +70,6 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
 [
   "src/app/page.tsx",
   "src/app/layout.tsx",
-  "src/app/app/loading.tsx",
-  "src/app/launch/loading.tsx",
   "src/app/icon.svg",
   "src/app/manifest.ts",
   "src/app/privacy/page.tsx",
@@ -87,6 +85,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/api/app/direct-deposit/route.ts",
   "src/app/api/app/control-plan/route.ts",
   "src/app/api/app/paychecks/rules/route.ts",
+  "src/app/lib/neobank/core-required.ts",
   "src/app/api/health/route.ts",
   "src/app/components/bill-payment-panel.tsx",
   "src/app/components/site-footer.tsx",
@@ -263,10 +262,9 @@ requireText("src/app/components/neobank-dashboard.tsx", "Provider readiness");
 requireText("src/app/components/neobank-dashboard.tsx", "support@graystontechnologies.com");
 requireText("src/app/page.tsx", "NeobankDashboard");
 requireText("src/app/app/page.tsx", 'dynamic = "force-dynamic"');
-requireText("src/app/app/loading.tsx", "RouteLoadingShell");
-requireText("src/app/app/loading.tsx", "Loading the money-control cockpit.");
-requireText("src/app/launch/loading.tsx", "RouteLoadingShell");
-requireText("src/app/launch/loading.tsx", "Loading the activation cockpit.");
+requireMissingFile("src/app/app/loading.tsx");
+requireMissingFile("src/app/launch/loading.tsx");
+requireMissingFile("src/app/components/route-loading-shell.tsx");
 requireText("src/app/components/waitlist-form.tsx", "Contact Grayston support");
 requireText("src/app/components/neobank-dashboard.tsx", "PublicCheckoutForm");
 requireText("src/app/components/public-checkout-form.tsx", "/api/public/billing/checkout");
@@ -416,7 +414,9 @@ requireText("src/app/api/app/billing/portal/route.ts", "providerCustomerId");
 requireText("src/app/lib/commercial/billing.ts", "createCommercialPortalSession");
 requireText("src/app/lib/commercial/billing.ts", "billing_portal_provider_error");
 requireText("src/app/api/app/direct-deposit/route.ts", "direct deposit setup");
-requireText("src/app/api/app/paychecks/rules/route.ts", "paycheck detection setup");
+requireText("src/app/api/app/paychecks/rules/route.ts", "Paycheck detection rule storage");
+requireText("src/app/lib/neobank/core-required.ts", "PAYSHIELD_CORE_API_URL");
+requireText("src/app/lib/neobank/core-required.ts", "PAYSHIELD_CORE_SERVICE_TOKEN");
 requireText("src/app/api/app/paychecks/sync/route.ts", "payshield-paycheck-transaction-sync");
 requireText("src/app/api/app/paychecks/sync/route.ts", "/api/app/paychecks/sync");
 requireText("src/proxy.ts", "protectedAppUnavailableResponse");

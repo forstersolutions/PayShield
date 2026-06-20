@@ -164,17 +164,19 @@ Linked-bank transaction detection uses the token vault reference plus Plaid
 Transactions sync. `POST /api/app/paychecks/sync` loads the active bank
 connection, decrypts the Plaid access token inside the core service, calls
 Plaid `/transactions/sync`, stores the cursor, and posts payroll-like credits
-through the same protected split journal used by manual detection. Provider
+through the same protected split journal used by core-backed detection. Provider
 webhooks can also post income events into `POST /api/provider/webhooks`, and
-operators can run controlled manual checks through
-`POST /api/app/paychecks/detect`. The split engine funds protected buckets
-first and exposes only the remainder as `safe_to_spend`.
+operator-reviewed detection requests run through `POST /api/app/paychecks/detect`.
+The Vercel frontend no longer performs local payroll ledger simulation for
+these routes; bank token exchange, payroll rules, linked-bank sync, and
+paycheck detection require the authenticated core service. The split engine
+funds protected buckets first and exposes only the remainder as `safe_to_spend`.
 
 `POST /api/provider/webhooks` now records the provider event, extracts
 payroll-like income transactions, resolves the active bank connection when
 provider item/account identifiers are present, loads active payroll rules for
 that household, and posts only matching paycheck events through the same
-protected split journal used by manual detection. Pending, debit, non-income,
+protected split journal used by core-backed detection. Pending, debit, non-income,
 and rule-mismatched transactions are ignored or blocked before protected funds
 move. In durable mode, provider paycheck events must include provider item and
 account identifiers so PayShield can match the transaction to an active
