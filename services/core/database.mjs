@@ -2869,6 +2869,60 @@ export async function persistTransferIntent(input, env = process.env) {
   }
 }
 
+export async function updateTransferIntentProviderStatus(
+  input,
+  env = process.env,
+) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return persistenceSkipped("transfer intent provider status", env);
+  }
+
+  try {
+    const result = await pool.query(
+      `
+        UPDATE transfer_intents
+        SET
+          provider_transfer_id = $3,
+          status = $4,
+          provider_status = $5,
+          failure_code = $6,
+          updated_at = now()
+        WHERE household_id = $1
+          AND idempotency_key = $2
+        RETURNING id
+      `,
+      [
+        input.householdId,
+        input.idempotencyKey,
+        input.providerTransferId || null,
+        input.status,
+        input.providerStatus,
+        input.failureCode || null,
+      ],
+    );
+
+    if (result.rowCount === 0) {
+      return {
+        persisted: false,
+        persistence: "postgres_missing",
+        persistenceReason:
+          "Transfer intent provider status update found no matching durable intent.",
+      };
+    }
+
+    return {
+      persisted: true,
+      persistence: "postgres",
+      postgresId: result.rows[0]?.id ?? null,
+      replayed: false,
+    };
+  } catch (error) {
+    return persistenceFailed(error);
+  }
+}
+
 export async function persistProductionGateEvidence(input, env = process.env) {
   const pool = poolFor(env);
 

@@ -37,6 +37,49 @@ function requireText(path, text) {
   }
 }
 
+function requireTextOrderInSection(
+  path,
+  sectionStartText,
+  sectionEndText,
+  beforeText,
+  afterText,
+) {
+  const content = readProjectFile(path);
+  const sectionStart = content.indexOf(sectionStartText);
+
+  if (sectionStart < 0) {
+    failures.push(`Missing required section start in ${path}: ${sectionStartText}`);
+    return;
+  }
+
+  const sectionEnd = content.indexOf(sectionEndText, sectionStart);
+
+  if (sectionEnd < 0) {
+    failures.push(`Missing required section end in ${path}: ${sectionEndText}`);
+    return;
+  }
+
+  const section = content.slice(sectionStart, sectionEnd);
+  const beforeIndex = section.indexOf(beforeText);
+  const afterIndex = section.indexOf(afterText);
+
+  if (beforeIndex < 0) {
+    failures.push(`Missing required ordered text in ${path}: ${beforeText}`);
+    return;
+  }
+
+  if (afterIndex < 0) {
+    failures.push(`Missing required ordered text in ${path}: ${afterText}`);
+    return;
+  }
+
+  if (beforeIndex >= afterIndex) {
+    failures.push(
+      `${path} requires ${beforeText} before ${afterText} inside ${sectionStartText}`,
+    );
+  }
+}
+
 function requireMaxSize(path, maxBytes) {
   const fullPath = requireFile(path);
 
@@ -988,6 +1031,32 @@ requireText("services/core/product.mjs", "providerAdapterRequest");
 requireText("services/core/product.mjs", "recordMoneyRailProviderException");
 requireText("services/core/product.mjs", "persistTransactionSyncException");
 requireText("services/core/product.mjs", "provider_adapter_error");
+requireText("services/core/product.mjs", "updateTransferIntentProviderStatus");
+requireText(
+  "services/core/product.mjs",
+  "Transfer intent could not be persisted before provider execution.",
+);
+requireText(
+  "services/core/product.mjs",
+  "did not replay the provider transfer request",
+);
+requireText("services/core/product.mjs", "provider_pending");
+requireTextOrderInSection(
+  "services/core/product.mjs",
+  "export async function createTransferIntent",
+  "function cleanScheduledDate",
+  "persistTransferIntent(",
+  "providerCreateAchTransfer(",
+);
+requireTextOrderInSection(
+  "services/core/product.mjs",
+  "export async function createTransferIntent",
+  "function cleanScheduledDate",
+  "persistence.replayed",
+  "providerCreateAchTransfer(",
+);
+requireText("services/core/database.mjs", "updateTransferIntentProviderStatus");
+requireText("services/core/database.mjs", "postgres_missing");
 requireText("services/core/product.mjs", "plaid_transaction_removed");
 requireText("services/core/product.mjs", "money_rail");
 requireText("services/core/product.mjs", "saveBucketProfile");

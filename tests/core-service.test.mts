@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { once } from "node:events";
+import { readFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, test } from "node:test";
 import { shouldUpdateCommercialSubscription } from "../services/core/database.mjs";
@@ -179,6 +180,67 @@ test("core health exposes product operation routes and fail-closed readiness", a
     assert.equal(routes.includes("POST /app/reconciliation/resolve"), true);
     assert.equal(routes.includes("POST /launch/gate-evidence"), true);
   });
+});
+
+test("core transfer execution persists a durable intent before live provider calls", () => {
+  const productSource = readFileSync(
+    new URL("../services/core/product.mjs", import.meta.url),
+    "utf8",
+  );
+  const databaseSource = readFileSync(
+    new URL("../services/core/database.mjs", import.meta.url),
+    "utf8",
+  );
+  const createTransferStart = productSource.indexOf(
+    "export async function createTransferIntent",
+  );
+  const createTransferEnd = productSource.indexOf(
+    "function cleanScheduledDate",
+    createTransferStart,
+  );
+
+  assert.notEqual(createTransferStart, -1);
+  assert.notEqual(createTransferEnd, -1);
+
+  const transferSource = productSource.slice(
+    createTransferStart,
+    createTransferEnd,
+  );
+  const persistIndex = transferSource.indexOf("persistTransferIntent(");
+  const replayIndex = transferSource.indexOf("persistence.replayed");
+  const providerIndex = transferSource.indexOf("providerCreateAchTransfer(");
+  const statusUpdateIndex = transferSource.indexOf(
+    "updateTransferIntentProviderStatus(",
+  );
+
+  assert.ok(persistIndex >= 0, "transfer intent must be persisted first");
+  assert.ok(providerIndex > persistIndex, "provider call must follow persistence");
+  assert.ok(
+    replayIndex > persistIndex && replayIndex < providerIndex,
+    "duplicate idempotency keys must replay before provider execution",
+  );
+  assert.ok(
+    statusUpdateIndex > providerIndex,
+    "provider results must update the durable intent",
+  );
+  assert.match(transferSource, /provider_pending/);
+  assert.match(
+    transferSource,
+    /did not replay the provider transfer request/,
+  );
+  assert.match(
+    transferSource,
+    /persisted before provider execution/,
+  );
+  assert.match(
+    databaseSource,
+    /export async function updateTransferIntentProviderStatus/,
+  );
+  assert.match(databaseSource, /postgres_missing/);
+  assert.match(
+    databaseSource,
+    /WHERE household_id = \$1[\s\S]+AND idempotency_key = \$2/,
+  );
 });
 
 test("core profile route binds authenticated users to a household identity", async () => {

@@ -28,6 +28,7 @@ import {
   persistTransferIntent,
   persistUnlockRequest,
   resolveReconciliationExceptionRecord,
+  updateTransferIntentProviderStatus,
 } from "./database.mjs";
 
 const serviceName = "payshield-core";
@@ -6146,7 +6147,9 @@ export async function syncLinkedBankPaychecks(payload = {}, env = process.env) {
 }
 
 function persistenceFailed(result) {
-  return ["postgres_error", "postgres_required"].includes(result?.persistence);
+  return ["postgres_error", "postgres_missing", "postgres_required"].includes(
+    result?.persistence,
+  );
 }
 
 function productionGateEvidenceId(gateId, evidenceRef) {
@@ -6613,12 +6616,80 @@ export async function createTransferIntent(payload, env = process.env) {
   const idempotencyKey =
     cleanText(payload?.idempotencyKey, 120) ||
     `transfer-${payload.sourceBucketId}-${destinationPayeeId}-${amountCents}`;
+  const providerName = readiness.transferConfigured
+    ? env.PAYSHIELD_BAAS_PROVIDER || "configured_rail"
+    : null;
+  const liveProviderExecution =
+    readiness.liveMoneyReady && readiness.transferConfigured;
   let providerTransfer = {
     providerTransferId: "transfer-provider-contract-required",
     status: "blocked",
   };
+  let transferStatus = "blocked";
+  let persistence = await persistTransferIntent(
+    {
+      amountCents,
+      destinationPayeeId,
+      householdId: actor.householdId,
+      idempotencyKey,
+      providerName,
+      providerStatus: liveProviderExecution ? "pending" : providerTransfer.status,
+      providerTransferId: liveProviderExecution
+        ? null
+        : providerTransfer.providerTransferId,
+      sourceBucketId: payload.sourceBucketId,
+      status: liveProviderExecution ? "provider_pending" : transferStatus,
+    },
+    env,
+  );
 
-  if (readiness.liveMoneyReady && readiness.transferConfigured) {
+  if (persistenceFailed(persistence)) {
+    return {
+      body: {
+        error: "Transfer intent could not be persisted before provider execution.",
+        persistence,
+        readiness,
+        service: "payshield-transfer-intents",
+      },
+      status: 503,
+    };
+  }
+
+  if (liveProviderExecution && persistence.replayed) {
+    return {
+      body: {
+        intent: {
+          amountCents,
+          destinationPayeeId,
+          destinationPayeeName: destinationPayee.name,
+          idempotencyKey,
+          controlPersistence: {
+            bucketProfile: controls.bucketPersistence,
+            payees: controls.payeePersistence,
+          },
+          providerStatus: "replayed",
+          readiness,
+          sourceBucketId: payload.sourceBucketId,
+        },
+        ledger: {
+          entryCount: book.allEntries().length,
+          source: ledger.ledgerSource,
+        },
+        message:
+          "Transfer intent already exists. PayShield did not replay the provider transfer request.",
+        destinationPayee,
+        persistence,
+        providerTransfer: {
+          providerTransferId: "durable-intent-replayed",
+          status: "replayed",
+        },
+        sourceBucket,
+      },
+      status: 200,
+    };
+  }
+
+  if (liveProviderExecution) {
     try {
       providerTransfer = await providerCreateAchTransfer(env, {
         amountCents,
@@ -6627,6 +6698,17 @@ export async function createTransferIntent(payload, env = process.env) {
         sourceBucketId: payload.sourceBucketId,
       });
     } catch (error) {
+      const failurePersistence = await updateTransferIntentProviderStatus(
+        {
+          failureCode: "provider_adapter_error",
+          householdId: actor.householdId,
+          idempotencyKey,
+          providerStatus: "failed",
+          providerTransferId: null,
+          status: "failed",
+        },
+        env,
+      );
       const exceptionPersistence = await recordMoneyRailProviderException(
         {
           actor,
@@ -6646,39 +6728,44 @@ export async function createTransferIntent(payload, env = process.env) {
         body: {
           ...result.body,
           exceptionPersistence,
+          failurePersistence,
+          persistence,
           readiness,
         },
-        status: persistenceFailed(exceptionPersistence) ? 503 : result.status,
+        status:
+          persistenceFailed(failurePersistence) ||
+          persistenceFailed(exceptionPersistence)
+            ? 503
+            : result.status,
       };
     }
-  }
 
-  const transferStatus = providerTransfer.status === "created" ? "submitted" : "blocked";
-  const persistence = await persistTransferIntent(
-    {
-      amountCents,
-      destinationPayeeId,
-      householdId: actor.householdId,
-      idempotencyKey,
-      providerName: readiness.transferConfigured ? env.PAYSHIELD_BAAS_PROVIDER || "configured_rail" : null,
-      providerStatus: providerTransfer.status,
-      providerTransferId: providerTransfer.providerTransferId,
-      sourceBucketId: payload.sourceBucketId,
-      status: transferStatus,
-    },
-    env,
-  );
-
-  if (persistenceFailed(persistence)) {
-    return {
-      body: {
-        error: "Transfer intent could not be persisted.",
-        persistence,
-        readiness,
-        service: "payshield-transfer-intents",
+    transferStatus =
+      providerTransfer.status === "created" ? "submitted" : "blocked";
+    persistence = await updateTransferIntentProviderStatus(
+      {
+        householdId: actor.householdId,
+        idempotencyKey,
+        providerStatus: providerTransfer.status,
+        providerTransferId: providerTransfer.providerTransferId,
+        status: transferStatus,
       },
-      status: 503,
-    };
+      env,
+    );
+
+    if (persistenceFailed(persistence)) {
+      return {
+        body: {
+          error:
+            "Provider transfer was created but the durable transfer status could not be updated.",
+          persistence,
+          providerTransfer,
+          readiness,
+          service: "payshield-transfer-intents",
+        },
+        status: 503,
+      };
+    }
   }
 
   const auditPersistence = await persistMoneyRailEvent(
@@ -6694,7 +6781,7 @@ export async function createTransferIntent(payload, env = process.env) {
         sourceBucketId: payload.sourceBucketId,
       },
       providerEventId: `transfer:${idempotencyKey}`,
-      providerName: readiness.transferConfigured ? env.PAYSHIELD_BAAS_PROVIDER || "configured_rail" : "payshield",
+      providerName: providerName || "payshield",
       rail: "transfer",
     },
     env,
