@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server.js";
 import { createCommercialCheckoutSession } from "../../../../lib/commercial/billing.ts";
+import { readCommercialJsonPayload } from "../../../../lib/commercial/request-body.ts";
 import {
   appSessionErrorResponse,
   getAppSession,
@@ -76,11 +77,16 @@ async function recordCheckoutIntent(input: {
 export async function POST(request: NextRequest) {
   try {
     const session = await getAppSession();
-    const payload = (await request.json().catch(() => ({}))) as {
-      cancelPath?: unknown;
-      idempotencyKey?: unknown;
-      successPath?: unknown;
-    };
+    const payloadResult = await readCommercialJsonPayload(
+      request,
+      "payshield-checkout",
+    );
+
+    if (!payloadResult.ok) {
+      return payloadResult.response;
+    }
+
+    const payload = payloadResult.payload;
     const idempotencyKey = checkoutIdempotencyKey(
       payload.idempotencyKey,
       session.userId,

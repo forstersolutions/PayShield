@@ -84,6 +84,20 @@ function makeRequest(path: string, payload: unknown) {
   });
 }
 
+function makeRawRequest(
+  path: string,
+  body: string,
+  headers: Record<string, string> = {
+    "content-type": "application/json",
+  },
+) {
+  return new NextRequest(`${endpoint}${path}`, {
+    body,
+    headers,
+    method: "POST",
+  });
+}
+
 function makeStripeWebhookRequest(payload: string, secret: string, timestamp: number) {
   const signature = createHmac("sha256", secret)
     .update(`${timestamp}.${payload}`)
@@ -478,6 +492,23 @@ test("billing portal requires durable Stripe customer state", async () => {
   ]);
 });
 
+test("billing portal rejects oversized request bodies", async () => {
+  const response = await openBillingPortal(
+    makeRawRequest(
+      "/api/app/billing/portal",
+      JSON.stringify({
+        note: "x".repeat(20_000),
+        returnPath: "/app?billing=manage",
+      }),
+    ),
+  );
+  const body = await parseJson(response);
+
+  assert.equal(response.status, 413);
+  assert.equal(body.error, "Request body is too large.");
+  assert.equal(body.service, "payshield-billing-portal");
+});
+
 test("audit export returns a downloadable household operations packet", async () => {
   const response = await exportAudit();
   const body = await parseJson(response);
@@ -583,6 +614,30 @@ test("paid access checkout reports missing Stripe configuration", async () => {
   assert.equal(checkoutIntent.status, "blocked");
   assert.equal(checkoutIntent.errorCode, "checkout_not_configured");
   assert.equal(Array.isArray(readiness.missing), true);
+});
+
+test("paid access checkout rejects oversized and malformed request bodies", async () => {
+  const oversized = await startCheckout(
+    makeRawRequest(
+      "/api/app/billing/checkout",
+      JSON.stringify({
+        cancelPath: "/app?billing=cancelled",
+        note: "x".repeat(20_000),
+      }),
+    ),
+  );
+  const malformed = await startCheckout(
+    makeRawRequest("/api/app/billing/checkout", "{"),
+  );
+  const oversizedBody = await parseJson(oversized);
+  const malformedBody = await parseJson(malformed);
+
+  assert.equal(oversized.status, 413);
+  assert.equal(oversizedBody.error, "Request body is too large.");
+  assert.equal(oversizedBody.service, "payshield-checkout");
+  assert.equal(malformed.status, 400);
+  assert.equal(malformedBody.error, "Invalid request body.");
+  assert.equal(malformedBody.service, "payshield-checkout");
 });
 
 test("production runtime requires paid access before money workflows", () => {
@@ -747,6 +802,41 @@ test("public checkout requires valid email before collecting payment", async () 
     makeRequest("/api/public/billing/checkout", {
       email: "not-an-email",
     }),
+  );
+  const body = await parseJson(response);
+
+  assert.equal(response.status, 400);
+  assert.match(String(body.error), /valid email/i);
+});
+
+test("public checkout rejects oversized commercial request bodies", async () => {
+  const response = await startPublicCheckout(
+    makeRawRequest(
+      "/api/public/billing/checkout",
+      JSON.stringify({
+        email: "buyer@example.com",
+        message: "x".repeat(20_000),
+      }),
+    ),
+  );
+  const body = await parseJson(response);
+
+  assert.equal(response.status, 413);
+  assert.equal(body.error, "Request body is too large.");
+  assert.equal(body.service, "payshield-public-checkout");
+});
+
+test("public checkout accepts bounded url-encoded commercial requests", async () => {
+  const response = await startPublicCheckout(
+    makeRawRequest(
+      "/api/public/billing/checkout",
+      new URLSearchParams({
+        email: "not-an-email",
+      }).toString(),
+      {
+        "content-type": "application/x-www-form-urlencoded",
+      },
+    ),
   );
   const body = await parseJson(response);
 

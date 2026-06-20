@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server.js";
 import { createCommercialCheckoutSession } from "../../../../lib/commercial/billing.ts";
+import { readCommercialCheckoutPayload } from "../../../../lib/commercial/request-body.ts";
 import type { AppSession } from "../../../../lib/neobank/auth.ts";
 import { forwardCoreRequest } from "../../../../lib/neobank/core-client.ts";
 import { payShieldUserIdForEmail } from "../../../../lib/neobank/identity.ts";
@@ -27,19 +28,7 @@ function wantsHtml(request: NextRequest) {
 }
 
 async function publicCheckoutPayload(request: NextRequest) {
-  const contentType = request.headers.get("content-type") || "";
-
-  if (contentType.includes("application/json")) {
-    return (await request.json().catch(() => ({}))) as Record<string, unknown>;
-  }
-
-  const form = await request.formData().catch(() => null);
-
-  if (!form) {
-    return {};
-  }
-
-  return Object.fromEntries(form.entries());
+  return readCommercialCheckoutPayload(request, "payshield-public-checkout");
 }
 
 async function recordPublicCheckoutIntent(input: {
@@ -85,7 +74,13 @@ async function recordPublicCheckoutIntent(input: {
 }
 
 export async function POST(request: NextRequest) {
-  const payload = await publicCheckoutPayload(request);
+  const payloadResult = await publicCheckoutPayload(request);
+
+  if (!payloadResult.ok) {
+    return payloadResult.response;
+  }
+
+  const payload = payloadResult.payload;
   const email = cleanText(payload.email, 160).toLowerCase();
   const userId = payShieldUserIdForEmail(email);
 

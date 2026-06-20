@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server.js";
 import { createCommercialPortalSession } from "../../../../lib/commercial/billing.ts";
+import { readCommercialJsonPayload } from "../../../../lib/commercial/request-body.ts";
 import {
   appSessionErrorResponse,
   getAppSession,
@@ -74,9 +75,16 @@ async function loadBillingStatus(session: Awaited<ReturnType<typeof getAppSessio
 export async function POST(request: NextRequest) {
   try {
     const session = await getAppSession();
-    const payload = (await request.json().catch(() => ({}))) as {
-      returnPath?: unknown;
-    };
+    const payloadResult = await readCommercialJsonPayload(
+      request,
+      "payshield-billing-portal",
+    );
+
+    if (!payloadResult.ok) {
+      return payloadResult.response;
+    }
+
+    const payload = payloadResult.payload;
     const billingStatus = await loadBillingStatus(session);
 
     if (!billingStatus.ok) {

@@ -147,6 +147,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/components/public-checkout-form.tsx",
   "src/app/lib/brand.ts",
   "src/app/lib/pilot-analytics.ts",
+  "src/app/lib/commercial/request-body.ts",
   "src/app/lib/neobank/auth.ts",
   "src/app/lib/neobank/app-access.ts",
   "src/app/lib/neobank/core-client.ts",
@@ -545,6 +546,13 @@ requireText(
 requireText("src/app/lib/commercial/billing.ts", "requireCheckoutSession");
 requireText("src/app/lib/commercial/billing.ts", "paymentCollectionReady");
 requireText("src/app/lib/commercial/billing.ts", "requirePaidAccessForFallback");
+requireText("src/app/lib/commercial/request-body.ts", "maxCommercialRequestBytes");
+requireText("src/app/lib/commercial/request-body.ts", "readCommercialCheckoutPayload");
+requireText("src/app/lib/commercial/request-body.ts", "readCommercialJsonPayload");
+requireText("src/app/lib/commercial/request-body.ts", "Request body is too large.");
+requireText("src/app/api/public/billing/checkout/route.ts", "readCommercialCheckoutPayload");
+requireText("src/app/api/app/billing/checkout/route.ts", "readCommercialJsonPayload");
+requireText("src/app/api/app/billing/portal/route.ts", "readCommercialJsonPayload");
 requireText("src/app/lib/commercial/billing.ts", "metadata[payshield_customer_email]");
 requireText("src/app/api/app/billing/checkout/route.ts", "payment_collection_only");
 requireText("src/app/api/app/billing/checkout/route.ts", "autoActivationReady");
