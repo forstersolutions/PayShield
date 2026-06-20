@@ -31,6 +31,7 @@ import {
   persistUnlockRequest,
   resolveReconciliationExceptionRecord,
   updateBillPaymentProviderStatus,
+  updateDirectDepositSetupProviderStatus,
   updateTransferIntentProviderStatus,
 } from "./database.mjs";
 
@@ -4038,6 +4039,41 @@ function directDepositInstructionsForReadiness(readiness) {
   };
 }
 
+function directDepositInstructionsFromSetup(setup = {}) {
+  return {
+    accountLast4: setup.accountLast4 || "----",
+    accountName: setup.accountName || "PayShield protected paycheck account",
+    providerStatus: setup.providerStatus || "gated",
+    routingLast4: setup.routingLast4 || "----",
+  };
+}
+
+function directDepositSetupMatchesInput(
+  existingSetup = {},
+  requestedSetup = {},
+  { allowBlockedUpgrade = false } = {},
+) {
+  if (allowBlockedUpgrade && existingSetup.status === "blocked") {
+    return true;
+  }
+
+  for (const key of [
+    "providerName",
+    "providerAccountId",
+    "providerCustomerId",
+  ]) {
+    if (existingSetup[key] && requestedSetup[key] && existingSetup[key] !== requestedSetup[key]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function directDepositSetupCanResumeProvider(setup = {}) {
+  return ["blocked", "provider_pending", "requested"].includes(setup.status);
+}
+
 function directDepositInstructionsFromProviderPayload(payload) {
   const accountLast4 = safeString(payload?.accountLast4, 4);
   const routingLast4 = safeString(payload?.routingLast4, 4);
@@ -4253,28 +4289,6 @@ export async function createDirectDepositSetup(payload = {}, env = process.env) 
     cleanText(payload?.idempotencyKey, 120) ||
     `direct-deposit-${actor.householdId}`;
   let directDeposit = directDepositInstructionsForReadiness(readiness);
-
-  if (liveGate.ok) {
-    try {
-      directDeposit = await providerCreateDirectDepositInstructions(
-        env,
-        providerAccountId,
-      );
-    } catch (error) {
-      const result = providerErrorResult(error, "payshield-direct-deposit-setup");
-
-      return {
-        body: {
-          ...result.body,
-          liveMoney: liveGate,
-          readiness,
-        },
-        status: result.status,
-      };
-    }
-  }
-
-  const status = liveGate.ok ? "ready" : "blocked";
   const setup = {
     accountLast4: directDeposit.accountLast4,
     accountName: directDeposit.accountName,
@@ -4290,16 +4304,17 @@ export async function createDirectDepositSetup(payload = {}, env = process.env) 
     providerName,
     providerStatus: directDeposit.providerStatus,
     routingLast4: directDeposit.routingLast4,
-    status,
+    status: liveGate.ok ? "provider_pending" : "blocked",
     userId: actor.id,
   };
-  const persistence = await persistDirectDepositSetup(setup, env);
+  let persistence = await persistDirectDepositSetup(setup, env);
 
   if (persistenceFailed(persistence)) {
     return {
       body: {
         directDeposit,
-        error: "Direct deposit setup could not be persisted.",
+        error:
+          "Direct deposit setup could not be persisted before provider execution.",
         liveMoney: liveGate,
         persistence,
         readiness,
@@ -4309,6 +4324,188 @@ export async function createDirectDepositSetup(payload = {}, env = process.env) 
     };
   }
 
+  let persistedSetup = persistence.setup || setup;
+  let replayedReadySetup = false;
+
+  if (
+    persistence.replayed &&
+    !directDepositSetupMatchesInput(persistedSetup, setup, {
+      allowBlockedUpgrade: liveGate.ok,
+    })
+  ) {
+    return {
+      body: {
+        error:
+          "Direct deposit setup idempotency key already belongs to a different provider account.",
+        liveMoney: liveGate,
+        persistence,
+        readiness,
+        service: "payshield-direct-deposit-setup",
+        setup: persistedSetup,
+      },
+      status: 409,
+    };
+  }
+
+  directDeposit = directDepositInstructionsFromSetup(persistedSetup);
+
+  if (liveGate.ok) {
+    if (persistence.replayed && persistedSetup.status === "ready") {
+      replayedReadySetup = true;
+    } else {
+      if (!directDepositSetupCanResumeProvider(persistedSetup)) {
+        return {
+          body: {
+            error:
+              "Direct deposit setup cannot resume provider execution from its durable status.",
+            liveMoney: liveGate,
+            persistence,
+            readiness,
+            service: "payshield-direct-deposit-setup",
+            setup: persistedSetup,
+          },
+          status: 409,
+        };
+      }
+
+      if (persistence.replayed && persistedSetup.status !== "provider_pending") {
+        const pendingPersistence =
+          await updateDirectDepositSetupProviderStatus(
+            {
+              ...setup,
+              metadata: {
+                liveMoneyReady: readiness.liveMoneyReady,
+                resumedAt: new Date().toISOString(),
+                source: "payshield_app",
+              },
+              status: "provider_pending",
+            },
+            env,
+          );
+
+        if (persistenceFailed(pendingPersistence)) {
+          return {
+            body: {
+              error:
+                "Direct deposit setup could not be marked pending before provider execution.",
+              liveMoney: liveGate,
+              persistence: pendingPersistence,
+              readiness,
+              service: "payshield-direct-deposit-setup",
+              setup: persistedSetup,
+            },
+            status: 503,
+          };
+        }
+
+        persistence = pendingPersistence;
+        persistedSetup = persistence.setup || {
+          ...setup,
+          status: "provider_pending",
+        };
+        directDeposit = directDepositInstructionsFromSetup(persistedSetup);
+      }
+
+      try {
+        directDeposit = await providerCreateDirectDepositInstructions(
+          env,
+          providerAccountId,
+        );
+      } catch (error) {
+        const failurePersistence =
+          await updateDirectDepositSetupProviderStatus(
+            {
+              ...setup,
+              accountLast4: directDeposit.accountLast4,
+              accountName: directDeposit.accountName,
+              metadata: {
+                failureCode: "provider_adapter_error",
+                failedAt: new Date().toISOString(),
+                liveMoneyReady: readiness.liveMoneyReady,
+                source: "payshield_app",
+              },
+              providerStatus: directDeposit.providerStatus,
+              routingLast4: directDeposit.routingLast4,
+              status: "blocked",
+            },
+            env,
+          );
+        const exceptionPersistence = await recordMoneyRailProviderException(
+          {
+            actor,
+            error,
+            idempotencyKey,
+            operation: "createDirectDepositInstructions",
+            rail: "direct_deposit",
+          },
+          env,
+        );
+        const result = providerErrorResult(
+          error,
+          "payshield-direct-deposit-setup",
+        );
+
+        return {
+          body: {
+            ...result.body,
+            exceptionPersistence,
+            failurePersistence,
+            liveMoney: liveGate,
+            persistence,
+            readiness,
+          },
+          status:
+            persistenceFailed(failurePersistence) ||
+            persistenceFailed(exceptionPersistence)
+              ? 503
+              : result.status,
+        };
+      }
+
+      persistence = await updateDirectDepositSetupProviderStatus(
+        {
+          ...setup,
+          accountLast4: directDeposit.accountLast4,
+          accountName: directDeposit.accountName,
+          metadata: {
+            liveMoneyReady: readiness.liveMoneyReady,
+            providerCompletedAt: new Date().toISOString(),
+            source: "payshield_app",
+          },
+          providerStatus: directDeposit.providerStatus,
+          routingLast4: directDeposit.routingLast4,
+          status: "ready",
+        },
+        env,
+      );
+
+      if (persistenceFailed(persistence)) {
+        return {
+          body: {
+            directDeposit,
+            error:
+              "Provider direct-deposit instructions were created but the durable setup could not be updated.",
+            liveMoney: liveGate,
+            persistence,
+            readiness,
+            service: "payshield-direct-deposit-setup",
+          },
+          status: 503,
+        };
+      }
+
+      persistedSetup = persistence.setup || {
+        ...setup,
+        accountLast4: directDeposit.accountLast4,
+        accountName: directDeposit.accountName,
+        providerStatus: directDeposit.providerStatus,
+        routingLast4: directDeposit.routingLast4,
+        status: "ready",
+      };
+    }
+  }
+
+  const setupStatus = liveGate.ok ? "ready" : persistedSetup.status;
   const auditPersistence = await persistMoneyRailEvent(
     {
       eventType: "direct_deposit_setup_requested",
@@ -4319,7 +4516,7 @@ export async function createDirectDepositSetup(payload = {}, env = process.env) 
         providerAccountId,
         providerStatus: directDeposit.providerStatus,
         routingLast4: directDeposit.routingLast4,
-        status,
+        status: setupStatus,
       },
       providerEventId: `direct_deposit:${idempotencyKey}`,
       providerName,
@@ -4348,14 +4545,16 @@ export async function createDirectDepositSetup(payload = {}, env = process.env) 
       auditPersistence,
       directDeposit,
       liveMoney: liveGate,
-      message: liveGate.ok
-        ? "Paycheck routing instructions are ready for the configured provider account."
-        : "Paycheck routing setup recorded. Provider activation is required before live instructions are released.",
+      message: replayedReadySetup
+        ? "Direct deposit setup replayed from the durable provider instructions without another provider request."
+        : liveGate.ok
+          ? "Paycheck routing instructions are ready for the configured provider account."
+          : "Paycheck routing setup recorded. Provider activation is required before live instructions are released.",
       persisted: persistence.persistence === "postgres",
       persistence,
       readiness,
       service: "payshield-direct-deposit-setup",
-      setup: persistence.setup || setup,
+      setup: persistedSetup,
     },
     status: liveGate.ok ? 200 : 423,
   };

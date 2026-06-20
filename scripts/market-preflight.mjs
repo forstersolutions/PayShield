@@ -558,6 +558,16 @@ requireText("services/core/migrations/0007_paycheck_detection_rules.sql", "idemp
 requireText("services/core/migrations/0007_paycheck_detection_rules.sql", "detection_rule_id");
 requireText("services/core/migrations/0008_direct_deposit_setups.sql", "direct_deposit_setups");
 requireText("services/core/migrations/0008_direct_deposit_setups.sql", "account_last4");
+requireText("services/core/database.mjs", "updateDirectDepositSetupProviderStatus");
+requireText(
+  "services/core/database.mjs",
+  "ON CONFLICT (household_id, idempotency_key) DO NOTHING",
+);
+requireText("services/core/product.mjs", "replayedReadySetup");
+requireText(
+  "services/core/product.mjs",
+  "without another provider request",
+);
 requireText("services/core/migrations/0009_commercial_checkout_intents.sql", "commercial_checkout_intents");
 requireText("services/core/migrations/0009_commercial_checkout_intents.sql", "provider_checkout_id");
 requireText("services/core/migrations/0010_reconciliation_exception_details.sql", "provider_transaction_id");
@@ -1152,6 +1162,27 @@ requireText("services/core/database.mjs", "cardAuthorizationDecisionFromRow");
 requireText("services/core/database.mjs", "insertJournalEntry(client");
 requireText("services/core/database.mjs", "UPDATE card_authorization_decisions");
 requireText("services/core/database.mjs", "SET journal_entry_id");
+requireTextOrderInSection(
+  "services/core/product.mjs",
+  "export async function createDirectDepositSetup",
+  "async function startOnboardingWithPaidAccess",
+  "persistDirectDepositSetup(",
+  "providerCreateDirectDepositInstructions(",
+);
+requireTextOrderInSection(
+  "services/core/product.mjs",
+  "export async function createDirectDepositSetup",
+  "async function startOnboardingWithPaidAccess",
+  "replayedReadySetup",
+  "providerCreateDirectDepositInstructions(",
+);
+requireTextOrderInSection(
+  "services/core/product.mjs",
+  "export async function createDirectDepositSetup",
+  "async function startOnboardingWithPaidAccess",
+  "providerCreateDirectDepositInstructions(",
+  "providerCompletedAt",
+);
 requireText("services/core/product.mjs", "loadPaycheckDetection");
 requireText(
   "services/core/product.mjs",

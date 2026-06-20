@@ -541,6 +541,76 @@ test("core bank connections reject provider ownership collisions", () => {
   );
 });
 
+test("core direct deposit setup persists before provider execution", () => {
+  const productSource = readFileSync(
+    new URL("../services/core/product.mjs", import.meta.url),
+    "utf8",
+  );
+  const databaseSource = readFileSync(
+    new URL("../services/core/database.mjs", import.meta.url),
+    "utf8",
+  );
+  const setupStart = productSource.indexOf(
+    "export async function createDirectDepositSetup",
+  );
+  const setupEnd = productSource.indexOf(
+    "async function startOnboardingWithPaidAccess",
+    setupStart,
+  );
+
+  assert.notEqual(setupStart, -1);
+  assert.notEqual(setupEnd, -1);
+
+  const setupSource = productSource.slice(setupStart, setupEnd);
+  const persistIndex = setupSource.indexOf("persistDirectDepositSetup(");
+  const providerIndex = setupSource.indexOf(
+    "providerCreateDirectDepositInstructions(",
+  );
+  const replayIndex = setupSource.indexOf("replayedReadySetup");
+  const updateIndex = setupSource.indexOf("providerCompletedAt");
+  const exceptionIndex = setupSource.indexOf(
+    "recordMoneyRailProviderException(",
+  );
+
+  assert.ok(
+    persistIndex >= 0,
+    "direct deposit setup must claim a durable setup record",
+  );
+  assert.ok(
+    persistIndex < providerIndex,
+    "direct deposit setup must persist before provider instruction creation",
+  );
+  assert.ok(
+    replayIndex > persistIndex && replayIndex < providerIndex,
+    "ready direct deposit setup replays must bypass provider execution",
+  );
+  assert.ok(
+    updateIndex > providerIndex,
+    "direct deposit setup must update the durable record after provider execution",
+  );
+  assert.ok(
+    exceptionIndex > providerIndex,
+    "direct deposit provider failures must create reconciliation evidence",
+  );
+  assert.match(
+    setupSource,
+    /without another provider request/,
+  );
+  assert.match(
+    setupSource,
+    /idempotency key already belongs to a different provider account/,
+  );
+  assert.match(
+    databaseSource,
+    /export async function updateDirectDepositSetupProviderStatus/,
+  );
+  assert.match(
+    databaseSource,
+    /ON CONFLICT \(household_id, idempotency_key\) DO NOTHING/,
+  );
+  assert.match(databaseSource, /true AS replayed/);
+});
+
 test("core profile route binds authenticated users to a household identity", async () => {
   await withCoreServer(async (baseUrl) => {
     const { body, response } = await getJson(baseUrl, "/api/app/me", {

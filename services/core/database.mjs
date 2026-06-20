@@ -3332,35 +3332,39 @@ export async function persistDirectDepositSetup(input, env = process.env) {
       recordId("direct_deposit_setup", input.householdId, input.idempotencyKey);
     const result = await pool.query(
       `
-        INSERT INTO direct_deposit_setups (
-          id,
-          household_id,
-          user_id,
-          provider_name,
-          provider_customer_id,
-          provider_account_id,
-          account_name,
-          account_last4,
-          routing_last4,
-          status,
-          provider_status,
-          idempotency_key,
-          metadata
+        WITH inserted AS (
+          INSERT INTO direct_deposit_setups (
+            id,
+            household_id,
+            user_id,
+            provider_name,
+            provider_customer_id,
+            provider_account_id,
+            account_name,
+            account_last4,
+            routing_last4,
+            status,
+            provider_status,
+            idempotency_key,
+            metadata
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)
+          ON CONFLICT (household_id, idempotency_key) DO NOTHING
+          RETURNING
+            id,
+            provider_name,
+            provider_customer_id,
+            provider_account_id,
+            account_name,
+            account_last4,
+            routing_last4,
+            status,
+            provider_status,
+            idempotency_key,
+            created_at,
+            updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)
-        ON CONFLICT (household_id, idempotency_key)
-        DO UPDATE SET
-          provider_name = EXCLUDED.provider_name,
-          provider_customer_id = EXCLUDED.provider_customer_id,
-          provider_account_id = EXCLUDED.provider_account_id,
-          account_name = EXCLUDED.account_name,
-          account_last4 = EXCLUDED.account_last4,
-          routing_last4 = EXCLUDED.routing_last4,
-          status = EXCLUDED.status,
-          provider_status = EXCLUDED.provider_status,
-          metadata = EXCLUDED.metadata,
-          updated_at = now()
-        RETURNING
+        SELECT
           id,
           provider_name,
           provider_customer_id,
@@ -3372,7 +3376,29 @@ export async function persistDirectDepositSetup(input, env = process.env) {
           provider_status,
           idempotency_key,
           created_at,
-          updated_at
+          updated_at,
+          false AS replayed
+        FROM inserted
+        UNION ALL
+        SELECT
+          id,
+          provider_name,
+          provider_customer_id,
+          provider_account_id,
+          account_name,
+          account_last4,
+          routing_last4,
+          status,
+          provider_status,
+          idempotency_key,
+          created_at,
+          updated_at,
+          true AS replayed
+        FROM direct_deposit_setups
+        WHERE household_id = $2
+          AND idempotency_key = $12
+          AND NOT EXISTS (SELECT 1 FROM inserted)
+        LIMIT 1
       `,
       [
         id,
@@ -3392,10 +3418,113 @@ export async function persistDirectDepositSetup(input, env = process.env) {
     );
     const row = result.rows[0];
 
+    if (!row) {
+      return {
+        persisted: false,
+        persistence: "postgres_missing",
+        persistenceReason:
+          "Direct deposit setup write returned no durable record.",
+      };
+    }
+
     return {
       persisted: true,
       persistence: "postgres",
       postgresId: row?.id ?? id,
+      replayed: Boolean(row.replayed),
+      setup: directDepositSetupFromRow(row),
+    };
+  } catch (error) {
+    return persistenceFailed(error);
+  }
+}
+
+export async function updateDirectDepositSetupProviderStatus(
+  input,
+  env = process.env,
+) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return {
+      ...persistenceSkipped("direct deposit setup provider status", env),
+      setup: {
+        accountLast4: input.accountLast4 || "----",
+        accountName:
+          input.accountName || "PayShield protected paycheck account",
+        idempotencyKey: input.idempotencyKey,
+        providerAccountId: input.providerAccountId || null,
+        providerCustomerId: input.providerCustomerId || null,
+        providerName: input.providerName || "payshield",
+        providerStatus: input.providerStatus,
+        routingLast4: input.routingLast4 || "----",
+        status: input.status,
+      },
+    };
+  }
+
+  try {
+    const result = await pool.query(
+      `
+        UPDATE direct_deposit_setups
+        SET
+          provider_name = $3,
+          provider_customer_id = $4,
+          provider_account_id = $5,
+          account_name = $6,
+          account_last4 = $7,
+          routing_last4 = $8,
+          status = $9,
+          provider_status = $10,
+          metadata = metadata || $11::jsonb,
+          updated_at = now()
+        WHERE household_id = $1
+          AND idempotency_key = $2
+        RETURNING
+          id,
+          provider_name,
+          provider_customer_id,
+          provider_account_id,
+          account_name,
+          account_last4,
+          routing_last4,
+          status,
+          provider_status,
+          idempotency_key,
+          created_at,
+          updated_at
+      `,
+      [
+        input.householdId,
+        input.idempotencyKey,
+        input.providerName || "payshield",
+        input.providerCustomerId || null,
+        input.providerAccountId || null,
+        input.accountName || "PayShield protected paycheck account",
+        input.accountLast4 || "----",
+        input.routingLast4 || "----",
+        input.status,
+        input.providerStatus,
+        JSON.stringify(input.metadata || {}),
+      ],
+    );
+
+    if (result.rowCount === 0) {
+      return {
+        persisted: false,
+        persistence: "postgres_missing",
+        persistenceReason:
+          "Direct deposit setup provider status update found no matching durable setup.",
+      };
+    }
+
+    const row = result.rows[0];
+
+    return {
+      persisted: true,
+      persistence: "postgres",
+      postgresId: row?.id ?? null,
+      replayed: false,
       setup: directDepositSetupFromRow(row),
     };
   } catch (error) {
