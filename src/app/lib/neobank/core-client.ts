@@ -11,6 +11,7 @@ type ForwardCoreInput = {
 };
 
 const maxForwardBytes = 64 * 1024;
+const maxCoreResponseBytes = 256 * 1024;
 const noStoreHeaders = {
   "cache-control": "no-store",
 };
@@ -62,6 +63,55 @@ function safeCoreError(message: string, status = 502) {
     },
     status,
   );
+}
+
+async function readBoundedCoreResponseText(response: Response) {
+  if (!response.body) {
+    return "";
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let byteLength = 0;
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      if (!value) {
+        continue;
+      }
+
+      byteLength += value.byteLength;
+
+      if (byteLength > maxCoreResponseBytes) {
+        await reader.cancel().catch(() => {});
+        throw new Error("core_response_too_large");
+      }
+
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(byteLength);
+  let offset = 0;
+
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return new TextDecoder().decode(bytes);
+}
+
+function isCoreResponseTooLarge(error: unknown) {
+  return error instanceof Error && error.message === "core_response_too_large";
 }
 
 function cleanHeaderValue(value: string | undefined, maxLength: number) {
@@ -151,8 +201,23 @@ export async function forwardCoreRequest(input: ForwardCoreInput) {
     return safeCoreError("Configured PayShield core service is unavailable.");
   }
 
+  let text: string;
+
   try {
-    const text = await response.text();
+    text = await readBoundedCoreResponseText(response);
+  } catch (error) {
+    if (isCoreResponseTooLarge(error)) {
+      return safeCoreError(
+        "Configured PayShield core service response is too large.",
+      );
+    }
+
+    return safeCoreError(
+      "Configured PayShield core service did not return a valid JSON response.",
+    );
+  }
+
+  try {
     const payload = text ? JSON.parse(text) : {};
 
     return jsonResponse(payload, response.status, true);

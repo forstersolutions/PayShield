@@ -1219,3 +1219,40 @@ test("configured core service non-JSON response fails closed", async () => {
     },
   );
 });
+
+test("configured core service oversized JSON response fails closed", async () => {
+  await withCoreProxyServer(
+    (_request, response) => {
+      response.writeHead(200, {
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          payload: "x".repeat(300_000),
+          service: "oversized-core-response",
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-oversized-secret";
+
+      const response = await authorizeCard(
+        makeRequest("/api/card/authorize", {
+          amountCents: 8_000,
+          merchantName: "Grocery market",
+        }),
+      );
+      const body = await parseJson(response);
+      const serialized = JSON.stringify(body);
+
+      assert.equal(response.status, 502);
+      assert.equal(
+        body.error,
+        "Configured PayShield core service response is too large.",
+      );
+      assert.equal(serialized.includes("oversized-core-response"), false);
+      assert.equal(response.headers.get("x-payshield-core-proxied"), null);
+    },
+  );
+});

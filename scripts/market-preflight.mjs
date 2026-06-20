@@ -536,6 +536,12 @@ requireText("src/app/api/health/route.ts", "appAccess");
 requireText("src/app/lib/neobank/core-config.ts", "PAYSHIELD_CORE_API_URL");
 requireText("src/app/lib/neobank/core-config.ts", "VERCEL_ENV");
 requireText("src/app/lib/neobank/core-client.ts", "x-payshield-provider-signature");
+requireText("src/app/lib/neobank/core-client.ts", "maxCoreResponseBytes");
+requireText("src/app/lib/neobank/core-client.ts", "readBoundedCoreResponseText");
+requireText(
+  "src/app/lib/neobank/core-client.ts",
+  "Configured PayShield core service response is too large.",
+);
 requireText("src/app/lib/commercial/billing.ts", "requireCheckoutSession");
 requireText("src/app/lib/commercial/billing.ts", "paymentCollectionReady");
 requireText("src/app/lib/commercial/billing.ts", "requirePaidAccessForFallback");
