@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import {
   databaseConfigured,
+  loadCardAuthorizationDecision,
   loadActiveBankConnectionForHousehold,
   loadActivePaycheckDetectionRules,
   loadOperationalAudit,
@@ -7273,6 +7274,63 @@ export async function createUnlock(payload, env = process.env) {
   };
 }
 
+function cardReplayMatchesInput(existingDecision, input) {
+  return (
+    existingDecision.amountCents === input.amountCents &&
+    (existingDecision.merchantCategoryCode || null) ===
+      (input.merchantCategoryCode || null) &&
+    existingDecision.merchantName === input.merchantName &&
+    (existingDecision.payeeId || null) === (input.payeeId || null)
+  );
+}
+
+function replayedCardDecisionBody({
+  existingDecision,
+  readiness,
+}) {
+  const decision = {
+    approved: existingDecision.approved,
+    approvedAmountCents: existingDecision.approvedAmountCents,
+    bucketId: existingDecision.bucketId || "safe_spending",
+    code: existingDecision.decisionCode,
+    reason: existingDecision.reason,
+  };
+
+  return {
+    decision,
+    decisionPersistence: {
+      decision: existingDecision,
+      persisted: true,
+      persistence: "postgres",
+      postgresId: existingDecision.id,
+      replayed: true,
+    },
+    journalPersistence: existingDecision.journalEntryId
+      ? {
+          persisted: true,
+          persistence: "postgres",
+          postgresId: existingDecision.journalEntryId,
+          replayed: true,
+        }
+      : {
+          persisted: false,
+          persistence: "not_posted",
+          persistenceReason:
+            "Replayed declined card authorization did not create a ledger entry.",
+          replayed: true,
+        },
+    ledger: {
+      entryCount: null,
+      source: "durable_card_decision_replay",
+    },
+    message:
+      "Card authorization replayed from the original durable decision without recomputing spendable funds.",
+    mode: readiness.liveMoneyReady ? "provider_gateway" : "core_ledger",
+    readiness,
+    service: "payshield-card-authorization",
+  };
+}
+
 export async function authorizeCard(payload, env = process.env) {
   let actor = actorFromPayload(payload);
   const amountCents = toIntegerCents(payload?.amountCents, { min: 1 });
@@ -7309,6 +7367,49 @@ export async function authorizeCard(payload, env = process.env) {
   };
   const readiness = getCoreReadiness(env, { coreOnline: true });
 
+  const replayLookup = await loadCardAuthorizationDecision(
+    {
+      householdId: actor.householdId,
+      idempotencyKey: input.idempotencyKey,
+    },
+    env,
+  );
+
+  if (persistenceFailed(replayLookup)) {
+    return {
+      body: {
+        error: "Card authorization replay lookup failed.",
+        replayLookup,
+        readiness,
+        service: "payshield-card-authorization",
+      },
+      status: 503,
+    };
+  }
+
+  if (replayLookup.found) {
+    if (!cardReplayMatchesInput(replayLookup.decision, input)) {
+      return {
+        body: {
+          error:
+            "Card authorization idempotency key already belongs to a different authorization payload.",
+          replayLookup,
+          readiness,
+          service: "payshield-card-authorization",
+        },
+        status: 409,
+      };
+    }
+
+    return {
+      body: replayedCardDecisionBody({
+        existingDecision: replayLookup.decision,
+        readiness,
+      }),
+      status: 200,
+    };
+  }
+
   const controls = await loadOperationalControls(env, actor);
 
   if (controls.error) {
@@ -7326,19 +7427,26 @@ export async function authorizeCard(payload, env = process.env) {
   const postedEntry = decision.approved
     ? book.findByIdempotencyKey(input.idempotencyKey)
     : null;
-  const journalPersistence = postedEntry
-    ? await persistOperationalJournal(postedEntry, env, actor)
+  let journalPersistence = postedEntry
+    ? {
+        persisted: false,
+        persistence: "pending_card_decision",
+        persistenceReason:
+          "Approved card journal entry will be persisted atomically with the card decision.",
+      }
     : {
         persisted: false,
         persistence: "not_posted",
-        persistenceReason: "Declined card authorizations do not create ledger entries.",
+        persistenceReason:
+          "Declined card authorizations do not create ledger entries.",
       };
 
-  if (persistenceFailed(journalPersistence)) {
+  if (decision.approved && !postedEntry) {
     return {
       body: {
         decision,
-        error: "Card authorization ledger entry could not be persisted.",
+        error:
+          "Approved card authorization did not produce a ledger entry for atomic persistence.",
         journalPersistence,
         readiness,
         service: "payshield-card-authorization",
@@ -7356,7 +7464,7 @@ export async function authorizeCard(payload, env = process.env) {
       decisionCode: decision.code,
       householdId: actor.householdId,
       idempotencyKey: input.idempotencyKey,
-      journalEntryId: journalPersistence.postgresId || null,
+      journalEntry: postedEntry || null,
       merchantCategoryCode: input.merchantCategoryCode || null,
       merchantName: input.merchantName,
       payeeId: input.payeeId || null,
@@ -7379,6 +7487,34 @@ export async function authorizeCard(payload, env = process.env) {
         service: "payshield-card-authorization",
       },
       status: 503,
+    };
+  }
+
+  journalPersistence =
+    decisionPersistence.journalPersistence || journalPersistence;
+
+  if (decisionPersistence.replayed && decisionPersistence.decision) {
+    if (!cardReplayMatchesInput(decisionPersistence.decision, input)) {
+      return {
+        body: {
+          decision,
+          decisionPersistence,
+          error:
+            "Card authorization idempotency key already belongs to a different authorization payload.",
+          journalPersistence,
+          readiness,
+          service: "payshield-card-authorization",
+        },
+        status: 409,
+      };
+    }
+
+    return {
+      body: replayedCardDecisionBody({
+        existingDecision: decisionPersistence.decision,
+        readiness,
+      }),
+      status: 200,
     };
   }
 

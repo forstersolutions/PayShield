@@ -326,6 +326,94 @@ test("core bill payment execution persists the ledger and schedule before live p
   assert.match(databaseSource, /provider_bill_payment_id/);
 });
 
+test("core card authorization replays durable decisions before recomputing funds", () => {
+  const productSource = readFileSync(
+    new URL("../services/core/product.mjs", import.meta.url),
+    "utf8",
+  );
+  const databaseSource = readFileSync(
+    new URL("../services/core/database.mjs", import.meta.url),
+    "utf8",
+  );
+  const authorizeCardStart = productSource.indexOf(
+    "export async function authorizeCard",
+  );
+  const authorizeCardEnd = productSource.indexOf(
+    "function stableEventId",
+    authorizeCardStart,
+  );
+
+  assert.notEqual(authorizeCardStart, -1);
+  assert.notEqual(authorizeCardEnd, -1);
+
+  const authorizeCardSource = productSource.slice(
+    authorizeCardStart,
+    authorizeCardEnd,
+  );
+  const replayLookupIndex = authorizeCardSource.indexOf(
+    "loadCardAuthorizationDecision(",
+  );
+  const controlsIndex = authorizeCardSource.indexOf("loadOperationalControls(");
+  const decisionIndex = authorizeCardSource.indexOf("authorizeCardTransaction(");
+  const persistenceIndex = authorizeCardSource.indexOf(
+    "persistCardAuthorizationDecision(",
+  );
+  const writeReplayIndex = authorizeCardSource.indexOf(
+    "decisionPersistence.replayed",
+  );
+  const directJournalIndex = authorizeCardSource.indexOf(
+    "persistOperationalJournal(",
+  );
+
+  assert.ok(
+    replayLookupIndex >= 0,
+    "card authorization must check durable replay state",
+  );
+  assert.ok(
+    replayLookupIndex < controlsIndex,
+    "card authorization replay lookup must happen before loading controls",
+  );
+  assert.ok(
+    replayLookupIndex < decisionIndex,
+    "card authorization replay lookup must happen before recomputing funds",
+  );
+  assert.ok(
+    persistenceIndex > decisionIndex,
+    "new card authorization decisions must still persist after local decisioning",
+  );
+  assert.ok(
+    writeReplayIndex > persistenceIndex,
+    "card authorization must honor persistence-time replay conflicts",
+  );
+  assert.equal(
+    directJournalIndex,
+    -1,
+    "card authorization must not post a journal before claiming the card decision idempotency key",
+  );
+  assert.match(
+    authorizeCardSource,
+    /journalEntry: postedEntry \|\| null/,
+  );
+  assert.match(
+    productSource,
+    /without recomputing spendable funds/,
+  );
+  assert.match(
+    authorizeCardSource,
+    /idempotency key already belongs to a different authorization payload/,
+  );
+  assert.match(
+    databaseSource,
+    /export async function loadCardAuthorizationDecision/,
+  );
+  assert.match(
+    databaseSource,
+    /UPDATE card_authorization_decisions[\s\S]+SET journal_entry_id/,
+  );
+  assert.match(databaseSource, /insertJournalEntry\(client/);
+  assert.match(databaseSource, /cardAuthorizationDecisionFromRow/);
+});
+
 test("core profile route binds authenticated users to a household identity", async () => {
   await withCoreServer(async (baseUrl) => {
     const { body, response } = await getJson(baseUrl, "/api/app/me", {

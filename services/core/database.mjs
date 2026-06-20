@@ -387,6 +387,25 @@ function commercialCheckoutIntentFromRow(row = {}) {
   };
 }
 
+function cardAuthorizationDecisionFromRow(row = {}) {
+  return {
+    amountCents: centsNumber(row.amount_cents),
+    approved: Boolean(row.approved),
+    approvedAmountCents: centsNumber(row.approved_amount_cents),
+    bucketId: row.bucket_id,
+    createdAt: timestampString(row.created_at),
+    decisionCode: row.decision_code,
+    id: row.id,
+    idempotencyKey: row.idempotency_key,
+    journalEntryId: row.journal_entry_id || null,
+    merchantCategoryCode: row.merchant_category_code || null,
+    merchantName: row.merchant_name,
+    payeeId: row.payee_id || null,
+    providerStatus: row.provider_status,
+    reason: row.reason,
+  };
+}
+
 function reconciliationExceptionFromRow(row = {}) {
   return {
     createdAt: timestampString(row.created_at),
@@ -804,6 +823,90 @@ async function ensureLedgerAccount(client, householdId, accountId) {
   return shape.id;
 }
 
+async function insertJournalEntry(client, input) {
+  const entry = input.entry;
+  const existing = await client.query(
+    `
+      SELECT id
+      FROM journal_entries
+      WHERE household_id = $1
+        AND idempotency_key = $2
+      LIMIT 1
+    `,
+    [input.householdId, entry.idempotencyKey],
+  );
+
+  if (existing.rows[0]?.id) {
+    return {
+      postgresId: existing.rows[0].id,
+      replayed: true,
+    };
+  }
+
+  const entryId = recordId(
+    "journal_entry",
+    input.householdId,
+    entry.type,
+    entry.idempotencyKey,
+  );
+  const accountIds = new Map();
+
+  for (const line of entry.lines) {
+    if (!accountIds.has(line.accountId)) {
+      accountIds.set(
+        line.accountId,
+        await ensureLedgerAccount(client, input.householdId, line.accountId),
+      );
+    }
+  }
+
+  await client.query(
+    `
+      INSERT INTO journal_entries (
+        id,
+        household_id,
+        idempotency_key,
+        entry_type,
+        memo,
+        metadata,
+        reversed_entry_id,
+        created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8::timestamptz)
+    `,
+    [
+      entryId,
+      input.householdId,
+      entry.idempotencyKey,
+      entry.type,
+      entry.memo,
+      JSON.stringify(entry.metadata || {}),
+      entry.reversedEntryId || null,
+      entry.createdAt,
+    ],
+  );
+
+  for (const line of entry.lines) {
+    await client.query(
+      `
+        INSERT INTO journal_lines (
+          journal_entry_id,
+          ledger_account_id,
+          amount_cents
+        )
+        VALUES ($1, $2, $3)
+      `,
+      [entryId, accountIds.get(line.accountId), line.amountCents],
+    );
+  }
+
+  return {
+    lineCount: entry.lines.length,
+    postgresId: entryId,
+    replayed: false,
+  };
+}
+
 export async function persistJournalEntry(input, env = process.env) {
   const pool = poolFor(env);
 
@@ -812,100 +915,21 @@ export async function persistJournalEntry(input, env = process.env) {
   }
 
   let client = null;
-  const entry = input.entry;
 
   try {
     client = await pool.connect();
     await client.query("BEGIN");
     await ensureHousehold(client, input);
-
-    const existing = await client.query(
-      `
-        SELECT id
-        FROM journal_entries
-        WHERE household_id = $1
-          AND idempotency_key = $2
-        LIMIT 1
-      `,
-      [input.householdId, entry.idempotencyKey],
-    );
-
-    if (existing.rows[0]?.id) {
-      await client.query("COMMIT");
-
-      return {
-        persisted: true,
-        persistence: "postgres",
-        postgresId: existing.rows[0].id,
-        replayed: true,
-      };
-    }
-
-    const entryId = recordId(
-      "journal_entry",
-      input.householdId,
-      entry.type,
-      entry.idempotencyKey,
-    );
-    const accountIds = new Map();
-
-    for (const line of entry.lines) {
-      if (!accountIds.has(line.accountId)) {
-        accountIds.set(
-          line.accountId,
-          await ensureLedgerAccount(client, input.householdId, line.accountId),
-        );
-      }
-    }
-
-    await client.query(
-      `
-        INSERT INTO journal_entries (
-          id,
-          household_id,
-          idempotency_key,
-          entry_type,
-          memo,
-          metadata,
-          reversed_entry_id,
-          created_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8::timestamptz)
-      `,
-      [
-        entryId,
-        input.householdId,
-        entry.idempotencyKey,
-        entry.type,
-        entry.memo,
-        JSON.stringify(entry.metadata || {}),
-        entry.reversedEntryId || null,
-        entry.createdAt,
-      ],
-    );
-
-    for (const line of entry.lines) {
-      await client.query(
-        `
-          INSERT INTO journal_lines (
-            journal_entry_id,
-            ledger_account_id,
-            amount_cents
-          )
-          VALUES ($1, $2, $3)
-        `,
-        [entryId, accountIds.get(line.accountId), line.amountCents],
-      );
-    }
+    const journal = await insertJournalEntry(client, input);
 
     await client.query("COMMIT");
 
     return {
-      lineCount: entry.lines.length,
+      lineCount: journal.lineCount,
       persisted: true,
       persistence: "postgres",
-      postgresId: entryId,
-      replayed: false,
+      postgresId: journal.postgresId,
+      replayed: journal.replayed,
     };
   } catch (error) {
     if (client) {
@@ -922,11 +946,81 @@ export async function persistJournalEntry(input, env = process.env) {
   }
 }
 
+export async function loadCardAuthorizationDecision(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return {
+      found: false,
+      persistence: "memory",
+      persistenceReason:
+        "card authorization decision replay lookup accepted without PAYSHIELD_LEDGER_DATABASE_URL.",
+    };
+  }
+
+  try {
+    const result = await pool.query(
+      `
+        SELECT
+          id,
+          household_id,
+          journal_entry_id,
+          idempotency_key,
+          merchant_name,
+          merchant_category_code,
+          payee_id,
+          bucket_id,
+          amount_cents,
+          approved,
+          approved_amount_cents,
+          decision_code,
+          reason,
+          provider_status,
+          created_at
+        FROM card_authorization_decisions
+        WHERE household_id = $1
+          AND idempotency_key = $2
+        LIMIT 1
+      `,
+      [input.householdId, input.idempotencyKey],
+    );
+
+    if (result.rowCount === 0) {
+      return {
+        found: false,
+        persistence: "postgres",
+      };
+    }
+
+    return {
+      decision: cardAuthorizationDecisionFromRow(result.rows[0]),
+      found: true,
+      persistence: "postgres",
+    };
+  } catch (error) {
+    return persistenceFailed(error);
+  }
+}
+
 export async function persistCardAuthorizationDecision(input, env = process.env) {
   const pool = poolFor(env);
 
   if (!pool) {
-    return persistenceSkipped("card authorization decision", env);
+    const skipped = persistenceSkipped("card authorization decision", env);
+
+    return input.journalEntry && skipped.persistence === "memory"
+      ? {
+          ...skipped,
+          journalPersistence: {
+            lineCount: input.journalEntry.lines?.length,
+            persisted: false,
+            persistence: "memory",
+            persistenceReason:
+              "card authorization journal entry accepted without PAYSHIELD_LEDGER_DATABASE_URL.",
+            replayed: false,
+          },
+        }
+      : skipped;
   }
 
   let client = null;
@@ -941,7 +1035,7 @@ export async function persistCardAuthorizationDecision(input, env = process.env)
     await client.query("BEGIN");
     await ensureHousehold(client, input);
 
-    const result = await client.query(
+    const insertResult = await client.query(
       `
         INSERT INTO card_authorization_decisions (
           id,
@@ -961,12 +1055,28 @@ export async function persistCardAuthorizationDecision(input, env = process.env)
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         ON CONFLICT (household_id, idempotency_key) DO NOTHING
-        RETURNING id
+        RETURNING
+          id,
+          journal_entry_id,
+          idempotency_key,
+          merchant_name,
+          merchant_category_code,
+          payee_id,
+          bucket_id,
+          amount_cents,
+          approved,
+          approved_amount_cents,
+          decision_code,
+          reason,
+          provider_status,
+          created_at
       `,
       [
         id,
         input.householdId,
-        input.journalEntryId || null,
+        input.journalEntry && !input.journalEntryId
+          ? null
+          : input.journalEntryId || null,
         input.idempotencyKey,
         input.merchantName,
         input.merchantCategoryCode || null,
@@ -981,13 +1091,105 @@ export async function persistCardAuthorizationDecision(input, env = process.env)
       ],
     );
 
+    let row = insertResult.rows[0];
+    let journalPersistence = null;
+    let replayed = false;
+
+    if (row && input.journalEntry) {
+      const journal = await insertJournalEntry(client, {
+        entry: input.journalEntry,
+        householdId: input.householdId,
+      });
+
+      const updateResult = await client.query(
+        `
+          UPDATE card_authorization_decisions
+          SET journal_entry_id = $1
+          WHERE id = $2
+          RETURNING
+            id,
+            journal_entry_id,
+            idempotency_key,
+            merchant_name,
+            merchant_category_code,
+            payee_id,
+            bucket_id,
+            amount_cents,
+            approved,
+            approved_amount_cents,
+            decision_code,
+            reason,
+            provider_status,
+            created_at
+        `,
+        [journal.postgresId, row.id],
+      );
+
+      row = updateResult.rows[0];
+
+      if (!row) {
+        throw new Error(
+          "Card authorization decision could not be linked to its journal entry.",
+        );
+      }
+
+      journalPersistence = {
+        lineCount: journal.lineCount,
+        persisted: true,
+        persistence: "postgres",
+        postgresId: journal.postgresId,
+        replayed: journal.replayed,
+      };
+    }
+
+    if (!row) {
+      const existing = await client.query(
+        `
+          SELECT
+            id,
+            journal_entry_id,
+            idempotency_key,
+            merchant_name,
+            merchant_category_code,
+            payee_id,
+            bucket_id,
+            amount_cents,
+            approved,
+            approved_amount_cents,
+            decision_code,
+            reason,
+            provider_status,
+            created_at
+          FROM card_authorization_decisions
+          WHERE household_id = $1
+            AND idempotency_key = $2
+          LIMIT 1
+        `,
+        [input.householdId, input.idempotencyKey],
+      );
+
+      row = existing.rows[0];
+      replayed = Boolean(row);
+    }
+
     await client.query("COMMIT");
 
+    if (!row) {
+      return {
+        persisted: false,
+        persistence: "postgres_missing",
+        persistenceReason:
+          "Card authorization decision write returned no durable record.",
+      };
+    }
+
     return {
+      decision: cardAuthorizationDecisionFromRow(row),
+      journalPersistence,
       persisted: true,
       persistence: "postgres",
-      postgresId: id,
-      replayed: result.rowCount === 0,
+      postgresId: row.id ?? id,
+      replayed,
     };
   } catch (error) {
     if (client) {

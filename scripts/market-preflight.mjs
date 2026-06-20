@@ -1096,6 +1096,42 @@ requireText("services/core/product.mjs", "plaid_transaction_removed");
 requireText("services/core/product.mjs", "money_rail");
 requireText("services/core/product.mjs", "saveBucketProfile");
 requireText("services/core/product.mjs", "authorizeCard");
+requireText("services/core/product.mjs", "loadCardAuthorizationDecision");
+requireText(
+  "services/core/product.mjs",
+  "journalEntry: postedEntry || null",
+);
+requireText(
+  "services/core/product.mjs",
+  "Approved card journal entry will be persisted atomically with the card decision",
+);
+requireText(
+  "services/core/product.mjs",
+  "without recomputing spendable funds",
+);
+requireText(
+  "services/core/product.mjs",
+  "idempotency key already belongs to a different authorization payload",
+);
+requireTextOrderInSection(
+  "services/core/product.mjs",
+  "export async function authorizeCard",
+  "function stableEventId",
+  "loadCardAuthorizationDecision(",
+  "authorizeCardTransaction(",
+);
+requireTextOrderInSection(
+  "services/core/product.mjs",
+  "export async function authorizeCard",
+  "function stableEventId",
+  "persistCardAuthorizationDecision(",
+  "decisionPersistence.replayed",
+);
+requireText("services/core/database.mjs", "loadCardAuthorizationDecision");
+requireText("services/core/database.mjs", "cardAuthorizationDecisionFromRow");
+requireText("services/core/database.mjs", "insertJournalEntry(client");
+requireText("services/core/database.mjs", "UPDATE card_authorization_decisions");
+requireText("services/core/database.mjs", "SET journal_entry_id");
 requireText("services/core/product.mjs", "handleProviderWebhook");
 requireText("services/core/migrations/0001_neobank_core.sql", "journal_entries");
 requireText("services/core/migrations/0001_neobank_core.sql", "provider_events");
