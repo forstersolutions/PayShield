@@ -85,6 +85,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/api/app/billing/portal/route.ts",
   "src/app/api/public/billing/checkout/route.ts",
   "src/app/api/app/direct-deposit/route.ts",
+  "src/app/api/app/control-plan/route.ts",
   "src/app/api/app/paychecks/rules/route.ts",
   "src/app/api/health/route.ts",
   "src/app/components/bill-payment-panel.tsx",
@@ -92,6 +93,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/components/waitlist-form.tsx",
   "src/app/components/bucket-control-panel.tsx",
   "src/app/components/money-engine-console.tsx",
+  "src/app/components/money-control-plan-panel.tsx",
   "src/app/components/money-setup-console.tsx",
   "src/app/components/neobank-dashboard.tsx",
   "src/app/components/public-checkout-form.tsx",
@@ -101,6 +103,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/lib/neobank/app-access.ts",
   "src/app/lib/neobank/core-client.ts",
   "src/app/lib/neobank/core-config.ts",
+  "src/app/lib/neobank/control-plan.ts",
   "src/app/lib/neobank/demo-state.ts",
   "src/app/lib/neobank/identity.ts",
   "src/app/lib/neobank/ledger.ts",
@@ -337,6 +340,31 @@ requireText("src/app/components/money-setup-console.tsx", "Remaining gates");
 requireText("src/app/components/money-setup-console.tsx", "Proof commands");
 requireText("src/app/components/household-command-center.tsx", "MoneySetupConsole");
 requireText("src/app/components/household-command-center.tsx", "MoneyEngineConsole");
+requireText("src/app/components/household-command-center.tsx", "MoneyControlPlanPanel");
+requireText(
+  "src/app/components/household-command-center.tsx",
+  "createHouseholdMoneyControlPlan",
+);
+requireText("src/app/components/money-control-plan-panel.tsx", "Household money control plan");
+requireText(
+  "src/app/components/money-control-plan-panel.tsx",
+  "Plan paycheck split, bank setup, revenue, and release in one pass.",
+);
+requireText("src/app/components/money-control-plan-panel.tsx", "Paycheck split preview");
+requireText("src/app/components/money-control-plan-panel.tsx", "Projected Safe to Spend");
+requireText("src/app/components/money-control-plan-panel.tsx", "Operating steps");
+requireText("src/app/components/money-control-plan-panel.tsx", "Detection and release");
+requireText("src/app/components/money-control-plan-panel.tsx", "Transfer guardrail");
+requireText("src/app/components/money-control-plan-panel.tsx", "Proof artifacts");
+requireText("src/app/components/money-control-plan-panel.tsx", "/api/app/control-plan");
+requireText("src/app/lib/neobank/control-plan.ts", "payshield-household-control-plan");
+requireText("src/app/lib/neobank/control-plan.ts", "projectedSafeToSpendCents");
+requireText("src/app/lib/neobank/control-plan.ts", "paymentCollectionReady");
+requireText("src/app/lib/neobank/control-plan.ts", "POST /api/app/bank-link/token");
+requireText("src/app/lib/neobank/control-plan.ts", "POST /api/app/paychecks/rules");
+requireText("src/app/lib/neobank/control-plan.ts", "POST /api/app/transfers");
+requireText("src/app/api/app/control-plan/route.ts", "createHouseholdMoneyControlPlan");
+requireText("src/app/api/app/control-plan/route.ts", "normalizeMoneyControlPlanInput");
 requireText("src/app/components/money-engine-console.tsx", "Money engine console");
 requireText(
   "src/app/components/money-engine-console.tsx",

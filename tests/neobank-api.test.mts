@@ -12,6 +12,10 @@ import { GET as getActivation } from "../src/app/api/app/activation/route.ts";
 import { GET as getLaunchActivation } from "../src/app/api/launch/activation/route.ts";
 import { GET as exportAudit } from "../src/app/api/app/audit/export/route.ts";
 import { GET as getBalances } from "../src/app/api/app/balances/route.ts";
+import {
+  GET as getControlPlan,
+  POST as generateControlPlan,
+} from "../src/app/api/app/control-plan/route.ts";
 import { POST as setupDirectDeposit } from "../src/app/api/app/direct-deposit/route.ts";
 import { GET as getBillingStatus } from "../src/app/api/app/billing/status/route.ts";
 import {
@@ -203,6 +207,96 @@ test("operations endpoint exposes the revenue and money-control record", async (
     ),
     true,
   );
+});
+
+test("control plan endpoint turns paycheck input into a usable operating plan", async () => {
+  const response = await getControlPlan();
+  const body = await parseJson(response);
+  const summary = body.summary as Record<string, unknown>;
+  const allocation = body.allocation as Record<string, unknown>;
+  const buckets = allocation.buckets as Array<Record<string, unknown>>;
+  const operatingSteps = body.operatingSteps as Array<Record<string, unknown>>;
+  const monetization = body.monetization as Record<string, unknown>;
+  const transferPlan = body.transferPlan as Record<string, unknown>;
+  const proof = body.proof as Record<string, unknown>;
+
+  assert.equal(response.status, 200);
+  assert.equal(body.service, "payshield-household-control-plan");
+  assert.equal(summary.paycheckAmountCents, 300_000);
+  assert.equal(summary.projectedProtectedCents, 155_000);
+  assert.equal(summary.projectedSafeToSpendCents, 145_000);
+  assert.equal(summary.readyStepCount, 4);
+  assert.equal(monetization.priceLabel, "$19/month");
+  assert.equal(monetization.endpoint, "POST /api/app/billing/checkout");
+  assert.equal(
+    operatingSteps.some(
+      (step) =>
+        step.key === "revenue_gate" &&
+        step.title === "Revenue gate" &&
+        step.endpoint === "POST /api/app/billing/checkout",
+    ),
+    true,
+  );
+  assert.equal(
+    operatingSteps.some(
+      (step) =>
+        step.key === "bank_connection" &&
+        step.endpoint === "POST /api/app/bank-link/token",
+    ),
+    true,
+  );
+  assert.equal(
+    operatingSteps.some(
+      (step) =>
+        step.key === "paycheck_detection" &&
+        step.endpoint === "POST /api/app/paychecks/rules" &&
+        step.canRunNow === true,
+    ),
+    true,
+  );
+  assert.equal(
+    buckets.some(
+      (bucket) =>
+        bucket.bucketId === "rent" &&
+        bucket.projectedFundingCents === 50_000,
+    ),
+    true,
+  );
+  assert.equal(transferPlan.endpoint, "POST /api/app/transfers");
+  assert.equal(proof.planEndpoint, "/api/app/control-plan");
+  assert.equal(proof.auditEndpoint, "/api/app/audit/export");
+});
+
+test("control plan post validates and regenerates paycheck projections", async () => {
+  const response = await generateControlPlan(
+    makeRequest("/api/app/control-plan", {
+      employerName: "Acme Payroll",
+      expectedFrequency: "weekly",
+      paycheckAmountCents: 220_000,
+      requestedTransferCents: 20_000,
+      ruleName: "Acme weekly payroll",
+    }),
+  );
+  const body = await parseJson(response);
+  const summary = body.summary as Record<string, unknown>;
+  const detectionRule = body.detectionRule as Record<string, unknown>;
+
+  assert.equal(response.status, 200);
+  assert.equal(summary.paycheckAmountCents, 220_000);
+  assert.equal(summary.projectedProtectedCents, 155_000);
+  assert.equal(summary.projectedSafeToSpendCents, 65_000);
+  assert.equal(detectionRule.employerNamePattern, "Acme Payroll");
+  assert.equal(detectionRule.ruleName, "Acme weekly payroll");
+
+  const badResponse = await generateControlPlan(
+    makeRequest("/api/app/control-plan", {
+      paycheckAmountCents: 1,
+    }),
+  );
+  const badBody = await parseJson(badResponse);
+
+  assert.equal(badResponse.status, 400);
+  assert.equal(Array.isArray(badBody.errors), true);
 });
 
 test("activation endpoint exposes operator launch checklist and smoke commands", async () => {

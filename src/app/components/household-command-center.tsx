@@ -20,6 +20,10 @@ import { BillRoutingWorkspace } from "@/app/components/bill-routing-workspace";
 import { BucketControlPanel } from "@/app/components/bucket-control-panel";
 import { CardAuthorizationPanel } from "@/app/components/card-authorization-panel";
 import { MoneyEngineConsole } from "@/app/components/money-engine-console";
+import {
+  MoneyControlPlanPanel,
+  type MoneyControlPlanView,
+} from "@/app/components/money-control-plan-panel";
 import { MoneyOperationsPanel } from "@/app/components/money-operations-panel";
 import { MoneySetupConsole } from "@/app/components/money-setup-console";
 import { PayShieldHeaderLogo } from "@/app/components/pay-shield-mark";
@@ -30,6 +34,7 @@ import {
   REGULATED_PARTNER_DISCLOSURE,
 } from "@/app/lib/brand";
 import { getCommercialReadiness } from "@/app/lib/commercial/billing.ts";
+import { createHouseholdMoneyControlPlan } from "@/app/lib/neobank/control-plan.ts";
 import { createNeobankSnapshot } from "@/app/lib/neobank/demo-state.ts";
 import { formatCents } from "@/app/lib/neobank/ledger.ts";
 import { getMoneyRailReadiness } from "@/app/lib/neobank/money-rails.ts";
@@ -48,6 +53,8 @@ export function HouseholdCommandCenter() {
   const moneyRailReadiness = getMoneyRailReadiness();
   const initialOperations = createHouseholdOperationsPacket();
   const initialActivationPacket = createHouseholdActivationPacket();
+  const initialControlPlan =
+    createHouseholdMoneyControlPlan() as MoneyControlPlanView;
   const initialOperationsReadiness = {
     commercial: {
       checkoutConfigured: commercialReadiness.checkoutConfigured,
@@ -335,6 +342,12 @@ export function HouseholdCommandCenter() {
             </a>
             <a
               className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
+              href="#control-plan"
+            >
+              Plan
+            </a>
+            <a
+              className="pay-primary-nav-link rounded-[8px] px-3 py-2 text-center hover:bg-white/10"
               href="#money-operations"
             >
               Rails
@@ -493,6 +506,8 @@ export function HouseholdCommandCenter() {
             </div>
           </div>
         </section>
+
+        <MoneyControlPlanPanel initialPlan={initialControlPlan} />
 
         <MoneyOperationsPanel
           buckets={snapshot.buckets}

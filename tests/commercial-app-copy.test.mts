@@ -5,6 +5,7 @@ import { test } from "node:test";
 const customerFacingFiles = [
   "src/app/components/household-command-center.tsx",
   "src/app/components/money-engine-console.tsx",
+  "src/app/components/money-control-plan-panel.tsx",
   "src/app/components/money-setup-console.tsx",
   "src/app/components/money-operations-panel.tsx",
   "src/app/components/payee-control-panel.tsx",
@@ -60,14 +61,28 @@ test("app command center exposes a guided real-money setup surface", async () =>
     "src/app/components/money-engine-console.tsx",
     "utf8",
   );
+  const controlPlan = await readFile(
+    "src/app/components/money-control-plan-panel.tsx",
+    "utf8",
+  );
   const operations = await readFile("src/app/lib/neobank/operations.ts", "utf8");
+  const controlPlanBuilder = await readFile(
+    "src/app/lib/neobank/control-plan.ts",
+    "utf8",
+  );
+  const controlPlanRoute = await readFile(
+    "src/app/api/app/control-plan/route.ts",
+    "utf8",
+  );
 
   assert.match(appPage, /HouseholdCommandCenter/);
   assert.match(commandCenter, /getCommercialReadiness/);
   assert.match(commandCenter, /getMoneyRailReadiness/);
   assert.match(commandCenter, /MoneyEngineConsole/);
   assert.match(commandCenter, /MoneySetupConsole/);
+  assert.match(commandCenter, /MoneyControlPlanPanel/);
   assert.match(commandCenter, /createHouseholdActivationPacket/);
+  assert.match(commandCenter, /createHouseholdMoneyControlPlan/);
   assert.match(moneyEngine, /Money engine console/);
   assert.match(moneyEngine, /Charge the household\. Then protect every paycheck\./);
   assert.match(moneyEngine, /Monthly recurring revenue/);
@@ -110,6 +125,28 @@ test("app command center exposes a guided real-money setup surface", async () =>
   assert.match(commandCenter, /Usable product map/);
   assert.match(commandCenter, /The app is monetized before rails turn on/);
   assert.match(commandCenter, /Open owner activation console/);
+  assert.match(controlPlan, /Household money control plan/);
+  assert.match(controlPlan, /Plan paycheck split, bank setup, revenue, and release in one pass/);
+  assert.match(controlPlan, /Paycheck split preview/);
+  assert.match(controlPlan, /Projected Safe to Spend/);
+  assert.match(controlPlan, /Operating steps/);
+  assert.match(controlPlan, /Detection and release/);
+  assert.match(controlPlan, /Transfer guardrail/);
+  assert.match(controlPlan, /Proof artifacts/);
+  assert.match(controlPlan, /\/api\/app\/control-plan/);
+  assert.match(controlPlan, /Revenue gate/);
+  assert.match(controlPlan, /Bank connection/);
+  assert.match(controlPlan, /Paycheck detection/);
+  assert.match(controlPlan, /Protected transfer/);
+  assert.match(controlPlanBuilder, /payshield-household-control-plan/);
+  assert.match(controlPlanBuilder, /projectedSafeToSpendCents/);
+  assert.match(controlPlanBuilder, /paymentCollectionReady/);
+  assert.match(controlPlanBuilder, /POST \/api\/app\/bank-link\/token/);
+  assert.match(controlPlanBuilder, /POST \/api\/app\/paychecks\/rules/);
+  assert.match(controlPlanBuilder, /POST \/api\/app\/transfers/);
+  assert.match(controlPlanRoute, /createHouseholdMoneyControlPlan/);
+  assert.match(controlPlanRoute, /normalizeMoneyControlPlanInput/);
+  assert.match(controlPlanRoute, /cache-control/);
   const appLoading = await readFile("src/app/app/loading.tsx", "utf8");
   const launchLoading = await readFile("src/app/launch/loading.tsx", "utf8");
   const loadingShell = await readFile(
