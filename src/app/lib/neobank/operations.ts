@@ -1431,7 +1431,6 @@ export function buildActivationRunway(input: {
         ...input.moneyRails.providerAdapterMissing,
         ...input.moneyRails.missing,
       ]),
-      supportContact: GRAYSTON_SUPPORT_EMAIL,
     },
     progress: {
       blockedMilestoneCount: milestones.filter(

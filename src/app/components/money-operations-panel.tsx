@@ -320,7 +320,6 @@ type ActivationRunway = {
     operationsEndpoint?: string;
     productionStatusCommand?: string;
     requiredBeforeLiveMoney?: string[];
-    supportContact?: string;
   };
   progress?: {
     blockedMilestoneCount?: number;
