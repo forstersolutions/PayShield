@@ -414,6 +414,79 @@ test("core card authorization replays durable decisions before recomputing funds
   assert.match(databaseSource, /cardAuthorizationDecisionFromRow/);
 });
 
+test("core paycheck detection replays durable detections before recomputing splits", () => {
+  const productSource = readFileSync(
+    new URL("../services/core/product.mjs", import.meta.url),
+    "utf8",
+  );
+  const databaseSource = readFileSync(
+    new URL("../services/core/database.mjs", import.meta.url),
+    "utf8",
+  );
+  const detectStart = productSource.indexOf(
+    "export async function detectPaycheck",
+  );
+  const detectEnd = productSource.indexOf(
+    "export async function createTransferIntent",
+    detectStart,
+  );
+
+  assert.notEqual(detectStart, -1);
+  assert.notEqual(detectEnd, -1);
+
+  const detectSource = productSource.slice(detectStart, detectEnd);
+  const replayLookupIndex = detectSource.indexOf("loadPaycheckDetection(");
+  const ruleLookupIndex = detectSource.indexOf("findMatchingPaycheckRule(");
+  const ledgerPostIndex = detectSource.indexOf("postPaycheckDeposit(");
+  const persistenceIndex = detectSource.indexOf("persistPaycheckDetection(");
+  const writeReplayIndex = detectSource.indexOf("persistence.replayed");
+  const directJournalIndex = detectSource.indexOf("persistOperationalJournal(");
+
+  assert.ok(
+    replayLookupIndex >= 0,
+    "paycheck detection must check durable replay state",
+  );
+  assert.ok(
+    replayLookupIndex < ruleLookupIndex,
+    "paycheck replay lookup must happen before rule matching",
+  );
+  assert.ok(
+    replayLookupIndex < ledgerPostIndex,
+    "paycheck replay lookup must happen before recomputing bucket splits",
+  );
+  assert.ok(
+    persistenceIndex > ledgerPostIndex,
+    "new paycheck detections must still persist after split calculation",
+  );
+  assert.ok(
+    writeReplayIndex > persistenceIndex,
+    "paycheck detection must honor persistence-time replay conflicts",
+  );
+  assert.equal(
+    directJournalIndex,
+    -1,
+    "paycheck detection must not post a journal before claiming the detection idempotency key",
+  );
+  assert.match(detectSource, /journalEntry: entry/);
+  assert.match(
+    productSource,
+    /without recomputing bucket splits/,
+  );
+  assert.match(
+    detectSource,
+    /idempotency key or provider transaction already belongs to a different deposit payload/,
+  );
+  assert.match(
+    databaseSource,
+    /export async function loadPaycheckDetection/,
+  );
+  assert.match(
+    databaseSource,
+    /UPDATE paycheck_detections[\s\S]+SET journal_entry_id/,
+  );
+  assert.match(databaseSource, /paycheckDetectionFromRow/);
+});
+
 test("core profile route binds authenticated users to a household identity", async () => {
   await withCoreServer(async (baseUrl) => {
     const { body, response } = await getJson(baseUrl, "/api/app/me", {

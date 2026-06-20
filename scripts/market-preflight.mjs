@@ -1132,6 +1132,40 @@ requireText("services/core/database.mjs", "cardAuthorizationDecisionFromRow");
 requireText("services/core/database.mjs", "insertJournalEntry(client");
 requireText("services/core/database.mjs", "UPDATE card_authorization_decisions");
 requireText("services/core/database.mjs", "SET journal_entry_id");
+requireText("services/core/product.mjs", "loadPaycheckDetection");
+requireText(
+  "services/core/product.mjs",
+  "Paycheck detection replayed from the original durable detection without recomputing bucket splits",
+);
+requireText(
+  "services/core/product.mjs",
+  "idempotency key or provider transaction already belongs to a different deposit payload",
+);
+requireTextOrderInSection(
+  "services/core/product.mjs",
+  "export async function detectPaycheck",
+  "export async function createTransferIntent",
+  "loadPaycheckDetection(",
+  "findMatchingPaycheckRule(",
+);
+requireTextOrderInSection(
+  "services/core/product.mjs",
+  "export async function detectPaycheck",
+  "export async function createTransferIntent",
+  "loadPaycheckDetection(",
+  "postPaycheckDeposit(",
+);
+requireTextOrderInSection(
+  "services/core/product.mjs",
+  "export async function detectPaycheck",
+  "export async function createTransferIntent",
+  "persistPaycheckDetection(",
+  "persistence.replayed",
+);
+requireText("services/core/product.mjs", "journalEntry: entry");
+requireText("services/core/database.mjs", "loadPaycheckDetection");
+requireText("services/core/database.mjs", "paycheckDetectionFromRow");
+requireText("services/core/database.mjs", "UPDATE paycheck_detections");
 requireText("services/core/product.mjs", "handleProviderWebhook");
 requireText("services/core/migrations/0001_neobank_core.sql", "journal_entries");
 requireText("services/core/migrations/0001_neobank_core.sql", "provider_events");

@@ -7,6 +7,7 @@ import {
   loadOperationalAudit,
   loadBankConnectionForProvider,
   loadBucketProfile,
+  loadPaycheckDetection,
   loadPayees,
   loadProviderTokenSecret,
   persistBucketProfile,
@@ -6297,6 +6298,77 @@ async function persistOperationalJournal(entry, env = process.env, actorInput = 
   );
 }
 
+function paycheckReplayMatchesInput(existingDetection, input) {
+  const existingProviderTransactionId =
+    existingDetection.providerTransactionId || null;
+  const inputProviderTransactionId = input.providerTransactionId || null;
+
+  return (
+    existingDetection.amountCents === input.amountCents &&
+    existingDetection.employerName === input.employerName &&
+    (!existingProviderTransactionId ||
+      !inputProviderTransactionId ||
+      existingProviderTransactionId === inputProviderTransactionId)
+  );
+}
+
+function replayedPaycheckDetectionBody({
+  existingDetection,
+  readiness,
+}) {
+  const detection = {
+    amountCents: existingDetection.amountCents,
+    employerName: existingDetection.employerName,
+    idempotencyKey: existingDetection.idempotencyKey,
+    matchedRule: existingDetection.detectionRuleId
+      ? {
+          id: existingDetection.detectionRuleId,
+          ruleName: null,
+        }
+      : null,
+    mode: readiness.detectionMode,
+    providerTransactionId: existingDetection.providerTransactionId,
+    receivedAt: existingDetection.receivedAt,
+    ruleLookup: {
+      persistence: "durable_replay",
+      ruleCount: null,
+    },
+  };
+
+  return {
+    detection,
+    journalPersistence: existingDetection.journalEntryId
+      ? {
+          persisted: true,
+          persistence: "postgres",
+          postgresId: existingDetection.journalEntryId,
+          replayed: true,
+        }
+      : {
+          persisted: false,
+          persistence: "not_linked",
+          persistenceReason:
+            "Replayed paycheck detection has no linked journal entry.",
+          replayed: true,
+        },
+    ledger: {
+      entryCount: null,
+      source: "durable_paycheck_detection_replay",
+    },
+    message:
+      "Paycheck detection replayed from the original durable detection without recomputing bucket splits.",
+    persistence: {
+      detection: existingDetection,
+      persisted: true,
+      persistence: "postgres",
+      postgresId: existingDetection.id,
+      replayed: true,
+    },
+    readiness,
+    service: "payshield-paycheck-detection",
+  };
+}
+
 export async function detectPaycheck(payload, env = process.env) {
   let actor = actorFromPayload(payload);
   const amountCents = toIntegerCents(payload?.amountCents, {
@@ -6344,6 +6416,66 @@ export async function detectPaycheck(payload, env = process.env) {
     payload?.providerAccountId || payload?.accountId,
     160,
   );
+  const providerTransactionId =
+    cleanText(payload?.providerTransactionId, 120) || null;
+  const paycheckInput = {
+    amountCents,
+    employerName,
+    idempotencyKey:
+      cleanText(payload?.idempotencyKey, 120) ||
+      `paycheck-${employerName.toLowerCase().replace(/[^a-z0-9]+/g, "_")}-${amountCents}`,
+    providerAccountId,
+    providerEventId: cleanText(payload?.providerEventId, 120) || null,
+    providerItemId,
+    providerName,
+    providerTransactionId,
+    receivedAt: cleanText(payload?.receivedAt, 32) || new Date().toISOString(),
+  };
+  const readiness = getMoneyRailReadiness(env);
+  const replayLookup = await loadPaycheckDetection(
+    {
+      householdId: actor.householdId,
+      idempotencyKey: paycheckInput.idempotencyKey,
+      providerTransactionId: paycheckInput.providerTransactionId,
+    },
+    env,
+  );
+
+  if (persistenceFailed(replayLookup)) {
+    return {
+      body: {
+        error: "Paycheck detection replay lookup failed.",
+        readiness,
+        replayLookup,
+        service: "payshield-paycheck-detection",
+      },
+      status: 503,
+    };
+  }
+
+  if (replayLookup.found) {
+    if (!paycheckReplayMatchesInput(replayLookup.detection, paycheckInput)) {
+      return {
+        body: {
+          error:
+            "Paycheck detection idempotency key or provider transaction already belongs to a different deposit payload.",
+          readiness,
+          replayLookup,
+          service: "payshield-paycheck-detection",
+        },
+        status: 409,
+      };
+    }
+
+    return {
+      body: replayedPaycheckDetectionBody({
+        existingDetection: replayLookup.detection,
+        readiness,
+      }),
+      status: 200,
+    };
+  }
+
   const ruleMatch = await findMatchingPaycheckRule(
     {
       amountCents,
@@ -6365,10 +6497,8 @@ export async function detectPaycheck(payload, env = process.env) {
   const entry = postPaycheckDeposit(book, controls.buckets, {
     amountCents,
     employerName,
-    idempotencyKey:
-      cleanText(payload?.idempotencyKey, 120) ||
-      `paycheck-${employerName.toLowerCase().replace(/[^a-z0-9]+/g, "_")}-${amountCents}`,
-    receivedAt: cleanText(payload?.receivedAt, 32) || new Date().toISOString(),
+    idempotencyKey: paycheckInput.idempotencyKey,
+    receivedAt: paycheckInput.receivedAt,
   });
   const balances = buildBucketBalances(book, controls.buckets);
   const safeToSpendCents =
@@ -6378,13 +6508,18 @@ export async function detectPaycheck(payload, env = process.env) {
     .filter((bucket) => bucket.id !== "safe_spending")
     .reduce((sum, bucket) => sum + bucket.availableCents, 0);
 
-  const readiness = getMoneyRailReadiness(env);
-  const journalPersistence = await persistOperationalJournal(entry, env, actor);
+  let journalPersistence = {
+    persisted: false,
+    persistence: "pending_paycheck_detection",
+    persistenceReason:
+      "Paycheck split journal entry will be persisted atomically with the detection claim.",
+  };
 
-  if (persistenceFailed(journalPersistence)) {
+  if (!entry) {
     return {
       body: {
-        error: "Paycheck ledger entry could not be persisted.",
+        error:
+          "Paycheck detection did not produce a ledger entry for atomic persistence.",
         journalPersistence,
         readiness,
         service: "payshield-paycheck-detection",
@@ -6401,9 +6536,9 @@ export async function detectPaycheck(payload, env = process.env) {
       employerName,
       householdId: actor.householdId,
       idempotencyKey: entry.idempotencyKey,
-      journalEntryId: journalPersistence.postgresId || entry.id,
-      providerEventId: cleanText(payload?.providerEventId, 120) || null,
-      providerTransactionId: cleanText(payload?.providerTransactionId, 120) || null,
+      journalEntry: entry,
+      providerEventId: paycheckInput.providerEventId,
+      providerTransactionId: paycheckInput.providerTransactionId,
       receivedAt: entry.metadata?.receivedAt,
       status: "split_posted",
     },
@@ -6421,6 +6556,32 @@ export async function detectPaycheck(payload, env = process.env) {
     };
   }
 
+  journalPersistence = persistence.journalPersistence || journalPersistence;
+
+  if (persistence.replayed && persistence.detection) {
+    if (!paycheckReplayMatchesInput(persistence.detection, paycheckInput)) {
+      return {
+        body: {
+          error:
+            "Paycheck detection idempotency key or provider transaction already belongs to a different deposit payload.",
+          journalPersistence,
+          persistence,
+          readiness,
+          service: "payshield-paycheck-detection",
+        },
+        status: 409,
+      };
+    }
+
+    return {
+      body: replayedPaycheckDetectionBody({
+        existingDetection: persistence.detection,
+        readiness,
+      }),
+      status: 200,
+    };
+  }
+
   const auditPersistence = await persistMoneyRailEvent(
     {
       eventType: "paycheck_detected",
@@ -6430,7 +6591,7 @@ export async function detectPaycheck(payload, env = process.env) {
         detectionRuleId: ruleMatch.rule?.id || null,
         employerName,
         idempotencyKey: entry.idempotencyKey,
-        journalEntryId: entry.id,
+        journalEntryId: journalPersistence.postgresId || entry.id,
         payrollRuleName: ruleMatch.rule?.ruleName || null,
       },
       providerEventId: `paycheck:${entry.idempotencyKey}`,

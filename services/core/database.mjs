@@ -353,6 +353,23 @@ function paycheckDetectionRuleFromRow(row = {}) {
   };
 }
 
+function paycheckDetectionFromRow(row = {}) {
+  return {
+    amountCents: centsNumber(row.amount_cents),
+    bankConnectionId: row.bank_connection_id || null,
+    createdAt: timestampString(row.created_at),
+    detectionRuleId: row.detection_rule_id || null,
+    employerName: row.employer_name,
+    id: row.id,
+    idempotencyKey: row.idempotency_key,
+    journalEntryId: row.journal_entry_id || null,
+    providerEventId: row.provider_event_id || null,
+    providerTransactionId: row.provider_transaction_id || null,
+    receivedAt: timestampString(row.received_at),
+    status: row.status,
+  };
+}
+
 function directDepositSetupFromRow(row = {}) {
   return {
     accountLast4: row.account_last4 || "----",
@@ -2764,20 +2781,116 @@ export async function persistProviderTokenSecret(input, env = process.env) {
   }
 }
 
+export async function loadPaycheckDetection(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return {
+      found: false,
+      persistence: "memory",
+      persistenceReason:
+        "paycheck detection replay lookup accepted without PAYSHIELD_LEDGER_DATABASE_URL.",
+    };
+  }
+
+  try {
+    const result = await pool.query(
+      `
+        SELECT
+          id,
+          household_id,
+          bank_connection_id,
+          detection_rule_id,
+          provider_event_id,
+          provider_transaction_id,
+          employer_name,
+          amount_cents,
+          received_at,
+          journal_entry_id,
+          idempotency_key,
+          status,
+          created_at
+        FROM paycheck_detections
+        WHERE household_id = $1
+          AND (
+            idempotency_key = $2
+            OR ($3::text IS NOT NULL AND provider_transaction_id = $3)
+          )
+        ORDER BY
+          CASE WHEN idempotency_key = $2 THEN 0 ELSE 1 END,
+          created_at DESC
+        LIMIT 1
+      `,
+      [
+        input.householdId,
+        input.idempotencyKey,
+        input.providerTransactionId || null,
+      ],
+    );
+
+    if (result.rowCount === 0) {
+      return {
+        found: false,
+        persistence: "postgres",
+      };
+    }
+
+    return {
+      detection: paycheckDetectionFromRow(result.rows[0]),
+      found: true,
+      persistence: "postgres",
+    };
+  } catch (error) {
+    return persistenceFailed(error);
+  }
+}
+
 export async function persistPaycheckDetection(input, env = process.env) {
   const pool = poolFor(env);
 
   if (!pool) {
-    return persistenceSkipped("paycheck detection", env);
+    const skipped = persistenceSkipped("paycheck detection", env);
+
+    return input.journalEntry && skipped.persistence === "memory"
+      ? {
+          ...skipped,
+          detection: {
+            amountCents: input.amountCents,
+            bankConnectionId: input.bankConnectionId || null,
+            detectionRuleId: input.detectionRuleId || null,
+            employerName: input.employerName,
+            idempotencyKey: input.idempotencyKey,
+            journalEntryId: input.journalEntry.id,
+            providerEventId: input.providerEventId || null,
+            providerTransactionId: input.providerTransactionId || null,
+            receivedAt: input.receivedAt,
+            status: input.status,
+          },
+          journalPersistence: {
+            lineCount: input.journalEntry.lines?.length,
+            persisted: false,
+            persistence: "memory",
+            persistenceReason:
+              "paycheck split journal entry accepted without PAYSHIELD_LEDGER_DATABASE_URL.",
+            replayed: false,
+          },
+        }
+      : skipped;
   }
 
+  let client = null;
+
   try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+    await ensureHousehold(client, input);
+
     const id = recordId(
       "paycheck_detection",
       input.householdId,
       input.idempotencyKey,
     );
-    const result = await pool.query(
+    const result = await client.query(
       `
         INSERT INTO paycheck_detections (
           id,
@@ -2794,8 +2907,20 @@ export async function persistPaycheckDetection(input, env = process.env) {
           status
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz, $10, $11, $12)
-        ON CONFLICT (household_id, idempotency_key) DO NOTHING
-        RETURNING id
+        ON CONFLICT DO NOTHING
+        RETURNING
+          id,
+          bank_connection_id,
+          detection_rule_id,
+          provider_event_id,
+          provider_transaction_id,
+          employer_name,
+          amount_cents,
+          received_at,
+          journal_entry_id,
+          idempotency_key,
+          status,
+          created_at
       `,
       [
         id,
@@ -2807,14 +2932,102 @@ export async function persistPaycheckDetection(input, env = process.env) {
         input.employerName,
         input.amountCents,
         input.receivedAt,
-        input.journalEntryId || null,
+        input.journalEntry && !input.journalEntryId
+          ? null
+          : input.journalEntryId || null,
         input.idempotencyKey,
         input.status,
       ],
     );
 
-    if (input.detectionRuleId) {
-      await pool.query(
+    let row = result.rows[0];
+    let journalPersistence = null;
+    let replayed = false;
+
+    if (row && input.journalEntry) {
+      const journal = await insertJournalEntry(client, {
+        entry: input.journalEntry,
+        householdId: input.householdId,
+      });
+      const updateResult = await client.query(
+        `
+          UPDATE paycheck_detections
+          SET journal_entry_id = $1
+          WHERE id = $2
+          RETURNING
+            id,
+            bank_connection_id,
+            detection_rule_id,
+            provider_event_id,
+            provider_transaction_id,
+            employer_name,
+            amount_cents,
+            received_at,
+            journal_entry_id,
+            idempotency_key,
+            status,
+            created_at
+        `,
+        [journal.postgresId, row.id],
+      );
+
+      row = updateResult.rows[0];
+
+      if (!row) {
+        throw new Error(
+          "Paycheck detection could not be linked to its journal entry.",
+        );
+      }
+
+      journalPersistence = {
+        lineCount: journal.lineCount,
+        persisted: true,
+        persistence: "postgres",
+        postgresId: journal.postgresId,
+        replayed: journal.replayed,
+      };
+    }
+
+    if (!row) {
+      const existing = await client.query(
+        `
+          SELECT
+            id,
+            bank_connection_id,
+            detection_rule_id,
+            provider_event_id,
+            provider_transaction_id,
+            employer_name,
+            amount_cents,
+            received_at,
+            journal_entry_id,
+            idempotency_key,
+            status,
+            created_at
+          FROM paycheck_detections
+          WHERE household_id = $1
+            AND (
+              idempotency_key = $2
+              OR ($3::text IS NOT NULL AND provider_transaction_id = $3)
+            )
+          ORDER BY
+            CASE WHEN idempotency_key = $2 THEN 0 ELSE 1 END,
+            created_at DESC
+          LIMIT 1
+        `,
+        [
+          input.householdId,
+          input.idempotencyKey,
+          input.providerTransactionId || null,
+        ],
+      );
+
+      row = existing.rows[0];
+      replayed = Boolean(row);
+    }
+
+    if (row && !replayed && input.detectionRuleId) {
+      await client.query(
         `
           UPDATE paycheck_detection_rules
           SET last_matched_at = now(), updated_at = now()
@@ -2824,14 +3037,37 @@ export async function persistPaycheckDetection(input, env = process.env) {
       );
     }
 
+    await client.query("COMMIT");
+
+    if (!row) {
+      return {
+        persisted: false,
+        persistence: "postgres_missing",
+        persistenceReason:
+          "Paycheck detection write returned no durable record.",
+      };
+    }
+
     return {
+      detection: paycheckDetectionFromRow(row),
+      journalPersistence,
       persisted: true,
       persistence: "postgres",
-      postgresId: id,
-      replayed: result.rowCount === 0,
+      postgresId: row.id ?? id,
+      replayed,
     };
   } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Ignore rollback failures; the original error is more useful.
+      }
+    }
+
     return persistenceFailed(error);
+  } finally {
+    client?.release();
   }
 }
 
