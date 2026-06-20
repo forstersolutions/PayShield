@@ -77,6 +77,21 @@ function gateInAny(gate: string, patterns: string[]) {
   return patterns.some((pattern) => gate.includes(pattern));
 }
 
+function trackAnchor(key: string) {
+  switch (key) {
+    case "Revenue":
+      return "revenue";
+    case "Bank link":
+      return "bank-link";
+    case "Paycheck detection":
+      return "detection";
+    case "Money movement":
+      return "movement";
+    default:
+      return undefined;
+  }
+}
+
 function StageCard({ stage }: { stage: ActivationStage }) {
   const Icon = stage.ready ? CheckCircle2 : KeyRound;
 
@@ -186,6 +201,7 @@ function ConsoleTrackCard({ track }: { track: ConsoleTrack }) {
 
   return (
     <article
+      id={trackAnchor(track.key)}
       className={`grid gap-4 rounded-[8px] border p-4 sm:grid-cols-[2.9rem_minmax(0,1fr)_auto] ${
         track.ready
           ? "border-[#68f0c2]/25 bg-[#68f0c2]/10"

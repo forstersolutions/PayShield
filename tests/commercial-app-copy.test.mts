@@ -107,7 +107,9 @@ test("app command center exposes a guided real-money setup surface", async () =>
   assert.match(commandCenter, /Connect the bank source/);
   assert.match(commandCenter, /Sync linked-bank activity/);
   assert.match(commandCenter, /Detect the paycheck/);
-  assert.match(commandCenter, /Audit export/);
+  assert.match(commandCenter, /Usable product map/);
+  assert.match(commandCenter, /The app is monetized before rails turn on/);
+  assert.match(commandCenter, /Open owner activation console/);
   assert.match(dashboard, /Real operating path/);
   assert.match(dashboard, /Make money, connect banks, detect payroll, protect funds/);
   assert.match(dashboard, /Start checkout/);

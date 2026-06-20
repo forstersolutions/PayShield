@@ -349,7 +349,7 @@ try {
   await expectText("/app", [
     "Household command center",
     "Safe to Spend",
-    "Command queue",
+    "Usable product map",
     "Money path",
     "Ledger journal",
     "Money operations",

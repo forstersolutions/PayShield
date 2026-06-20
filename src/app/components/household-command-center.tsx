@@ -4,15 +4,12 @@ import {
   CheckCircle2,
   CreditCard,
   Database,
-  FileDown,
   KeyRound,
   Landmark,
-  LifeBuoy,
   Link2,
   LockKeyhole,
   Radar,
   RefreshCw,
-  ShieldAlert,
   Split,
   UserRoundCheck,
   WalletCards,
@@ -40,105 +37,6 @@ import {
   createHouseholdActivationPacket,
   createHouseholdOperationsPacket,
 } from "@/app/lib/neobank/operations.ts";
-
-const commandActions = [
-  {
-    body: "Create the paid household access record before money controls unlock.",
-    endpoint: "POST /api/app/billing/checkout",
-    href: "#money-operations",
-    icon: BadgeDollarSign,
-    label: "Start checkout",
-  },
-  {
-    body: "Launch Plaid Link and exchange the public token into vault custody.",
-    endpoint: "POST /api/app/bank-link/token",
-    href: "#money-operations",
-    icon: Link2,
-    label: "Launch Plaid",
-  },
-  {
-    body: "Sync linked-bank transactions and let the core post payroll splits.",
-    endpoint: "POST /api/app/paychecks/sync",
-    href: "#money-operations",
-    icon: RefreshCw,
-    label: "Sync bank",
-  },
-  {
-    body: "Record masked routing state for the protected paycheck landing zone.",
-    endpoint: "POST /api/app/direct-deposit",
-    href: "#money-operations",
-    icon: Landmark,
-    label: "Set routing",
-  },
-  {
-    body: "Save the employer match, frequency, and amount thresholds.",
-    endpoint: "POST /api/app/paychecks/rules",
-    href: "#money-operations",
-    icon: Radar,
-    label: "Save rule",
-  },
-  {
-    body: "Post a paycheck event and split protected buckets before Safe to Spend.",
-    endpoint: "POST /api/app/paychecks/detect",
-    href: "#money-operations",
-    icon: Split,
-    label: "Run split",
-  },
-  {
-    body: "Validate a protected bucket transfer before any provider handoff.",
-    endpoint: "POST /api/app/transfers",
-    href: "#money-operations",
-    icon: Landmark,
-    label: "Move funds",
-  },
-  {
-    body: "Approve protected-bucket destinations before bill routing can use them.",
-    endpoint: "POST /api/app/payees",
-    href: "#payee-controls",
-    icon: UserRoundCheck,
-    label: "Approve payee",
-  },
-  {
-    body: "Run a purchase through the Safe to Spend decision model.",
-    endpoint: "POST /api/card/authorize",
-    href: "#card-authorization",
-    icon: CreditCard,
-    label: "Check swipe",
-  },
-  {
-    body: "Download the household operations packet for support and reconciliation.",
-    download: "payshield-household-audit.json",
-    endpoint: "GET /api/app/audit/export",
-    href: "/api/app/audit/export",
-    icon: FileDown,
-    label: "Audit export",
-  },
-  {
-    body: "Model emergency access with a per-check recovery plan.",
-    endpoint: "POST /api/app/unlocks",
-    href: "#unlock-controls",
-    icon: ShieldAlert,
-    label: "Unlock funds",
-  },
-  {
-    body: "Send operational requests to Grayston support.",
-    endpoint: GRAYSTON_SUPPORT_EMAIL,
-    href: `mailto:${GRAYSTON_SUPPORT_EMAIL}`,
-    icon: LifeBuoy,
-    label: "Support",
-  },
-];
-
-const moneyPath = [
-  "Stripe paid access",
-  "Clerk household",
-  "Plaid bank connection",
-  "Paycheck routing",
-  "Payroll detection",
-  "Priority bucket split",
-  "Transfer/card decision",
-  "Audit and reconciliation",
-];
 
 function stepTone(ready: boolean) {
   return ready ? "ready" : "attention";
@@ -203,16 +101,12 @@ export function HouseholdCommandCenter() {
   const protectedCents = snapshot.buckets
     .filter((bucket) => bucket.id !== "safe_spending")
     .reduce((sum, bucket) => sum + bucket.availableCents, 0);
-  const totalCents = safeSpend + protectedCents;
-  const safeSpendPercent = Math.round(
-    (safeSpend / Math.max(1, totalCents)) * 100,
-  );
-  const protectedPercent = 100 - safeSpendPercent;
   const latestEntries = snapshot.ledgerEntries.slice(-5).reverse();
   const openGates = snapshot.readiness.gates.filter((gate) => !gate.ok);
   const setupSteps = [
     {
       body: "Households subscribe before the money tools unlock. Checkout is the revenue switch.",
+      endpoint: "POST /api/app/billing/checkout",
       href: "#money-operations",
       icon: BadgeDollarSign,
       label: "Access",
@@ -226,6 +120,7 @@ export function HouseholdCommandCenter() {
     },
     {
       body: "Each Clerk subject maps to one PayShield household for buckets, payees, ledger events, and support.",
+      endpoint: "GET /api/app/me",
       href: "#readiness",
       icon: LockKeyhole,
       label: "Identity",
@@ -241,6 +136,7 @@ export function HouseholdCommandCenter() {
     },
     {
       body: "Plaid Link creates the user-approved source for income detection and transfer handoff.",
+      endpoint: "POST /api/app/bank-link/token",
       href: "#money-operations",
       icon: Link2,
       label: "Bank",
@@ -254,6 +150,7 @@ export function HouseholdCommandCenter() {
     },
     {
       body: "The core syncs linked-bank transactions, detects payroll-like credits, and stores the cursor for the next run.",
+      endpoint: "POST /api/app/paychecks/sync",
       href: "#money-operations",
       icon: RefreshCw,
       label: "Sync",
@@ -267,6 +164,7 @@ export function HouseholdCommandCenter() {
     },
     {
       body: "Paycheck-routing setup records the masked payroll destination before income events fund buckets.",
+      endpoint: "POST /api/app/direct-deposit",
       href: "#money-operations",
       icon: Landmark,
       label: "Routing",
@@ -276,6 +174,7 @@ export function HouseholdCommandCenter() {
     },
     {
       body: "Custom bucket targets, payees, priorities, and unlock rules are set before a paycheck is split.",
+      endpoint: "POST /api/app/buckets",
       href: "#bucket-studio",
       icon: Split,
       label: "Rules",
@@ -285,6 +184,7 @@ export function HouseholdCommandCenter() {
     },
     {
       body: "Approved destinations bind each protected bucket to real-world obligations before money is released.",
+      endpoint: "POST /api/app/payees",
       href: "#payee-controls",
       icon: UserRoundCheck,
       label: "Payees",
@@ -294,6 +194,7 @@ export function HouseholdCommandCenter() {
     },
     {
       body: "Income events post a journal entry and recalculate protected money versus Safe to Spend.",
+      endpoint: "POST /api/app/paychecks/detect",
       href: "#money-operations",
       icon: Radar,
       label: "Income",
@@ -307,6 +208,7 @@ export function HouseholdCommandCenter() {
     },
     {
       body: "Every card or transfer decision checks Safe to Spend, approved payees, and protected buckets.",
+      endpoint: "POST /api/card/authorize",
       href: "#card-authorization",
       icon: CreditCard,
       label: "Spend",
@@ -598,105 +500,19 @@ export function HouseholdCommandCenter() {
           payees={snapshot.payees}
         />
 
-        <div
-          id="overview"
-          className="grid gap-6 py-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]"
+        <section
+          id="activation-console"
+          className="grid gap-6 border-b border-white/10 py-8 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]"
         >
-          <section className="brand-panel accent-rule rounded-[8px] p-5 sm:p-7">
-            <p className="inline-flex items-center gap-2 rounded-[8px] border border-[#39e8ff]/30 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black text-[#dffaff]">
-              Household command center
-            </p>
-            <h1 className="mt-6 max-w-2xl text-4xl font-black leading-[1.02] text-white sm:text-5xl lg:text-[3.3rem]">
-              One operating screen for the paycheck.
-            </h1>
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-[#c9d0da]">
-              Sell access, connect funding sources, detect income, split the
-              ledger into protected buckets, route bills, and decide spending
-              from one reliable operating flow.
-            </p>
-            <div className="mt-6 grid gap-2 sm:grid-cols-3">
-              <a
-                className="brand-button-primary inline-flex min-h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black"
-                href="#money-operations"
-              >
-                <BadgeDollarSign className="size-4" aria-hidden="true" />
-                Start paid access
-              </a>
-              <a
-                className="brand-button-blue inline-flex min-h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black"
-                href="#money-operations"
-              >
-                <Link2 className="size-4" aria-hidden="true" />
-                Connect bank
-              </a>
-              <a
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[8px] border border-[#ffb237]/30 bg-[#ffb237]/10 px-4 text-sm font-black text-[#ffe4ad] hover:bg-[#ffb237]/15"
-                href="#bucket-studio"
-              >
-                <Split className="size-4" aria-hidden="true" />
-                Protect funds
-              </a>
-            </div>
+          <MoneySetupConsole initialPacket={initialActivationPacket} />
 
-            <div className="mt-7 rounded-[8px] border border-[#1588ff]/30 bg-[#07111f]/78 p-5">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-black uppercase text-[#39e8ff]">
-                    Safe to Spend
-                  </p>
-                  <p className="mt-2 text-5xl font-black leading-none text-white">
-                    {formatCents(safeSpend)}
-                  </p>
-                </div>
-                <span className="rounded-[8px] border border-[#ffb237]/35 bg-[#ffb237]/10 px-3 py-2 text-sm font-black text-[#ffe1a3]">
-                  {snapshot.card.status === "live"
-                    ? "Gateway active"
-                    : "Ledger controls"}
-                </span>
-              </div>
-
-              <div className="mt-5 overflow-hidden rounded-[8px] border border-white/10 bg-black/40">
-                <div className="grid grid-cols-[1fr_auto] items-center gap-3 p-3">
-                  <span className="text-xs font-black uppercase text-[#9ba6b5]">
-                    Paycheck split
-                  </span>
-                  <span className="text-sm font-black text-white">
-                    {safeSpendPercent}% safe / {protectedPercent}% protected
-                  </span>
-                </div>
-                <div className="flex h-3 bg-[#121821]">
-                  <span
-                    className="bg-gradient-to-r from-[#1588ff] to-[#39e8ff]"
-                    style={{ width: `${safeSpendPercent}%` }}
-                  />
-                  <span className="flex-1 bg-gradient-to-r from-[#ffb237] to-[#ff6b35]" />
-                </div>
-              </div>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                <StatusMetric
-                  icon={LockKeyhole}
-                  label="Protected"
-                  value={formatCents(protectedCents)}
-                />
-                <StatusMetric
-                  icon={CreditCard}
-                  label="Card mode"
-                  value={snapshot.card.authorizationMode === "simulation" ? "Ledger" : "Gateway"}
-                />
-              </div>
-            </div>
-          </section>
-
-          <section className="grid gap-5">
-            <MoneySetupConsole initialPacket={initialActivationPacket} />
-
+          <div className="grid gap-5">
             <div className="brand-panel rounded-[8px] p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="brand-kicker">Household setup</p>
                   <h2 className="mt-1 text-2xl font-black text-white">
-                    Start with one clear next move.
+                    One next move, then the next rail opens.
                   </h2>
                 </div>
                 <span className="rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black text-[#dffaff]">
@@ -712,7 +528,7 @@ export function HouseholdCommandCenter() {
                   <NextIcon className="size-5" aria-hidden="true" />
                 </span>
                 <span>
-                  <span className="text-xs font-black uppercase tracking-[0.12em] text-[#ffcf72]">
+                  <span className="text-xs font-black uppercase text-[#ffcf72]">
                     Next best action
                   </span>
                   <span className="mt-1 block text-base font-black text-white">
@@ -720,6 +536,9 @@ export function HouseholdCommandCenter() {
                   </span>
                   <span className="mt-1 block text-sm leading-6 text-[#ffe4bd]">
                     {nextSetupStep.body}
+                  </span>
+                  <span className="mt-2 block overflow-x-auto font-mono text-[0.68rem] font-black uppercase text-[#ffcf72]">
+                    {nextSetupStep.endpoint}
                   </span>
                 </span>
                 <span className="inline-flex h-10 items-center justify-center rounded-[8px] bg-white px-3 text-sm font-black text-[#050607]">
@@ -747,12 +566,15 @@ export function HouseholdCommandCenter() {
                       >
                         <Icon className="size-5" aria-hidden="true" />
                       </span>
-                      <span>
-                        <span className="text-xs font-black uppercase tracking-[0.12em] text-[#8f99aa]">
+                      <span className="min-w-0">
+                        <span className="text-xs font-black uppercase text-[#8f99aa]">
                           {String(index + 1).padStart(2, "0")} / {step.label}
                         </span>
-                        <span className="block text-sm font-black text-white">
+                        <span className="block truncate text-sm font-black text-white">
                           {step.title}
+                        </span>
+                        <span className="mt-1 block overflow-x-auto font-mono text-[0.68rem] font-black uppercase text-[#39e8ff]">
+                          {step.endpoint}
                         </span>
                       </span>
                       <span
@@ -771,54 +593,28 @@ export function HouseholdCommandCenter() {
             </div>
 
             <div className="brand-panel-soft rounded-[8px] p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="brand-kicker">Command queue</p>
-                  <h2 className="mt-1 text-2xl font-black text-white">
-                    Jump straight to the tool.
-                  </h2>
-                </div>
-                <WalletCards className="size-6 text-[#39e8ff]" aria-hidden="true" />
-              </div>
-              <div className="mt-5 grid gap-2 sm:grid-cols-2">
-                {commandActions.map((action) => {
-                  const Icon = action.icon;
-
-                  return (
-                    <a
-                      className="grid min-h-28 gap-2 rounded-[8px] border border-white/10 bg-black/35 p-3 text-left transition hover:border-[#39e8ff]/35 hover:bg-[#39e8ff]/10"
-                      download={action.download}
-                      href={action.href}
-                      key={action.label}
-                    >
-                      <span className="flex items-center gap-2 text-sm font-black text-white">
-                        <Icon className="size-5 text-[#39e8ff]" aria-hidden="true" />
-                        {action.label}
-                      </span>
-                      <span className="text-xs leading-5 text-[#aab3c2]">
-                        {action.body}
-                      </span>
-                      <span className="font-mono text-[0.68rem] font-black uppercase text-[#ffcf72]">
-                        {action.endpoint}
-                      </span>
-                    </a>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="brand-panel-soft rounded-[8px] p-5">
               <div className="flex items-start gap-3">
-                <Split className="mt-1 size-5 shrink-0 text-[#ffb237]" aria-hidden="true" />
+                <WalletCards className="mt-1 size-5 shrink-0 text-[#39e8ff]" aria-hidden="true" />
                 <div>
-                  <p className="brand-kicker">Money path</p>
+                  <p className="brand-kicker">Usable product map</p>
                   <h2 className="mt-1 text-2xl font-black text-white">
-                    Rules run before spend.
+                    The app is monetized before rails turn on.
                   </h2>
+                  <p className="mt-3 text-sm leading-6 text-[#c9d0da]">
+                    A household pays first. Bank link, payroll detection,
+                    protected transfers, bill routing, card decisions, unlocks,
+                    and audit exports then operate behind the paid household
+                    record.
+                  </p>
                 </div>
               </div>
               <div className="mt-5 grid gap-2">
-                {moneyPath.map((step, index) => (
+                {[
+                  "Stripe checkout records paid household access.",
+                  "Plaid Link connects the external bank and vaults the token.",
+                  "Payroll rules and sync detect deposits before spending.",
+                  "Buckets, payees, unlocks, transfers, and card decisions enforce the ledger.",
+                ].map((step, index) => (
                   <div
                     className="grid grid-cols-[2rem_1fr] items-center gap-3 rounded-[8px] border border-white/10 bg-black/35 p-3"
                     key={step}
@@ -826,13 +622,22 @@ export function HouseholdCommandCenter() {
                     <span className="grid size-8 place-items-center rounded-[8px] bg-[#39e8ff] text-sm font-black text-[#050607]">
                       {index + 1}
                     </span>
-                    <p className="text-sm font-black text-white">{step}</p>
+                    <p className="text-sm font-black leading-5 text-white">
+                      {step}
+                    </p>
                   </div>
                 ))}
               </div>
+              <Link
+                className="brand-button-blue mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black"
+                href="/launch"
+              >
+                Open owner activation console
+                <ArrowRight className="size-4" aria-hidden="true" />
+              </Link>
             </div>
-          </section>
-        </div>
+          </div>
+        </section>
 
         <MoneyEngineConsole initialPacket={initialActivationPacket} />
 

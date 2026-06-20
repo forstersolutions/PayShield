@@ -434,6 +434,8 @@ function CapabilityCard({
   icon: Icon,
   metric,
   onAction,
+  setupHref = "/launch",
+  setupLabel = "Open owner setup",
   state,
   status,
   title,
@@ -446,6 +448,8 @@ function CapabilityCard({
   icon: LucideIcon;
   metric: string;
   onAction: () => void | Promise<void>;
+  setupHref?: string;
+  setupLabel?: string;
   state: ActionState;
   status: string;
   title: string;
@@ -514,6 +518,12 @@ function CapabilityCard({
               </span>
             ) : null}
           </div>
+          <a
+            className="inline-flex min-h-9 w-fit items-center justify-center rounded-[8px] border border-[#ffb237]/30 bg-black/35 px-3 text-xs font-black text-[#ffe4ad] transition hover:border-[#ffcf72]/45 hover:bg-[#ffb237]/10"
+            href={setupHref}
+          >
+            {setupLabel}
+          </a>
         </div>
       ) : (
         <p className="rounded-[8px] border border-[#68f0c2]/25 bg-black/30 p-2 text-xs font-black text-[#9af7d5]">
@@ -1673,6 +1683,8 @@ export function MoneyOperationsPanel({
         readiness?.commercial?.priceLabel ??
         "$19/month",
       onAction: startPaidAccess,
+      setupHref: "/launch#revenue",
+      setupLabel: "Set up Stripe",
       state: billingState,
       status: readiness?.commercial?.paidAccessReady
         ? "paid access active"
@@ -1695,6 +1707,8 @@ export function MoneyOperationsPanel({
       key: "bank",
       metric: readiness?.moneyRails?.plaidEnv ?? "plaid",
       onAction: startBankLink,
+      setupHref: "/launch#bank-link",
+      setupLabel: "Set up Plaid",
       state: bankState,
       status: readiness?.moneyRails?.bankLinkReady
         ? "bank link ready"
@@ -1715,6 +1729,8 @@ export function MoneyOperationsPanel({
       key: "detect",
       metric: `${detectionRules.length} saved rule${detectionRules.length === 1 ? "" : "s"}`,
       onAction: detectPaycheck,
+      setupHref: "/launch#detection",
+      setupLabel: "Set up detection",
       state: depositState,
       status: readiness?.moneyRails?.paycheckDetectionReady
         ? "automatic"
@@ -1737,6 +1753,8 @@ export function MoneyOperationsPanel({
       key: "move",
       metric: selectedBucket ? formatMoney(selectedBucket.availableCents) : "bucket",
       onAction: createTransfer,
+      setupHref: "/launch#movement",
+      setupLabel: "Set up transfers",
       state: transferState,
       status: readiness?.moneyRails?.transferReady
         ? "movement ready"
@@ -1753,6 +1771,8 @@ export function MoneyOperationsPanel({
     key: string;
     metric: string;
     onAction: () => void | Promise<void>;
+    setupHref?: string;
+    setupLabel?: string;
     state: ActionState;
     status: string;
     title: string;
@@ -1761,10 +1781,10 @@ export function MoneyOperationsPanel({
 
   return (
     <section
-      className="relative z-10 border-b border-white/10 bg-[#07090b]"
+      className="relative z-10 border-b border-white/10 py-8"
       id="money-operations"
     >
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:px-8">
+      <div className="grid gap-8">
         <div className="grid gap-5 lg:grid-cols-[0.82fr_1.18fr]">
           <div className="accent-rule pt-5 lg:col-span-2">
             <p className="inline-flex items-center gap-2 rounded-[8px] border border-[#39e8ff]/30 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black uppercase tracking-[0.14em] text-[#dffaff]">
@@ -1878,6 +1898,8 @@ export function MoneyOperationsPanel({
                   key={card.key}
                   metric={card.metric}
                   onAction={card.onAction}
+                  setupHref={card.setupHref}
+                  setupLabel={card.setupLabel}
                   state={card.state}
                   status={card.status}
                   title={card.title}
