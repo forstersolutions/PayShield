@@ -4,6 +4,8 @@ import { getMoneyRailReadiness } from "../../lib/neobank/money-rails.ts";
 import { getWaitlistCaptureConfig } from "../../lib/waitlist-capture-config.ts";
 import { getNeobankReadiness } from "../../lib/neobank/readiness.ts";
 import { getAppAccessReadiness } from "../../lib/neobank/app-access.ts";
+import { buildCommercialOperatingState } from "../../lib/neobank/operations.ts";
+import { createNeobankSnapshot } from "../../lib/neobank/demo-state.ts";
 
 export function GET() {
   const capture = getWaitlistCaptureConfig();
@@ -11,6 +13,20 @@ export function GET() {
   const moneyRails = getMoneyRailReadiness();
   const neobank = getNeobankReadiness();
   const appAccess = getAppAccessReadiness();
+  const snapshot = createNeobankSnapshot();
+  const safeToSpendCents =
+    snapshot.buckets.find((bucket) => bucket.id === "safe_spending")
+      ?.availableCents ?? 0;
+  const protectedCents = snapshot.buckets
+    .filter((bucket) => bucket.id !== "safe_spending")
+    .reduce((sum, bucket) => sum + bucket.availableCents, 0);
+  const commercialOperatingState = buildCommercialOperatingState({
+    commercial,
+    moneyRails,
+    neobank,
+    protectedCents,
+    safeToSpendCents,
+  });
   const ok =
     (!capture.requireWebhook || capture.paidTrafficReady) &&
     !capture.storageMisconfigured &&
@@ -68,6 +84,7 @@ export function GET() {
         reviewTokenAccepted: appAccess.reviewTokenAccepted,
         reviewTokenConfigured: appAccess.reviewTokenConfigured,
       },
+      commercialOperatingState,
       moneyRails: {
         bankLinkReady: moneyRails.bankLinkReady,
         detectionMode: moneyRails.detectionMode,

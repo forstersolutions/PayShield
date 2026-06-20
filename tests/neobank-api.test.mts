@@ -172,9 +172,16 @@ test("operations endpoint exposes the revenue and money-control record", async (
   const activationStages = activationPlan.stages as Array<Record<string, unknown>>;
   const revenueAndRails = body.revenueAndRails as Record<string, unknown>;
   const operatingCockpit = body.operatingCockpit as Record<string, unknown>;
+  const commercialOperatingState = body.commercialOperatingState as Record<
+    string,
+    unknown
+  >;
   const cockpitLanes = operatingCockpit.lanes as Array<Record<string, unknown>>;
   const nextAction = operatingCockpit.nextAction as Record<string, unknown>;
   const rails = revenueAndRails.rails as Array<Record<string, unknown>>;
+  const commercialRails = commercialOperatingState.rails as Array<
+    Record<string, unknown>
+  >;
 
   assert.equal(response.status, 200);
   assert.equal(body.service, "payshield-household-operations");
@@ -211,9 +218,28 @@ test("operations endpoint exposes the revenue and money-control record", async (
     operatingCockpit.headline,
     "Charge -> connect -> detect -> protect -> move",
   );
+  assert.equal(
+    commercialOperatingState.headline,
+    "Subscribe -> connect bank -> detect paycheck -> protect -> release",
+  );
+  assert.equal(
+    commercialOperatingState.service,
+    "payshield-commercial-operating-state",
+  );
+  assert.equal(
+    (commercialOperatingState.revenueModel as Record<string, unknown>)
+      .publicCheckoutEndpoint,
+    "POST /api/public/billing/checkout",
+  );
   assert.equal(operatingCockpit.mode, "credential_gated");
   assert.equal(operatingCockpit.readyLaneCount, 1);
   assert.equal(operatingCockpit.totalLaneCount, 7);
+  assert.equal(commercialOperatingState.activeRailCount, 1);
+  assert.equal(commercialOperatingState.totalRailCount, 6);
+  assert.equal(
+    (commercialOperatingState.nextRail as Record<string, unknown>).key,
+    "revenue",
+  );
   assert.equal(nextAction.key, "revenue");
   assert.equal(nextAction.primaryEndpoint, "POST /api/app/billing/checkout");
   assert.equal(
@@ -250,6 +276,15 @@ test("operations endpoint exposes the revenue and money-control record", async (
         rail.key === "bank_connection" &&
         rail.provider === "Plaid Link" &&
         rail.endpoint === "POST /api/app/bank-link/token",
+    ),
+    true,
+  );
+  assert.equal(
+    commercialRails.some(
+      (rail) =>
+        rail.key === "money_movement" &&
+        rail.endpoint === "POST /api/app/transfers" &&
+        String(rail.userOutcome).includes("Provider handoff"),
     ),
     true,
   );

@@ -557,7 +557,7 @@ For regulated product readiness, a configured `PAYSHIELD_LEDGER_DATABASE_URL`
 only reports database presence; the Postgres ledger gate remains closed until
 `npm run core:migrations:verify` succeeds and the resulting
 `PAYSHIELD_LEDGER_SCHEMA_VERIFIED=true` plus
-`PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0012` values are set for the
+`PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0013` values are set for the
 regulated backend environment. The live movement gate also remains closed until
 `PAYSHIELD_BAAS_ADAPTER=http_json`, `PAYSHIELD_BAAS_API_BASE_URL`,
 `PAYSHIELD_BAAS_PROVIDER`, and `PAYSHIELD_BAAS_API_KEY` point to the approved

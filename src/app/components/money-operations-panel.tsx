@@ -203,6 +203,44 @@ type OperatingCockpit = {
   totalLaneCount?: number;
 };
 
+type CommercialOperatingState = {
+  activeRailCount?: number;
+  headline?: string;
+  mode?: string;
+  nextRail?: {
+    blockers?: string[];
+    endpoint?: string;
+    key?: string;
+    label?: string;
+    ownerSwitch?: string;
+    state?: string;
+  };
+  rails?: Array<{
+    blockers?: string[];
+    canRunNow?: boolean;
+    endpoint: string;
+    key: string;
+    label: string;
+    ownerSwitch: string;
+    provider: string;
+    ready?: boolean;
+    state?: string;
+    userOutcome: string;
+  }>;
+  revenueModel?: {
+    billingProvider?: string;
+    canActivatePaidAccess?: boolean;
+    canCollectPayment?: boolean;
+    checkoutEndpoint?: string;
+    checkoutMode?: string;
+    priceLabel?: string;
+    publicCheckoutEndpoint?: string;
+    webhookEndpoint?: string;
+  };
+  service?: string;
+  totalRailCount?: number;
+};
+
 type OperationsPacket = {
   balances?: {
     protectedCents?: number;
@@ -220,6 +258,7 @@ type OperationsPacket = {
     state?: string;
     subscriptionStatus?: string | null;
   };
+  commercialOperatingState?: CommercialOperatingState;
   directDeposit?: {
     accountLast4?: string;
     accountName?: string;
@@ -333,6 +372,10 @@ function timelineAmount(item: OperationTimelineItem) {
   return typeof item.amountCents === "number" && item.amountCents > 0
     ? ` · ${formatMoney(item.amountCents)}`
     : "";
+}
+
+function formatStateLabel(value: string | undefined) {
+  return (value || "setup_required").replace(/_/g, " ");
 }
 
 function dollarsToCents(value: string) {
@@ -1525,6 +1568,8 @@ export function MoneyOperationsPanel({
     ...(operations?.timeline ?? []),
   ].slice(0, 8);
   const operatingCockpit = operations?.operatingCockpit;
+  const commercialOperatingState = operations?.commercialOperatingState;
+  const commercialRails = commercialOperatingState?.rails ?? [];
   const revenueAndRails = operations?.revenueAndRails;
   const revenueRails = revenueAndRails?.rails ?? [];
   const serverRecordCount = recordCount(operations);
@@ -2117,6 +2162,67 @@ export function MoneyOperationsPanel({
                   </span>
                 </div>
               </div>
+              {commercialRails.length ? (
+                <div className="mt-4 rounded-[8px] border border-[#39e8ff]/20 bg-[#06141a]/75 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="brand-kicker">Commercial operating state</p>
+                      <h3 className="mt-1 text-xl font-black text-white">
+                        {commercialOperatingState?.headline ??
+                          "Subscribe -> connect bank -> detect paycheck -> protect -> release"}
+                      </h3>
+                    </div>
+                    <span className="rounded-[8px] border border-white/10 bg-black/35 px-3 py-2 text-xs font-black uppercase text-[#dffaff]">
+                      {formatStateLabel(commercialOperatingState?.mode)}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                    {commercialRails.slice(0, 6).map((rail) => (
+                      <div
+                        className={`rounded-[8px] border p-3 ${
+                          rail.ready
+                            ? "border-[#68f0c2]/25 bg-[#68f0c2]/10"
+                            : "border-[#ffb237]/25 bg-[#ffb237]/10"
+                        }`}
+                        key={rail.key}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <span>
+                            <span className="text-xs font-black uppercase text-[#8f99aa]">
+                              {rail.provider}
+                            </span>
+                            <span className="mt-1 block text-sm font-black text-white">
+                              {rail.label}
+                            </span>
+                          </span>
+                          <span
+                            className={`rounded-[8px] px-2 py-1 text-[0.68rem] font-black capitalize ${
+                              rail.ready
+                                ? "bg-[#68f0c2]/10 text-[#9af7d5]"
+                                : "bg-[#ffb237]/10 text-[#ffe4ad]"
+                            }`}
+                          >
+                            {formatStateLabel(rail.state)}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-xs font-bold leading-5 text-[#c9d0da]">
+                          {rail.userOutcome}
+                        </p>
+                        <code className="mt-2 block overflow-x-auto font-mono text-[0.66rem] font-black uppercase text-[#39e8ff]">
+                          {rail.endpoint}
+                        </code>
+                        <p className="mt-2 text-xs font-bold leading-5 text-[#ffe4ad]">
+                          {rail.ready
+                            ? "Ready in the current app state."
+                            : rail.blockers?.[0]
+                              ? `Needs ${rail.blockers[0]}`
+                              : rail.ownerSwitch}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <button
                   className="brand-button-primary inline-flex min-h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"

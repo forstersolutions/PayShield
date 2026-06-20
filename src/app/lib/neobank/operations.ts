@@ -724,6 +724,186 @@ function buildOperatingCockpit(input: {
   };
 }
 
+export function buildCommercialOperatingState(input: {
+  commercial: ReturnType<typeof getCommercialReadiness>;
+  moneyRails: ReturnType<typeof getMoneyRailReadiness>;
+  neobank: NeobankReadiness;
+  protectedCents: number;
+  safeToSpendCents: number;
+}) {
+  const liveMoneyMissing = neobankMissing(input.neobank);
+  const revenueBlockers = cleanMissing(input.commercial.missing);
+  const bankBlockers = cleanMissing(
+    input.moneyRails.missing.filter(
+      (gate) =>
+        gate.includes("PLAID") ||
+        gate.includes("TOKEN_VAULT") ||
+        gate.includes("token vault"),
+    ),
+  );
+  const detectionBlockers = cleanMissing(
+    input.moneyRails.missing.filter(
+      (gate) =>
+        gate.includes("PLAID") ||
+        gate.includes("TOKEN_VAULT") ||
+        gate.includes("PROVIDER_WEBHOOK"),
+    ),
+  );
+  const movementBlockers = cleanMissing([
+    ...input.moneyRails.missing.filter(
+      (gate) =>
+        gate.includes("TRANSFER") ||
+        gate.includes("transfer") ||
+        gate.includes("PAYSHIELD_BAAS"),
+    ),
+    ...input.moneyRails.providerAdapterMissing,
+    ...liveMoneyMissing,
+  ]);
+  const rails = [
+    {
+      blockers: revenueBlockers,
+      canRunNow: input.commercial.paymentCollectionReady,
+      endpoint: "POST /api/app/billing/checkout",
+      key: "revenue",
+      label: "Collect household subscription",
+      ownerSwitch: "Stripe Checkout + webhook + core paid-access activation",
+      provider: "Stripe",
+      ready: input.commercial.paidAccessReady,
+      state: input.commercial.paidAccessReady
+        ? "paid_access_active"
+        : input.commercial.paymentCollectionReady
+          ? "payment_collection_ready"
+          : "stripe_setup_required",
+      userOutcome:
+        "Household payment creates the commercial access record that unlocks money workflows.",
+    },
+    {
+      blockers: bankBlockers,
+      canRunNow: input.moneyRails.bankLinkReady,
+      endpoint: "POST /api/app/bank-link/token",
+      key: "bank_connection",
+      label: "Connect the household bank",
+      ownerSwitch: "Plaid credentials + signed token vault + encrypted custody",
+      provider: "Plaid Link",
+      ready: input.moneyRails.bankLinkReady,
+      state: input.moneyRails.bankLinkReady
+        ? "bank_link_ready"
+        : input.moneyRails.plaidConfigured
+          ? "token_custody_needed"
+          : "plaid_setup_required",
+      userOutcome:
+        "User-approved bank connection is exchanged for a server-side token custody reference.",
+    },
+    {
+      blockers: detectionBlockers,
+      canRunNow:
+        input.moneyRails.paycheckDetectionReady ||
+        input.moneyRails.transactionSyncReady,
+      endpoint: "POST /api/app/paychecks/sync",
+      key: "paycheck_detection",
+      label: "Detect payroll and split buckets",
+      ownerSwitch: "Payroll rules + Plaid sync/provider events + durable ledger",
+      provider:
+        input.moneyRails.detectionMode === "plaid_transactions_sync"
+          ? "Plaid Transactions"
+          : "Provider events",
+      ready: input.moneyRails.paycheckDetectionReady,
+      state: input.moneyRails.paycheckDetectionReady
+        ? "automatic_detection_ready"
+        : input.moneyRails.transactionSyncReady
+          ? "sync_ready_rule_gate"
+          : "detection_setup_required",
+      userOutcome:
+        "Income posts to the ledger, funds protected buckets first, then computes Safe to Spend.",
+    },
+    {
+      blockers: [],
+      canRunNow: true,
+      endpoint: "POST /api/app/buckets",
+      key: "protection_rules",
+      label: "Customize protected buckets",
+      ownerSwitch: "Bucket targets + priority + payees + unlock rules",
+      provider: "PayShield ledger",
+      ready: true,
+      state: input.neobank.postgresSchemaVerified
+        ? "durable_controls_ready"
+        : "editable_control_model",
+      userOutcome:
+        "Households define exactly which obligations get protected before spending.",
+    },
+    {
+      blockers: movementBlockers,
+      canRunNow: input.moneyRails.transferReady,
+      endpoint: "POST /api/app/transfers",
+      key: "money_movement",
+      label: "Move only approved protected money",
+      ownerSwitch: "Transfer/BaaS provider + live-money evidence gates",
+      provider: "BaaS or transfer adapter",
+      ready: input.moneyRails.transferReady,
+      state: input.moneyRails.transferReady
+        ? "provider_handoff_ready"
+        : input.moneyRails.transferConfigured
+          ? "live_gates_needed"
+          : "intent_validation_only",
+      userOutcome:
+        "Provider handoff is created only after bucket balance and destination checks pass.",
+    },
+    {
+      blockers: liveMoneyMissing,
+      canRunNow: input.neobank.liveMoneyReady,
+      endpoint: "POST /api/card/authorize",
+      key: "card_control",
+      label: "Approve only Safe to Spend",
+      ownerSwitch: "Card gateway + live-money evidence gates",
+      provider: "Card authorization gateway",
+      ready: input.neobank.liveMoneyReady,
+      state: input.neobank.liveMoneyReady
+        ? "gateway_ready"
+        : "ledger_decision_path_ready",
+      userOutcome:
+        "Card swipes approve from Safe to Spend or an approved biller bucket, then decline everything else.",
+    },
+  ];
+  const nextRail = rails.find((rail) => !rail.ready) ?? rails[0];
+
+  return {
+    activeRailCount: rails.filter((rail) => rail.ready).length,
+    headline: "Subscribe -> connect bank -> detect paycheck -> protect -> release",
+    mode: input.neobank.liveMoneyReady
+      ? "live_money_operating"
+      : input.commercial.paymentCollectionReady
+        ? "revenue_ready_provider_gated"
+        : "commercial_setup_required",
+    moneySummary: {
+      priceLabel: input.commercial.priceLabel,
+      protectedCents: input.protectedCents,
+      safeToSpendCents: input.safeToSpendCents,
+      totalCents: input.protectedCents + input.safeToSpendCents,
+    },
+    nextRail: {
+      blockers: nextRail.blockers,
+      endpoint: nextRail.endpoint,
+      key: nextRail.key,
+      label: nextRail.label,
+      ownerSwitch: nextRail.ownerSwitch,
+      state: nextRail.state,
+    },
+    rails,
+    revenueModel: {
+      billingProvider: "Stripe",
+      checkoutEndpoint: "POST /api/app/billing/checkout",
+      checkoutMode: input.commercial.mode,
+      canActivatePaidAccess: input.commercial.paidAccessReady,
+      canCollectPayment: input.commercial.paymentCollectionReady,
+      priceLabel: input.commercial.priceLabel,
+      publicCheckoutEndpoint: "POST /api/public/billing/checkout",
+      webhookEndpoint: input.commercial.webhookEndpointPath,
+    },
+    service: "payshield-commercial-operating-state",
+    totalRailCount: rails.length,
+  };
+}
+
 export function createHouseholdOperationsPacket(session?: AppSession) {
   const snapshot = createNeobankSnapshot();
   const commercial = getCommercialReadiness();
@@ -785,6 +965,13 @@ export function createHouseholdOperationsPacket(session?: AppSession) {
     revenueAndRails,
     safeToSpendCents,
   });
+  const commercialOperatingState = buildCommercialOperatingState({
+    commercial,
+    moneyRails,
+    neobank: snapshot.readiness,
+    protectedCents,
+    safeToSpendCents,
+  });
 
   return {
     balances: {
@@ -830,6 +1017,7 @@ export function createHouseholdOperationsPacket(session?: AppSession) {
       subscriptionStatus: null,
     },
     activationPlan,
+    commercialOperatingState,
     revenueAndRails,
     operatingCockpit,
     moneyRails,
@@ -916,6 +1104,7 @@ function activationPacketFromOperations(
     activationPlan: packet.activationPlan,
     currentState: {
       commercialAccess: packet.commercialAccess,
+      commercialOperatingState: packet.commercialOperatingState,
       moneyRails: packet.moneyRails,
       operatingCockpit: packet.operatingCockpit,
       readiness: packet.readiness,
@@ -957,6 +1146,7 @@ function activationPacketFromOperations(
     },
     service: "payshield-activation-console",
     support: packet.support,
+    commercialOperatingState: packet.commercialOperatingState,
     operatingCockpit: packet.operatingCockpit,
     revenueAndRails: packet.revenueAndRails,
   };

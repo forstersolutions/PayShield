@@ -73,10 +73,10 @@ PAYSHIELD_CORE_REQUIRE_SERVICE_TOKEN=true
 PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE=true
 PAYSHIELD_LEDGER_DATABASE_URL=
 PAYSHIELD_LEDGER_SCHEMA_VERIFIED=true
-PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0012
+PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION=0013
 ```
 
-After schema `0012` is applied, launch approvals should be recorded through the
+After schema `0013` is applied, launch approvals should be recorded through the
 core evidence route instead of living only in environment toggles:
 
 ```bash
@@ -243,4 +243,4 @@ npm run market:status -- https://payshield-lime.vercel.app --expect-site-url htt
 - Bank linking.
 - Paycheck detection.
 - Transfer/provider readiness.
-- Core backend, core service auth, Clerk auth, and Postgres ledger schema `0012`.
+- Core backend, core service auth, Clerk auth, and Postgres ledger schema `0013`.

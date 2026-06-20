@@ -27,6 +27,15 @@ async function parseJson(response: Response) {
       stripeSecretMode?: unknown;
       webhookSigningSecretConfigured?: unknown;
     };
+    commercialOperatingState?: {
+      activeRailCount?: unknown;
+      headline?: unknown;
+      mode?: unknown;
+      nextRail?: Record<string, unknown>;
+      rails?: Array<Record<string, unknown>>;
+      revenueModel?: Record<string, unknown>;
+      totalRailCount?: unknown;
+    };
     appAccess?: {
       clerkConfigured?: unknown;
       locked?: unknown;
@@ -367,6 +376,26 @@ test("reports commercial and money rail readiness gates", async () => {
 
   assert.equal(missingBody.commercial?.paidAccessReady, false);
   assert.equal(missingBody.commercial?.priceLabel, "$19/month");
+  assert.equal(
+    missingBody.commercialOperatingState?.headline,
+    "Subscribe -> connect bank -> detect paycheck -> protect -> release",
+  );
+  assert.equal(missingBody.commercialOperatingState?.activeRailCount, 1);
+  assert.equal(missingBody.commercialOperatingState?.totalRailCount, 6);
+  assert.equal(
+    missingBody.commercialOperatingState?.revenueModel?.publicCheckoutEndpoint,
+    "POST /api/public/billing/checkout",
+  );
+  assert.equal(missingBody.commercialOperatingState?.nextRail?.key, "revenue");
+  assert.equal(
+    missingBody.commercialOperatingState?.rails?.some(
+      (rail) =>
+        rail.key === "bank_connection" &&
+        rail.provider === "Plaid Link" &&
+        rail.endpoint === "POST /api/app/bank-link/token",
+    ),
+    true,
+  );
   assert.equal(
     commercialGates.includes("STRIPE_WEBHOOK_SECRET"),
     true,
