@@ -7,12 +7,14 @@ const customerFacingFiles = [
   "src/app/components/money-engine-console.tsx",
   "src/app/components/money-control-plan-panel.tsx",
   "src/app/components/money-setup-console.tsx",
+  "src/app/components/production-gate-evidence-recorder.tsx",
   "src/app/components/money-operations-panel.tsx",
   "src/app/components/payee-control-panel.tsx",
   "src/app/components/bill-routing-workspace.tsx",
   "src/app/launch/page.tsx",
   "src/app/api/app/billing/checkout/route.ts",
   "src/app/api/app/billing/portal/route.ts",
+  "src/app/api/launch/gate-evidence/route.ts",
   "src/app/lib/commercial/billing.ts",
   ".env.example",
 ];
@@ -53,6 +55,10 @@ test("app command center exposes a guided real-money setup surface", async () =>
     "src/app/components/money-setup-console.tsx",
     "utf8",
   );
+  const gateEvidenceRecorder = await readFile(
+    "src/app/components/production-gate-evidence-recorder.tsx",
+    "utf8",
+  );
   const dashboard = await readFile(
     "src/app/components/neobank-dashboard.tsx",
     "utf8",
@@ -72,6 +78,10 @@ test("app command center exposes a guided real-money setup surface", async () =>
   );
   const controlPlanRoute = await readFile(
     "src/app/api/app/control-plan/route.ts",
+    "utf8",
+  );
+  const gateEvidenceRoute = await readFile(
+    "src/app/api/launch/gate-evidence/route.ts",
     "utf8",
   );
   const coreProduct = await readFile("services/core/product.mjs", "utf8");
@@ -100,7 +110,15 @@ test("app command center exposes a guided real-money setup surface", async () =>
   assert.match(setupConsole, /Vercel setup/);
   assert.match(setupConsole, /setupCommands/);
   assert.match(setupConsole, /Remaining gates/);
+  assert.match(setupConsole, /ProductionGateEvidenceRecorder/);
+  assert.match(gateEvidenceRecorder, /Gate evidence/);
+  assert.match(gateEvidenceRecorder, /Record evidence/);
+  assert.match(gateEvidenceRecorder, /productionReceiverEvidence/);
+  assert.match(gateEvidenceRecorder, /\/api\/launch\/gate-evidence/);
   assert.match(setupConsole, /Proof commands/);
+  assert.match(gateEvidenceRoute, /getAppSession/);
+  assert.match(gateEvidenceRoute, /PAYSHIELD_CORE_SERVICE_TOKEN/);
+  assert.match(gateEvidenceRoute, /\/api\/launch\/gate-evidence/);
   assert.match(operations, /npx vercel env add/);
   assert.match(operations, /\/api\/launch\/activation/);
   assert.match(setupConsole, /Per household access/);
@@ -312,6 +330,7 @@ test("launch console exposes the commercial money path outside locked app access
   assert.match(launchPage, /Provider, counsel, and live-money gates/);
   assert.match(launchPage, /copy-safe/);
   assert.match(launchPage, /MoneyEngineConsole/);
+  assert.match(launchPage, /ProductionGateEvidenceRecorder/);
   assert.match(launchPage, /PublicCheckoutForm/);
   assert.match(launchPage, /getCommercialReadiness/);
   assert.match(launchPage, /getMoneyRailReadiness/);

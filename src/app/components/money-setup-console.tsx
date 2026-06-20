@@ -20,6 +20,7 @@ import {
   gateCategory,
   uniqueFriendlyGateLabels,
 } from "@/app/lib/readiness-gates.ts";
+import { ProductionGateEvidenceRecorder } from "@/app/components/production-gate-evidence-recorder";
 
 type ActivationStage = {
   actionHref: string;
@@ -405,6 +406,10 @@ export function MoneySetupConsole({
               </div>
             </div>
           </div>
+
+          <ProductionGateEvidenceRecorder
+            remainingGates={packet.operatorRunbook.remainingGates}
+          />
 
           <div className="rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 p-3">
             <div className="flex flex-wrap items-center justify-between gap-3">

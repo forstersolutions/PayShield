@@ -16,6 +16,7 @@ import {
   GET as getControlPlan,
   POST as generateControlPlan,
 } from "../src/app/api/app/control-plan/route.ts";
+import { POST as recordLaunchGateEvidence } from "../src/app/api/launch/gate-evidence/route.ts";
 import { GET as getOperations } from "../src/app/api/app/operations/route.ts";
 import { POST as authorizeCard } from "../src/app/api/card/authorize/route.ts";
 import { POST as providerWebhook } from "../src/app/api/provider/webhooks/route.ts";
@@ -333,6 +334,70 @@ test("activation API delegates operator checklist to configured core service", a
       assert.equal(captured.method, "GET");
       assert.equal(captured.url, "/api/app/activation");
       assert.equal(captured.userId, "user_demo_001");
+    },
+  );
+});
+
+test("launch gate evidence API delegates approval records to configured core service", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    async (request, response) => {
+      captured.authorization = request.headers.authorization;
+      captured.body = await readRequestBody(request);
+      captured.method = request.method;
+      captured.url = request.url;
+      captured.userId = request.headers["x-payshield-user-id"];
+
+      response.writeHead(200, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          accepted: true,
+          coreDelegated: true,
+          evidence: {
+            gateId: "counsel_signoff",
+            scope: "counsel",
+            status: "approved",
+          },
+          service: "payshield-production-gate-evidence",
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-gate-evidence-secret";
+
+      const response = await recordLaunchGateEvidence(
+        makeRequest("/api/launch/gate-evidence", {
+          approvedBy: "Grayston Operations",
+          evidenceRef: "notion-counsel-signoff-2026-06",
+          evidenceSummary:
+            "Redacted counsel approval summary for production launch controls.",
+          gateId: "counsel_signoff",
+          scope: "counsel",
+          status: "approved",
+        }),
+      );
+      const body = await parseJson(response);
+      const forwardedBody = JSON.parse(String(captured.body)) as Record<
+        string,
+        unknown
+      >;
+      const evidence = body.evidence as Record<string, unknown>;
+
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("x-payshield-core-proxied"), "true");
+      assert.equal(body.coreDelegated, true);
+      assert.equal(evidence.gateId, "counsel_signoff");
+      assert.equal(captured.authorization, "Bearer core-gate-evidence-secret");
+      assert.equal(captured.method, "POST");
+      assert.equal(captured.url, "/api/launch/gate-evidence");
+      assert.equal(captured.userId, "user_demo_001");
+      assert.equal(forwardedBody.approvedBy, "Grayston Operations");
+      assert.equal(forwardedBody.gateId, "counsel_signoff");
     },
   );
 });

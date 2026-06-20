@@ -476,6 +476,15 @@ requireText("services/core/migrations/0012_production_gate_evidence.sql", "produ
 requireText("services/core/migrations/0012_production_gate_evidence.sql", "evidence_ref");
 requireText("services/core/migrations/0012_production_gate_evidence.sql", "approved_at");
 requireText("services/core/migrations/0012_production_gate_evidence.sql", "gate_id");
+requireText("src/app/api/launch/gate-evidence/route.ts", "getAppSession");
+requireText("src/app/api/launch/gate-evidence/route.ts", "PAYSHIELD_CORE_API_URL");
+requireText("src/app/api/launch/gate-evidence/route.ts", "PAYSHIELD_CORE_SERVICE_TOKEN");
+requireText("src/app/api/launch/gate-evidence/route.ts", "/api/launch/gate-evidence");
+requireText("src/app/components/money-setup-console.tsx", "ProductionGateEvidenceRecorder");
+requireText("src/app/launch/page.tsx", "ProductionGateEvidenceRecorder");
+requireText("src/app/components/production-gate-evidence-recorder.tsx", "Gate evidence");
+requireText("src/app/components/production-gate-evidence-recorder.tsx", "Record evidence");
+requireText("src/app/components/production-gate-evidence-recorder.tsx", "/api/launch/gate-evidence");
 requireText("services/core/server.mjs", "/token-vault/plaid");
 requireText(
   "services/core/server.mjs",

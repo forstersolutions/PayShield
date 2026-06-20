@@ -10,6 +10,7 @@ import { POST as billingWebhook } from "../src/app/api/app/billing/webhook/route
 import { POST as createBankLinkToken } from "../src/app/api/app/bank-link/token/route.ts";
 import { GET as getActivation } from "../src/app/api/app/activation/route.ts";
 import { GET as getLaunchActivation } from "../src/app/api/launch/activation/route.ts";
+import { POST as recordLaunchGateEvidence } from "../src/app/api/launch/gate-evidence/route.ts";
 import { GET as exportAudit } from "../src/app/api/app/audit/export/route.ts";
 import { GET as getBalances } from "../src/app/api/app/balances/route.ts";
 import {
@@ -367,6 +368,26 @@ test("activation endpoint exposes operator launch checklist and smoke commands",
     Array.isArray(revenueAndRails.rails),
     true,
   );
+});
+
+test("launch gate evidence route requires durable authenticated core", async () => {
+  const response = await recordLaunchGateEvidence(
+    makeRequest("/api/launch/gate-evidence", {
+      approvedBy: "Grayston Operations",
+      evidenceRef: "notion-counsel-signoff-2026-06",
+      evidenceSummary:
+        "Redacted counsel approval summary for production launch controls.",
+      gateId: "counsel_signoff",
+      scope: "counsel",
+      status: "approved",
+    }),
+  );
+  const body = await parseJson(response);
+
+  assert.equal(response.status, 503);
+  assert.equal(body.code, "core_service_required");
+  assert.equal(body.service, "payshield-production-gate-evidence");
+  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
 });
 
 test("launch activation endpoint stays available while app auth is locked and redacts secrets", async () => {

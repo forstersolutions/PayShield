@@ -21,6 +21,7 @@ import {
   PayShieldHeaderLogo,
 } from "@/app/components/pay-shield-mark";
 import { MoneyEngineConsole } from "@/app/components/money-engine-console";
+import { ProductionGateEvidenceRecorder } from "@/app/components/production-gate-evidence-recorder";
 import { PublicCheckoutForm } from "@/app/components/public-checkout-form";
 import { SiteFooter } from "@/app/components/site-footer";
 import {
@@ -750,6 +751,10 @@ export default function LaunchConsolePage() {
                   ))}
                 </div>
               </div>
+
+              <ProductionGateEvidenceRecorder
+                remainingGates={allRemainingGates}
+              />
             </section>
           </div>
         </div>
