@@ -18,6 +18,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { BucketBalance, BucketId, Payee } from "@/app/lib/neobank/types.ts";
+import { friendlyGateLabel } from "@/app/lib/readiness-gates.ts";
 
 type ActionState =
   | { status: "idle"; message: string }
@@ -252,86 +253,6 @@ function formatMoney(cents: number) {
     maximumFractionDigits: 0,
     style: "currency",
   }).format(cents / 100);
-}
-
-function friendlyGateLabel(gate: string) {
-  if (gate === "core_service_auth") {
-    return "Core service auth";
-  }
-
-  if (gate.includes("STRIPE_SECRET_KEY")) {
-    return "Stripe API key";
-  }
-
-  if (gate.includes("PAYSHIELD_COMMERCIAL_PRICE_ID")) {
-    return "Checkout price";
-  }
-
-  if (gate.includes("STRIPE_WEBHOOK_SECRET")) {
-    return "Stripe webhook";
-  }
-
-  if (gate.includes("PAYSHIELD_CORE_API_URL")) {
-    return "Core activation service";
-  }
-
-  if (gate.includes("PAYSHIELD_CORE_SERVICE_TOKEN")) {
-    return "Core service auth";
-  }
-
-  if (gate.includes("live-mode")) {
-    return "Live Stripe mode";
-  }
-
-  if (gate.includes("PLAID_CLIENT_ID") || gate.includes("PLAID_SECRET")) {
-    return "Plaid credentials";
-  }
-
-  if (gate.includes("TOKEN_VAULT_ENCRYPTION_KEY")) {
-    return "Token custody encryption key";
-  }
-
-  if (gate.includes("PAYSHIELD_CORE_API_URL") && gate.includes("TOKEN_VAULT")) {
-    return "Vault receiver or core service URL";
-  }
-
-  if (gate.includes("TOKEN_VAULT_WEBHOOK")) {
-    return "Signed token-vault handoff";
-  }
-
-  if (gate.includes("TOKEN_VAULT") || gate.includes("token vault")) {
-    return "Token vault custody";
-  }
-
-  if (gate.includes("PROVIDER_WEBHOOK")) {
-    return "Provider webhook signing";
-  }
-
-  if (gate.includes("PAYSHIELD_BAAS_ADAPTER")) {
-    return "Provider adapter type";
-  }
-
-  if (gate.includes("PAYSHIELD_BAAS_API_BASE_URL")) {
-    return "Provider adapter URL";
-  }
-
-  if (gate.includes("PAYSHIELD_BAAS_API_KEY")) {
-    return "Provider API key";
-  }
-
-  if (gate.includes("PAYSHIELD_BAAS_PROVIDER")) {
-    return "Provider name";
-  }
-
-  if (gate === "provider_adapter") {
-    return "Provider adapter";
-  }
-
-  if (gate.includes("TRANSFER") || gate.includes("transfer")) {
-    return "Transfer rail";
-  }
-
-  return gate.replace(/^PAYSHIELD_/, "").replace(/_/g, " ").toLowerCase();
 }
 
 function readLocalTimeline() {

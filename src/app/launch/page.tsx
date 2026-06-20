@@ -32,6 +32,7 @@ import { getCommercialReadiness } from "@/app/lib/commercial/billing.ts";
 import { getMoneyRailReadiness } from "@/app/lib/neobank/money-rails.ts";
 import { createHouseholdActivationPacket } from "@/app/lib/neobank/operations.ts";
 import { getNeobankReadiness } from "@/app/lib/neobank/readiness.ts";
+import { friendlyGateLabel } from "@/app/lib/readiness-gates.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -70,110 +71,6 @@ function cleanStatus(value: string) {
 
 function unique(values: string[]) {
   return [...new Set(values)].filter(Boolean);
-}
-
-function gateLabel(gate: string) {
-  if (gate === "core_service_auth") {
-    return "Core service auth";
-  }
-
-  if (gate.includes("STRIPE_SECRET_KEY")) {
-    return "Stripe API key";
-  }
-
-  if (gate.includes("STRIPE_WEBHOOK_SECRET")) {
-    return "Stripe webhook signing";
-  }
-
-  if (gate.includes("PAYSHIELD_COMMERCIAL_PRICE_ID")) {
-    return "Checkout price or payment link";
-  }
-
-  if (gate.includes("PAYSHIELD_CORE_API_URL")) {
-    return "Core activation service";
-  }
-
-  if (gate.includes("PAYSHIELD_CORE_SERVICE_TOKEN")) {
-    return "Core service auth";
-  }
-
-  if (gate.includes("PLAID_CLIENT_ID") || gate.includes("PLAID_SECRET")) {
-    return "Plaid credentials";
-  }
-
-  if (gate.includes("TOKEN_VAULT_ENCRYPTION_KEY")) {
-    return "Token custody encryption key";
-  }
-
-  if (gate.includes("TOKEN_VAULT_WEBHOOK")) {
-    return "Signed token-vault handoff";
-  }
-
-  if (gate.includes("TOKEN_VAULT")) {
-    return "Token vault custody";
-  }
-
-  if (gate.includes("PROVIDER_WEBHOOK")) {
-    return "Provider webhook signing";
-  }
-
-  if (gate.includes("PAYSHIELD_BAAS_ADAPTER")) {
-    return "Provider adapter type";
-  }
-
-  if (gate.includes("PAYSHIELD_BAAS_API_BASE_URL")) {
-    return "Provider adapter URL";
-  }
-
-  if (gate.includes("PAYSHIELD_BAAS_API_KEY")) {
-    return "Provider API key";
-  }
-
-  if (gate.includes("PAYSHIELD_BAAS_PROVIDER")) {
-    return "Provider name";
-  }
-
-  if (gate.includes("TRANSFER") || gate.includes("transfer/BaaS")) {
-    return "Transfer rail credentials";
-  }
-
-  if (gate === "provider_adapter") {
-    return "Provider adapter";
-  }
-
-  if (gate === "clerk_auth") {
-    return "Clerk authentication";
-  }
-
-  if (gate === "postgres_ledger") {
-    return "Verified Postgres ledger";
-  }
-
-  if (gate === "dedicated_backend") {
-    return "Always-on core backend";
-  }
-
-  if (gate === "provider_credentials") {
-    return "Provider credentials";
-  }
-
-  if (gate === "provider_contract") {
-    return "Provider contract";
-  }
-
-  if (gate === "sponsor_disclosures") {
-    return "Approved disclosures";
-  }
-
-  if (gate === "counsel_signoff") {
-    return "Counsel signoff";
-  }
-
-  if (gate === "operations_runbooks") {
-    return "Operations runbooks";
-  }
-
-  return gate.replace(/^PAYSHIELD_/, "").replace(/_/g, " ").toLowerCase();
 }
 
 function gateInAny(gate: string, patterns: string[]) {
@@ -267,7 +164,7 @@ function BlockerGroupCard({
               key={`${group.key}-${gate}`}
             >
               <span className="text-sm font-black text-white">
-                {gateLabel(gate)}
+                {friendlyGateLabel(gate)}
               </span>
               <code className="overflow-x-auto font-mono text-xs font-bold text-[#ffcf72]">
                 {gate}
@@ -801,7 +698,7 @@ export default function LaunchConsolePage() {
                         key={gate}
                       >
                         <span className="min-w-0 break-words text-sm font-black text-white">
-                          {gateLabel(gate)}
+                          {friendlyGateLabel(gate)}
                         </span>
                         <code className="min-w-0 max-w-full overflow-x-auto font-mono text-xs font-bold text-[#ffcf72] sm:text-right">
                           {gate}

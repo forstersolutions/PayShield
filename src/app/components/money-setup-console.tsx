@@ -16,6 +16,10 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import {
+  gateCategory,
+  uniqueFriendlyGateLabels,
+} from "@/app/lib/readiness-gates.ts";
 
 type ActivationStage = {
   actionHref: string;
@@ -117,142 +121,6 @@ const stageIcons: Record<string, LucideIcon> = {
   revenue: BadgeDollarSign,
 };
 
-function friendlyGateLabel(gate: string) {
-  if (gate === "core_service_auth") {
-    return "Core service auth";
-  }
-
-  if (gate.includes("STRIPE_SECRET_KEY")) {
-    return "Stripe API key";
-  }
-
-  if (gate.includes("STRIPE_WEBHOOK_SECRET")) {
-    return "Stripe webhook signing";
-  }
-
-  if (gate.includes("PAYSHIELD_CORE_API_URL")) {
-    return "Core activation service";
-  }
-
-  if (gate.includes("PAYSHIELD_CORE_SERVICE_TOKEN")) {
-    return "Core service auth";
-  }
-
-  if (gate.includes("PAYSHIELD_COMMERCIAL_PRICE_ID")) {
-    return "Checkout price or payment link";
-  }
-
-  if (gate.includes("PLAID_CLIENT_ID") || gate.includes("PLAID_SECRET")) {
-    return "Plaid credentials";
-  }
-
-  if (gate.includes("TOKEN_VAULT_ENCRYPTION_KEY")) {
-    return "Token custody encryption key";
-  }
-
-  if (gate.includes("TOKEN_VAULT_WEBHOOK")) {
-    return "Signed token-vault handoff";
-  }
-
-  if (gate.includes("TOKEN_VAULT")) {
-    return "Token vault custody";
-  }
-
-  if (gate.includes("PROVIDER_WEBHOOK")) {
-    return "Provider webhook signing";
-  }
-
-  if (gate.includes("PAYSHIELD_BAAS_ADAPTER")) {
-    return "Provider adapter type";
-  }
-
-  if (gate.includes("PAYSHIELD_BAAS_API_BASE_URL")) {
-    return "Provider adapter URL";
-  }
-
-  if (gate.includes("PAYSHIELD_BAAS_API_KEY")) {
-    return "Provider API key";
-  }
-
-  if (gate.includes("PAYSHIELD_BAAS_PROVIDER")) {
-    return "Provider name";
-  }
-
-  if (gate.includes("TRANSFER") || gate.includes("transfer/BaaS")) {
-    return "Transfer or BaaS credentials";
-  }
-
-  if (gate === "provider_adapter") {
-    return "Provider adapter";
-  }
-
-  if (gate === "provider_contract") {
-    return "Provider contract";
-  }
-
-  if (gate === "provider_credentials") {
-    return "Provider credentials";
-  }
-
-  if (gate === "sponsor_disclosures") {
-    return "Approved sponsor disclosures";
-  }
-
-  if (gate === "counsel_signoff") {
-    return "Counsel signoff";
-  }
-
-  if (gate === "operations_runbooks") {
-    return "Operations runbooks";
-  }
-
-  if (gate === "postgres_ledger") {
-    return "Verified Postgres ledger";
-  }
-
-  if (gate === "dedicated_backend") {
-    return "Always-on core backend";
-  }
-
-  if (gate === "clerk_auth") {
-    return "Clerk authentication";
-  }
-
-  return gate.replace(/^PAYSHIELD_/, "").replace(/_/g, " ").toLowerCase();
-}
-
-function gateCategory(gate: string) {
-  if (gate.includes("STRIPE") || gate.includes("COMMERCIAL")) {
-    return "Revenue";
-  }
-
-  if (gate.includes("PLAID") || gate.includes("TOKEN_VAULT")) {
-    return "Bank link";
-  }
-
-  if (gate.includes("TRANSFER") || gate.includes("BaaS")) {
-    return "Movement";
-  }
-
-  if (
-    [
-      "provider_contract",
-      "provider_credentials",
-      "sponsor_disclosures",
-      "counsel_signoff",
-      "operations_runbooks",
-      "postgres_ledger",
-      "dedicated_backend",
-      "core_service_auth",
-      "clerk_auth",
-    ].includes(gate)
-  ) {
-    return "Live control";
-  }
-
-  return "Setup";
-}
-
 function statusIsReady(state: string) {
   return ["active", "automatic", "clear", "connected", "durable", "ready", "recorded"].includes(
     state,
@@ -276,7 +144,7 @@ function groupGates(gates: string[]) {
 }
 
 function friendlyGateSummary(gates: string[]) {
-  return [...new Set(gates.map(friendlyGateLabel))].join(", ");
+  return uniqueFriendlyGateLabels(gates).join(", ");
 }
 
 export function MoneySetupConsole({

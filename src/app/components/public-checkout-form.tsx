@@ -2,6 +2,7 @@
 
 import { ArrowRight, BadgeDollarSign, Loader2, ShieldCheck } from "lucide-react";
 import { FormEvent, useState } from "react";
+import { friendlyGateLabel } from "@/app/lib/readiness-gates.ts";
 
 type CheckoutState =
   | { detail?: string; message: string; status: "idle" }
@@ -19,35 +20,11 @@ type PublicCheckoutResponse = {
   url?: string;
 };
 
-function gateLabel(value: string) {
-  if (value === "PAYSHIELD_CORE_API_URL") {
-    return "core activation";
-  }
-
-  if (value === "STRIPE_WEBHOOK_SECRET") {
-    return "Stripe webhook";
-  }
-
-  if (value === "STRIPE_SECRET_KEY") {
-    return "Stripe API key";
-  }
-
-  if (value === "PAYSHIELD_COMMERCIAL_PRICE_ID") {
-    return "Stripe price";
-  }
-
-  if (value.includes("Stripe live-mode")) {
-    return "live Stripe mode";
-  }
-
-  return value.replace(/^PAYSHIELD_/, "").replace(/_/g, " ").toLowerCase();
-}
-
 function blockerDetail(payload: PublicCheckoutResponse) {
   const missing = payload.readiness?.missing ?? [];
 
   if (missing.length) {
-    return `Needs ${missing.map(gateLabel).join(", ")}.`;
+    return `Needs ${missing.map(friendlyGateLabel).join(", ")}.`;
   }
 
   return payload.error;
@@ -184,4 +161,3 @@ export function PublicCheckoutForm() {
     </form>
   );
 }
-
