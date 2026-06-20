@@ -73,6 +73,16 @@ const termsVersion = "paycheck-control-terms-2026-06-12";
 
 class WaitlistConfigurationError extends Error {}
 
+type WaitlistBodyReadResult =
+  | {
+      ok: true;
+      text: string;
+    }
+  | {
+      ok: false;
+      reason: "too_large";
+    };
+
 function cleanText(value: unknown, maxLength: number) {
   if (typeof value !== "string") {
     return "";
@@ -376,6 +386,71 @@ function logWaitlistEvent(
   console.log(JSON.stringify(payload));
 }
 
+async function readBoundedWaitlistBody(
+  request: Request,
+): Promise<WaitlistBodyReadResult> {
+  const contentLength = Number(request.headers.get("content-length") ?? 0);
+
+  if (Number.isFinite(contentLength) && contentLength > maxBodyBytes) {
+    return {
+      ok: false,
+      reason: "too_large",
+    };
+  }
+
+  if (!request.body) {
+    return {
+      ok: true,
+      text: "",
+    };
+  }
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let byteLength = 0;
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      if (!value) {
+        continue;
+      }
+
+      byteLength += value.byteLength;
+
+      if (byteLength > maxBodyBytes) {
+        await reader.cancel().catch(() => {});
+        return {
+          ok: false,
+          reason: "too_large",
+        };
+      }
+
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(byteLength);
+  let offset = 0;
+
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return {
+    ok: true,
+    text: new TextDecoder().decode(bytes),
+  };
+}
+
 export async function POST(request: NextRequest) {
   const start = Date.now();
   const requestId = request.headers.get("x-vercel-id");
@@ -385,9 +460,9 @@ export async function POST(request: NextRequest) {
     requestId,
   });
 
-  const contentLength = Number(request.headers.get("content-length") ?? 0);
+  const body = await readBoundedWaitlistBody(request);
 
-  if (contentLength > maxBodyBytes) {
+  if (!body.ok) {
     logWaitlistEvent("info", "request_body_too_large", {
       requestId,
       ms: Date.now() - start,
@@ -412,7 +487,7 @@ export async function POST(request: NextRequest) {
   let payload: WaitlistPayload;
 
   try {
-    payload = (await request.json()) as WaitlistPayload;
+    payload = JSON.parse(body.text) as WaitlistPayload;
   } catch {
     logWaitlistEvent("info", "request_invalid_json", {
       requestId,

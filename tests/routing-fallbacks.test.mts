@@ -184,6 +184,29 @@ test("production app access fails closed without Clerk unless review access is e
     );
     assert.equal(invalidFormResponse.headers.get("set-cookie"), null);
 
+    const oversizedFormResponse = await submitReviewAccess(
+      new NextRequest("https://payshield.test/api/review-access", {
+        body: new URLSearchParams({
+          review_access_token: "owner-review-token-2026",
+          return_to: `/app?note=${"x".repeat(5_000)}`,
+        }),
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          "content-length": "1",
+        },
+        method: "POST",
+      }),
+    );
+    const oversizedBody = (await oversizedFormResponse.json()) as Record<
+      string,
+      unknown
+    >;
+
+    assert.equal(oversizedFormResponse.status, 413);
+    assert.equal(oversizedBody.error, "Request body is too large.");
+    assert.equal(oversizedBody.service, "payshield-review-access");
+    assert.equal(oversizedFormResponse.headers.get("set-cookie"), null);
+
     const validFormResponse = await submitReviewAccess(
       new NextRequest("https://payshield.test/api/review-access", {
         body: new URLSearchParams({

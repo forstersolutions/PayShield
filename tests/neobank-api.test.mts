@@ -1038,6 +1038,30 @@ test("billing webhook fails closed without Stripe signing secret", async () => {
   assert.match(String(body.error), /signing secret/i);
 });
 
+test("billing webhook rejects oversized raw payloads before signature handling", async () => {
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+  const payload = JSON.stringify({
+    data: {
+      object: {
+        id: "cs_test_oversized",
+        metadata: {
+          note: "x".repeat(70_000),
+        },
+      },
+    },
+    id: "evt_oversized",
+    type: "checkout.session.completed",
+  });
+  const response = await billingWebhook(
+    makeStripeWebhookRequest(payload, "whsec_test", Math.floor(Date.now() / 1000)),
+  );
+  const body = await parseJson(response);
+
+  assert.equal(response.status, 413);
+  assert.equal(body.error, "Request body is too large.");
+  assert.equal(body.service, "payshield-stripe-webhook");
+});
+
 test("billing webhook fails closed when paid-access state cannot persist to core", async () => {
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
 

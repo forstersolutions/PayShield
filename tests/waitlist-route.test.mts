@@ -292,6 +292,26 @@ test("rejects oversized request bodies before parsing", async () => {
   assert.equal((await parseJson(response)).error, "Request body is too large.");
 });
 
+test("rejects oversized request bodies without trusting content length", async () => {
+  const response = await POST(
+    makeRequest(
+      {
+        email: "large-stream@example.com",
+        segment: "Household",
+        consent: true,
+        message: "x".repeat(11_000),
+      },
+      "198.51.100.24",
+      {
+        "content-length": "1",
+      },
+    ),
+  );
+
+  assert.equal(response.status, 413);
+  assert.equal((await parseJson(response)).error, "Request body is too large.");
+});
+
 test("rate-limits the seventh request from the same client key", async () => {
   const statuses: number[] = [];
 

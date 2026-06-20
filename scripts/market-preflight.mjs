@@ -134,6 +134,7 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/api/app/direct-deposit/route.ts",
   "src/app/api/app/control-plan/route.ts",
   "src/app/api/app/paychecks/rules/route.ts",
+  "src/app/api/review-access/route.ts",
   "src/app/lib/neobank/core-required.ts",
   "src/app/api/health/route.ts",
   "src/app/components/bill-payment-panel.tsx",
@@ -534,6 +535,13 @@ requireText("src/proxy.ts", 'pathname.startsWith("/api/app/")');
 requireText("src/app/lib/neobank/app-access.ts", "PAYSHIELD_ALLOW_REVIEW_APP_ACCESS");
 requireText("src/app/lib/neobank/app-access.ts", "PAYSHIELD_REVIEW_APP_ACCESS_TOKEN");
 requireText("src/app/lib/neobank/app-access.ts", 'env.VERCEL_ENV !== "production"');
+requireText("src/app/api/review-access/route.ts", "maxReviewAccessFormBytes");
+requireText("src/app/api/review-access/route.ts", "readBoundedReviewForm");
+rejectPattern(
+  "src/app/api/review-access/route.ts",
+  /formData\(\)/,
+  "Review access form must use bounded URL-encoded request reads",
+);
 requireText("src/app/api/health/route.ts", "appAccess");
 requireText("src/app/lib/neobank/core-config.ts", "PAYSHIELD_CORE_API_URL");
 requireText("src/app/lib/neobank/core-config.ts", "VERCEL_ENV");
@@ -548,16 +556,30 @@ requireText("src/app/lib/commercial/billing.ts", "requireCheckoutSession");
 requireText("src/app/lib/commercial/billing.ts", "paymentCollectionReady");
 requireText("src/app/lib/commercial/billing.ts", "requirePaidAccessForFallback");
 requireText("src/app/lib/commercial/request-body.ts", "maxCommercialRequestBytes");
+requireText("src/app/lib/commercial/request-body.ts", "maxCommercialWebhookRequestBytes");
 requireText("src/app/lib/commercial/request-body.ts", "readCommercialCheckoutPayload");
 requireText("src/app/lib/commercial/request-body.ts", "readCommercialJsonPayload");
+requireText("src/app/lib/commercial/request-body.ts", "readCommercialRawPayload");
 requireText("src/app/lib/commercial/request-body.ts", "Request body is too large.");
 requireText("src/app/api/public/billing/checkout/route.ts", "readCommercialCheckoutPayload");
 requireText("src/app/api/app/billing/checkout/route.ts", "readCommercialJsonPayload");
 requireText("src/app/api/app/billing/portal/route.ts", "readCommercialJsonPayload");
+requireText("src/app/api/app/billing/webhook/route.ts", "readCommercialRawPayload");
 requireText("src/app/lib/neobank/request-body.ts", "maxAppJsonRequestBytes");
 requireText("src/app/lib/neobank/request-body.ts", "readAppJsonPayload");
 requireText("src/app/api/app/control-plan/route.ts", "readAppJsonPayload");
 requireText("src/app/api/app/direct-deposit/route.ts", "readAppJsonPayload");
+requireText("src/app/api/waitlist/route.ts", "readBoundedWaitlistBody");
+rejectPattern(
+  "src/app/api/app/billing/webhook/route.ts",
+  /request\.text\(\)/,
+  "Stripe billing webhook must use bounded raw request reads",
+);
+rejectPattern(
+  "src/app/api/waitlist/route.ts",
+  /request\.json\(\)/,
+  "Waitlist route must use bounded stream reads before JSON parsing",
+);
 requireText("src/app/lib/commercial/billing.ts", "metadata[payshield_customer_email]");
 requireText("src/app/api/app/billing/checkout/route.ts", "payment_collection_only");
 requireText("src/app/api/app/billing/checkout/route.ts", "autoActivationReady");

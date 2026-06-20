@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server.js";
 
 export const maxCommercialRequestBytes = 16 * 1024;
+export const maxCommercialWebhookRequestBytes = 64 * 1024;
 
 type PayloadResult =
   | {
@@ -12,6 +13,12 @@ type PayloadResult =
       response: NextResponse;
     };
 type ErrorResult = Extract<PayloadResult, { ok: false }>;
+type RawPayloadResult =
+  | {
+      ok: true;
+      text: string;
+    }
+  | ErrorResult;
 
 function noStoreJson(body: Record<string, unknown>, status: number) {
   return NextResponse.json(body, {
@@ -150,6 +157,23 @@ export async function readCommercialJsonPayload(
   } catch {
     return errorResult("Invalid request body.", service, 400);
   }
+}
+
+export async function readCommercialRawPayload(
+  request: Request,
+  service: string,
+  maxBytes = maxCommercialWebhookRequestBytes,
+): Promise<RawPayloadResult> {
+  const body = await readBoundedRequestText(request, service, maxBytes);
+
+  if (!body.ok) {
+    return body;
+  }
+
+  return {
+    ok: true,
+    text: body.text,
+  };
 }
 
 export async function readCommercialCheckoutPayload(

@@ -6,12 +6,22 @@ import {
   summarizeStripeBillingEvent,
   verifyStripeWebhookSignature,
 } from "../../../../lib/commercial/stripe-webhook.ts";
+import { readCommercialRawPayload } from "../../../../lib/commercial/request-body.ts";
 import { forwardCoreRequest } from "../../../../lib/neobank/core-client.ts";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  const payload = await request.text();
+  const payloadResult = await readCommercialRawPayload(
+    request,
+    "payshield-stripe-webhook",
+  );
+
+  if (!payloadResult.ok) {
+    return payloadResult.response;
+  }
+
+  const payload = payloadResult.text;
   const signingSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim() || "";
   const signatureHeader = request.headers.get("stripe-signature") || "";
   const readiness = getStripeWebhookReadiness();
