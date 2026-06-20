@@ -426,6 +426,123 @@ function ActivationRail({
   );
 }
 
+function CapabilityCard({
+  actionLabel,
+  blockers,
+  body,
+  endpoint,
+  icon: Icon,
+  metric,
+  onAction,
+  state,
+  status,
+  title,
+  tone,
+}: {
+  actionLabel: string;
+  blockers: string[];
+  body: string;
+  endpoint: string;
+  icon: LucideIcon;
+  metric: string;
+  onAction: () => void | Promise<void>;
+  state: ActionState;
+  status: string;
+  title: string;
+  tone: "attention" | "ready";
+}) {
+  return (
+    <div
+      className={`grid min-h-[19rem] content-start gap-4 rounded-[8px] border p-4 ${
+        tone === "ready"
+          ? "border-[#68f0c2]/30 bg-[#68f0c2]/[0.075]"
+          : "border-[#ffb237]/30 bg-[#ffb237]/[0.08]"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <span
+          className={`grid size-12 place-items-center rounded-[8px] border ${
+            tone === "ready"
+              ? "border-[#68f0c2]/25 bg-black/35 text-[#68f0c2]"
+              : "border-[#ffb237]/25 bg-black/35 text-[#ffcf72]"
+          }`}
+        >
+          <Icon className="size-6" aria-hidden="true" />
+        </span>
+        <span
+          className={`rounded-[8px] px-2.5 py-1 text-xs font-black capitalize ${
+            tone === "ready"
+              ? "bg-[#68f0c2]/10 text-[#9af7d5]"
+              : "bg-[#ffb237]/10 text-[#ffe4ad]"
+          }`}
+        >
+          {status.replace(/_/g, " ")}
+        </span>
+      </div>
+
+      <div>
+        <p className="text-xs font-black uppercase text-[#8f99aa]">{metric}</p>
+        <h3 className="mt-1 text-2xl font-black leading-tight text-white">
+          {title}
+        </h3>
+        <p className="mt-3 text-sm font-bold leading-6 text-[#c9d0da]">
+          {body}
+        </p>
+      </div>
+
+      <p className="overflow-x-auto font-mono text-[0.68rem] font-black uppercase text-[#39e8ff]">
+        {endpoint}
+      </p>
+
+      {blockers.length > 0 ? (
+        <div className="grid gap-2">
+          <p className="text-xs font-black uppercase text-[#ffcf72]">
+            Needs before full operation
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {blockers.slice(0, 4).map((blocker) => (
+              <span
+                className="rounded-[8px] border border-[#ffb237]/25 bg-black/30 px-2 py-1 text-[0.68rem] font-black text-[#ffe4ad]"
+                key={blocker}
+              >
+                {blocker}
+              </span>
+            ))}
+            {blockers.length > 4 ? (
+              <span className="rounded-[8px] border border-[#ffb237]/25 bg-black/30 px-2 py-1 text-[0.68rem] font-black text-[#ffe4ad]">
+                +{blockers.length - 4}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <p className="rounded-[8px] border border-[#68f0c2]/25 bg-black/30 p-2 text-xs font-black text-[#9af7d5]">
+          Ready to run from this screen.
+        </p>
+      )}
+
+      <button
+        className={`mt-auto inline-flex h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50 ${
+          tone === "ready" ? "brand-button-blue" : "brand-button-primary"
+        }`}
+        disabled={state.status === "loading"}
+        onClick={() => {
+          void onAction();
+        }}
+        type="button"
+      >
+        {state.status === "loading" ? (
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+        ) : (
+          <Icon className="size-4" aria-hidden="true" />
+        )}
+        {actionLabel}
+      </button>
+      <StateMessage state={state} />
+    </div>
+  );
+}
+
 export function MoneyOperationsPanel({
   buckets,
   initialOperations,
@@ -1541,6 +1658,106 @@ export function MoneyOperationsPanel({
     label: rail.title,
     ready: rail.tone === "ready",
   }));
+  const capabilityCards = [
+    {
+      actionLabel: "Start checkout",
+      blockers: readiness?.commercial?.paidAccessReady
+        ? []
+        : [...new Set(commercialGates.map(friendlyGateLabel))],
+      body: "This is the revenue path. Stripe checkout creates the paid household entry, and the webhook activates access in the core.",
+      endpoint: "POST /api/app/billing/checkout",
+      icon: BadgeDollarSign,
+      key: "charge",
+      metric:
+        operations?.commercialAccess?.priceLabel ??
+        readiness?.commercial?.priceLabel ??
+        "$19/month",
+      onAction: startPaidAccess,
+      state: billingState,
+      status: readiness?.commercial?.paidAccessReady
+        ? "paid access active"
+        : readiness?.commercial?.checkoutConfigured
+          ? "activation pending"
+          : "stripe setup",
+      title: "Charge the household",
+      tone: readiness?.commercial?.checkoutOperationalReady
+        ? "ready"
+        : "attention",
+    },
+    {
+      actionLabel: "Connect bank",
+      blockers: readiness?.moneyRails?.bankLinkReady
+        ? []
+        : [...new Set(bankLinkGates.map(friendlyGateLabel))],
+      body: "Plaid Link opens from the app, exchanges the public token, and stores the bank token through server-side custody.",
+      endpoint: "POST /api/app/bank-link/token",
+      icon: Link2,
+      key: "bank",
+      metric: readiness?.moneyRails?.plaidEnv ?? "plaid",
+      onAction: startBankLink,
+      state: bankState,
+      status: readiness?.moneyRails?.bankLinkReady
+        ? "bank link ready"
+        : readiness?.moneyRails?.plaidConfigured
+          ? "vault setup"
+          : "plaid setup",
+      title: "Connect banks",
+      tone: readiness?.moneyRails?.bankLinkReady ? "ready" : "attention",
+    },
+    {
+      actionLabel: "Run detection",
+      blockers: readiness?.moneyRails?.paycheckDetectionReady
+        ? []
+        : [...new Set(detectionGates.map(friendlyGateLabel))],
+      body: "The user sets employer and amount rules, then PayShield posts the paycheck split before Safe to Spend is recalculated.",
+      endpoint: "POST /api/app/paychecks/detect",
+      icon: Radar,
+      key: "detect",
+      metric: `${detectionRules.length} saved rule${detectionRules.length === 1 ? "" : "s"}`,
+      onAction: detectPaycheck,
+      state: depositState,
+      status: readiness?.moneyRails?.paycheckDetectionReady
+        ? "automatic"
+        : readiness?.moneyRails?.bankLinkReady
+          ? "event signing"
+          : "rule mode",
+      title: "Detect paychecks",
+      tone: readiness?.moneyRails?.paycheckDetectionReady
+        ? "ready"
+        : "attention",
+    },
+    {
+      actionLabel: "Create transfer intent",
+      blockers: readiness?.moneyRails?.transferReady
+        ? []
+        : [...new Set(transferGates.map(friendlyGateLabel))],
+      body: "Protected money can only leave through approved payees, bucket limits, ledger checks, and provider handoff records.",
+      endpoint: "POST /api/app/transfers",
+      icon: ArrowRightLeft,
+      key: "move",
+      metric: selectedBucket ? formatMoney(selectedBucket.availableCents) : "bucket",
+      onAction: createTransfer,
+      state: transferState,
+      status: readiness?.moneyRails?.transferReady
+        ? "movement ready"
+        : "intent validation",
+      title: "Move protected funds",
+      tone: readiness?.moneyRails?.transferReady ? "ready" : "attention",
+    },
+  ] satisfies Array<{
+    actionLabel: string;
+    blockers: string[];
+    body: string;
+    endpoint: string;
+    icon: LucideIcon;
+    key: string;
+    metric: string;
+    onAction: () => void | Promise<void>;
+    state: ActionState;
+    status: string;
+    title: string;
+    tone: "attention" | "ready";
+  }>;
 
   return (
     <section
@@ -1549,7 +1766,7 @@ export function MoneyOperationsPanel({
     >
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:px-8">
         <div className="grid gap-5 lg:grid-cols-[0.82fr_1.18fr]">
-          <div className="accent-rule pt-5">
+          <div className="accent-rule pt-5 lg:col-span-2">
             <p className="inline-flex items-center gap-2 rounded-[8px] border border-[#39e8ff]/30 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black uppercase tracking-[0.14em] text-[#dffaff]">
               <Landmark className="size-4" aria-hidden="true" />
               Money operations
@@ -1626,17 +1843,61 @@ export function MoneyOperationsPanel({
             </div>
           </div>
 
-          <div className="brand-panel rounded-[8px] p-4 sm:p-5">
+          <div className="brand-panel rounded-[8px] p-4 sm:p-5 lg:col-span-2">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="brand-kicker">Start here</p>
+                <p className="brand-kicker">Use PayShield</p>
                 <h3 className="mt-1 text-2xl font-black text-white">
-                  Live rail stack.
+                  Four controls run the money product.
+                </h3>
+                <p className="mt-3 max-w-3xl text-sm leading-6 text-[#c9d0da]">
+                  These are the actions that make the product usable: charge the
+                  account, connect a bank, detect the paycheck, and release only
+                  approved protected money. If a provider secret is missing, the
+                  card tells you the exact blocker before the request reaches
+                  live rails.
+                </p>
+              </div>
+              <a
+                className="brand-button-blue inline-flex h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black"
+                download="payshield-household-audit.json"
+                href="/api/app/audit/export"
+              >
+                <FileDown className="size-4" aria-hidden="true" />
+                Export audit
+              </a>
+            </div>
+            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {capabilityCards.map((card) => (
+                <CapabilityCard
+                  actionLabel={card.actionLabel}
+                  blockers={card.blockers}
+                  body={card.body}
+                  endpoint={card.endpoint}
+                  icon={card.icon}
+                  key={card.key}
+                  metric={card.metric}
+                  onAction={card.onAction}
+                  state={card.state}
+                  status={card.status}
+                  title={card.title}
+                  tone={card.tone}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="brand-panel rounded-[8px] p-4 sm:p-5 lg:col-span-2">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="brand-kicker">Detailed rail diagnostics</p>
+                <h3 className="mt-1 text-2xl font-black text-white">
+                  Every endpoint and blocker in one place.
                 </h3>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-[#c9d0da]">
-                  Each row is an executable part of the product. Use the action
-                  button, then read the exact blocker if credentials or custody
-                  are not configured yet.
+                  Use this deeper view when you need to inspect the checkout,
+                  bank-link, paycheck, routing, transfer, and card-control
+                  rails behind the four operating controls above.
                 </p>
               </div>
               <button

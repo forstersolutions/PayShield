@@ -127,8 +127,15 @@ test("money operations surface shows revenue, rails, records, and export", async
   );
 
   assert.match(moneyOperations, /The revenue and money-control operating lane/);
+  assert.match(moneyOperations, /Use PayShield/);
+  assert.match(moneyOperations, /Four controls run the money product/);
+  assert.match(moneyOperations, /Charge the household/);
+  assert.match(moneyOperations, /Connect banks/);
+  assert.match(moneyOperations, /Detect paychecks/);
+  assert.match(moneyOperations, /Move protected funds/);
+  assert.match(moneyOperations, /CapabilityCard/);
   assert.match(moneyOperations, /Money path/);
-  assert.match(moneyOperations, /Live rail stack/);
+  assert.match(moneyOperations, /Detailed rail diagnostics/);
   assert.match(moneyOperations, /Runnable lanes/);
   assert.match(moneyOperations, /Setup blockers/);
   assert.match(moneyOperations, /Exception queue/);
