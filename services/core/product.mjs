@@ -5567,6 +5567,73 @@ function plaidSyncTransactions(pages) {
   ]);
 }
 
+function plaidRemovedTransactions(pages) {
+  return pages.flatMap((page) =>
+    Array.isArray(page.removed) ? page.removed : [],
+  );
+}
+
+function removedTransactionId(transaction, fallback) {
+  if (typeof transaction === "string") {
+    return safeString(transaction, 160) || fallback;
+  }
+
+  return (
+    transactionText(transaction, "providerTransactionId", 160) ||
+    transactionText(transaction, "provider_transaction_id", 160) ||
+    transactionText(transaction, "transactionId", 160) ||
+    transactionText(transaction, "transaction_id", 160) ||
+    transactionText(transaction, "id", 160) ||
+    fallback
+  );
+}
+
+export async function persistTransactionSyncException({
+  actor,
+  bankConnection,
+  env,
+  providerEventId,
+  providerName,
+  providerTransactionId,
+  reason,
+  reasonCode,
+  severity = "critical",
+  status,
+}) {
+  const idempotencyKey = [
+    "money-rail-exception",
+    "transaction_sync",
+    providerName,
+    providerEventId,
+    providerTransactionId || reasonCode,
+    reasonCode,
+  ].join(":");
+
+  return persistReconciliationException(
+    {
+      householdId: actor?.householdId || bankConnection?.householdId || null,
+      idempotencyKey,
+      metadata: {
+        bankConnectionId: bankConnection?.id || null,
+        providerAccountId: bankConnection?.providerAccountId || null,
+        providerItemId: bankConnection?.providerItemId || null,
+        rail: "transaction_sync",
+        status,
+      },
+      providerEventId,
+      providerName,
+      providerTransactionId: providerTransactionId || null,
+      reasonCode,
+      severity,
+      source: "money_rail",
+      summary: `transaction sync ${status.replace(/_/g, " ")}: ${
+        providerTransactionId || "unknown transaction"
+      } from ${providerName} event ${providerEventId}. ${reason}`,
+    },
+    env,
+  );
+}
+
 export async function syncLinkedBankPaychecks(payload = {}, env = process.env) {
   let actor = actorFromPayload(payload);
   const paidAccess = await requireActivePaidAccess(
@@ -5694,6 +5761,14 @@ export async function syncLinkedBankPaychecks(payload = {}, env = process.env) {
   const maxPages = syncPageLimit(payload.maxPages);
   const startingCursor =
     safeString(payload.cursor, 512) || bankConnection.syncCursor || null;
+  const syncAttemptEventId =
+    safeString(payload.providerEventId, 160) ||
+    stableEventId(providerName, {
+      accountId: bankConnection.providerAccountId,
+      cursor: startingCursor,
+      itemId: bankConnection.providerItemId,
+      type: "transactions_sync_attempt",
+    });
   const pages = [];
   let cursor = startingCursor;
   let hasMore = true;
@@ -5713,17 +5788,31 @@ export async function syncLinkedBankPaychecks(payload = {}, env = process.env) {
       pageCount += 1;
     }
   } catch (error) {
+    const reason =
+      error instanceof Error
+        ? error.message
+        : "Plaid transaction sync failed.";
+    const exceptionPersistence = await persistTransactionSyncException({
+      actor,
+      bankConnection,
+      env,
+      providerEventId: syncAttemptEventId,
+      providerName,
+      providerTransactionId: null,
+      reason,
+      reasonCode: "plaid_sync_failed",
+      status: "provider_error",
+    });
+
     return {
       body: {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Plaid transaction sync failed.",
+        error: reason,
+        exceptionPersistence,
         moneyReadiness,
         readiness,
         service: "payshield-paycheck-transaction-sync",
       },
-      status: 502,
+      status: persistenceFailed(exceptionPersistence) ? 503 : 502,
     };
   }
 
@@ -5783,6 +5872,48 @@ export async function syncLinkedBankPaychecks(payload = {}, env = process.env) {
     };
   }
 
+  const removedExceptions = [];
+  const removedTransactions = plaidRemovedTransactions(pages);
+
+  for (const [index, transaction] of removedTransactions.entries()) {
+    const providerTransactionId = removedTransactionId(
+      transaction,
+      `${providerEventId}:removed:${index}`,
+    );
+    const exceptionPersistence = await persistTransactionSyncException({
+      actor,
+      bankConnection,
+      env,
+      providerEventId,
+      providerName,
+      providerTransactionId,
+      reason:
+        "Plaid reported a removed transaction. Review whether a prior paycheck split must be reversed or corrected before relying on Safe to Spend.",
+      reasonCode: "plaid_transaction_removed",
+      status: "removed",
+    });
+
+    if (persistenceFailed(exceptionPersistence)) {
+      return {
+        body: {
+          accepted: false,
+          error: "Removed transaction exception could not be persisted.",
+          exceptionPersistence,
+          providerEventId,
+          readiness,
+          service: "payshield-paycheck-transaction-sync",
+        },
+        status: 503,
+      };
+    }
+
+    removedExceptions.push({
+      exceptionPersistence,
+      providerTransactionId,
+      status: "removed",
+    });
+  }
+
   const detections = extractProviderPaycheckDetections(
     providerPayload,
     providerEventId,
@@ -5827,7 +5958,7 @@ export async function syncLinkedBankPaychecks(payload = {}, env = process.env) {
         providerName,
         reason,
         reasonCode: status,
-        source: "transaction_sync",
+        source: "money_rail",
         status,
       });
 
@@ -5889,7 +6020,7 @@ export async function syncLinkedBankPaychecks(payload = {}, env = process.env) {
           providerName,
           reason,
           reasonCode: "paycheck_detection_rejected",
-          source: "transaction_sync",
+          source: "money_rail",
           status: "rejected",
         });
 
@@ -5994,6 +6125,8 @@ export async function syncLinkedBankPaychecks(payload = {}, env = process.env) {
       moneyReadiness,
       providerEventId,
       readiness,
+      removedExceptionCount: removedExceptions.length,
+      removedExceptions,
       service: "payshield-paycheck-transaction-sync",
       skipped,
       skippedCount: skipped.length,

@@ -5,6 +5,7 @@ import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, test } from "node:test";
 import { createCoreServer } from "../services/core/server.mjs";
 import {
+  persistTransactionSyncException,
   recordMoneyRailProviderException,
   replayJournalEntriesForBalances,
 } from "../services/core/product.mjs";
@@ -620,6 +621,51 @@ test("core records money-rail provider failures as reconciliation exceptions", a
   assert.equal(metadata.destinationPayeeId, "payee_abc_apartments");
   assert.equal(metadata.operation, "createAchTransfer");
   assert.equal(metadata.sourceBucketId, "rent");
+});
+
+test("core records transaction-sync removals with a valid reconciliation source", async () => {
+  const persistence = (await persistTransactionSyncException({
+    actor: {
+      householdId: "household_sync_exception",
+      id: "user_sync_exception",
+    },
+    bankConnection: {
+      householdId: "household_sync_exception",
+      id: "bank_connection_sync_exception",
+      providerAccountId: "acc_sync_exception",
+      providerItemId: "item_sync_exception",
+    },
+    env: process.env,
+    providerEventId: "evt_transactions_sync_removed",
+    providerName: "plaid",
+    providerTransactionId: "txn_removed_001",
+    reason:
+      "Plaid reported a removed transaction that may require ledger review.",
+    reasonCode: "plaid_transaction_removed",
+    status: "removed",
+  })) as {
+    exception: Record<string, unknown>;
+    persistence: string;
+  };
+  const exception = persistence.exception;
+  const metadata = exception.metadata as Record<string, unknown>;
+
+  assert.equal(persistence.persistence, "memory");
+  assert.equal(exception.householdId, "household_sync_exception");
+  assert.equal(
+    exception.idempotencyKey,
+    "money-rail-exception:transaction_sync:plaid:evt_transactions_sync_removed:txn_removed_001:plaid_transaction_removed",
+  );
+  assert.equal(exception.providerEventId, "evt_transactions_sync_removed");
+  assert.equal(exception.providerName, "plaid");
+  assert.equal(exception.providerTransactionId, "txn_removed_001");
+  assert.equal(exception.reasonCode, "plaid_transaction_removed");
+  assert.equal(exception.severity, "critical");
+  assert.equal(exception.source, "money_rail");
+  assert.equal(metadata.bankConnectionId, "bank_connection_sync_exception");
+  assert.equal(metadata.providerAccountId, "acc_sync_exception");
+  assert.equal(metadata.providerItemId, "item_sync_exception");
+  assert.equal(metadata.rail, "transaction_sync");
 });
 
 test("core balances endpoint mirrors protected paycheck model", async () => {
