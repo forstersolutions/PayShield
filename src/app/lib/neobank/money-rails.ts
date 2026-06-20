@@ -267,6 +267,7 @@ export function getMoneyRailReadiness() {
     tokenVaultConfigured,
     tokenVaultEncryptionConfigured: vault.encryptionKeyConfigured,
     tokenVaultEncryptionReady: vault.encryptionKeyReady,
+    tokenVaultHandoffReady: vault.webhookReady,
     tokenVaultStoreReady: vault.custodyReady,
     transferConfigured,
     transferReady: neobank.liveMoneyReady && transferConfigured,

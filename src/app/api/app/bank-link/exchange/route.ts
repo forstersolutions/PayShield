@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
           }
         : {
             error:
-              "Bank link exchange requires Plaid credentials and a signed token-vault handoff.",
+              "Bank link exchange requires Plaid credentials, signed token-vault handoff, and encrypted token custody.",
             readiness: result.readiness,
           },
       {

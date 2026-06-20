@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Linked-bank paycheck sync requires the dedicated core token vault, Plaid credentials, and durable Postgres custody.",
+          "Linked-bank paycheck sync requires Plaid credentials, signed token-vault handoff, encrypted token custody, and durable Postgres ledger storage.",
         readiness: getMoneyRailReadiness(),
         service: "payshield-paycheck-transaction-sync",
       },

@@ -179,6 +179,7 @@ export function HouseholdCommandCenter() {
         moneyRailReadiness.tokenVaultEncryptionConfigured,
       tokenVaultEncryptionReady: moneyRailReadiness.tokenVaultEncryptionReady,
       tokenVaultConfigured: moneyRailReadiness.tokenVaultConfigured,
+      tokenVaultHandoffReady: moneyRailReadiness.tokenVaultHandoffReady,
       tokenVaultStoreReady: moneyRailReadiness.tokenVaultStoreReady,
       transactionSyncReady: moneyRailReadiness.transactionSyncReady,
       transferConfigured: moneyRailReadiness.transferConfigured,

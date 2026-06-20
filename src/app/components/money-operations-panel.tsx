@@ -68,6 +68,7 @@ type OperationsReadiness = {
     tokenVaultEncryptionConfigured?: boolean;
     tokenVaultEncryptionReady?: boolean;
     tokenVaultConfigured?: boolean;
+    tokenVaultHandoffReady?: boolean;
     tokenVaultStoreReady?: boolean;
     transactionSyncReady?: boolean;
     transferConfigured?: boolean;
@@ -1415,10 +1416,12 @@ export function MoneyOperationsPanel({
     ? "encrypted custody"
     : readiness?.moneyRails?.tokenVaultStoreReady
       ? "vault ready"
-      : readiness?.moneyRails?.tokenVaultEncryptionConfigured
-        ? "encryption invalid"
+      : readiness?.moneyRails?.tokenVaultHandoffReady
+        ? readiness?.moneyRails?.tokenVaultEncryptionConfigured
+          ? "encryption invalid"
+          : "key needed"
         : readiness?.moneyRails?.tokenVaultConfigured
-          ? "key needed"
+          ? "handoff needed"
           : "vault setup";
   const railStack = [
     {
@@ -1461,9 +1464,9 @@ export function MoneyOperationsPanel({
       status: readiness?.moneyRails?.bankLinkReady
         ? "Bank link ready"
         : readiness?.moneyRails?.plaidConfigured
-          ? readiness?.moneyRails?.tokenVaultEncryptionReady
-            ? "Token vault needed"
-            : "Encryption key needed"
+          ? readiness?.moneyRails?.tokenVaultHandoffReady
+            ? "Encryption key needed"
+            : "Vault handoff needed"
           : "Plaid setup needed",
       title: "Connect banks",
       tone: readiness?.moneyRails?.bankLinkReady ? "ready" : "attention",

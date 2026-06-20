@@ -24,6 +24,9 @@ function readyHealth(overrides: Record<string, unknown> = {}) {
       providerAdapterMissing: [],
       remainingGates: [],
       tokenVaultConfigured: true,
+      tokenVaultEncryptionConfigured: true,
+      tokenVaultEncryptionReady: true,
+      tokenVaultHandoffReady: true,
       tokenVaultStoreReady: true,
       transactionSyncReady: true,
       transferConfigured: true,
@@ -65,6 +68,8 @@ test("commercial readiness passes only when revenue, rails, backend, auth, provi
   assert.equal(result.commercial.paidAccess, "ready");
   assert.equal(result.moneyRails.bankLink, "ready");
   assert.equal(result.moneyRails.tokenVault, "ready");
+  assert.equal(result.moneyRails.tokenVaultEncryption, "ready");
+  assert.equal(result.moneyRails.tokenVaultHandoff, "ready");
   assert.equal(result.moneyRails.transfer, "ready");
   assert.equal(result.neobank.liveMoney, "ready");
 });
@@ -106,6 +111,9 @@ test("commercial readiness fails with actionable gates for current architecture-
           "PAYSHIELD_BAAS_API_KEY",
         ],
         tokenVaultConfigured: false,
+        tokenVaultEncryptionConfigured: false,
+        tokenVaultEncryptionReady: false,
+        tokenVaultHandoffReady: false,
         tokenVaultStoreReady: false,
         transactionSyncReady: false,
         transferConfigured: false,
@@ -139,11 +147,15 @@ test("commercial readiness fails with actionable gates for current architecture-
   assert.equal(result.commercial.paidAccess, "blocked");
   assert.equal(result.moneyRails.bankLink, "blocked");
   assert.equal(result.moneyRails.tokenVault, "blocked");
+  assert.equal(result.moneyRails.tokenVaultEncryption, "blocked");
+  assert.equal(result.moneyRails.tokenVaultHandoff, "blocked");
   assert.equal(result.moneyRails.transfer, "blocked");
   assert.equal(result.neobank.backend, "blocked");
   assert.equal(result.neobank.liveMoney, "blocked");
   assert.equal(result.remainingGates.includes("stripe_checkout"), true);
   assert.equal(result.remainingGates.includes("token_vault_handoff"), true);
+  assert.equal(result.remainingGates.includes("token_vault_encryption"), true);
+  assert.equal(result.remainingGates.includes("token_vault_custody"), true);
   assert.equal(result.remainingGates.includes("bank_link"), true);
   assert.equal(result.remainingGates.includes("paycheck_sync"), true);
   assert.equal(result.remainingGates.includes("transfer_ready"), true);

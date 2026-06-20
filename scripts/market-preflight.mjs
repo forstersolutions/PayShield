@@ -858,6 +858,8 @@ requireText("src/app/api/health/route.ts", "storageProvider");
 requireText("src/app/api/health/route.ts", "liveMoneyReady");
 requireText("src/app/api/health/route.ts", "postgresSchemaVerified");
 requireText("src/app/api/health/route.ts", "remainingGates");
+requireText("src/app/api/health/route.ts", "tokenVaultEncryptionReady");
+requireText("src/app/api/health/route.ts", "tokenVaultHandoffReady");
 requireText("src/app/lib/neobank/provider-adapter.ts", "PAYSHIELD_BAAS_ADAPTER");
 requireText("src/app/lib/neobank/provider-adapter.ts", "PAYSHIELD_BAAS_API_BASE_URL");
 requireText("src/app/lib/neobank/readiness.ts", "provider_adapter");

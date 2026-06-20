@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
           }
         : {
             error:
-              "Bank linking requires Plaid credentials and a signed token-vault handoff before users can connect an external account.",
+              "Bank linking requires Plaid credentials, signed token-vault handoff, and encrypted token custody before users can connect an external account.",
             readiness: result.readiness,
           },
       {

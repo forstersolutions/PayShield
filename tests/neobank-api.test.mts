@@ -1081,7 +1081,7 @@ test("bank link token fails closed until Plaid is configured", async () => {
   assert.equal(Array.isArray(readiness.missing), true);
 });
 
-test("bank link token requires signed token-vault handoff before Plaid Link", async () => {
+test("bank link token requires signed token-vault handoff and encrypted custody before Plaid Link", async () => {
   process.env.PLAID_CLIENT_ID = "plaid-client";
   process.env.PLAID_SECRET = "plaid-secret";
   process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
@@ -1111,7 +1111,7 @@ test("linked-bank paycheck sync requires the dedicated core custody path", async
 
   assert.equal(response.status, 424);
   assert.equal(body.service, "payshield-paycheck-transaction-sync");
-  assert.match(String(body.error), /dedicated core token vault/i);
+  assert.match(String(body.error), /encrypted token custody/i);
 });
 
 test("direct deposit route records paycheck routing setup", async () => {

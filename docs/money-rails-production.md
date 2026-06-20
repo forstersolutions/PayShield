@@ -117,9 +117,10 @@ different gateway shape.
 ## Bank Link Flow
 
 `POST /api/app/bank-link/token` creates a Plaid Link token only when Plaid
-credentials and the signed token-vault handoff are configured. If the dedicated
-core backend is configured, Vercel forwards the request to the core service so
-regulated token custody stays off the frontend host.
+credentials, the signed token-vault handoff, and the token-vault encryption key
+are configured. If the dedicated core backend is configured, Vercel forwards the
+request to the core service so regulated token custody stays off the frontend
+host.
 
 `POST /api/app/bank-link/exchange` exchanges the Plaid public token, sends the
 returned access token to `PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL` with
@@ -208,7 +209,7 @@ npm run market:status -- https://payshield-lime.vercel.app --expect-site-url htt
 `market:status` must show these money gates as ready before paid public launch:
 
 - Stripe checkout and signed billing webhook.
-- Signed token-vault handoff.
+- Signed token-vault handoff and encrypted token custody.
 - Bank linking.
 - Paycheck detection.
 - Transfer/provider readiness.

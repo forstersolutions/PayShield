@@ -4119,6 +4119,7 @@ function getMoneyRailReadiness(env = process.env) {
     tokenVaultConfigured,
     tokenVaultEncryptionConfigured: vault.encryptionKeyConfigured,
     tokenVaultEncryptionReady: vault.encryptionKeyReady,
+    tokenVaultHandoffReady: vault.webhookReady,
     tokenVaultStoreReady: vault.custodyReady,
     transferConfigured,
     transferReady: neobank.liveMoneyReady && transferConfigured,
@@ -6571,7 +6572,7 @@ export async function handleProviderWebhook(payload, env = process.env) {
         providerEventId,
         readiness,
         reason:
-          "Paycheck transaction events require Plaid credentials and the signed token-vault handoff.",
+          "Paycheck transaction events require Plaid credentials, signed token-vault handoff, and encrypted token custody.",
         service: "payshield-provider-webhook",
       },
       status: 202,

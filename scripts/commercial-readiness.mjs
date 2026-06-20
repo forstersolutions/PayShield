@@ -176,14 +176,26 @@ export function evaluateCommercialReadiness({
   );
   record(
     result,
-    moneyRails.tokenVaultStoreReady === true,
+    moneyRails.tokenVaultHandoffReady === true,
     "signed token-vault handoff is ready for bank access tokens",
     "token_vault_handoff",
   );
   record(
     result,
+    moneyRails.tokenVaultEncryptionReady === true,
+    "token-vault encryption key is ready for bank access token custody",
+    "token_vault_encryption",
+  );
+  record(
+    result,
+    moneyRails.tokenVaultStoreReady === true,
+    "encrypted token-vault custody is ready for bank access tokens",
+    "token_vault_custody",
+  );
+  record(
+    result,
     moneyRails.bankLinkReady === true,
-    "bank linking is ready with Plaid credentials and token vault",
+    "bank linking is ready with Plaid credentials and encrypted token custody",
     "bank_link",
   );
   record(
@@ -272,6 +284,16 @@ export function evaluateCommercialReadiness({
       ),
       tokenVault: statusText(
         moneyRails.tokenVaultStoreReady === true,
+        "ready",
+        "blocked",
+      ),
+      tokenVaultEncryption: statusText(
+        moneyRails.tokenVaultEncryptionReady === true,
+        "ready",
+        "blocked",
+      ),
+      tokenVaultHandoff: statusText(
+        moneyRails.tokenVaultHandoffReady === true,
         "ready",
         "blocked",
       ),

@@ -38,6 +38,7 @@ async function parseJson(response: Response) {
       remainingGates?: unknown;
       tokenVaultEncryptionConfigured?: unknown;
       tokenVaultEncryptionReady?: unknown;
+      tokenVaultHandoffReady?: unknown;
       transferReady?: unknown;
       transactionSyncReady?: unknown;
     };
@@ -412,6 +413,7 @@ test("reports commercial and money rail readiness gates", async () => {
     false,
   );
   assert.equal(vaultConfiguredBody.moneyRails?.tokenVaultEncryptionReady, false);
+  assert.equal(vaultConfiguredBody.moneyRails?.tokenVaultHandoffReady, true);
   assert.equal(vaultConfiguredBody.moneyRails?.tokenVaultStoreReady, false);
   assert.equal(
     vaultConfiguredMissing.includes("PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY"),
@@ -435,6 +437,10 @@ test("reports commercial and money rail readiness gates", async () => {
   );
   assert.equal(
     encryptedVaultConfiguredBody.moneyRails?.tokenVaultStoreReady,
+    true,
+  );
+  assert.equal(
+    encryptedVaultConfiguredBody.moneyRails?.tokenVaultHandoffReady,
     true,
   );
 
