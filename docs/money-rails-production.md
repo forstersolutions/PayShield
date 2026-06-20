@@ -156,7 +156,10 @@ Provider transaction webhooks use a separate PayShield HMAC gate:
 `x-payshield-provider-signature: t=<unix>,v1=<sha256>`. Linked-bank paycheck
 detection can run through the core sync route once Plaid credentials, token
 vault custody, encrypted token storage, and the Postgres ledger are configured.
-Signed provider webhook ingestion still requires provider webhook signing.
+The Vercel provider webhook route does not classify events locally; it requires
+the authenticated core service and forwards the signed raw request to the core.
+Signed provider webhook ingestion still requires provider webhook signing inside
+that core service.
 
 ## Paycheck Detection And Movement
 
@@ -167,10 +170,12 @@ Plaid `/transactions/sync`, stores the cursor, and posts payroll-like credits
 through the same protected split journal used by core-backed detection. Provider
 webhooks can also post income events into `POST /api/provider/webhooks`, and
 operator-reviewed detection requests run through `POST /api/app/paychecks/detect`.
-The Vercel frontend no longer performs local payroll ledger simulation for
-these routes; bank token exchange, payroll rules, linked-bank sync, and
-paycheck detection require the authenticated core service. The split engine
-funds protected buckets first and exposes only the remainder as `safe_to_spend`.
+The Vercel frontend no longer performs local money-control simulation for these
+routes; bank token exchange, payroll rules, linked-bank sync, paycheck
+detection, provider webhooks, protected bucket saves, payee controls, direct
+deposit setup, transfers, bill payments, unlocks, onboarding, and card
+authorization all require the authenticated core service. The split engine funds
+protected buckets first and exposes only the remainder as `safe_to_spend`.
 
 `POST /api/provider/webhooks` now records the provider event, extracts
 payroll-like income transactions, resolves the active bank connection when
@@ -189,17 +194,18 @@ text, expected amount range, frequency, provider, optional provider item/account
 references, status, priority, and idempotency key. With the core service and
 Postgres enabled, active rules are consulted before a paycheck split posts, and
 posted detections retain the matched rule id for audit and support review.
-Without the core, the Vercel route validates the shape but marks the rule as
-non-durable.
+Without the core, the Vercel route fails closed instead of accepting a
+non-durable payroll rule.
 
 `POST /api/app/direct-deposit` records the household's paycheck-routing setup.
 The route stores only masked account/routing metadata and an idempotent setup
 record. When provider gates are active, the configured provider supplies the
 instructions; until then, the setup is recorded as provider-gated so support can
 see that the household completed the routing step without exposing live account
-details.
+details. The Vercel route requires the core service before any setup is
+accepted.
 
-Transfers, bill payments, and card decisions remain gate controlled:
+Transfers, bill payments, unlocks, and card decisions remain gate controlled:
 
 - `POST /api/app/transfers` creates provider transfer intents only when the
   bucket has funds and transfer/provider gates are ready.
@@ -209,6 +215,11 @@ Transfers, bill payments, and card decisions remain gate controlled:
   approved biller rules.
 - `POST /api/app/unlocks` creates recovery-plan journal records instead of
   silently draining protected funds.
+
+Those Vercel routes require `PAYSHIELD_CORE_API_URL` and
+`PAYSHIELD_CORE_SERVICE_TOKEN` before they forward the request. Validation,
+ledger posting, idempotency, provider execution, and audit records happen in the
+core service.
 
 ## Verification
 

@@ -1070,7 +1070,7 @@ function createNeobankSnapshot(
   return {
     buckets: buildBucketBalances(book, buckets),
     card: {
-      authorizationMode: readiness.liveMoneyReady ? "provider_gateway" : "simulation",
+      authorizationMode: readiness.liveMoneyReady ? "provider_gateway" : "core_ledger",
       cardLast4: "----",
       status: readiness.liveMoneyReady ? "live" : "gated",
     },
@@ -6564,7 +6564,7 @@ export async function createBillPayment(payload, env = process.env) {
       message: decision.accepted
         ? "Bill payment scheduled in the protected bucket model. Provider execution requires active money-movement controls."
         : "Bill payment was not scheduled.",
-      mode: "simulation",
+      mode: "core_ledger",
       providerBillPayment,
       readiness,
     },
@@ -6700,7 +6700,7 @@ export async function createUnlock(payload, env = process.env) {
       },
       journalPersistence,
       message: "Recovery plan created. Provider execution requires active money-movement controls.",
-      mode: "simulation",
+      mode: "core_ledger",
       readiness: getCoreReadiness(env, { coreOnline: true }),
       result,
     },
@@ -6795,7 +6795,7 @@ export async function authorizeCard(payload, env = process.env) {
       payeeId: input.payeeId || null,
       providerStatus: readiness.liveMoneyReady
         ? "provider_gateway"
-        : "simulation",
+        : "blocked",
       reason: decision.reason,
     },
     env,
@@ -6830,7 +6830,7 @@ export async function authorizeCard(payload, env = process.env) {
         source: ledger.ledgerSource,
       },
       ledgerEntries: book.allEntries(),
-      mode: readiness.liveMoneyReady ? "provider_gateway" : "simulation",
+      mode: readiness.liveMoneyReady ? "provider_gateway" : "core_ledger",
       readiness,
       service: "payshield-card-authorization",
     },

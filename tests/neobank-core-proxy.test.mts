@@ -12,9 +12,18 @@ import { POST as createBankLinkToken } from "../src/app/api/app/bank-link/token/
 import { POST as openBillingPortal } from "../src/app/api/app/billing/portal/route.ts";
 import { GET as getBillingStatus } from "../src/app/api/app/billing/status/route.ts";
 import { POST as scheduleBillPayment } from "../src/app/api/app/bill-payments/route.ts";
+import {
+  GET as getBuckets,
+  POST as saveBuckets,
+} from "../src/app/api/app/buckets/route.ts";
+import { POST as setupDirectDeposit } from "../src/app/api/app/direct-deposit/route.ts";
+import { POST as startOnboarding } from "../src/app/api/app/onboarding/start/route.ts";
+import { POST as createPayee } from "../src/app/api/app/payees/route.ts";
 import { POST as detectPaycheck } from "../src/app/api/app/paychecks/detect/route.ts";
 import { POST as savePaycheckRule } from "../src/app/api/app/paychecks/rules/route.ts";
 import { POST as syncPaychecks } from "../src/app/api/app/paychecks/sync/route.ts";
+import { POST as createTransfer } from "../src/app/api/app/transfers/route.ts";
+import { POST as unlockBucket } from "../src/app/api/app/unlocks/route.ts";
 import {
   GET as getControlPlan,
   POST as generateControlPlan,
@@ -869,7 +878,7 @@ test("card authorization delegates request body to configured core service", asy
             code: "insufficient_safe_spend",
             reason: "Core decision",
           },
-          mode: "simulation",
+          mode: "core_ledger",
           service: "payshield-card-authorization",
         }),
       );
@@ -904,6 +913,155 @@ test("card authorization delegates request body to configured core service", asy
   );
 });
 
+test("protected app money mutations delegate to configured core service", async () => {
+  const captured: Array<Record<string, unknown>> = [];
+
+  await withCoreProxyServer(
+    async (request, response) => {
+      captured.push({
+        authorization: request.headers.authorization,
+        authMode: request.headers["x-payshield-auth-mode"],
+        body: await readRequestBody(request),
+        method: request.method,
+        url: request.url,
+        userId: request.headers["x-payshield-user-id"],
+      });
+
+      response.writeHead(200, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          coreDelegated: true,
+          ok: true,
+          service: "payshield-core-proxy-test",
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-money-secret";
+
+      const cases: Array<{
+        bodyIncludes?: string;
+        call: () => Promise<Response>;
+        method: string;
+        url: string;
+      }> = [
+        {
+          call: () => getBuckets(),
+          method: "GET",
+          url: "/api/app/buckets",
+        },
+        {
+          bodyIncludes: "custom_childcare",
+          call: () =>
+            saveBuckets(
+              makeRequest("/api/app/buckets", {
+                action: "replace_profile",
+                buckets: [
+                  {
+                    due: "Every check",
+                    id: "custom_childcare",
+                    name: "Childcare",
+                    protection: "hard_lock",
+                    targetCents: 20_000,
+                  },
+                ],
+              }),
+            ),
+          method: "POST",
+          url: "/api/app/buckets",
+        },
+        {
+          bodyIncludes: "{}",
+          call: () => startOnboarding(),
+          method: "POST",
+          url: "/api/app/onboarding/start",
+        },
+        {
+          bodyIncludes: "core-direct-deposit-proxy",
+          call: () =>
+            setupDirectDeposit(
+              makeRequest("/api/app/direct-deposit", {
+                idempotencyKey: "core-direct-deposit-proxy",
+                providerAccountId: "acct_123",
+              }),
+            ),
+          method: "POST",
+          url: "/api/app/direct-deposit",
+        },
+        {
+          bodyIncludes: "New landlord",
+          call: () =>
+            createPayee(
+              makeRequest("/api/app/payees", {
+                allowedBucketId: "rent",
+                maxCents: 95_000,
+                name: "New landlord",
+              }),
+            ),
+          method: "POST",
+          url: "/api/app/payees",
+        },
+        {
+          bodyIncludes: "payee_abc_apartments",
+          call: () =>
+            createTransfer(
+              makeRequest("/api/app/transfers", {
+                amountCents: 25_000,
+                destinationPayeeId: "payee_abc_apartments",
+                sourceBucketId: "rent",
+              }),
+            ),
+          method: "POST",
+          url: "/api/app/transfers",
+        },
+        {
+          bodyIncludes: "Emergency repair",
+          call: () =>
+            unlockBucket(
+              makeRequest("/api/app/unlocks", {
+                amountCents: 20_000,
+                bucketId: "rent",
+                mode: "slow_free",
+                reason: "Emergency repair",
+              }),
+            ),
+          method: "POST",
+          url: "/api/app/unlocks",
+        },
+      ];
+
+      for (const routeCase of cases) {
+        const response = await routeCase.call();
+        const body = await parseJson(response);
+
+        assert.equal(response.status, 200);
+        assert.equal(response.headers.get("x-payshield-core-proxied"), "true");
+        assert.equal(body.coreDelegated, true);
+      }
+
+      assert.equal(captured.length, cases.length);
+
+      for (const [index, routeCase] of cases.entries()) {
+        const request = captured[index];
+
+        assert.equal(request.authorization, "Bearer core-money-secret");
+        assert.equal(request.authMode, "demo");
+        assert.equal(request.method, routeCase.method);
+        assert.equal(request.url, routeCase.url);
+        assert.equal(request.userId, "user_demo_001");
+
+        if (routeCase.bodyIncludes) {
+          assert.equal(String(request.body).includes(routeCase.bodyIncludes), true);
+        }
+      }
+    },
+  );
+});
+
 test("bill payment route delegates request body to configured core service", async () => {
   const captured: Record<string, unknown> = {};
 
@@ -929,7 +1087,7 @@ test("bill payment route delegates request body to configured core service", asy
             providerStatus: "blocked",
             reason: "Core bill payment decision",
           },
-          mode: "simulation",
+          mode: "core_ledger",
         }),
       );
     },
@@ -1043,6 +1201,7 @@ test("configured core service non-JSON response fails closed", async () => {
     },
     async (baseUrl) => {
       process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-non-json-secret";
 
       const response = await authorizeCard(
         makeRequest("/api/card/authorize", {

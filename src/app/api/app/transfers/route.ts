@@ -1,5 +1,4 @@
-import { NextRequest, NextResponse } from "next/server.js";
-import { requirePaidAccessForFallback } from "../../../lib/commercial/billing.ts";
+import { NextRequest } from "next/server.js";
 import {
   appSessionErrorResponse,
   getAppSession,
@@ -7,34 +6,22 @@ import {
 } from "../../../lib/neobank/auth.ts";
 import { forwardCoreRequest } from "../../../lib/neobank/core-client.ts";
 import {
-  createNeobankSnapshot,
-  isBucketId,
-} from "../../../lib/neobank/demo-state.ts";
-import {
-  getBankingProvider,
-  ProviderAdapterError,
-} from "../../../lib/neobank/provider.ts";
-import { buildTransferIntent } from "../../../lib/neobank/money-rails.ts";
-
-function cleanText(value: unknown, maxLength: number) {
-  return typeof value === "string"
-    ? value.trim().replace(/\s+/g, " ").slice(0, maxLength)
-    : "";
-}
-
-function toCents(value: unknown) {
-  const amount = typeof value === "number" ? value : Number(value);
-
-  if (!Number.isInteger(amount) || amount <= 0 || amount > 500_000) {
-    return null;
-  }
-
-  return amount;
-}
+  requireDurableCoreService,
+  requiredCoreUnavailable,
+} from "../../../lib/neobank/core-required.ts";
 
 export async function POST(request: NextRequest) {
   try {
     const session = await getAppSession();
+    const coreRequired = requireDurableCoreService({
+      operation: "Protected transfer intents",
+      service: "payshield-transfer-intents",
+    });
+
+    if (coreRequired) {
+      return coreRequired;
+    }
+
     const coreResponse = await forwardCoreRequest({
       method: "POST",
       path: "/api/app/transfers",
@@ -46,160 +33,12 @@ export async function POST(request: NextRequest) {
       return coreResponse;
     }
 
-    const paidAccess = requirePaidAccessForFallback("protected transfers");
-
-    if (!paidAccess.ok) {
-      return NextResponse.json(paidAccess.body, {
-        headers: {
-          "cache-control": "no-store",
-        },
-        status: paidAccess.status,
-      });
-    }
-
-    const payload = (await request.json().catch(() => ({}))) as {
-      amountCents?: unknown;
-      destinationPayeeId?: unknown;
-      idempotencyKey?: unknown;
-      sourceBucketId?: unknown;
-    };
-    const amountCents = toCents(payload.amountCents);
-    const destinationPayeeId = cleanText(payload.destinationPayeeId, 120);
-
-    if (
-      amountCents === null ||
-      !isBucketId(payload.sourceBucketId) ||
-      !destinationPayeeId
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Provide sourceBucketId, destinationPayeeId, and integer amountCents.",
-        },
-        { status: 400 },
-      );
-    }
-
-    const snapshot = createNeobankSnapshot();
-    const sourceBucket = snapshot.buckets.find(
-      (bucket) => bucket.id === payload.sourceBucketId,
-    );
-    const destinationPayee = snapshot.payees.find(
-      (payee) => payee.id === destinationPayeeId,
-    );
-
-    if (sourceBucket?.id === "safe_spending") {
-      return NextResponse.json(
-        {
-          error: "Protected transfers cannot release Safe to Spend funds.",
-          sourceBucket,
-        },
-        { status: 400 },
-      );
-    }
-
-    if (!sourceBucket) {
-      return NextResponse.json(
-        {
-          error: "Transfer amount exceeds the selected bucket balance.",
-          sourceBucket,
-        },
-        { status: 400 },
-      );
-    }
-
-    if (!destinationPayee || destinationPayee.status !== "approved") {
-      return NextResponse.json(
-        {
-          error:
-            "Protected transfers require an approved destination for the selected bucket.",
-        },
-        { status: 400 },
-      );
-    }
-
-    if (destinationPayee.allowedBucketId !== sourceBucket.id) {
-      return NextResponse.json(
-        {
-          destinationPayee,
-          error:
-            "Protected transfers can only release to a payee assigned to the source bucket.",
-          sourceBucket,
-        },
-        { status: 400 },
-      );
-    }
-
-    if (amountCents > destinationPayee.maxCents) {
-      return NextResponse.json(
-        {
-          destinationPayee,
-          error: "Transfer amount exceeds the approved destination limit.",
-        },
-        { status: 400 },
-      );
-    }
-
-    if (amountCents > sourceBucket.availableCents) {
-      return NextResponse.json(
-        {
-          error: "Transfer amount exceeds the selected bucket balance.",
-          sourceBucket,
-        },
-        { status: 400 },
-      );
-    }
-
-    const idempotencyKey =
-      cleanText(payload.idempotencyKey, 120) ||
-      `transfer-${payload.sourceBucketId}-${destinationPayeeId}-${amountCents}`;
-    const intent = buildTransferIntent({
-      amountCents,
-      destinationPayeeId,
-      idempotencyKey,
-      sourceBucketId: payload.sourceBucketId,
+    return requiredCoreUnavailable({
+      message:
+        "Protected transfer intents require the dedicated PayShield core service.",
+      service: "payshield-transfer-intents",
     });
-    const providerTransfer = await getBankingProvider().createAchTransfer({
-      amountCents,
-      destinationPayeeId,
-      idempotencyKey,
-      sourceBucketId: payload.sourceBucketId,
-    });
-
-    return NextResponse.json(
-      {
-        intent,
-        message:
-          providerTransfer.status === "created"
-            ? "Protected transfer created with the configured provider."
-            : "Transfer intent validated. Provider execution remains locked until approved money-rail credentials are active.",
-        destinationPayee,
-        providerTransfer,
-        sourceBucket,
-      },
-      {
-        headers: {
-          "cache-control": "no-store",
-        },
-        status: 200,
-      },
-    );
   } catch (error) {
-    if (error instanceof ProviderAdapterError) {
-      return NextResponse.json(
-        {
-          error: error.message,
-          service: "payshield-transfer-intents",
-        },
-        {
-          headers: {
-            "cache-control": "no-store",
-          },
-          status: 502,
-        },
-      );
-    }
-
     return appSessionErrorResponse(error) ?? unauthorizedAppResponse();
   }
 }

@@ -39,7 +39,7 @@ type BucketProfileResponse = {
   message?: string;
   persisted?: boolean;
   profilePersistence?: ProfilePersistence;
-  profileSource?: "core_control_model" | "local_simulation";
+  profileSource?: "app_template_model" | "core_control_model";
 };
 
 const draftStorageKey = "payshield.bucket-controls.draft.v3";
@@ -195,7 +195,7 @@ export function BucketControlPanel({
   const [controls, setControls] = useState<BucketControl[]>(defaults);
   const [draftDirty, setDraftDirty] = useState(false);
   const [profileSource, setProfileSource] =
-    useState<BucketProfileResponse["profileSource"]>("local_simulation");
+    useState<BucketProfileResponse["profileSource"]>("app_template_model");
   const [profilePersistence, setProfilePersistence] =
     useState<ProfilePersistence>("stateless_model");
   const [profilePersisted, setProfilePersisted] = useState(false);
@@ -240,7 +240,7 @@ export function BucketControlPanel({
             : readDraftControls(loadedControls);
 
         setControls(draft.controls);
-        setProfileSource(result.profileSource ?? "local_simulation");
+        setProfileSource(result.profileSource ?? "app_template_model");
         setProfilePersistence(result.profilePersistence ?? "stateless_model");
         setProfilePersisted(result.persisted === true);
 

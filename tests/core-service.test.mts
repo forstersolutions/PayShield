@@ -1541,7 +1541,7 @@ test("core card authorization approves safe spend and declines protected overrea
     >;
 
     assert.equal(approved.response.status, 200);
-    assert.equal(approved.body.mode, "simulation");
+    assert.equal(approved.body.mode, "core_ledger");
     assert.equal(approvedDecision.approved, true);
     assert.equal(approvedDecision.bucketId, "safe_spending");
     assert.equal(approvedPersistence.persistence, "memory");
@@ -1598,7 +1598,7 @@ test("core unlock route creates a recovery plan without mutating protected rules
     >;
 
     assert.equal(response.status, 200);
-    assert.equal(body.mode, "simulation");
+    assert.equal(body.mode, "core_ledger");
     assert.equal(decisionPersistence.persistence, "memory");
     assert.equal(journalPersistence.persistence, "memory");
     assert.equal(result.unlockedCents, 20_000);

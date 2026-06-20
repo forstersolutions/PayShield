@@ -98,7 +98,7 @@ export type DirectDepositInstructions = {
 };
 
 export type CardStatus = {
-  authorizationMode: "simulation" | "provider_gateway";
+  authorizationMode: "core_ledger" | "provider_gateway";
   cardLast4: string;
   status: MoneyRailStatus;
 };

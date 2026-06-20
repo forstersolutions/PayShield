@@ -46,7 +46,7 @@ activation gates, but should still be reviewed before paid traffic.
 
 - "A controlled ledger first. Banking rails when the partner stack is approved."
 - "The front-end presents planning mechanics: paycheck planning, protected
-  internal buckets, future bill-routing rules, spending-control simulations,
+  internal buckets, future bill-routing rules, core-ledger spending controls,
   emergency unlock friction, and recovery plans."
 - Future-only public label: "Paycheck split model" and "A future
   partner-approved paycheck event would fund obligations first and send the

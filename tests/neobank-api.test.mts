@@ -491,12 +491,12 @@ test("bucket endpoint loads editable household profile templates", async () => {
   assert.equal(Array.isArray(body.buckets), true);
   assert.equal(body.persisted, false);
   assert.equal(body.profilePersistence, "stateless_model");
-  assert.equal(body.profileSource, "local_simulation");
+  assert.equal(body.profileSource, "app_template_model");
   assert.equal(Array.isArray(body.templates), true);
   assert.equal((body.templates as string[]).includes("Childcare"), true);
 });
 
-test("bucket endpoint saves customizable protected bucket profile", async () => {
+test("bucket endpoint requires the dedicated core before saving protected profiles", async () => {
   const response = await saveBuckets(
     makeRequest("/api/app/buckets", {
       action: "replace_profile",
@@ -519,30 +519,21 @@ test("bucket endpoint saves customizable protected bucket profile", async () => 
     }),
   );
   const body = await parseJson(response);
-  const buckets = body.buckets as Array<Record<string, unknown>>;
 
-  assert.equal(response.status, 200);
-  assert.equal(body.persisted, false);
-  assert.equal(body.protectedCents, 70_000);
-  assert.equal(body.profilePersistence, "stateless_model");
-  assert.equal(body.profileSource, "local_simulation");
-  assert.equal(body.safeToSpendPreviewCents, 230_000);
-  assert.equal(buckets[0]?.priority, 10);
-  assert.equal(buckets[1]?.id, "custom_childcare");
-  assert.equal(
-    body.safeSpendRule,
-    "Safe to Spend is computed only after protected buckets fund.",
-  );
+  assert.equal(response.status, 503);
+  assert.equal(body.code, "core_service_required");
+  assert.equal(body.service, "payshield-bucket-controls");
+  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
 });
 
-test("onboarding fails closed until live-money gates are configured", async () => {
+test("onboarding requires the dedicated authenticated core service", async () => {
   const response = await startOnboarding();
   const body = await parseJson(response);
 
-  assert.equal(response.status, 423);
-  assert.equal((body.liveMoney as Record<string, unknown>).ok, false);
-  assert.equal((body.customer as Record<string, unknown>).status, "blocked");
-  assert.equal((body.card as Record<string, unknown>).status, "blocked");
+  assert.equal(response.status, 503);
+  assert.equal(body.code, "core_service_required");
+  assert.equal(body.service, "payshield-provider-onboarding");
+  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
 });
 
 test("paid access checkout reports missing Stripe configuration", async () => {
@@ -1114,8 +1105,6 @@ test("money workflows require activation-ready paid access or the dedicated core
           }),
         ),
     ],
-  ];
-  const paidAccessCases: Array<[string, () => Promise<Response>]> = [
     ["provider onboarding", () => startOnboarding()],
     [
       "direct deposit setup",
@@ -1123,6 +1112,35 @@ test("money workflows require activation-ready paid access or the dedicated core
         setupDirectDeposit(
           makeRequest("/api/app/direct-deposit", {
             idempotencyKey: "route-paid-gate-direct-deposit",
+          }),
+        ),
+    ],
+    [
+      "protected bucket profile changes",
+      () =>
+        saveBuckets(
+          makeRequest("/api/app/buckets", {
+            action: "replace_profile",
+            buckets: [
+              {
+                due: "1st",
+                id: "rent",
+                name: "Rent",
+                protection: "bill_only",
+                targetCents: 50_000,
+              },
+            ],
+          }),
+        ),
+    ],
+    [
+      "protected payee controls",
+      () =>
+        createPayee(
+          makeRequest("/api/app/payees", {
+            allowedBucketId: "rent",
+            maxCents: 95_000,
+            name: "New landlord",
           }),
         ),
     ],
@@ -1174,6 +1192,16 @@ test("money workflows require activation-ready paid access or the dedicated core
           }),
         ),
     ],
+    [
+      "provider webhook ingestion",
+      () =>
+        providerWebhook(
+          makeRequest("/api/provider/webhooks", {
+            eventId: "evt_paid_gate_provider",
+            type: "transactions.sync",
+          }),
+        ),
+    ],
   ];
 
   for (const [operation, request] of coreCases) {
@@ -1187,20 +1215,6 @@ test("money workflows require activation-ready paid access or the dedicated core
       true,
       `${operation} should name the missing core service`,
     );
-  }
-
-  for (const [operation, request] of paidAccessCases) {
-    const response = await request();
-    const body = await parseJson(response);
-
-    assert.equal(response.status, 402, operation);
-    assert.equal(body.code, "paid_access_not_configured", operation);
-    assert.equal(
-      String(body.error).includes(operation),
-      true,
-      `${operation} should be named in the paid-access error`,
-    );
-    assert.equal(body.service, "payshield-paid-access-gate", operation);
   }
 });
 
@@ -1246,25 +1260,18 @@ test("linked-bank paycheck sync requires the dedicated core custody path", async
   assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
 });
 
-test("direct deposit route records paycheck routing setup", async () => {
+test("direct deposit route requires the dedicated authenticated core service", async () => {
   const response = await setupDirectDeposit(
     makeRequest("/api/app/direct-deposit", {
       idempotencyKey: "route-direct-deposit-primary",
     }),
   );
   const body = await parseJson(response);
-  const directDeposit = body.directDeposit as Record<string, unknown>;
-  const persistence = body.persistence as Record<string, unknown>;
-  const setup = body.setup as Record<string, unknown>;
 
-  assert.equal(response.status, 423);
+  assert.equal(response.status, 503);
+  assert.equal(body.code, "core_service_required");
   assert.equal(body.service, "payshield-direct-deposit-setup");
-  assert.equal(body.persisted, false);
-  assert.equal(directDeposit.providerStatus, "gated");
-  assert.equal(directDeposit.routingLast4, "----");
-  assert.equal(persistence.persistence, "memory");
-  assert.equal(setup.status, "blocked");
-  assert.equal(setup.idempotencyKey, "route-direct-deposit-primary");
+  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
 });
 
 test("paycheck detection requires the dedicated core instead of local ledger simulation", async () => {
@@ -1316,7 +1323,7 @@ test("paycheck detection rule route requires durable core storage", async () => 
   assert.equal(invalidBody.code, "core_service_required");
 });
 
-test("transfer route validates bucket funds and returns provider gate", async () => {
+test("transfer route requires the dedicated authenticated core service", async () => {
   const response = await createTransfer(
     makeRequest("/api/app/transfers", {
       amountCents: 25_000,
@@ -1326,68 +1333,14 @@ test("transfer route validates bucket funds and returns provider gate", async ()
     }),
   );
   const body = await parseJson(response);
-  const providerTransfer = body.providerTransfer as Record<string, unknown>;
 
-  assert.equal(response.status, 200);
-  assert.equal(providerTransfer.status, "blocked");
-
-  const rejected = await createTransfer(
-    makeRequest("/api/app/transfers", {
-      amountCents: 999_999,
-      destinationPayeeId: "payee_abc_apartments",
-      sourceBucketId: "rent",
-    }),
-  );
-
-  assert.equal(rejected.status, 400);
-
-  const wrongBucket = await createTransfer(
-    makeRequest("/api/app/transfers", {
-      amountCents: 25_000,
-      destinationPayeeId: "payee_abc_apartments",
-      sourceBucketId: "vehicle",
-    }),
-  );
-  const wrongBucketBody = await parseJson(wrongBucket);
-
-  assert.equal(wrongBucket.status, 400);
-  assert.equal(
-    wrongBucketBody.error,
-    "Protected transfers can only release to a payee assigned to the source bucket.",
-  );
-
-  const safeSpend = await createTransfer(
-    makeRequest("/api/app/transfers", {
-      amountCents: 25_000,
-      destinationPayeeId: "payee_abc_apartments",
-      sourceBucketId: "safe_spending",
-    }),
-  );
-  const safeSpendBody = await parseJson(safeSpend);
-
-  assert.equal(safeSpend.status, 400);
-  assert.equal(
-    safeSpendBody.error,
-    "Protected transfers cannot release Safe to Spend funds.",
-  );
-
-  const overLimit = await createTransfer(
-    makeRequest("/api/app/transfers", {
-      amountCents: 90_000,
-      destinationPayeeId: "payee_auto_lender",
-      sourceBucketId: "vehicle",
-    }),
-  );
-  const overLimitBody = await parseJson(overLimit);
-
-  assert.equal(overLimit.status, 400);
-  assert.equal(
-    overLimitBody.error,
-    "Transfer amount exceeds the approved destination limit.",
-  );
+  assert.equal(response.status, 503);
+  assert.equal(body.code, "core_service_required");
+  assert.equal(body.service, "payshield-transfer-intents");
+  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
 });
 
-test("card authorization route approves safe-spend purchase in simulation mode", async () => {
+test("card authorization route requires the dedicated authenticated core service", async () => {
   const response = await authorizeCard(
     makeRequest("/api/card/authorize", {
       amountCents: 8_000,
@@ -1396,31 +1349,14 @@ test("card authorization route approves safe-spend purchase in simulation mode",
     }),
   );
   const body = await parseJson(response);
-  const decision = body.decision as Record<string, unknown>;
 
-  assert.equal(response.status, 200);
-  assert.equal(body.mode, "simulation");
-  assert.equal(decision.approved, true);
-  assert.equal(decision.bucketId, "safe_spending");
+  assert.equal(response.status, 503);
+  assert.equal(body.code, "core_service_required");
+  assert.equal(body.service, "payshield-card-authorization");
+  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
 });
 
-test("card authorization route declines unsafe ordinary spend", async () => {
-  const response = await authorizeCard(
-    makeRequest("/api/card/authorize", {
-      amountCents: 180_000,
-      idempotencyKey: "route-card-180000",
-      merchantName: "Furniture store",
-    }),
-  );
-  const body = await parseJson(response);
-  const decision = body.decision as Record<string, unknown>;
-
-  assert.equal(response.status, 200);
-  assert.equal(decision.approved, false);
-  assert.equal(decision.code, "insufficient_safe_spend");
-});
-
-test("unlock route returns recovery plan", async () => {
+test("unlock route requires the dedicated authenticated core service", async () => {
   const response = await unlockBucket(
     makeRequest("/api/app/unlocks", {
       amountCents: 20_000,
@@ -1431,14 +1367,14 @@ test("unlock route returns recovery plan", async () => {
     }),
   );
   const body = await parseJson(response);
-  const result = body.result as Record<string, unknown>;
 
-  assert.equal(response.status, 200);
-  assert.equal(result.unlockedCents, 20_000);
-  assert.equal(result.recoveryPerCheckCents, 10_000);
+  assert.equal(response.status, 503);
+  assert.equal(body.code, "core_service_required");
+  assert.equal(body.service, "payshield-unlocks");
+  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
 });
 
-test("payee route models protected-bucket payee pending provider approval", async () => {
+test("payee route requires the dedicated authenticated core service", async () => {
   const response = await createPayee(
     makeRequest("/api/app/payees", {
       allowedBucketId: "rent",
@@ -1447,14 +1383,14 @@ test("payee route models protected-bucket payee pending provider approval", asyn
     }),
   );
   const body = await parseJson(response);
-  const payee = body.payee as Record<string, unknown>;
 
-  assert.equal(response.status, 200);
-  assert.equal(payee.allowedBucketId, "rent");
-  assert.equal(payee.status, "provider_pending");
+  assert.equal(response.status, 503);
+  assert.equal(body.code, "core_service_required");
+  assert.equal(body.service, "payshield-payees");
+  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
 });
 
-test("bill payment route schedules approved payee from protected bucket", async () => {
+test("bill payment route requires the dedicated authenticated core service", async () => {
   const response = await scheduleBillPayment(
     makeRequest("/api/app/bill-payments", {
       amountCents: 50_000,
@@ -1465,24 +1401,14 @@ test("bill payment route schedules approved payee from protected bucket", async 
     }),
   );
   const body = await parseJson(response);
-  const decision = body.decision as Record<string, unknown>;
-  const providerBillPayment = body.providerBillPayment as Record<
-    string,
-    unknown
-  >;
 
-  assert.equal(response.status, 200);
-  assert.equal(decision.accepted, true);
-  assert.equal(decision.code, "scheduled");
-  assert.equal(decision.bucketId, "rent");
-  assert.equal(providerBillPayment.status, "blocked");
-  assert.equal(
-    body.message,
-    "Bill payment scheduled in the protected bucket model. Provider execution requires active money-movement controls.",
-  );
+  assert.equal(response.status, 503);
+  assert.equal(body.code, "core_service_required");
+  assert.equal(body.service, "payshield-bill-payments");
+  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
 });
 
-test("bill payment route rejects invalid or unsafe schedule requests", async () => {
+test("bill payment route refuses local validation without the core service", async () => {
   const invalidDate = await scheduleBillPayment(
     makeRequest("/api/app/bill-payments", {
       amountCents: 50_000,
@@ -1497,81 +1423,34 @@ test("bill payment route rejects invalid or unsafe schedule requests", async () 
       scheduledFor: "2026-07-01",
     }),
   );
+  const invalidBody = await parseJson(invalidDate);
   const unapprovedBody = await parseJson(unapprovedPayee);
-  const decision = unapprovedBody.decision as Record<string, unknown>;
 
-  assert.equal(invalidDate.status, 400);
-  assert.equal(unapprovedPayee.status, 400);
-  assert.equal(decision.accepted, false);
-  assert.equal(decision.code, "payee_not_allowed");
+  assert.equal(invalidDate.status, 503);
+  assert.equal(unapprovedPayee.status, 503);
+  assert.equal(invalidBody.code, "core_service_required");
+  assert.equal(unapprovedBody.code, "core_service_required");
 });
 
-test("provider webhook route accepts events but reports blocked mode without provider gates", async () => {
+test("provider webhook route requires the dedicated authenticated core service", async () => {
   const response = await providerWebhook(
     makeRequest("/api/provider/webhooks", {
-      eventId: "evt_demo",
+      eventId: "evt_provider_core_required",
       type: "deposit.posted",
     }),
   );
   const body = await parseJson(response);
 
-  assert.equal(response.status, 202);
-  assert.equal(body.accepted, true);
-  assert.equal(body.mode, "blocked");
-  assert.equal(body.eventType, "deposit.posted");
-  assert.equal(body.detectionCount, 0);
-  assert.equal(body.providerWebhookAuthenticity, "not_required");
-
-  const providerEvent = body.providerEvent as Record<string, unknown>;
-
-  assert.equal(providerEvent.eventId, "evt_demo");
-  assert.equal(providerEvent.providerName, "provider");
-});
-
-test("provider webhook route rejects invalid JSON shapes", async () => {
-  const response = await providerWebhook(makeRequest("/api/provider/webhooks", []));
-  const body = await parseJson(response);
-
-  assert.equal(response.status, 400);
-  assert.equal(body.accepted, false);
-  assert.equal(body.mode, "blocked");
-  assert.match(String(body.error), /JSON object/);
-});
-
-test("provider webhook route fails closed in production without signing secret", async () => {
-  process.env.VERCEL_ENV = "production";
-
-  const response = await providerWebhook(
-    makeRequest("/api/provider/webhooks", {
-      eventId: "evt_unsigned_production_provider",
-      type: "transactions.sync",
-    }),
-  );
-  const body = await parseJson(response);
-
   assert.equal(response.status, 503);
-  assert.equal(body.accepted, false);
-  assert.equal(body.mode, "blocked");
-  assert.equal(body.providerWebhookAuthenticity, "missing_secret");
-  assert.match(String(body.error), /PAYSHIELD_PROVIDER_WEBHOOK_SECRET/);
+  assert.equal(body.code, "core_service_required");
+  assert.equal(body.service, "payshield-provider-webhook");
+  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
 });
 
-test("provider webhook route requires signature when provider webhook secret is configured", async () => {
+test("provider webhook route refuses local signature handling even when a webhook secret is present", async () => {
   process.env.PAYSHIELD_PROVIDER_WEBHOOK_SECRET = "provider-webhook-secret";
 
-  const unsigned = await providerWebhook(
-    makeRequest("/api/provider/webhooks", {
-      eventId: "evt_unsigned_provider",
-      type: "transactions.sync",
-    }),
-  );
-  const unsignedBody = await parseJson(unsigned);
-
-  assert.equal(unsigned.status, 401);
-  assert.equal(unsignedBody.accepted, false);
-  assert.match(String(unsignedBody.error), /signed raw body/i);
-
-  const signed = await providerWebhook(
+  const response = await providerWebhook(
     makeProviderWebhookRequest(
       {
         access_token: "access-token-should-not-return",
@@ -1626,42 +1505,13 @@ test("provider webhook route requires signature when provider webhook secret is 
       "provider-webhook-secret",
     ),
   );
-  const signedBody = await parseJson(signed);
-  const detections = signedBody.detections as Record<string, unknown>[];
-  const skipped = signedBody.skipped as Record<string, unknown>[];
-  const providerEvent = signedBody.providerEvent as Record<string, unknown>;
-  const redactedPayload = providerEvent.redactedPayload as Record<string, unknown>;
-  const redactedTransactions = redactedPayload.transactions as Record<
-    string,
-    unknown
-  >[];
+  const body = await parseJson(response);
 
-  assert.equal(signed.status, 202);
-  assert.equal(signedBody.accepted, true);
-  assert.equal(signedBody.mode, "blocked");
-  assert.equal(signedBody.providerWebhookAuthenticity, "verified");
-  assert.equal(signedBody.eventType, "transactions.sync");
-  assert.equal(signedBody.detectionCount, 1);
-  assert.equal(signedBody.skippedCount, 1);
-  assert.equal(providerEvent.eventId, "evt_signed_income_provider");
-  assert.equal(providerEvent.providerName, "plaid");
-  assert.equal(detections[0]?.amountCents, 187542);
-  assert.equal(detections[0]?.employerName, "ACME PAYROLL");
-  assert.equal(detections[0]?.providerTransactionId, "txn_payroll_001");
-  assert.equal(
-    detections[0]?.idempotencyKey,
-    "provider:evt_signed_income_provider:txn_payroll_001",
-  );
-  assert.equal(skipped[0]?.reasonCode, "paycheck_detection_rejected");
-  assert.equal(skipped[0]?.providerTransactionId, "txn_payroll_too_large");
-  assert.equal(redactedPayload.access_token, "[redacted]");
-  assert.equal(redactedPayload.processor_token, "[redacted]");
-  assert.equal(redactedPayload.routing_number, "[redacted]");
-  assert.equal(redactedTransactions[0]?.account_number, "[redacted]");
-  assert.equal(JSON.stringify(signedBody).includes("access-token-should-not-return"), false);
-  assert.equal(
-    JSON.stringify(signedBody).includes("processor-token-should-not-return"),
-    false,
-  );
-  assert.equal(JSON.stringify(signedBody).includes("021000021"), false);
+  assert.equal(response.status, 503);
+  assert.equal(body.code, "core_service_required");
+  assert.equal(body.service, "payshield-provider-webhook");
+  assert.match(String(body.error), /dedicated PayShield core service/);
+  assert.equal(JSON.stringify(body).includes("access-token-should-not-return"), false);
+  assert.equal(JSON.stringify(body).includes("processor-token-should-not-return"), false);
+  assert.equal(JSON.stringify(body).includes("021000021"), false);
 });

@@ -294,8 +294,8 @@ export function NeobankDashboard() {
                   </p>
                 </div>
                 <div className="rounded-[8px] border border-[#ffb237]/35 bg-[#ffb237]/10 px-3 py-2 text-sm font-black text-[#ffe1a3]">
-                  {snapshot.card.authorizationMode === "simulation"
-                    ? "Safe-spend control"
+                  {snapshot.card.authorizationMode === "core_ledger"
+                    ? "Core ledger control"
                     : "Card gateway live"}
                 </div>
               </div>

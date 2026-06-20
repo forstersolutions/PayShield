@@ -81,6 +81,12 @@ function rejectPattern(path, pattern, reason, allowedPattern = null) {
   "src/app/api/launch/activation/route.ts",
   "src/app/api/app/bill-payments/route.ts",
   "src/app/api/app/billing/portal/route.ts",
+  "src/app/api/app/buckets/route.ts",
+  "src/app/api/app/payees/route.ts",
+  "src/app/api/app/transfers/route.ts",
+  "src/app/api/app/unlocks/route.ts",
+  "src/app/api/card/authorize/route.ts",
+  "src/app/api/provider/webhooks/route.ts",
   "src/app/api/public/billing/checkout/route.ts",
   "src/app/api/app/direct-deposit/route.ts",
   "src/app/api/app/control-plan/route.ts",
@@ -297,7 +303,25 @@ requireText("src/app/components/bill-payment-panel.tsx", "/api/app/bill-payments
 requireText("src/app/components/neobank-dashboard.tsx", "BillRoutingWorkspace");
 requireText("src/app/components/household-command-center.tsx", "POST /api/app/payees");
 requireText("src/app/api/app/bill-payments/route.ts", "/api/app/bill-payments");
-requireText("src/app/api/app/bill-payments/route.ts", "simulateBillPayment");
+[
+  "src/app/api/app/bill-payments/route.ts",
+  "src/app/api/app/buckets/route.ts",
+  "src/app/api/app/direct-deposit/route.ts",
+  "src/app/api/app/onboarding/start/route.ts",
+  "src/app/api/app/payees/route.ts",
+  "src/app/api/app/transfers/route.ts",
+  "src/app/api/app/unlocks/route.ts",
+  "src/app/api/card/authorize/route.ts",
+  "src/app/api/provider/webhooks/route.ts",
+].forEach((path) => {
+  requireText(path, "requireDurableCoreService");
+  requireText(path, "forwardCoreRequest");
+  rejectPattern(
+    path,
+    /simulate(CardAuthorization|BillPayment|Unlock)|getBankingProvider|requirePaidAccessForFallback/,
+    "Protected money routes must not import local simulation, provider, or paid-access fallback logic",
+  );
+});
 requireText("src/app/components/money-operations-panel.tsx", "Save detection rule");
 requireText("src/app/components/money-operations-panel.tsx", "Commercial reality board");
 requireText(
@@ -316,10 +340,6 @@ requireText("src/app/components/money-operations-panel.tsx", "Approved destinati
 requireText(
   "src/app/components/money-operations-panel.tsx",
   "Only payees approved for the selected protected bucket appear here.",
-);
-requireText(
-  "src/app/api/app/transfers/route.ts",
-  "Protected transfers can only release to a payee assigned to the source bucket.",
 );
 requireText(
   "services/core/product.mjs",
@@ -413,7 +433,7 @@ requireText("src/app/api/app/billing/portal/route.ts", "/api/app/billing/status"
 requireText("src/app/api/app/billing/portal/route.ts", "providerCustomerId");
 requireText("src/app/lib/commercial/billing.ts", "createCommercialPortalSession");
 requireText("src/app/lib/commercial/billing.ts", "billing_portal_provider_error");
-requireText("src/app/api/app/direct-deposit/route.ts", "direct deposit setup");
+requireText("src/app/api/app/direct-deposit/route.ts", "Direct deposit setup");
 requireText("src/app/api/app/paychecks/rules/route.ts", "Paycheck detection rule storage");
 requireText("src/app/lib/neobank/core-required.ts", "PAYSHIELD_CORE_API_URL");
 requireText("src/app/lib/neobank/core-required.ts", "PAYSHIELD_CORE_SERVICE_TOKEN");
@@ -447,10 +467,10 @@ requireText("src/app/lib/neobank/money-rails.ts", "transactionSyncReady");
 requireText("src/app/lib/neobank/provider-events.ts", "classifyProviderEvent");
 requireText("src/app/lib/neobank/provider-events.ts", "redactProviderEventPayload");
 requireText("src/app/lib/neobank/provider.ts", "classifyProviderEvent");
-requireText("src/app/api/provider/webhooks/route.ts", "providerWebhookSignatureRequired");
-requireText("src/app/api/provider/webhooks/route.ts", 'process.env.VERCEL_ENV === "production"');
+requireText("services/core/product.mjs", "providerWebhookSignatureRequired");
+requireText("services/core/product.mjs", "databaseConfigured(env)");
 requireText(
-  "src/app/api/provider/webhooks/route.ts",
+  "services/core/product.mjs",
   "PAYSHIELD_PROVIDER_WEBHOOK_SECRET is required before provider webhooks can affect money controls.",
 );
 requireText("src/app/lib/neobank/ledger.ts", "scheduleBillPayment");

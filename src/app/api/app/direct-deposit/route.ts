@@ -1,17 +1,14 @@
-import { NextRequest, NextResponse } from "next/server.js";
-import { requirePaidAccessForFallback } from "../../../lib/commercial/billing.ts";
+import { NextRequest } from "next/server.js";
 import {
   appSessionErrorResponse,
   getAppSession,
   unauthorizedAppResponse,
 } from "../../../lib/neobank/auth.ts";
 import { forwardCoreRequest } from "../../../lib/neobank/core-client.ts";
-import { createNeobankSnapshot } from "../../../lib/neobank/demo-state.ts";
 import {
-  getBankingProvider,
-  ProviderAdapterError,
-} from "../../../lib/neobank/provider.ts";
-import { assertLiveMoneyReady } from "../../../lib/neobank/readiness.ts";
+  requireDurableCoreService,
+  requiredCoreUnavailable,
+} from "../../../lib/neobank/core-required.ts";
 
 function cleanText(value: unknown, maxLength: number) {
   return typeof value === "string"
@@ -22,6 +19,15 @@ function cleanText(value: unknown, maxLength: number) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getAppSession();
+    const coreRequired = requireDurableCoreService({
+      operation: "Direct deposit setup",
+      service: "payshield-direct-deposit-setup",
+    });
+
+    if (coreRequired) {
+      return coreRequired;
+    }
+
     const payload = (await request.json().catch(() => ({}))) as {
       idempotencyKey?: unknown;
       providerAccountId?: unknown;
@@ -44,98 +50,12 @@ export async function POST(request: NextRequest) {
       return coreResponse;
     }
 
-    const paidAccess = requirePaidAccessForFallback("direct deposit setup");
-
-    if (!paidAccess.ok) {
-      return NextResponse.json(paidAccess.body, {
-        headers: {
-          "cache-control": "no-store",
-        },
-        status: paidAccess.status,
-      });
-    }
-
-    const snapshot = createNeobankSnapshot();
-    const liveMoney = assertLiveMoneyReady(snapshot.readiness);
-    const providerAccountId = cleanText(payload.providerAccountId, 160);
-
-    if (liveMoney.ok && !providerAccountId) {
-      return NextResponse.json(
-        {
-          error:
-            "providerAccountId is required before live direct-deposit instructions can be requested.",
-          liveMoney,
-          readiness: snapshot.readiness,
-          service: "payshield-direct-deposit-setup",
-        },
-        {
-          headers: {
-            "cache-control": "no-store",
-          },
-          status: 400,
-        },
-      );
-    }
-
-    const provider = getBankingProvider();
-    const directDeposit = await provider.createDirectDepositInstructions({
-      providerAccountId:
-        providerAccountId || "financial-account-provider-contract-required",
+    return requiredCoreUnavailable({
+      message:
+        "Direct deposit setup requires the dedicated PayShield core service.",
+      service: "payshield-direct-deposit-setup",
     });
-
-    return NextResponse.json(
-      {
-        directDeposit,
-        liveMoney,
-        message: liveMoney.ok
-          ? "Paycheck routing instructions are ready for the configured provider account."
-          : "Paycheck routing setup recorded. Provider activation is required before live instructions are released.",
-        persisted: false,
-        persistence: {
-          persisted: false,
-          persistence: "memory",
-          persistenceReason:
-            "Direct deposit setup requires PAYSHIELD_CORE_API_URL for durable storage.",
-        },
-        readiness: snapshot.readiness,
-        service: "payshield-direct-deposit-setup",
-        setup: {
-          accountLast4: directDeposit.accountLast4,
-          accountName: directDeposit.accountName,
-          idempotencyKey:
-            cleanText(payload.idempotencyKey, 120) ||
-            `direct-deposit-${session.userId}`,
-          providerAccountId: providerAccountId || null,
-          providerCustomerId: cleanText(payload.providerCustomerId, 160) || null,
-          providerName: cleanText(payload.providerName, 40) || "payshield",
-          providerStatus: directDeposit.providerStatus,
-          routingLast4: directDeposit.routingLast4,
-          status: liveMoney.ok ? "ready" : "blocked",
-        },
-      },
-      {
-        headers: {
-          "cache-control": "no-store",
-        },
-        status: liveMoney.ok ? 200 : 423,
-      },
-    );
   } catch (error) {
-    if (error instanceof ProviderAdapterError) {
-      return NextResponse.json(
-        {
-          error: error.message,
-          service: "payshield-direct-deposit-setup",
-        },
-        {
-          headers: {
-            "cache-control": "no-store",
-          },
-          status: 502,
-        },
-      );
-    }
-
     return appSessionErrorResponse(error) ?? unauthorizedAppResponse();
   }
 }

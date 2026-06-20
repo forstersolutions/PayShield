@@ -10,7 +10,8 @@ are active.
 
 - App-first protected-paycheck dashboard with Safe to Spend as the primary
   balance, protected bucket funding, provider readiness status, operating rail
-  order, card-decision simulation, and emergency unlock recovery preview.
+  order, core-ledger card decision logic, and emergency unlock recovery
+  workflow.
 - Customizable bucket control studio with editable bucket names, targets,
   protection modes, due rules, priorities, app/core API validation, explicit
   persistence status, visible sync source, and device draft recovery until
@@ -36,19 +37,19 @@ are active.
   posting so corrections happen through reversal entries.
 - Dedicated core backend operation routes for profile state, balances, bucket
   profile loading/saving, onboarding start, payee modeling, protected-bucket
-  bill-payment scheduling, emergency unlocks, card authorization simulation,
-  and provider webhooks. The service accepts both `/app/*` and `/api/app/*`
+  bill-payment scheduling, emergency unlocks, card authorization decisions, and
+  provider webhooks. The service accepts both `/app/*` and `/api/app/*`
   style paths, returns no-store JSON, enforces request-size and JSON-shape
   guardrails, and requires `PAYSHIELD_CORE_SERVICE_TOKEN` for internal
   operation routes in production, live-money mode, or explicit
   `PAYSHIELD_CORE_REQUIRE_SERVICE_TOKEN=true` deployments.
-- Next.js app APIs delegate app, card-authorization, and provider-webhook
-  operations to the dedicated core service whenever `PAYSHIELD_CORE_API_URL` is
-  configured. Delegated requests include the optional
-  `PAYSHIELD_CORE_SERVICE_TOKEN`, preserve authenticated app user context for
-  `/api/app/*`, keep no-store response semantics, and fail closed instead of
-  falling back to local simulation when the configured core is unavailable or
-  misconfigured.
+- Next.js app APIs delegate protected money operations, card authorization, and
+  provider-webhook ingestion to the dedicated core service. Protected mutation
+  and decision routes require both `PAYSHIELD_CORE_API_URL` and
+  `PAYSHIELD_CORE_SERVICE_TOKEN`; delegated requests preserve authenticated app
+  user context for `/api/app/*`, keep no-store response semantics, and fail
+  closed instead of falling back to local money-control models when the core is
+  unavailable or misconfigured.
 - Core migration operations include a redacted, checksummed
   `npm run core:migrations:plan` output, `npm run core:migrations:check` gate,
   an explicit `npm run core:migrations:apply` path that requires
@@ -69,7 +70,7 @@ are active.
   card authorization responses.
 - App APIs for beta state, balances, bucket profile loading/saving, onboarding
   start, payee modeling, protected-bucket bill-payment scheduling, unlock
-  recovery, provider webhooks, and card authorization simulation.
+  recovery, provider webhooks, and card authorization decisions.
 - Pricing and positioning copy for Free, Plus, Pro, and Premium plans.
 - Product inquiry form with server-side validation, bounded in-memory rate
   limiting, request-size guardrails, honeypot filtering, required privacy/terms

@@ -1,21 +1,15 @@
 import {
-  authorizeCardTransaction,
   buildBucketBalances,
   LedgerBook,
   postPaycheckDeposit,
-  scheduleBillPayment,
-  unlockProtectedFunds,
 } from "./ledger.ts";
 import { getNeobankReadiness } from "./readiness.ts";
 import type {
   BucketDefinition,
   BucketId,
-  BillPaymentInput,
-  CardAuthorizationInput,
   NeobankSnapshot,
   Payee,
   PayShieldUser,
-  UnlockInput,
 } from "./types.ts";
 
 export const neobankBuckets: BucketDefinition[] = [
@@ -132,7 +126,7 @@ export function createNeobankSnapshot(book = createDemoLedgerBook()): NeobankSna
   return {
     buckets: buildBucketBalances(book, neobankBuckets),
     card: {
-      authorizationMode: readiness.liveMoneyReady ? "provider_gateway" : "simulation",
+      authorizationMode: readiness.liveMoneyReady ? "provider_gateway" : "core_ledger",
       cardLast4: "----",
       status: readiness.liveMoneyReady ? "live" : "gated",
     },
@@ -147,43 +141,6 @@ export function createNeobankSnapshot(book = createDemoLedgerBook()): NeobankSna
     payees: neobankPayees,
     readiness,
     user: demoUser,
-  };
-}
-
-export function simulateCardAuthorization(input: CardAuthorizationInput) {
-  const book = createDemoLedgerBook();
-  const decision = authorizeCardTransaction(book, neobankPayees, input);
-
-  return {
-    balances: buildBucketBalances(book, neobankBuckets),
-    decision,
-    ledgerEntries: book.allEntries(),
-    mode: "simulation" as const,
-  };
-}
-
-export function simulateBillPayment(input: BillPaymentInput) {
-  const book = createDemoLedgerBook();
-  const decision = scheduleBillPayment(book, neobankPayees, input);
-
-  return {
-    balances: buildBucketBalances(book, neobankBuckets),
-    decision,
-    ledgerEntries: book.allEntries(),
-    mode: "simulation" as const,
-    readiness: getNeobankReadiness(),
-  };
-}
-
-export function simulateUnlock(input: UnlockInput) {
-  const book = createDemoLedgerBook();
-  const result = unlockProtectedFunds(book, input);
-
-  return {
-    balances: buildBucketBalances(book, neobankBuckets),
-    ledgerEntries: book.allEntries(),
-    mode: "simulation" as const,
-    result,
   };
 }
 
