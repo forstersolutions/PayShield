@@ -127,6 +127,24 @@ function requireCheck(checks, condition, message) {
   checks.push(message);
 }
 
+function durablePersistenceStatus(body = {}) {
+  return (
+    body.identityPersistence?.persistence ??
+    body.bucketPersistence?.persistence ??
+    body.payeePersistence?.persistence ??
+    body.operationalAudit?.persistence ??
+    body.decisionPersistence?.persistence ??
+    null
+  );
+}
+
+function durablePostgresRequired(result) {
+  return (
+    result.response.status === 503 &&
+    durablePersistenceStatus(result.body) === "postgres_required"
+  );
+}
+
 export function summarizeDockerCoreSmoke({
   authorizedBalances,
   billPayment,
@@ -146,20 +164,14 @@ export function summarizeDockerCoreSmoke({
     cardAuthorization: {
       approved: cardAuthorization.body.decision?.approved === true,
       bucketId: cardAuthorization.body.decision?.bucketId ?? null,
-      persistence:
-        cardAuthorization.body.bucketPersistence?.persistence ??
-        cardAuthorization.body.decisionPersistence?.persistence ??
-        null,
+      persistence: durablePersistenceStatus(cardAuthorization.body),
       mode: cardAuthorization.body.mode,
       status: cardAuthorization.response.status,
     },
     billPayment: {
       accepted: billPayment.body.decision?.accepted === true,
       bucketId: billPayment.body.decision?.bucketId ?? null,
-      persistence:
-        billPayment.body.bucketPersistence?.persistence ??
-        billPayment.body.decisionPersistence?.persistence ??
-        null,
+      persistence: durablePersistenceStatus(billPayment.body),
       providerStatus: billPayment.body.decision?.providerStatus ?? null,
       status: billPayment.response.status,
     },
@@ -172,7 +184,7 @@ export function summarizeDockerCoreSmoke({
       status: onboarding.response.status,
     },
     durableStorage: {
-      required: authorizedBalances.body.bucketPersistence?.persistence === "postgres_required",
+      required: durablePersistenceStatus(authorizedBalances.body) === "postgres_required",
       status: authorizedBalances.response.status,
     },
     safeToSpendCents: authorizedBalances.body.safeToSpendCents ?? null,
@@ -249,8 +261,7 @@ export async function runDockerCoreSmoke({
 
     requireCheck(
       checks,
-      authorizedBalances.response.status === 503 &&
-        authorizedBalances.body?.bucketPersistence?.persistence === "postgres_required",
+      durablePostgresRequired(authorizedBalances),
       "production core refuses balance reads without durable Postgres storage",
     );
 
@@ -267,8 +278,7 @@ export async function runDockerCoreSmoke({
 
     requireCheck(
       checks,
-      cardAuthorization.response.status === 503 &&
-        cardAuthorization.body?.bucketPersistence?.persistence === "postgres_required",
+      durablePostgresRequired(cardAuthorization),
       "production core refuses card decisions without durable Postgres storage",
     );
 
@@ -286,8 +296,7 @@ export async function runDockerCoreSmoke({
 
     requireCheck(
       checks,
-      billPayment.response.status === 503 &&
-        billPayment.body?.bucketPersistence?.persistence === "postgres_required",
+      durablePostgresRequired(billPayment),
       "production core refuses bill-payment writes without durable Postgres storage",
     );
 

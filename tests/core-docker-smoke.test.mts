@@ -6,7 +6,7 @@ test("summarizes Docker core smoke output without exposing service token", () =>
   const result = summarizeDockerCoreSmoke({
     authorizedBalances: {
       body: {
-        bucketPersistence: {
+        identityPersistence: {
           persistence: "postgres_required",
         },
       },
@@ -16,7 +16,7 @@ test("summarizes Docker core smoke output without exposing service token", () =>
     },
     cardAuthorization: {
       body: {
-        bucketPersistence: {
+        identityPersistence: {
           persistence: "postgres_required",
         },
       },
@@ -26,7 +26,7 @@ test("summarizes Docker core smoke output without exposing service token", () =>
     },
     billPayment: {
       body: {
-        bucketPersistence: {
+        identityPersistence: {
           persistence: "postgres_required",
         },
       },
