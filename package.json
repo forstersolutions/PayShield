@@ -55,7 +55,7 @@
     "verify": "npm run lint && npm run typecheck && npm test && npm run analytics:audit && npm run campaign:lint:all && npm run legal:lint && npm run market-preflight && npm run core:migrations:check && npm run build && npm audit --omit=dev"
   },
   "dependencies": {
-    "@clerk/nextjs": "^7.5.2",
+    "@clerk/nextjs": "^7.5.7",
     "@vercel/analytics": "^2.0.1",
     "@vercel/blob": "^2.4.0",
     "@vercel/speed-insights": "^2.0.0",
