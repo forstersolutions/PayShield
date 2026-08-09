@@ -1,8 +1,14 @@
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server.js";
 import { createCommercialCheckoutSession } from "../../../../lib/commercial/billing.ts";
+import { checkPublicCheckoutRateLimit } from "../../../../lib/commercial/public-checkout-rate-limit.ts";
 import { readCommercialCheckoutPayload } from "../../../../lib/commercial/request-body.ts";
 import type { AppSession } from "../../../../lib/neobank/auth.ts";
-import { forwardCoreRequest } from "../../../../lib/neobank/core-client.ts";
+import {
+  coreReportsLiveMoneyReady,
+  forwardCoreRequest,
+} from "../../../../lib/neobank/core-client.ts";
+import { requireDurableCoreService } from "../../../../lib/neobank/core-required.ts";
 import { payShieldUserIdForEmail } from "../../../../lib/neobank/identity.ts";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +31,16 @@ function cleanPath(value: unknown, fallback: string) {
 
 function wantsHtml(request: NextRequest) {
   return request.headers.get("accept")?.includes("text/html") ?? false;
+}
+
+function publicCheckoutReadiness(readiness: {
+  mode: string;
+  priceLabel: string;
+}) {
+  return {
+    mode: readiness.mode,
+    priceLabel: readiness.priceLabel,
+  };
 }
 
 async function publicCheckoutPayload(request: NextRequest) {
@@ -99,6 +115,33 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const coreRequired = requireDurableCoreService({
+    operation: "Starting membership",
+    service: "payshield-public-checkout",
+  });
+
+  if (coreRequired) {
+    return coreRequired;
+  }
+
+  const rateLimit = checkPublicCheckoutRateLimit(request, userId);
+
+  if (!rateLimit.ok) {
+    return NextResponse.json(
+      {
+        error: "Too many membership attempts. Please wait a minute and try again.",
+        service: "payshield-public-checkout",
+      },
+      {
+        headers: {
+          "cache-control": "no-store",
+          "retry-after": String(rateLimit.retryAfterSeconds),
+        },
+        status: 429,
+      },
+    );
+  }
+
   const session: AppSession = {
     authMode: "public_checkout",
     email,
@@ -106,7 +149,8 @@ export async function POST(request: NextRequest) {
     userId,
   };
   const idempotencyKey =
-    cleanText(payload.idempotencyKey, 120) || `public-checkout-${userId}`;
+    cleanText(payload.idempotencyKey, 120) ||
+    `public-checkout-${userId}-${randomUUID()}`;
   const requestedIntent = await recordPublicCheckoutIntent({
     idempotencyKey,
     session,
@@ -122,12 +166,16 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  const productReady = await coreReportsLiveMoneyReady();
   const result = await createCommercialCheckoutSession({
     cancelPath: cleanPath(payload.cancelPath, "/?billing=cancelled"),
     email,
+    idempotencyKey,
     origin: request.nextUrl.origin,
+    productReady,
     requireAccessActivation: true,
     requireCheckoutSession: true,
+    requireProductReady: true,
     successPath: cleanPath(payload.successPath, "/app?billing=active"),
     userId,
   });
@@ -189,7 +237,7 @@ export async function POST(request: NextRequest) {
             },
           checkoutSessionId: result.checkoutSessionId,
           corePersistence: finalIntent?.body.persistence ?? null,
-          readiness: result.readiness,
+          readiness: publicCheckoutReadiness(result.readiness),
           service: "payshield-public-checkout",
           url: result.url,
         }
@@ -208,8 +256,11 @@ export async function POST(request: NextRequest) {
               userId,
             },
           corePersistence: finalIntent?.body.persistence ?? null,
-          error: result.error || "PayShield checkout is not ready.",
-          readiness: result.readiness,
+          error:
+            result.status === 424
+              ? "Membership signup is temporarily unavailable."
+              : "Membership checkout could not be started.",
+          readiness: publicCheckoutReadiness(result.readiness),
           service: "payshield-public-checkout",
         },
     {

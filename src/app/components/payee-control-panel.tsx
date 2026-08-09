@@ -1,31 +1,37 @@
 "use client";
 
 import {
-  CheckCircle2,
-  CircleDollarSign,
-  Landmark,
+  Check,
+  Clock3,
+  Edit3,
+  Loader2,
   Plus,
-  ShieldAlert,
+  Save,
+  Trash2,
   UserRoundCheck,
+  X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import {
+  completeActionAttempt,
+  idempotencyKeyForAction,
+} from "@/app/lib/client-action-idempotency";
+import type { ActionAttemptRef } from "@/app/lib/client-action-idempotency";
 import type { BucketBalance, BucketId, Payee } from "@/app/lib/neobank/types.ts";
 
-type PayeeSaveState =
-  | { status: "idle"; message: string }
-  | { status: "saving"; message: string }
-  | { status: "saved"; message: string }
-  | { status: "drafted"; message: string }
-  | { status: "error"; message: string };
-
+type EditorMode = "add" | "edit";
+type RequestState = {
+  message: string;
+  status: "idle" | "saving" | "saved" | "error";
+};
 type PayeeResponse = {
+  enrollmentUrl?: string | null;
   error?: string;
   message?: string;
   payee?: Payee;
   persisted?: boolean;
+  verificationStatus?: string;
 };
-
-const draftStorageKey = "payshield.payee-controls.draft.v1";
 
 function formatMoney(cents: number) {
   return new Intl.NumberFormat("en-US", {
@@ -36,89 +42,41 @@ function formatMoney(cents: number) {
 }
 
 function dollarsToCents(value: string) {
-  const parsed = Number(value);
+  const amount = Number(value);
 
-  if (!Number.isFinite(parsed)) {
-    return 0;
-  }
-
-  return Math.max(0, Math.round(parsed * 100));
+  return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : 0;
 }
 
-function payeeIdFor(name: string) {
-  const slug =
-    name
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "")
-      .slice(0, 48) || "payee";
+function mergePayees(primary: Payee[], overlay: Payee[]) {
+  const payees = new Map(primary.map((payee) => [payee.id, payee]));
 
-  return `payee_modeled_${slug}`;
-}
-
-function readDraftPayees() {
-  if (typeof window === "undefined") {
-    return [];
+  for (const payee of overlay) {
+    payees.set(payee.id, payee);
   }
 
-  try {
-    const stored = window.localStorage.getItem(draftStorageKey);
-    const parsed = stored ? JSON.parse(stored) : [];
-
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return parsed.filter(
-      (item): item is Payee =>
-        item &&
-        typeof item === "object" &&
-        typeof item.id === "string" &&
-        typeof item.name === "string" &&
-        typeof item.allowedBucketId === "string" &&
-        typeof item.maxCents === "number" &&
-        ["approved", "modeled", "provider_pending"].includes(
-          String(item.status),
-        ),
-    );
-  } catch {
-    return [];
-  }
-}
-
-function mergePayees(basePayees: Payee[], draftPayees: Payee[]) {
-  const byId = new Map<string, Payee>();
-
-  for (const payee of basePayees) {
-    byId.set(payee.id, payee);
-  }
-
-  for (const payee of draftPayees) {
-    byId.set(payee.id, payee);
-  }
-
-  return [...byId.values()];
+  return [...payees.values()].filter((payee) => payee.status !== "archived");
 }
 
 function statusLabel(status: Payee["status"]) {
   if (status === "approved") {
-    return "Approved";
+    return "Ready";
   }
 
-  if (status === "provider_pending") {
-    return "Provider pending";
+  if (status === "rejected") {
+    return "Needs attention";
   }
 
-  return "Draft";
+  return "Verification pending";
 }
 
 export function PayeeControlPanel({
   buckets,
+  onPayeesChanged,
   onPayeeSaved,
   payees,
 }: {
   buckets: BucketBalance[];
+  onPayeesChanged?: (payees: Payee[]) => void;
   onPayeeSaved?: (payee: Payee) => void;
   payees: Payee[];
 }) {
@@ -126,55 +84,48 @@ export function PayeeControlPanel({
     () => buckets.filter((bucket) => bucket.id !== "safe_spending"),
     [buckets],
   );
-  const [draftPayees, setDraftPayees] = useState<Payee[]>([]);
-  const [name, setName] = useState("New landlord");
-  const [allowedBucketId, setAllowedBucketId] = useState<BucketId>(
-    protectedBuckets[0]?.id ?? "rent",
+  const visiblePayees = useMemo(
+    () => payees.filter((payee) => payee.status !== "archived"),
+    [payees],
   );
-  const [maxAmount, setMaxAmount] = useState("950");
-  const [saveState, setSaveState] = useState<PayeeSaveState>({
+  const [mode, setMode] = useState<EditorMode>(payees.length ? "edit" : "add");
+  const [payeeId, setPayeeId] = useState(payees[0]?.id ?? "");
+  const [name, setName] = useState(payees[0]?.name ?? "");
+  const [bucketId, setBucketId] = useState<BucketId>(
+    payees[0]?.allowedBucketId ?? protectedBuckets[0]?.id ?? "rent",
+  );
+  const [maximum, setMaximum] = useState(
+    payees[0]?.maxCents ? String(payees[0].maxCents / 100) : "",
+  );
+  const [archiveConfirmId, setArchiveConfirmId] = useState("");
+  const [requestState, setRequestState] = useState<RequestState>({
     message: "",
     status: "idle",
   });
-  const visiblePayees = useMemo(
-    () => mergePayees(payees, draftPayees),
-    [draftPayees, payees],
-  );
-  const approvedCount = visiblePayees.filter(
-    (payee) => payee.status === "approved",
-  ).length;
-  const pendingCount = visiblePayees.filter(
-    (payee) => payee.status !== "approved",
-  ).length;
-  const selectedBucket = protectedBuckets.find(
-    (bucket) => bucket.id === allowedBucketId,
-  );
-  const maxCents = dollarsToCents(maxAmount);
-  const formReady = Boolean(name.trim() && selectedBucket && maxCents > 0);
+  const saveAttempt = useRef<ActionAttemptRef["current"]>(null);
+  const archiveAttempt = useRef<ActionAttemptRef["current"]>(null);
+  const maxCents = dollarsToCents(maximum);
+  const formReady = Boolean(name.trim() && bucketId && maxCents > 0);
+  const selectedPayee = visiblePayees.find((payee) => payee.id === payeeId);
 
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setDraftPayees(readDraftPayees());
-    }, 0);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, []);
-
-  function persistDrafts(nextDrafts: Payee[]) {
-    setDraftPayees(nextDrafts);
-
-    if (nextDrafts.length) {
-      window.localStorage.setItem(draftStorageKey, JSON.stringify(nextDrafts));
-    } else {
-      window.localStorage.removeItem(draftStorageKey);
-    }
+  function beginAdd() {
+    setMode("add");
+    setPayeeId("");
+    setName("");
+    setBucketId(protectedBuckets[0]?.id ?? "rent");
+    setMaximum("");
+    setArchiveConfirmId("");
+    setRequestState({ message: "", status: "idle" });
   }
 
-  function rememberDraft(payee: Payee) {
-    persistDrafts(mergePayees(draftPayees, [payee]));
-    onPayeeSaved?.(payee);
+  function beginEdit(payee: Payee) {
+    setMode("edit");
+    setPayeeId(payee.id);
+    setName(payee.name);
+    setBucketId(payee.allowedBucketId);
+    setMaximum(String(payee.maxCents / 100));
+    setArchiveConfirmId("");
+    setRequestState({ message: "", status: "idle" });
   }
 
   async function savePayee() {
@@ -182,25 +133,75 @@ export function PayeeControlPanel({
       return;
     }
 
-    setSaveState({
-      message: "Saving protected payee...",
-      status: "saving",
-    });
-
-    const draftPayee: Payee = {
-      allowedBucketId,
-      id: payeeIdFor(name),
+    setRequestState({ message: "Saving destination...", status: "saving" });
+    const editing = mode === "edit" && Boolean(payeeId);
+    const updatingServerRecord = editing;
+    const intent = {
+      allowedBucketId: bucketId,
       maxCents,
       name: name.trim(),
-      status: "provider_pending",
+      ...(updatingServerRecord ? { payeeId } : {}),
     };
+    const idempotencyKey = idempotencyKeyForAction(
+      saveAttempt,
+      updatingServerRecord ? "payee-update" : "payee-create",
+      intent,
+    );
 
     try {
       const response = await fetch("/api/app/payees", {
         body: JSON.stringify({
-          allowedBucketId,
-          maxCents,
-          name,
+          ...intent,
+          idempotencyKey,
+        }),
+        headers: { "content-type": "application/json" },
+        method: updatingServerRecord ? "PATCH" : "POST",
+      });
+      const payload = (await response.json().catch(() => ({}))) as PayeeResponse;
+
+      if (!response.ok || !payload.payee) {
+        setRequestState({
+          message:
+            payload.error ?? "Destination could not be saved. Nothing was changed.",
+          status: "error",
+        });
+        return;
+      }
+
+      const savedPayee = payload.payee;
+      completeActionAttempt(saveAttempt, idempotencyKey);
+      onPayeesChanged?.(
+        mergePayees(payees.filter((payee) => payee.id !== savedPayee.id), [savedPayee]),
+      );
+      onPayeeSaved?.(savedPayee);
+      beginEdit(savedPayee);
+      setRequestState({
+        message: payload.message ?? "Destination saved.",
+        status: "saved",
+      });
+
+      if (payload.enrollmentUrl) {
+        window.location.assign(payload.enrollmentUrl);
+      }
+    } catch {
+      setRequestState({
+        message: "Destination could not be saved. Nothing was changed.",
+        status: "error",
+      });
+    }
+  }
+
+  async function verifyPayee(payee: Payee) {
+    setRequestState({
+      message: "Opening secure verification...",
+      status: "saving",
+    });
+
+    try {
+      const response = await fetch("/api/app/payees/verify", {
+        body: JSON.stringify({
+          idempotencyKey: `payee-verify-${payee.id}-${payee.allowedBucketId}-${payee.maxCents}`,
+          payeeId: payee.id,
         }),
         headers: { "content-type": "application/json" },
         method: "POST",
@@ -208,219 +209,222 @@ export function PayeeControlPanel({
       const payload = (await response.json().catch(() => ({}))) as PayeeResponse;
 
       if (!response.ok || !payload.payee) {
-        rememberDraft(draftPayee);
-        setSaveState({
-          message:
-            payload.error ??
-            "Payee preserved as a device draft until app access can sync.",
-          status: response.status === 503 ? "drafted" : "error",
+        setRequestState({
+          message: payload.error ?? "Verification could not be opened.",
+          status: "error",
         });
         return;
       }
 
-      const savedPayee = payload.payee;
-      onPayeeSaved?.(savedPayee);
+      const verifiedPayee = payload.payee;
+      onPayeesChanged?.(
+        mergePayees(payees.filter((item) => item.id !== verifiedPayee.id), [verifiedPayee]),
+      );
+      onPayeeSaved?.(verifiedPayee);
+      beginEdit(verifiedPayee);
+      setRequestState({
+        message: payload.message ?? "Verification opened.",
+        status: "saved",
+      });
 
-      if (payload.persisted === true || savedPayee.status === "approved") {
-        persistDrafts(draftPayees.filter((payee) => payee.id !== savedPayee.id));
-      } else {
-        rememberDraft(savedPayee);
+      if (payload.enrollmentUrl) {
+        window.location.assign(payload.enrollmentUrl);
+      }
+    } catch {
+      setRequestState({
+        message: "Verification could not be opened.",
+        status: "error",
+      });
+    }
+  }
+
+  async function archivePayee(payee: Payee) {
+    setRequestState({ message: "Removing destination...", status: "saving" });
+    const intent = { payeeId: payee.id };
+    const idempotencyKey = idempotencyKeyForAction(
+      archiveAttempt,
+      "payee-archive",
+      intent,
+    );
+
+    try {
+      const response = await fetch("/api/app/payees", {
+        body: JSON.stringify({
+          ...intent,
+          idempotencyKey,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "DELETE",
+      });
+      const payload = (await response.json().catch(() => ({}))) as PayeeResponse;
+
+      if (!response.ok) {
+        setRequestState({
+          message: payload.error ?? "Destination could not be removed.",
+          status: "error",
+        });
+        return;
       }
 
-      setSaveState({
-        message:
-          payload.message ??
-          (savedPayee.status === "approved"
-            ? "Payee approved for protected bill routing."
-            : "Payee saved for provider approval."),
-        status: savedPayee.status === "approved" ? "saved" : "drafted",
+      onPayeesChanged?.(visiblePayees.filter((item) => item.id !== payee.id));
+      completeActionAttempt(archiveAttempt, idempotencyKey);
+      beginAdd();
+      setRequestState({
+        message: payload.message ?? "Destination removed.",
+        status: "saved",
       });
     } catch {
-      rememberDraft(draftPayee);
-      setSaveState({
-        message:
-          "Network error. Payee preserved as a device draft until app access can sync.",
-        status: "drafted",
+      setRequestState({
+        message: "Destination could not be removed. Nothing was changed.",
+        status: "error",
       });
     }
   }
 
   return (
-    <section
-      className="relative z-10 border-b border-white/10 bg-[#07090b]"
-      id="payee-controls"
-    >
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.78fr_1.22fr] lg:px-8">
-        <div className="accent-rule pt-5">
-          <p className="inline-flex items-center gap-2 rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 px-3 py-2 text-sm font-black uppercase text-[#dffaff]">
-            <UserRoundCheck className="size-4" aria-hidden="true" />
-            Payee controls
-          </p>
-          <h2 className="mt-4 text-3xl font-black leading-tight text-white sm:text-4xl">
-            Approve exactly who protected buckets can pay.
-          </h2>
-          <p className="mt-4 text-lg leading-8 text-[#c9d0da]">
-            Buckets protect the money. Payee controls decide where that money
-            can go: landlord, lender, insurance carrier, utilities, childcare,
-            or any household obligation with a clear limit.
-          </p>
-
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <div className="brand-panel-soft rounded-[8px] p-4">
-              <p className="brand-kicker">Destinations</p>
-              <p className="mt-2 text-2xl font-black text-white">
-                {visiblePayees.length}
-              </p>
-            </div>
-            <div className="brand-panel-soft rounded-[8px] p-4">
-              <p className="brand-kicker">Approved</p>
-              <p className="mt-2 text-2xl font-black text-white">
-                {approvedCount}
-              </p>
-            </div>
-            <div className="brand-panel-soft rounded-[8px] p-4">
-              <p className="brand-kicker">Pending</p>
-              <p className="mt-2 text-2xl font-black text-white">
-                {pendingCount}
-              </p>
-            </div>
+    <section className="pay-biller-tool" id="payee-controls">
+      <div className="pay-biller-list-pane">
+        <div className="pay-tool-heading">
+          <div>
+            <p className="pay-eyebrow">Payment destinations</p>
+            <h2>Who protected money can pay</h2>
           </div>
+          <button
+            className="pay-icon-command"
+            onClick={beginAdd}
+            title="Add destination"
+            type="button"
+          >
+            <Plus className="size-4" aria-hidden="true" />
+            <span className="sr-only">Add destination</span>
+          </button>
         </div>
 
-        <div className="brand-panel rounded-[8px] p-4">
-          <div className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
-            <div className="rounded-[8px] border border-white/10 bg-black/35 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="brand-kicker">Add destination</p>
-                  <h3 className="mt-1 text-xl font-black text-white">
-                    Bucket-bound payee.
-                  </h3>
-                </div>
-                <Landmark className="size-6 text-[#39e8ff]" aria-hidden="true" />
-              </div>
+        <div className="pay-biller-list">
+          {visiblePayees.length ? (
+            visiblePayees.map((payee) => {
+              const bucket = buckets.find(
+                (item) => item.id === payee.allowedBucketId,
+              );
+              const selected = mode === "edit" && payeeId === payee.id;
 
-              <div className="mt-4 grid gap-3">
-                <label className="grid gap-2 text-sm font-black text-white">
-                  Payee name
-                  <input
-                    className="h-11 rounded-[8px] border border-white/10 bg-black/45 px-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
-                    maxLength={80}
-                    onChange={(event) => setName(event.target.value)}
-                    value={name}
-                  />
-                </label>
-                <label className="grid gap-2 text-sm font-black text-white">
-                  Allowed bucket
-                  <select
-                    className="h-11 rounded-[8px] border border-white/10 bg-black/45 px-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
-                    onChange={(event) =>
-                      setAllowedBucketId(event.target.value as BucketId)
-                    }
-                    value={allowedBucketId}
-                  >
-                    {protectedBuckets.map((bucket) => (
-                      <option key={bucket.id} value={bucket.id}>
-                        {bucket.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="grid gap-2 text-sm font-black text-white">
-                  Maximum allowed
-                  <span className="relative">
-                    <CircleDollarSign
-                      className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#39e8ff]"
-                      aria-hidden="true"
-                    />
-                    <input
-                      className="h-11 w-full rounded-[8px] border border-white/10 bg-black/45 pl-10 pr-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
-                      inputMode="decimal"
-                      min="0"
-                      onChange={(event) => setMaxAmount(event.target.value)}
-                      type="number"
-                      value={maxAmount}
-                    />
-                  </span>
-                </label>
-              </div>
-
-              <button
-                className="brand-button-primary mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!formReady || saveState.status === "saving"}
-                onClick={savePayee}
-                type="button"
-              >
-                <Plus className="size-4" aria-hidden="true" />
-                Save payee control
-              </button>
-
-              {saveState.message ? (
-                <p
-                  className={`mt-3 rounded-[8px] border p-3 text-sm font-bold leading-6 ${
-                    saveState.status === "error"
-                      ? "border-[#ff6b35]/35 bg-[#ff6b35]/10 text-[#ffd2c2]"
-                      : "border-[#39e8ff]/25 bg-[#39e8ff]/10 text-[#dffaff]"
-                  }`}
-                >
-                  {saveState.message}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="grid gap-3">
-              {visiblePayees.map((payee) => {
-                const bucket = buckets.find(
-                  (candidate) => candidate.id === payee.allowedBucketId,
-                );
-                const approved = payee.status === "approved";
-
-                return (
-                  <article
-                    className={`rounded-[8px] border p-4 ${
-                      approved
-                        ? "border-[#68f0c2]/25 bg-[#68f0c2]/10"
-                        : "border-[#ffb237]/25 bg-[#ffb237]/10"
-                    }`}
-                    key={payee.id}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-base font-black text-white">
-                          {payee.name}
-                        </p>
-                        <p className="mt-1 text-sm leading-6 text-[#c9d0da]">
-                          {bucket?.name ?? payee.allowedBucketId} only -{" "}
-                          {formatMoney(payee.maxCents)} max
-                        </p>
-                      </div>
-                      {approved ? (
-                        <CheckCircle2
-                          className="size-5 shrink-0 text-[#68f0c2]"
-                          aria-hidden="true"
-                        />
+              return (
+                <div className="pay-biller-row" data-selected={selected} key={payee.id}>
+                  <button onClick={() => beginEdit(payee)} type="button">
+                    <span className="pay-biller-icon" data-ready={payee.status === "approved"}>
+                      {payee.status === "approved" ? (
+                        <Check className="size-4" />
                       ) : (
-                        <ShieldAlert
-                          className="size-5 shrink-0 text-[#ffcf72]"
-                          aria-hidden="true"
-                        />
+                        <Clock3 className="size-4" />
                       )}
+                    </span>
+                    <span className="pay-biller-copy">
+                      <strong>{payee.name}</strong>
+                      <small>{bucket?.name ?? payee.allowedBucketId} · {formatMoney(payee.maxCents)} limit</small>
+                    </span>
+                    <span className="pay-biller-status">{statusLabel(payee.status)}</span>
+                    <Edit3 className="size-4" aria-hidden="true" />
+                  </button>
+
+                  {archiveConfirmId === payee.id ? (
+                    <div className="pay-biller-confirm">
+                      <span>Remove {payee.name}?</span>
+                      <button onClick={() => void archivePayee(payee)} type="button">
+                        Remove
+                      </button>
+                      <button onClick={() => setArchiveConfirmId("")} type="button">
+                        Keep
+                      </button>
                     </div>
-                    <p
-                      className={`mt-3 inline-flex rounded-[8px] px-2.5 py-1 text-xs font-black ${
-                        approved
-                          ? "bg-[#68f0c2]/10 text-[#9af7d5]"
-                          : "bg-[#ffb237]/10 text-[#ffe4ad]"
-                      }`}
-                    >
-                      {statusLabel(payee.status)}
-                    </p>
-                  </article>
-                );
-              })}
-            </div>
-          </div>
+                  ) : null}
+                </div>
+              );
+            })
+          ) : (
+            <button className="pay-empty-command" onClick={beginAdd} type="button">
+              <UserRoundCheck className="size-5" />
+              <span><strong>Add your first biller</strong><small>Choose its bucket and payment limit.</small></span>
+            </button>
+          )}
         </div>
+      </div>
+
+      <div className="pay-biller-editor">
+        <div className="pay-tool-heading">
+          <div>
+            <p className="pay-eyebrow">{mode === "add" ? "New destination" : "Destination settings"}</p>
+            <h2>{mode === "add" ? "Add a biller" : name || "Edit biller"}</h2>
+          </div>
+          {mode === "edit" ? (
+            <button
+              className="pay-icon-command danger"
+              onClick={() => setArchiveConfirmId(payeeId)}
+              title="Remove destination"
+              type="button"
+            >
+              <Trash2 className="size-4" />
+              <span className="sr-only">Remove destination</span>
+            </button>
+          ) : (
+            <button className="pay-icon-command" onClick={beginAdd} title="Clear form" type="button">
+              <X className="size-4" />
+              <span className="sr-only">Clear form</span>
+            </button>
+          )}
+        </div>
+
+        <div className="pay-compact-form">
+          <label>
+            Name
+            <input maxLength={80} onChange={(event) => setName(event.target.value)} placeholder="Mortgage, landlord, daycare..." value={name} />
+          </label>
+          <label>
+            Protected bucket
+            <select onChange={(event) => setBucketId(event.target.value as BucketId)} value={bucketId}>
+              {protectedBuckets.map((bucket) => (
+                <option key={bucket.id} value={bucket.id}>{bucket.name}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Payment limit
+            <span className="pay-money-input"><span>$</span><input inputMode="decimal" min="1" onChange={(event) => setMaximum(event.target.value)} type="number" value={maximum} /></span>
+          </label>
+        </div>
+
+        <div className="pay-editor-note">
+          <Check className="size-4" />
+          <span>This destination can use only <strong>{buckets.find((bucket) => bucket.id === bucketId)?.name ?? "the selected bucket"}</strong>, up to {formatMoney(maxCents)} per payment.</span>
+        </div>
+
+        <button className="pay-primary-button" disabled={!formReady || requestState.status === "saving"} onClick={() => void savePayee()} type="button">
+          {requestState.status === "saving" ? <Loader2 className="size-4 animate-spin" /> : mode === "add" ? <Plus className="size-4" /> : <Save className="size-4" />}
+          {mode === "add" ? "Add destination" : "Save changes"}
+        </button>
+
+        {mode === "edit" && selectedPayee?.status !== "approved" ? (
+          <button
+            className="pay-secondary-button"
+            disabled={
+              requestState.status === "saving" || payeeId.startsWith("local_")
+            }
+            onClick={() => {
+              if (selectedPayee) {
+                void verifyPayee(selectedPayee);
+              }
+            }}
+            type="button"
+          >
+            <UserRoundCheck className="size-4" />
+            Verify destination
+          </button>
+        ) : null}
+
+        {requestState.message ? (
+          <p className="pay-inline-state" data-error={requestState.status === "error"} role={requestState.status === "error" ? "alert" : "status"}>
+            {requestState.message}
+          </p>
+        ) : null}
       </div>
     </section>
   );

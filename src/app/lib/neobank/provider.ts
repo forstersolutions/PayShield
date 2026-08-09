@@ -358,11 +358,9 @@ class HttpJsonBankingProvider implements BankingProvider {
         method: "POST",
         signal: AbortSignal.timeout(this.config.timeoutMs),
       });
-    } catch (error) {
+    } catch {
       throw new ProviderAdapterError(
-        error instanceof Error
-          ? `Provider ${operation} request failed: ${error.message}`
-          : `Provider ${operation} request failed.`,
+        `Provider ${operation} request could not be completed.`,
       );
     }
 
@@ -370,9 +368,7 @@ class HttpJsonBankingProvider implements BankingProvider {
 
     if (!response.ok) {
       throw new ProviderAdapterError(
-        textField(payload.error, 180) ||
-          textField(payload.message, 180) ||
-          `Provider ${operation} request failed with status ${response.status}.`,
+        `Provider ${operation} rejected the request.`,
       );
     }
 

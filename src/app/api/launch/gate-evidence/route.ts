@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server.js";
 import {
   appSessionErrorResponse,
-  getAppSession,
   unauthorizedAppResponse,
 } from "../../../lib/neobank/auth.ts";
+import {
+  getOperatorSession,
+  operatorAccessDeniedResponse,
+} from "../../../lib/neobank/operator-auth.ts";
 import { forwardCoreRequest } from "../../../lib/neobank/core-client.ts";
 import { getCoreServiceConfig } from "../../../lib/neobank/core-config.ts";
 
@@ -29,7 +32,7 @@ function coreEvidenceUnavailable(message: string, code = "core_service_required"
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getAppSession();
+    const session = await getOperatorSession();
     const core = getCoreServiceConfig();
 
     if (!core.configured) {
@@ -63,6 +66,10 @@ export async function POST(request: NextRequest) {
       )
     );
   } catch (error) {
-    return appSessionErrorResponse(error) ?? unauthorizedAppResponse();
+    return (
+      operatorAccessDeniedResponse(error) ??
+      appSessionErrorResponse(error) ??
+      unauthorizedAppResponse()
+    );
   }
 }

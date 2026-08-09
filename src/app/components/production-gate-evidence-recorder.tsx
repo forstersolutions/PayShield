@@ -296,7 +296,7 @@ export function ProductionGateEvidenceRecorder({
           }`}
         >
           {evidenceState.message ||
-            "Core service and Postgres schema 0013 are required before records persist."}
+            "Core service and Postgres schema 0019 are required before records persist."}
         </p>
         <button
           className="brand-button-primary inline-flex h-10 items-center justify-center gap-2 rounded-[8px] px-3 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"

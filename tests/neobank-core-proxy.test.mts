@@ -7,6 +7,10 @@ import { NextRequest } from "next/server.js";
 import { GET as getActivation } from "../src/app/api/app/activation/route.ts";
 import { GET as exportAudit } from "../src/app/api/app/audit/export/route.ts";
 import { GET as getBalances } from "../src/app/api/app/balances/route.ts";
+import {
+  GET as getBankConnections,
+  POST as recordBankConnection,
+} from "../src/app/api/app/bank-connections/route.ts";
 import { POST as exchangeBankLink } from "../src/app/api/app/bank-link/exchange/route.ts";
 import { POST as createBankLinkToken } from "../src/app/api/app/bank-link/token/route.ts";
 import { POST as openBillingPortal } from "../src/app/api/app/billing/portal/route.ts";
@@ -28,6 +32,10 @@ import {
   GET as getControlPlan,
   POST as generateControlPlan,
 } from "../src/app/api/app/control-plan/route.ts";
+import {
+  GET as getMoneyProfile,
+  POST as saveMoneyProfile,
+} from "../src/app/api/app/money-profile/route.ts";
 import { POST as recordLaunchGateEvidence } from "../src/app/api/launch/gate-evidence/route.ts";
 import { GET as getOperations } from "../src/app/api/app/operations/route.ts";
 import { POST as authorizeCard } from "../src/app/api/card/authorize/route.ts";
@@ -37,6 +45,7 @@ const endpoint = "https://payshield.test";
 const envKeys = [
   "CLERK_SECRET_KEY",
   "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+  "PAYSHIELD_ALLOW_OPERATOR_REVIEW_ACCESS",
   "PAYSHIELD_CORE_API_URL",
   "PAYSHIELD_CORE_SERVICE_TOKEN",
   "PAYSHIELD_CORE_TIMEOUT_MS",
@@ -308,6 +317,110 @@ test("control-plan API delegates generated paycheck plans to configured core ser
   );
 });
 
+test("money-profile API delegates profile reads to configured core service", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    (request, response) => {
+      captured.authorization = request.headers.authorization;
+      captured.method = request.method;
+      captured.url = request.url;
+      captured.userId = request.headers["x-payshield-user-id"];
+
+      response.writeHead(200, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          coreDelegated: true,
+          profile: {
+            employerName: "Core Payroll",
+            paycheckAmountCents: 240_000,
+          },
+          service: "payshield-household-money-profile",
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-profile-secret";
+
+      const response = await getMoneyProfile();
+      const body = await parseJson(response);
+      const profile = body.profile as Record<string, unknown>;
+
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("x-payshield-core-proxied"), "true");
+      assert.equal(body.coreDelegated, true);
+      assert.equal(profile.employerName, "Core Payroll");
+      assert.equal(captured.authorization, "Bearer core-profile-secret");
+      assert.equal(captured.method, "GET");
+      assert.equal(captured.url, "/api/app/money-profile");
+      assert.equal(captured.userId, "user_demo_001");
+    },
+  );
+});
+
+test("money-profile API delegates durable profile saves to configured core service", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    async (request, response) => {
+      captured.authorization = request.headers.authorization;
+      captured.body = await readRequestBody(request);
+      captured.method = request.method;
+      captured.url = request.url;
+      captured.userId = request.headers["x-payshield-user-id"];
+
+      response.writeHead(200, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          coreDelegated: true,
+          persisted: true,
+          profile: {
+            employerName: "Core Payroll",
+            paycheckAmountCents: 240_000,
+          },
+          service: "payshield-household-money-profile",
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-profile-save-secret";
+
+      const response = await saveMoneyProfile(
+        makeRequest("/api/app/money-profile", {
+          employerName: "Core Payroll",
+          expectedFrequency: "biweekly",
+          paycheckAmountCents: 240_000,
+          requestedTransferCents: 15_000,
+        }),
+      );
+      const body = await parseJson(response);
+      const requestBody = JSON.parse(String(captured.body)) as Record<
+        string,
+        unknown
+      >;
+
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("x-payshield-core-proxied"), "true");
+      assert.equal(body.coreDelegated, true);
+      assert.equal(body.persisted, true);
+      assert.equal(captured.authorization, "Bearer core-profile-save-secret");
+      assert.equal(captured.method, "POST");
+      assert.equal(captured.url, "/api/app/money-profile");
+      assert.equal(captured.userId, "user_demo_001");
+      assert.equal(requestBody.employerName, "Core Payroll");
+      assert.equal(requestBody.paycheckAmountCents, 240_000);
+    },
+  );
+});
+
 test("activation API delegates operator checklist to configured core service", async () => {
   const captured: Record<string, unknown> = {};
 
@@ -381,6 +494,7 @@ test("launch gate evidence API delegates approval records to configured core ser
     async (baseUrl) => {
       process.env.PAYSHIELD_CORE_API_URL = baseUrl;
       process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-gate-evidence-secret";
+      process.env.PAYSHIELD_ALLOW_OPERATOR_REVIEW_ACCESS = "true";
 
       const response = await recordLaunchGateEvidence(
         makeRequest("/api/launch/gate-evidence", {
@@ -645,6 +759,123 @@ test("bank link exchange API delegates public token exchange to configured core 
   );
 });
 
+test("bank connection API delegates provider connection records to configured core service", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    async (request, response) => {
+      captured.authorization = request.headers.authorization;
+      captured.body = await readRequestBody(request);
+      captured.method = request.method;
+      captured.url = request.url;
+      captured.userId = request.headers["x-payshield-user-id"];
+
+      response.writeHead(200, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          accepted: true,
+          bankConnection: {
+            institutionName: "Core Bank",
+            providerAccountId: "acc_core",
+            providerItemId: "item_core",
+            status: "connected",
+          },
+          coreDelegated: true,
+          service: "payshield-bank-connections",
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-bank-connection-secret";
+
+      const response = await recordBankConnection(
+        makeRequest("/api/app/bank-connections", {
+          accountId: "acc_core",
+          accountMask: "1234",
+          institutionName: "Core Bank",
+          itemId: "item_core",
+          providerName: "plaid",
+          tokenSecretRef: "vault://plaid/item_core",
+        }),
+      );
+      const body = await parseJson(response);
+      const forwardedBody = JSON.parse(String(captured.body || "{}")) as Record<
+        string,
+        unknown
+      >;
+
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("x-payshield-core-proxied"), "true");
+      assert.equal(body.coreDelegated, true);
+      assert.equal(body.service, "payshield-bank-connections");
+      assert.equal(captured.authorization, "Bearer core-bank-connection-secret");
+      assert.equal(captured.method, "POST");
+      assert.equal(captured.url, "/api/app/bank-connections");
+      assert.equal(captured.userId, "user_demo_001");
+      assert.equal(forwardedBody.accountId, "acc_core");
+      assert.equal(forwardedBody.itemId, "item_core");
+      assert.equal(forwardedBody.tokenSecretRef, "vault://plaid/item_core");
+    },
+  );
+});
+
+test("bank connection API loads connected sources from configured core service", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    async (request, response) => {
+      captured.authorization = request.headers.authorization;
+      captured.method = request.method;
+      captured.url = request.url;
+      captured.userId = request.headers["x-payshield-user-id"];
+
+      response.writeHead(200, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          bankConnections: [
+            {
+              accountMask: "1234",
+              institutionName: "Core Bank",
+              providerAccountId: "acc_core",
+              status: "connected",
+            },
+          ],
+          coreDelegated: true,
+          service: "payshield-bank-connections",
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-bank-connection-secret";
+
+      const response = await getBankConnections();
+      const body = await parseJson(response);
+
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("x-payshield-core-proxied"), "true");
+      assert.equal(body.coreDelegated, true);
+      assert.equal(body.service, "payshield-bank-connections");
+      assert.equal(captured.authorization, "Bearer core-bank-connection-secret");
+      assert.equal(captured.method, "GET");
+      assert.equal(captured.url, "/api/app/bank-connections");
+      assert.equal(captured.userId, "user_demo_001");
+      assert.equal(
+        (body.bankConnections as Array<Record<string, unknown>>)[0]
+          .institutionName,
+        "Core Bank",
+      );
+    },
+  );
+});
+
 test("paycheck detection rule API delegates durable rule storage to configured core service", async () => {
   const captured: Record<string, unknown> = {};
 
@@ -864,6 +1095,8 @@ test("card authorization delegates request body to configured core service", asy
       captured.authorization = request.headers.authorization;
       captured.body = await readRequestBody(request);
       captured.method = request.method;
+      captured.providerSignature =
+        request.headers["x-payshield-provider-signature"];
       captured.url = request.url;
 
       response.writeHead(200, {
@@ -888,7 +1121,7 @@ test("card authorization delegates request body to configured core service", asy
       process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-card-secret";
 
       const response = await authorizeCard(
-        makeRequest("/api/card/authorize", {
+        makeProviderWebhookRequest("/api/card/authorize", {
           amountCents: 180_000,
           idempotencyKey: "proxied-card-180000",
           merchantName: "Furniture store",
@@ -905,6 +1138,7 @@ test("card authorization delegates request body to configured core service", asy
       assert.equal(response.headers.get("x-payshield-core-proxied"), "true");
       assert.equal(captured.authorization, "Bearer core-card-secret");
       assert.equal(captured.method, "POST");
+      assert.equal(captured.providerSignature, "t=1234567890,v1=abcdef");
       assert.equal(captured.url, "/core/api/card/authorize");
       assert.equal(requestBody.amountCents, 180_000);
       assert.equal(requestBody.merchantName, "Furniture store");

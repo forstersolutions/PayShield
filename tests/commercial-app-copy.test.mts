@@ -1,42 +1,41 @@
 import assert from "node:assert/strict";
-import { access, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
-const customerFacingFiles = [
+const consumerFiles = [
   "src/app/components/household-command-center.tsx",
-  "src/app/components/money-engine-console.tsx",
-  "src/app/components/money-control-plan-panel.tsx",
-  "src/app/components/money-setup-console.tsx",
-  "src/app/components/production-gate-evidence-recorder.tsx",
-  "src/app/components/money-operations-panel.tsx",
+  "src/app/components/household-money-workspace.tsx",
+  "src/app/components/household-money-profile-panel.tsx",
+  "src/app/components/bucket-control-panel.tsx",
   "src/app/components/payee-control-panel.tsx",
-  "src/app/components/bill-routing-workspace.tsx",
-  "src/app/launch/page.tsx",
-  "src/app/api/app/billing/checkout/route.ts",
-  "src/app/api/app/billing/portal/route.ts",
-  "src/app/api/launch/gate-evidence/route.ts",
-  "src/app/lib/commercial/billing.ts",
-  ".env.example",
+  "src/app/components/bill-payment-panel.tsx",
+  "src/app/components/unlock-control-panel.tsx",
+  "src/app/components/neobank-dashboard.tsx",
+  "src/app/components/public-checkout-form.tsx",
+  "src/app/components/site-footer.tsx",
 ];
 
-const prohibitedPhrases = [
+const prohibitedConsumerPhrases = [
   /paid beta/i,
   /early access/i,
   /prototype/i,
   /simulation controls/i,
   /simulated/i,
   /demo payroll/i,
-  /PAYSHIELD_BETA/,
+  /provider pending/i,
+  /provider execution/i,
+  /core ledger/i,
+  /setup console/i,
 ];
 
 test("commercial app copy avoids non-production positioning", async () => {
   const findings: string[] = [];
 
-  for (const file of customerFacingFiles) {
-    const text = await readFile(file, "utf8");
+  for (const file of consumerFiles) {
+    const source = await readFile(file, "utf8");
 
-    for (const phrase of prohibitedPhrases) {
-      if (phrase.test(text)) {
+    for (const phrase of prohibitedConsumerPhrases) {
+      if (phrase.test(source)) {
         findings.push(`${file} contains ${phrase}`);
       }
     }
@@ -53,262 +52,117 @@ test("authenticated app identity uses stable Clerk subject instead of email", as
   assert.doesNotMatch(auth, /payShieldUserIdForEmail\(email\) \|\| session\.userId/);
 });
 
-test("app command center exposes a guided real-money setup surface", async () => {
+test("app command center exposes the complete household money workspace", async () => {
   const appPage = await readFile("src/app/app/page.tsx", "utf8");
   const commandCenter = await readFile(
     "src/app/components/household-command-center.tsx",
     "utf8",
   );
-  const setupConsole = await readFile(
-    "src/app/components/money-setup-console.tsx",
-    "utf8",
-  );
-  const gateEvidenceRecorder = await readFile(
-    "src/app/components/production-gate-evidence-recorder.tsx",
-    "utf8",
-  );
-  const dashboard = await readFile(
-    "src/app/components/neobank-dashboard.tsx",
-    "utf8",
-  );
-  const moneyEngine = await readFile(
-    "src/app/components/money-engine-console.tsx",
-    "utf8",
-  );
-  const controlPlan = await readFile(
-    "src/app/components/money-control-plan-panel.tsx",
-    "utf8",
-  );
-  const operations = await readFile("src/app/lib/neobank/operations.ts", "utf8");
-  const controlPlanBuilder = await readFile(
-    "src/app/lib/neobank/control-plan.ts",
-    "utf8",
-  );
-  const controlPlanRoute = await readFile(
-    "src/app/api/app/control-plan/route.ts",
-    "utf8",
-  );
-  const gateEvidenceRoute = await readFile(
-    "src/app/api/launch/gate-evidence/route.ts",
-    "utf8",
-  );
-  const coreProduct = await readFile("services/core/product.mjs", "utf8");
-  const coreServer = await readFile("services/core/server.mjs", "utf8");
-
-  assert.match(appPage, /HouseholdCommandCenter/);
-  assert.match(commandCenter, /getCommercialReadiness/);
-  assert.match(commandCenter, /getMoneyRailReadiness/);
-  assert.match(commandCenter, /MoneyEngineConsole/);
-  assert.match(commandCenter, /MoneySetupConsole/);
-  assert.match(commandCenter, /MoneyControlPlanPanel/);
-  assert.match(commandCenter, /createHouseholdActivationPacket/);
-  assert.match(commandCenter, /createHouseholdMoneyControlPlan/);
-  assert.match(moneyEngine, /Money engine console/);
-  assert.match(moneyEngine, /Charge the household\. Then protect every paycheck\./);
-  assert.match(moneyEngine, /Monthly recurring revenue/);
-  assert.match(moneyEngine, /Target households/);
-  assert.match(moneyEngine, /Every row is an app action/);
-  assert.match(moneyEngine, /stage\.primaryEndpoint/);
-  assert.match(moneyEngine, /stage\.actionHref/);
-  assert.match(setupConsole, /Money setup console/);
-  assert.match(setupConsole, /\/api\/app\/activation/);
-  assert.match(setupConsole, /The shortest route from subscription to protected paycheck/);
-  assert.match(setupConsole, /Next executable move/);
-  assert.match(setupConsole, /Activation workbench/);
-  assert.match(setupConsole, /Vercel setup/);
-  assert.match(setupConsole, /setupCommands/);
-  assert.match(setupConsole, /Remaining gates/);
-  assert.match(setupConsole, /ProductionGateEvidenceRecorder/);
-  assert.match(gateEvidenceRecorder, /Gate evidence/);
-  assert.match(gateEvidenceRecorder, /Record evidence/);
-  assert.match(gateEvidenceRecorder, /productionReceiverEvidence/);
-  assert.match(gateEvidenceRecorder, /\/api\/launch\/gate-evidence/);
-  assert.match(setupConsole, /Proof commands/);
-  assert.match(gateEvidenceRoute, /getAppSession/);
-  assert.match(gateEvidenceRoute, /PAYSHIELD_CORE_SERVICE_TOKEN/);
-  assert.match(gateEvidenceRoute, /\/api\/launch\/gate-evidence/);
-  assert.match(operations, /npx vercel env add/);
-  assert.match(operations, /\/api\/launch\/activation/);
-  assert.match(setupConsole, /Per household access/);
-  assert.match(setupConsole, /Endpoint backed/);
-  assert.match(commandCenter, /Household setup/);
-  assert.match(commandCenter, /Revenue \+ real money controls/);
-  assert.match(
-    commandCenter,
-    /Charge the household\. Connect the paycheck\. Protect the money\./,
-  );
-  assert.match(commandCenter, /Actual operating flow/);
-  assert.match(commandCenter, /Six actions make the product work/);
-  assert.match(commandCenter, /Collect payment/);
-  assert.match(commandCenter, /POST \/api\/app\/bank-link\/token/);
-  assert.match(commandCenter, /POST \/api\/app\/paychecks\/sync/);
-  assert.match(commandCenter, /POST \/api\/app\/paychecks\/rules/);
-  assert.match(commandCenter, /POST \/api\/app\/buckets/);
-  assert.match(commandCenter, /POST \/api\/app\/transfers/);
-  assert.match(commandCenter, /Next best action/);
-  assert.match(commandCenter, /Turn on paid access/);
-  assert.match(commandCenter, /Connect the bank source/);
-  assert.match(commandCenter, /Sync linked-bank activity/);
-  assert.match(commandCenter, /Detect the paycheck/);
-  assert.match(commandCenter, /Usable product map/);
-  assert.match(commandCenter, /The app is monetized before rails turn on/);
-  assert.match(commandCenter, /Open owner activation console/);
-  assert.match(controlPlan, /Household money control plan/);
-  assert.match(controlPlan, /Plan paycheck split, bank setup, revenue, and release in one pass/);
-  assert.match(controlPlan, /Paycheck split preview/);
-  assert.match(controlPlan, /Projected Safe to Spend/);
-  assert.match(controlPlan, /Operating steps/);
-  assert.match(controlPlan, /Run this plan from top to bottom/);
-  assert.match(controlPlan, /Start checkout/);
-  assert.match(controlPlan, /Save detection rule/);
-  assert.match(controlPlan, /Create transfer intent/);
-  assert.match(controlPlan, /\/api\/app\/billing\/checkout/);
-  assert.match(controlPlan, /\/api\/app\/paychecks\/rules/);
-  assert.match(controlPlan, /\/api\/app\/transfers/);
-  assert.match(controlPlan, /Detection and release/);
-  assert.match(controlPlan, /Transfer guardrail/);
-  assert.match(controlPlan, /Proof artifacts/);
-  assert.match(controlPlan, /\/api\/app\/control-plan/);
-  assert.match(controlPlan, /Revenue gate/);
-  assert.match(controlPlan, /Bank connection/);
-  assert.match(controlPlan, /Paycheck detection/);
-  assert.match(controlPlan, /Protected transfer/);
-  assert.match(controlPlanBuilder, /payshield-household-control-plan/);
-  assert.match(controlPlanBuilder, /projectedSafeToSpendCents/);
-  assert.match(controlPlanBuilder, /paymentCollectionReady/);
-  assert.match(controlPlanBuilder, /POST \/api\/app\/bank-link\/token/);
-  assert.match(controlPlanBuilder, /POST \/api\/app\/paychecks\/rules/);
-  assert.match(controlPlanBuilder, /POST \/api\/app\/transfers/);
-  assert.match(controlPlanRoute, /createHouseholdMoneyControlPlan/);
-  assert.match(controlPlanRoute, /normalizeMoneyControlPlanInput/);
-  assert.match(controlPlanRoute, /forwardCoreRequest/);
-  assert.match(controlPlanRoute, /cache-control/);
-  assert.match(coreProduct, /getHouseholdControlPlan/);
-  assert.match(coreProduct, /payshield-household-control-plan/);
-  assert.match(coreProduct, /projectedSafeToSpendCents/);
-  assert.match(coreServer, /path === "\/app\/control-plan"/);
-  await assert.rejects(access("src/app/app/loading.tsx"));
-  await assert.rejects(access("src/app/launch/loading.tsx"));
-  await assert.rejects(access("src/app/components/route-loading-shell.tsx"));
-  const brandMark = await readFile(
-    "src/app/components/pay-shield-mark.tsx",
+  const workspace = await readFile(
+    "src/app/components/household-money-workspace.tsx",
     "utf8",
   );
 
-  assert.match(brandMark, /PayShieldMark/);
-  assert.match(brandMark, /by Grayston/);
-  assert.match(dashboard, /Real operating path/);
-  assert.match(dashboard, /Make money, connect banks, detect payroll, protect funds/);
-  assert.match(dashboard, /Start checkout/);
-  assert.match(dashboard, /Open app flow/);
-  assert.match(dashboard, /Owner setup/);
-  assert.match(dashboard, /POST \/api\/public\/billing\/checkout/);
-  assert.match(dashboard, /POST \/api\/app\/bank-link\/token/);
-  assert.match(dashboard, /POST \/api\/app\/paychecks\/sync/);
-  assert.match(dashboard, /POST \/api\/app\/transfers/);
-  assert.match(dashboard, /MoneyEngineConsole/);
+  assert.match(appPage, /getAppSession/);
+  assert.match(appPage, /<HouseholdCommandCenter session=\{session\} \/>/);
+  assert.doesNotMatch(appPage, /SiteFooter/);
+  assert.match(commandCenter, /HouseholdMoneyWorkspace/);
+  assert.doesNotMatch(commandCenter, /MoneyEngineConsole|MoneySetupConsole/);
+
+  for (const label of ["Today", "Paycheck", "Buckets", "Bills", "Card", "Activity"]) {
+    assert.match(workspace, new RegExp(`label: "${label}"`));
+  }
+
+  assert.match(workspace, /Safe to Spend/);
+  assert.match(workspace, /HouseholdMoneyProfilePanel/);
+  assert.match(workspace, /BucketControlPanel/);
+  assert.match(workspace, /BillRoutingWorkspace/);
+  assert.match(workspace, /UnlockControlPanel/);
+  assert.match(workspace, /PAYSHIELD_OWNERSHIP_LINE/);
+  assert.match(workspace, /GRAYSTON_SUPPORT_EMAIL/);
+  assert.equal(workspace.match(/<PayShieldHeaderLogo/g)?.length, 1);
+  assert.doesNotMatch(workspace, /href="\/launch"/);
 });
 
-test("money operations surface shows revenue, rails, records, and export", async () => {
-  const moneyOperations = await readFile(
-    "src/app/components/money-operations-panel.tsx",
+test("consumer workspace wires revenue, bank, paycheck, card, transfer, and export actions", async () => {
+  const workspace = await readFile(
+    "src/app/components/household-money-workspace.tsx",
     "utf8",
   );
-
-  assert.match(moneyOperations, /Start here \/ Money operations/);
-  assert.match(moneyOperations, /Revenue-to-protection console/);
-  assert.match(moneyOperations, /Run the money product from here/);
-  assert.match(moneyOperations, /Guided money flow/);
-  assert.match(moneyOperations, /guidedMoneyFlow/);
-  assert.match(moneyOperations, /Activation runway/);
-  assert.match(moneyOperations, /activationRunway/);
-  assert.match(moneyOperations, /runwayMilestones/);
-  assert.match(moneyOperations, /Next revenue unlock/);
-  assert.match(moneyOperations, /Collect revenue, connect money, prove protection/);
-  assert.match(moneyOperations, /displayGuidedSteps/);
-  assert.match(moneyOperations, /Next best action/);
-  assert.match(moneyOperations, /Pay -> connect -> route -> detect -> protect -> release/);
-  assert.match(moneyOperations, /Runnable now/);
-  assert.match(moneyOperations, /Needs setup/);
-  assert.match(moneyOperations, /Run next:/);
-  assert.match(moneyOperations, /Configure providers/);
-  assert.match(moneyOperations, /formatStateLabel/);
-  assert.match(moneyOperations, /Open diagnostics/);
-  assert.match(
-    moneyOperations,
-    /Get paid, connect the bank, then protect the paycheck/,
-  );
-  assert.match(moneyOperations, /What actually turns on/);
-  assert.match(
-    moneyOperations,
-    /Revenue, bank link, detection, protection, and movement are\s+the app lanes/,
-  );
-  assert.match(moneyOperations, /paymentCollectionReady/);
-  assert.match(moneyOperations, /collecting, activation pending/);
-  assert.match(moneyOperations, /POST \/api\/public\/billing\/checkout/);
-  assert.match(moneyOperations, /POST \/api\/app\/bank-link\/exchange/);
-  assert.match(moneyOperations, /Use PayShield/);
-  assert.match(moneyOperations, /Six controls run the money product/);
-  assert.match(moneyOperations, /Charge the household/);
-  assert.match(moneyOperations, /Connect banks/);
-  assert.match(moneyOperations, /Route the paycheck/);
-  assert.match(moneyOperations, /Detect paychecks/);
-  assert.match(moneyOperations, /Protect funds first/);
-  assert.match(moneyOperations, /Move protected funds/);
-  assert.match(moneyOperations, /CapabilityCard/);
-  assert.match(moneyOperations, /Money path/);
-  assert.match(moneyOperations, /Detailed rail diagnostics/);
-  assert.match(moneyOperations, /Runnable lanes/);
-  assert.match(moneyOperations, /Setup blockers/);
-  assert.match(moneyOperations, /Exception queue/);
-  assert.match(moneyOperations, /Next executable action/);
-  assert.match(moneyOperations, /Owner revenue lane/);
-  assert.match(moneyOperations, /Get paid and prove control/);
-  assert.match(moneyOperations, /Household money lane/);
-  assert.match(moneyOperations, /Connect, protect, release/);
-  assert.match(moneyOperations, /WorkflowCheckpoint/);
-  assert.match(moneyOperations, /Operations ledger/);
-  assert.match(moneyOperations, /Export audit/);
-  assert.match(moneyOperations, /Activate paid access/);
-  assert.match(moneyOperations, /Manage billing/);
-  assert.match(moneyOperations, /Connect banks/);
-  assert.match(moneyOperations, /Sync bank activity/);
-  assert.match(moneyOperations, /POST \/api\/app\/paychecks\/sync/);
-  assert.match(moneyOperations, /Detect paychecks/);
-  assert.match(moneyOperations, /Core setup required/);
-  assert.match(moneyOperations, /core required/);
-  assert.match(moneyOperations, /Provider activation/);
-  assert.match(moneyOperations, /Protect the money/);
-  assert.match(moneyOperations, /POST \/api\/app\/buckets/);
-  assert.match(moneyOperations, /Control spending/);
-  assert.match(moneyOperations, /POST \/api\/card\/authorize/);
-  assert.match(moneyOperations, /Move protected funds/);
-  assert.match(moneyOperations, /Approved destination/);
-  assert.match(
-    moneyOperations,
-    /Only payees approved for the selected protected bucket appear\s+here/,
-  );
-  assert.match(moneyOperations, /Approve a payee for this bucket/);
-  const appCheckoutRoute = await readFile(
+  const checkout = await readFile(
     "src/app/api/app/billing/checkout/route.ts",
     "utf8",
   );
 
-  assert.match(appCheckoutRoute, /payment_collection_only/);
-  assert.match(appCheckoutRoute, /autoActivationReady/);
+  for (const path of [
+    "/api/app/billing/checkout",
+    "/api/app/billing/portal",
+    "/api/app/bank-link/token",
+    "/api/app/bank-link/exchange",
+    "/api/app/paychecks/rules",
+    "/api/app/paychecks/sync",
+    "/api/app/onboarding/start",
+    "/api/app/card/status",
+    "/api/app/transfers",
+    "/api/app/audit/export",
+  ]) {
+    assert.match(workspace, new RegExp(path.replaceAll("/", "\\/")));
+  }
+
+  assert.match(workspace, /Freeze card/);
+  assert.match(workspace, /Unfreeze card/);
+  assert.match(checkout, /requireCheckoutSession: true/);
+  assert.match(checkout, /mode: "automatic"/);
+  assert.match(checkout, /autoActivationReady/);
 });
 
-test("bill routing workspace exposes protected payee setup before scheduling", async () => {
-  const workspace = await readFile(
+test("bill routing supports destination lifecycle and scheduled payment cancellation", async () => {
+  const routing = await readFile(
     "src/app/components/bill-routing-workspace.tsx",
     "utf8",
   );
-  const payeeControls = await readFile(
+  const payees = await readFile(
     "src/app/components/payee-control-panel.tsx",
     "utf8",
   );
-  const commandCenter = await readFile(
-    "src/app/components/household-command-center.tsx",
+  const bills = await readFile(
+    "src/app/components/bill-payment-panel.tsx",
+    "utf8",
+  );
+  const payeeRoute = await readFile("src/app/api/app/payees/route.ts", "utf8");
+  const cancelRoute = await readFile(
+    "src/app/api/app/bill-payments/cancel/route.ts",
+    "utf8",
+  );
+
+  assert.match(routing, /PayeeControlPanel/);
+  assert.match(routing, /BillPaymentPanel/);
+  assert.match(routing, /billPayments/);
+  assert.match(routing, /onOperationsRefresh/);
+  assert.match(payees, /Payment destinations/);
+  assert.match(payees, /Verification pending/);
+  assert.match(payees, /method: updatingServerRecord \? "PATCH" : "POST"/);
+  assert.match(payees, /method: "DELETE"/);
+  assert.match(payees, /Nothing was changed/);
+  assert.doesNotMatch(payees, /localStorage/);
+  assert.match(bills, /Schedule a bill/);
+  assert.match(bills, /Upcoming/);
+  assert.match(bills, /\/api\/app\/bill-payments\/cancel/);
+  assert.match(bills, /Confirm/);
+  assert.match(payeeRoute, /export async function POST/);
+  assert.match(payeeRoute, /export async function PATCH/);
+  assert.match(payeeRoute, /export async function DELETE/);
+  assert.match(cancelRoute, /\/api\/app\/bill-payments\/cancel/);
+});
+
+test("launch controls stay operator-only and outside the consumer flow", async () => {
+  const launchPage = await readFile("src/app/launch/page.tsx", "utf8");
+  const launchRoute = await readFile(
+    "src/app/api/launch/activation/route.ts",
+    "utf8",
+  );
+  const operatorAuth = await readFile(
+    "src/app/lib/neobank/operator-auth.ts",
     "utf8",
   );
   const dashboard = await readFile(
@@ -316,65 +170,12 @@ test("bill routing workspace exposes protected payee setup before scheduling", a
     "utf8",
   );
 
-  assert.match(workspace, /PayeeControlPanel/);
-  assert.match(workspace, /BillPaymentPanel/);
-  assert.match(workspace, /onPayeeSaved/);
-  assert.match(payeeControls, /Payee controls/);
-  assert.match(payeeControls, /Save payee control/);
-  assert.match(payeeControls, /\/api\/app\/payees/);
-  assert.match(payeeControls, /payshield\.payee-controls\.draft/);
-  assert.match(payeeControls, /Approve exactly who protected buckets can pay/);
-  assert.match(payeeControls, /Provider pending/);
-  assert.match(commandCenter, /BillRoutingWorkspace/);
-  assert.match(commandCenter, /Approve destinations/);
-  assert.match(commandCenter, /POST \/api\/app\/payees/);
-  assert.match(dashboard, /BillRoutingWorkspace/);
-});
-
-test("launch console exposes the commercial money path outside locked app access", async () => {
-  const launchPage = await readFile("src/app/launch/page.tsx", "utf8");
-  const footer = await readFile("src/app/components/site-footer.tsx", "utf8");
-
-  assert.match(launchPage, /dynamic = "force-dynamic"/);
-  assert.match(launchPage, /index: false/);
-  assert.match(launchPage, /PayShield Revenue \+ Rails Console/);
-  assert.match(launchPage, /Make the app earn, connect, detect, protect, and move/);
-  assert.match(launchPage, /Activation workbench/);
-  assert.match(launchPage, /Blocker map/);
-  assert.match(
-    launchPage,
-    /What can be configured now versus what needs external approval/,
-  );
-  assert.match(launchPage, /Revenue activation/);
-  assert.match(launchPage, /Bank link and token custody/);
-  assert.match(launchPage, /Core ledger and household auth/);
-  assert.match(launchPage, /Provider, counsel, and live-money gates/);
-  assert.match(launchPage, /copy-safe/);
-  assert.match(launchPage, /MoneyEngineConsole/);
-  assert.match(launchPage, /ProductionGateEvidenceRecorder/);
-  assert.match(launchPage, /PublicCheckoutForm/);
-  assert.match(launchPage, /getCommercialReadiness/);
-  assert.match(launchPage, /getMoneyRailReadiness/);
-  assert.match(launchPage, /getAppAccessReadiness/);
-  assert.match(launchPage, /createHouseholdActivationPacket/);
-  assert.match(launchPage, /STRIPE_SECRET_KEY/);
-  assert.match(launchPage, /PAYSHIELD_COMMERCIAL_PRICE_ID/);
-  assert.match(launchPage, /CLERK_SECRET_KEY/);
-  assert.match(launchPage, /PAYSHIELD_REVIEW_APP_ACCESS_TOKEN/);
-  assert.match(launchPage, /review_access_token/);
-  assert.match(launchPage, /PLAID_CLIENT_ID/);
-  assert.match(launchPage, /PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL/);
-  assert.match(launchPage, /PAYSHIELD_PROVIDER_WEBHOOK_SECRET/);
-  assert.match(launchPage, /PAYSHIELD_TRANSFER_ENABLED/);
-  assert.match(launchPage, /PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE/);
-  assert.match(launchPage, /PAYSHIELD_LIVE_MONEY_ENABLED/);
-  assert.match(launchPage, /setupCommands/);
-  assert.match(launchPage, /POST \/api\/app\/billing\/checkout/);
-  assert.match(launchPage, /POST \/api\/app\/bank-link\/token/);
-  assert.match(launchPage, /POST \/api\/app\/paychecks\/sync/);
-  assert.match(launchPage, /POST \/api\/provider\/webhooks/);
-  assert.match(launchPage, /POST \/api\/app\/transfers/);
-  assert.match(launchPage, /POST \/api\/card\/authorize/);
-  assert.match(launchPage, /npm run market:status/);
-  assert.match(footer, /href="\/launch"/);
+  assert.match(launchPage, /getOperatorSession/);
+  assert.match(launchRoute, /getOperatorSession/);
+  assert.match(launchRoute, /operatorAccessDeniedResponse/);
+  assert.match(operatorAuth, /PAYSHIELD_OPERATOR_EMAILS/);
+  assert.match(operatorAuth, /PAYSHIELD_OPERATOR_USER_IDS/);
+  assert.doesNotMatch(dashboard, /href="\/launch"/);
+  assert.match(dashboard, /Spend what&apos;s free\. Protect what&apos;s spoken for\./);
+  assert.match(dashboard, /Your balance lies/);
 });

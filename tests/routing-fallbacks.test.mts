@@ -146,21 +146,41 @@ test("production app access fails closed without Clerk unless review access is e
     const pageBody = await pageResponse.text();
 
     assert.equal(pageResponse.status, 200);
-    assert.match(pageBody, /PayShield App Activation/);
-    assert.match(pageBody, /Household app activation/);
-    assert.match(pageBody, /Turn on secure app access/);
-    assert.match(pageBody, /PAYSHIELD_ALLOW_REVIEW_APP_ACCESS=true/);
-    assert.match(pageBody, /PAYSHIELD_REVIEW_APP_ACCESS_TOKEN/);
+    assert.match(pageBody, /PayShield Secure Access/);
+    assert.match(pageBody, /Secure household access/);
+    assert.match(pageBody, /Open your PayShield account/);
+    assert.match(pageBody, /PayShield setup sequence/);
+    assert.match(pageBody, /Secure access keeps household controls private/);
+    assert.match(pageBody, /Recognize deposits and fund priorities in order/);
+    assert.match(pageBody, /Your PayShield membership/);
+    assert.match(pageBody, /How does it connect to banks/);
+    assert.match(pageBody, /How does it protect money/);
+    assert.match(pageBody, /Your paycheck order/);
+    assert.match(pageBody, /Safe to Spend/);
+    assert.doesNotMatch(pageBody, /\$1,450/);
+    assert.doesNotMatch(pageBody, /href="\/#start-checkout"/);
+    assert.doesNotMatch(pageBody, /PayShield access is being finalized/);
+    assert.doesNotMatch(pageBody, /Private access is not active/);
+    assert.doesNotMatch(pageBody, /PAYSHIELD_ALLOW_REVIEW_APP_ACCESS=true/);
+    assert.doesNotMatch(pageBody, /PAYSHIELD_REVIEW_APP_ACCESS_TOKEN/);
     assert.match(pageBody, /review_access_token/);
     assert.match(pageBody, /action="\/api\/review-access"/);
-    assert.match(pageBody, /Owner review access/);
-    assert.match(pageBody, /Accepted tokens are stored only as a hashed HTTP-only cookie/);
-    assert.match(pageBody, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY/);
-    assert.match(pageBody, /CLERK_SECRET_KEY/);
-    assert.match(pageBody, /payshield-logo-clean\.png/);
-    assert.match(pageBody, /href="\/launch"/);
-    assert.match(pageBody, /Open revenue \+ rails console/);
-    assert.match(pageBody, /href="\/api\/health"/);
+    assert.match(pageBody, /Access token/);
+    assert.match(pageBody, /This browser stays authorized for eight hours/);
+    assert.doesNotMatch(pageBody, /Owner review access/);
+    assert.doesNotMatch(pageBody, /owner token/);
+    assert.doesNotMatch(pageBody, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY/);
+    assert.doesNotMatch(pageBody, /CLERK_SECRET_KEY/);
+    assert.match(pageBody, /payshield-mark\.png/);
+    assert.match(pageBody, /background: #0c100f/);
+    assert.doesNotMatch(pageBody, /payshield-logo-clean\.png/);
+    assert.doesNotMatch(pageBody, /href="\/launch"/);
+    assert.doesNotMatch(pageBody, /Open revenue \+ rails console/);
+    assert.match(pageBody, /href="\/"/);
+    assert.match(pageBody, /Return to PayShield/);
+    assert.match(pageBody, /Contact support/);
+    assert.match(pageBody, /href="\/privacy"/);
+    assert.doesNotMatch(pageBody, /href="\/api\/health"/);
     assert.match(pageBody, /support@graystontechnologies\.com/);
 
     process.env.PAYSHIELD_REVIEW_APP_ACCESS_TOKEN = "owner-review-token-2026";
@@ -291,6 +311,36 @@ test("production app access fails closed without Clerk unless review access is e
     assert.notEqual(headerAllowedResponse.status, 503);
 
     process.env.PAYSHIELD_ALLOW_REVIEW_APP_ACCESS = "true";
+
+    const crossSiteResponse = await runProxy(
+      new NextRequest("https://payshield.test/api/app/buckets", {
+        headers: {
+          origin: "https://attacker.example",
+          "sec-fetch-site": "cross-site",
+        },
+        method: "POST",
+      }),
+    );
+    const crossSiteBody = (await crossSiteResponse.json()) as Record<
+      string,
+      unknown
+    >;
+
+    assert.equal(crossSiteResponse.status, 403);
+    assert.equal(crossSiteBody.code, "cross_site_request_rejected");
+
+    const sameOriginResponse = await runProxy(
+      new NextRequest("https://payshield.test/api/app/buckets", {
+        headers: {
+          origin: "https://payshield.test",
+          "sec-fetch-site": "same-origin",
+        },
+        method: "POST",
+      }),
+    );
+
+    assert.equal(sameOriginResponse.status, 200);
+    assert.equal(sameOriginResponse.headers.get("x-middleware-next"), "1");
 
     const allowedResponse = await runProxy(
       new NextRequest("https://payshield.test/api/app/me"),

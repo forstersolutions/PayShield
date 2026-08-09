@@ -5,11 +5,25 @@ import {
   unauthorizedAppResponse,
 } from "../../../lib/neobank/auth.ts";
 import { forwardCoreRequest } from "../../../lib/neobank/core-client.ts";
+import { requireCoreForSession } from "../../../lib/neobank/core-required.ts";
 import { createNeobankSnapshot } from "../../../lib/neobank/demo-state.ts";
+import {
+  householdForSession,
+  userForSession,
+} from "../../../lib/neobank/session-household.ts";
 
 export async function GET() {
   try {
     const session = await getAppSession();
+    const coreRequired = requireCoreForSession(session, {
+      operation: "Account profile",
+      service: "payshield-app-profile",
+    });
+
+    if (coreRequired) {
+      return coreRequired;
+    }
+
     const coreResponse = await forwardCoreRequest({
       method: "GET",
       path: "/api/app/me",
@@ -21,6 +35,8 @@ export async function GET() {
     }
 
     const snapshot = createNeobankSnapshot();
+    const household = householdForSession(snapshot, session);
+    const user = userForSession(snapshot, session);
 
     return NextResponse.json(
       {
@@ -30,10 +46,11 @@ export async function GET() {
           audience: "US households",
           release: "commercial_control_profile",
         },
-        householdId: snapshot.householdId,
-        kycStatus: snapshot.user.kycStatus,
+        household,
+        householdId: household.householdId,
+        kycStatus: user.kycStatus,
         readiness: snapshot.readiness,
-        user: snapshot.user,
+        user,
       },
       {
         headers: {

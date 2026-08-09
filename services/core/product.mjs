@@ -1,14 +1,28 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { importJWK, jwtVerify } from "jose";
 import {
+  applyBillPaymentLifecycle,
+  applyCardAuthorizationLifecycle,
+  applyTransferLifecycle,
+  claimPlaidSyncJobs,
+  completePlaidSyncJob,
   databaseConfigured,
+  enqueuePlaidSyncJob,
+  failPlaidSyncJob,
+  cancelBillPaymentSchedule,
   loadCardAuthorizationDecision,
+  loadBillPaymentSchedule,
   loadActiveBankConnectionForHousehold,
   loadActivePaycheckDetectionRules,
   loadOperationalAudit,
   loadBankConnectionForProvider,
   loadBucketProfile,
+  loadHouseholdMoneyProfile,
+  loadHouseholdJournalEntries,
   loadPaycheckDetection,
   loadPayees,
+  loadProviderCardActor,
+  loadProviderOnboardingState,
   loadProviderTokenSecret,
   persistBucketProfile,
   persistBankConnection,
@@ -18,13 +32,14 @@ import {
   persistCommercialBillingEvent,
   persistCommercialCheckoutIntent,
   persistDirectDepositSetup,
+  persistHouseholdMoneyProfile,
   persistHouseholdIdentity,
-  persistJournalEntry,
   persistMoneyRailEvent,
   persistPayee,
   persistPaycheckDetection,
   persistPaycheckDetectionRule,
   persistProductionGateEvidence,
+  persistProviderOnboardingState,
   persistProviderTokenSecret,
   persistReconciliationException,
   persistTransferIntent,
@@ -32,11 +47,25 @@ import {
   resolveReconciliationExceptionRecord,
   updateBillPaymentProviderStatus,
   updateDirectDepositSetupProviderStatus,
+  updateProviderKycApplicationStatus,
+  updateProviderCardStatus,
+  updatePayeeControl,
+  updatePayeeProviderStatus,
   updateTransferIntentProviderStatus,
 } from "./database.mjs";
 
 const serviceName = "payshield-core";
-export const coreLedgerSchemaVersion = "0013";
+export const coreLedgerSchemaVersion = "0019";
+const trustedPaycheckDetection = Symbol("trustedPaycheckDetection");
+const trustedPlaidWebhookSync = Symbol("trustedPlaidWebhookSync");
+const plaidVerificationKeyCache = new Map();
+
+class PlaidVerificationUnavailableError extends Error {
+  constructor() {
+    super("plaid_verification_unavailable");
+    this.name = "PlaidVerificationUnavailableError";
+  }
+}
 const productionGateEvidenceScopes = new Set([
   "provider",
   "sponsor_disclosure",
@@ -76,6 +105,12 @@ const gateDefinitions = [
     kind: "provider_adapter",
   },
   {
+    description: "BaaS/card provider callbacks require signed webhook ingress.",
+    env: "PAYSHIELD_PROVIDER_WEBHOOK_SECRET",
+    id: "provider_webhook_signing",
+    kind: "present",
+  },
+  {
     description: "Sponsor-bank and pass-through wording is counsel-approved.",
     env: "PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED",
     id: "sponsor_disclosures",
@@ -111,9 +146,9 @@ const gateDefinitions = [
     kind: "present",
   },
   {
-    description: "Clerk keys are configured for authenticated app access.",
+    description: "Frontend authentication has been verified for account access.",
     id: "clerk_auth",
-    kind: "clerk",
+    kind: "frontend_auth_verified",
   },
 ];
 
@@ -234,12 +269,15 @@ const httpJsonProviderAdapter = "http_json";
 
 const providerEndpointDefaults = {
   billPayment: "/bill-payments",
+  billPaymentCancel: "/bill-payments/cancel",
   cardAuthorization: "/card-authorizations",
   cardIssue: "/cards",
+  cardStatus: "/cards/status",
   customer: "/customers",
   directDeposit: "/direct-deposit-instructions",
   financialAccount: "/financial-accounts",
   kyc: "/kyc/applications",
+  payeeEnrollment: "/payees/enroll",
   transfer: "/ach-transfers",
 };
 
@@ -309,12 +347,18 @@ function getProviderAdapterConfig(env = process.env) {
     apiKeyConfigured,
     endpoints: {
       billPayment: cleanProviderPath(env.PAYSHIELD_BAAS_BILL_PAYMENT_PATH, providerEndpointDefaults.billPayment),
+      billPaymentCancel: cleanProviderPath(env.PAYSHIELD_BAAS_BILL_PAYMENT_CANCEL_PATH, providerEndpointDefaults.billPaymentCancel),
       cardAuthorization: cleanProviderPath(env.PAYSHIELD_BAAS_CARD_AUTHORIZATION_PATH, providerEndpointDefaults.cardAuthorization),
       cardIssue: cleanProviderPath(env.PAYSHIELD_BAAS_CARD_ISSUE_PATH, providerEndpointDefaults.cardIssue),
+      cardStatus: cleanProviderPath(env.PAYSHIELD_BAAS_CARD_STATUS_PATH, providerEndpointDefaults.cardStatus),
       customer: cleanProviderPath(env.PAYSHIELD_BAAS_CUSTOMER_PATH, providerEndpointDefaults.customer),
       directDeposit: cleanProviderPath(env.PAYSHIELD_BAAS_DIRECT_DEPOSIT_PATH, providerEndpointDefaults.directDeposit),
       financialAccount: cleanProviderPath(env.PAYSHIELD_BAAS_FINANCIAL_ACCOUNT_PATH, providerEndpointDefaults.financialAccount),
       kyc: cleanProviderPath(env.PAYSHIELD_BAAS_KYC_PATH, providerEndpointDefaults.kyc),
+      payeeEnrollment: cleanProviderPath(
+        env.PAYSHIELD_BAAS_PAYEE_ENROLLMENT_PATH,
+        providerEndpointDefaults.payeeEnrollment,
+      ),
       transfer: cleanProviderPath(env.PAYSHIELD_BAAS_TRANSFER_PATH, providerEndpointDefaults.transfer),
     },
     missing,
@@ -428,17 +472,18 @@ async function providerAdapterRequest(env, operation, path, body) {
       headers: {
         "authorization": `Bearer ${env.PAYSHIELD_BAAS_API_KEY?.trim()}`,
         "content-type": "application/json",
+        ...(safeString(body?.idempotencyKey, 180)
+          ? { "x-idempotency-key": safeString(body.idempotencyKey, 180) }
+          : {}),
         "x-payshield-provider": config.providerName,
         "x-payshield-provider-operation": operation,
       },
       method: "POST",
       signal: AbortSignal.timeout(config.timeoutMs),
     });
-  } catch (error) {
+  } catch {
     throw new ProviderAdapterError(
-      error instanceof Error
-        ? `Provider ${operation} request failed: ${error.message}`
-        : `Provider ${operation} request failed.`,
+      `Provider ${operation} request could not be completed.`,
     );
   }
 
@@ -446,9 +491,7 @@ async function providerAdapterRequest(env, operation, path, body) {
 
   if (!response.ok) {
     throw new ProviderAdapterError(
-      safeString(payload?.error, 180) ||
-        safeString(payload?.message, 180) ||
-        `Provider ${operation} request failed with status ${response.status}.`,
+      `Provider ${operation} rejected the request.`,
     );
   }
 
@@ -484,10 +527,9 @@ function requireProviderField(payload, fields, message) {
 function providerErrorResult(error, service) {
   return {
     body: {
+      code: "provider_request_failed",
       error:
-        error instanceof ProviderAdapterError
-          ? error.message
-          : "Configured provider adapter request failed.",
+        "The banking service could not complete this request. Try again or contact support.",
       service,
     },
     status: 502,
@@ -551,7 +593,7 @@ function gateOk(definition, env, options) {
 
   if (definition.kind === "postgres_ledger_verified") {
     return (
-      envPresent(env, "PAYSHIELD_LEDGER_DATABASE_URL") &&
+      databaseConfigured(env) &&
       envTrue(env, "PAYSHIELD_LEDGER_SCHEMA_VERIFIED") &&
       env["PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION"]?.trim() ===
         coreLedgerSchemaVersion
@@ -570,8 +612,8 @@ function gateOk(definition, env, options) {
     return Boolean(options.coreOnline) || envPresent(env, "PAYSHIELD_CORE_API_URL");
   }
 
-  if (definition.kind === "clerk") {
-    return envPresent(env, "CLERK_SECRET_KEY") && envPresent(env, "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY");
+  if (definition.kind === "frontend_auth_verified") {
+    return envTrue(env, "PAYSHIELD_FRONTEND_AUTH_VERIFIED");
   }
 
   return false;
@@ -591,8 +633,8 @@ export function getCoreReadiness(env = process.env, options = {}) {
     clerkConfigured: gates.some((gate) => gate.id === "clerk_auth" && gate.ok),
     gates,
     liveMoneyReady,
-    mode: liveMoneyReady ? "live" : providerConfigured ? "sandbox" : "architecture",
-    postgresConfigured: envPresent(env, "PAYSHIELD_LEDGER_DATABASE_URL"),
+    mode: liveMoneyReady ? "live" : providerConfigured ? "sandbox" : "setup",
+    postgresConfigured: databaseConfigured(env),
     postgresSchemaVerified: gates.some((gate) => gate.id === "postgres_ledger" && gate.ok),
     postgresSchemaVersion: coreLedgerSchemaVersion,
     providerConfigured,
@@ -616,19 +658,28 @@ export function getCoreHealth(env = process.env) {
       "GET /app/buckets",
       "GET /app/operations",
       "GET /app/control-plan",
+      "GET /app/money-profile",
       "GET /app/audit/export",
       "POST /app/buckets",
       "POST /app/control-plan",
+      "POST /app/money-profile",
       "POST /token-vault/plaid",
+      "POST /plaid/webhooks",
       "POST /app/bank-link/token",
       "POST /app/bank-link/exchange",
+      "GET /app/bank-connections",
       "POST /app/bank-connections",
       "POST /app/bill-payments",
       "POST /app/billing/checkout",
+      "POST /app/bill-payments/cancel",
+      "POST /app/card/status",
       "POST /app/direct-deposit",
       "POST /commercial/billing-events",
       "POST /app/onboarding/start",
       "POST /app/payees",
+      "POST /app/payees/verify",
+      "PATCH /app/payees",
+      "DELETE /app/payees",
       "POST /app/paychecks/rules",
       "POST /app/paychecks/detect",
       "POST /app/paychecks/sync",
@@ -782,7 +833,7 @@ async function resolveActorIdentity(env, actorInput, operation) {
               : "postgres_identity_error",
           error:
             identityPersistence.persistence === "postgres_required"
-              ? `Household identity requires PAYSHIELD_LEDGER_DATABASE_URL before ${operation}.`
+              ? `Household identity requires durable ledger storage before ${operation}.`
               : `Household identity could not be persisted before ${operation}.`,
           identityPersistence,
           readiness: getCoreReadiness(env, { coreOnline: true }),
@@ -1168,6 +1219,85 @@ function scheduleBillPayment(book, payees, input) {
   };
 }
 
+function reserveProtectedTransfer(book, input) {
+  const existing = book.findByIdempotencyKey(input.idempotencyKey);
+
+  if (existing) {
+    if (existing.type !== "transfer_reservation") {
+      throw new Error(
+        `Idempotency key ${input.idempotencyKey} is already used for ${existing.type}.`,
+      );
+    }
+
+    assertSameIdempotentPayload(existing, {
+      amountCents: input.amountCents,
+      destinationPayeeId: input.destinationPayeeId,
+      sourceBucketId: input.sourceBucketId,
+    });
+    return existing;
+  }
+
+  return book.createEntry({
+    idempotencyKey: input.idempotencyKey,
+    lines: [
+      {
+        accountId: bucketAccount(input.sourceBucketId),
+        amountCents: input.amountCents,
+      },
+      {
+        accountId: "liability:transfer_pending",
+        amountCents: -input.amountCents,
+      },
+    ],
+    memo: `Protected transfer: ${input.destinationPayeeName}`,
+    metadata: {
+      amountCents: input.amountCents,
+      destinationPayeeId: input.destinationPayeeId,
+      destinationPayeeName: input.destinationPayeeName,
+      sourceBucketId: input.sourceBucketId,
+    },
+    type: "transfer_reservation",
+  });
+}
+
+export function reverseBillPaymentReservation(book, originalEntry, input) {
+  const existing = book.findByIdempotencyKey(input.idempotencyKey);
+
+  if (existing) {
+    if (
+      existing.type !== "reversal" ||
+      existing.reversedEntryId !== input.reversedEntryId
+    ) {
+      throw new Error(
+        `Idempotency key ${input.idempotencyKey} is already used for another ledger operation.`,
+      );
+    }
+
+    return existing;
+  }
+
+  if (!originalEntry || originalEntry.type !== "bill_payment") {
+    throw new Error("The original bill payment ledger entry was not found.");
+  }
+
+  return book.createEntry({
+    idempotencyKey: input.idempotencyKey,
+    lines: originalEntry.lines.map((line) => ({
+      accountId: line.accountId,
+      amountCents: line.amountCents * -1,
+    })),
+    memo: `Canceled bill payment: ${originalEntry.memo || "scheduled payment"}`,
+    metadata: {
+      amountCents: metadataNumber(originalEntry, "amountCents"),
+      cancellationReason: input.reason,
+      originalIdempotencyKey: originalEntry.idempotencyKey,
+      scheduleId: input.scheduleId,
+    },
+    reversedEntryId: input.reversedEntryId,
+    type: "reversal",
+  });
+}
+
 function unlockProtectedFunds(book, input) {
   if (input.bucketId === "safe_spending") {
     throw new Error("Safe spending is already unlocked.");
@@ -1302,16 +1432,6 @@ function withSafeSpendingBucket(buckets) {
   return [...byId.values()].sort((a, b) => a.priority - b.priority);
 }
 
-function mergePayees(defaultPayees, persistedPayees) {
-  const byId = new Map(defaultPayees.map((payee) => [payee.id, payee]));
-
-  for (const payee of persistedPayees || []) {
-    byId.set(payee.id, payee);
-  }
-
-  return [...byId.values()];
-}
-
 async function loadOperationalControls(env = process.env, actorInput = demoUser) {
   const actor = normalizeActor(actorInput);
   const [bucketPersistence, payeePersistence] = await Promise.all([
@@ -1342,7 +1462,10 @@ async function loadOperationalControls(env = process.env, actorInput = demoUser)
     bucketPersistence,
     buckets,
     payeePersistence,
-    payees: mergePayees(neobankPayees, payeePersistence.payees),
+    payees:
+      payeePersistence.persistence === "postgres"
+        ? payeePersistence.payees || []
+        : neobankPayees,
   };
 }
 
@@ -1379,23 +1502,22 @@ function replayJournalEntries(entries = []) {
   );
 }
 
-function shouldUseDurableLedger(operationalAudit) {
-  return (
-    operationalAudit?.persistence === "postgres" &&
-    Array.isArray(operationalAudit.audit?.journalEntries) &&
-    operationalAudit.audit.journalEntries.length > 0
-  );
-}
-
 async function loadHouseholdLedger(env = process.env, actorInput = demoUser, controls = {}) {
   const actor = normalizeActor(actorInput);
-  const operationalAudit = await loadOperationalAudit(actor.householdId, env);
+  const [operationalAudit, journalPersistence] = await Promise.all([
+    loadOperationalAudit(actor.householdId, env),
+    loadHouseholdJournalEntries(actor.householdId, env),
+  ]);
 
-  if (persistenceFailed(operationalAudit)) {
+  if (
+    persistenceFailed(operationalAudit) ||
+    persistenceFailed(journalPersistence)
+  ) {
     return {
       error: {
         body: {
           error: "Operational ledger records could not be loaded from durable core storage.",
+          journalPersistence,
           operationalAudit,
           readiness: getCoreReadiness(env, { coreOnline: true }),
           service: "payshield-household-ledger",
@@ -1407,20 +1529,14 @@ async function loadHouseholdLedger(env = process.env, actorInput = demoUser, con
 
   const durableAudit = operationalAudit.audit ?? emptyOperationalAudit();
 
-  if (shouldUseDurableLedger(operationalAudit)) {
+  if (journalPersistence.persistence === "postgres") {
     return {
-      book: replayJournalEntries(durableAudit.journalEntries),
+      book: replayJournalEntries(journalPersistence.entries),
       durableAudit,
-      ledgerSource: "postgres_journal",
-      operationalAudit,
-    };
-  }
-
-  if (databaseConfigured(env)) {
-    return {
-      book: new LedgerBook(),
-      durableAudit,
-      ledgerSource: "postgres_empty",
+      ledgerSource: journalPersistence.entries.length
+        ? "postgres_journal"
+        : "postgres_empty",
+      journalPersistence,
       operationalAudit,
     };
   }
@@ -1428,6 +1544,7 @@ async function loadHouseholdLedger(env = process.env, actorInput = demoUser, con
   return {
     book: createDemoLedgerBook(300_000, controls.buckets || neobankBuckets),
     durableAudit,
+    journalPersistence,
     ledgerSource: "control_model",
     operationalAudit,
   };
@@ -1792,6 +1909,54 @@ export async function recordBankConnection(payload, env = process.env) {
   };
 }
 
+export async function getBankConnections(env = process.env, actorInput = demoUser) {
+  const actorResolution = await resolveActorIdentity(
+    env,
+    actorInput,
+    "bank connection lookup",
+  );
+
+  if (!actorResolution.ok) {
+    return actorResolution.result;
+  }
+
+  const actor = actorResolution.actor;
+  const operationalAudit = await loadOperationalAudit(actor.householdId, env);
+
+  if (persistenceFailed(operationalAudit)) {
+    return {
+      body: {
+        error: "Bank connections could not be loaded from durable core storage.",
+        operationalAudit,
+        service: "payshield-bank-connections",
+      },
+      status: 503,
+    };
+  }
+
+  const audit = operationalAudit.audit ?? emptyOperationalAudit();
+
+  return {
+    body: {
+      bankConnections: audit.bankConnections,
+      count: audit.bankConnections.length,
+      persistence: {
+        auditFound: operationalAudit.auditFound,
+        persisted: operationalAudit.auditFound,
+        persistence: operationalAudit.persistence,
+        persistenceReason:
+          operationalAudit.persistenceReason ||
+          (operationalAudit.auditFound
+            ? "Loaded from durable core storage."
+            : "No connected bank sources are recorded for this household yet."),
+      },
+      readiness: getMoneyRailReadiness(env),
+      service: "payshield-bank-connections",
+    },
+    status: 200,
+  };
+}
+
 export async function getProfile(env = process.env, actorInput = demoUser) {
   const actor = normalizeActor(actorInput);
   const identityPersistence = await persistHouseholdIdentity(
@@ -1816,7 +1981,7 @@ export async function getProfile(env = process.env, actorInput = demoUser) {
             : "postgres_identity_error",
         error:
           identityPersistence.persistence === "postgres_required"
-            ? "Household identity requires PAYSHIELD_LEDGER_DATABASE_URL before production, live-money, or durable-core operation."
+            ? "Household identity requires durable ledger storage before this operation can continue."
             : "Household identity could not be persisted.",
         identityPersistence,
         readiness: getCoreReadiness(env, { coreOnline: true }),
@@ -2477,7 +2642,8 @@ function buildActivationSetupGroups(body, siteUrl) {
       checks: [
         `curl -fsS ${siteUrl}/api/health`,
         "npm run verify",
-        `npm run market:status -- ${siteUrl} --expect-site-url ${siteUrl}`,
+        `npm run smoke:deploy -- ${siteUrl}`,
+        `npm run production:routes -- ${siteUrl}`,
       ],
       endpoint: "POST /api/card/authorize",
       env: [
@@ -2552,6 +2718,13 @@ const controlPlanFrequencies = new Set([
   "monthly",
   "unknown",
 ]);
+const controlPlanPayeeStatuses = new Set([
+  "approved",
+  "modeled",
+  "provider_pending",
+]);
+const controlPlanBucketIdPattern =
+  /^(rent|vehicle|insurance|kids|vacation|emergency|safe_spending|custom_[a-z0-9_]{1,64})$/;
 
 function friendlyControlPlanGateLabel(gate) {
   const value = cleanText(gate, 160);
@@ -2708,6 +2881,126 @@ function controlPayeeForBucket(payees = [], bucketId) {
   );
 }
 
+function controlPlanIntegerCents(value, fallback = 0) {
+  const amount = typeof value === "number" ? value : Number(value);
+
+  if (!Number.isInteger(amount)) {
+    return fallback;
+  }
+
+  return Math.max(0, Math.min(2_000_000, amount));
+}
+
+function controlPlanBucketId(value) {
+  const id = cleanText(value, 80);
+
+  return controlPlanBucketIdPattern.test(id) ? id : null;
+}
+
+function normalizeControlPlanBuckets(value, fallback = []) {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const buckets = value
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+
+      const id = controlPlanBucketId(item.id);
+      const protection = protectionValues.has(item.protection) ? item.protection : null;
+
+      if (!id || !protection) {
+        return null;
+      }
+
+      const targetCents = controlPlanIntegerCents(item.targetCents);
+      const availableCents = controlPlanIntegerCents(item.availableCents, targetCents);
+      const fundedCents = controlPlanIntegerCents(item.fundedCents, availableCents);
+
+      return {
+        availableCents,
+        due: cleanText(item.due, 48) || "Every check",
+        fundedCents,
+        id,
+        name: cleanText(item.name, 80) || "Protected bucket",
+        payeeId: cleanText(item.payeeId, 120) || undefined,
+        priority: Number.isFinite(item.priority)
+          ? Math.max(1, Math.round(item.priority))
+          : 999,
+        protection,
+        shortCents: controlPlanIntegerCents(
+          item.shortCents,
+          Math.max(0, targetCents - fundedCents),
+        ),
+        targetCents,
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.priority - right.priority);
+  const protectedCount = buckets.filter((bucket) => bucket.id !== "safe_spending").length;
+
+  if (!protectedCount) {
+    return fallback;
+  }
+
+  if (buckets.some((bucket) => bucket.id === "safe_spending")) {
+    return buckets;
+  }
+
+  return [
+    ...buckets,
+    {
+      availableCents: 0,
+      due: "Remainder",
+      fundedCents: 0,
+      id: "safe_spending",
+      name: "Safe to Spend",
+      priority: 1000,
+      protection: "spendable",
+      shortCents: 0,
+      targetCents: 0,
+    },
+  ];
+}
+
+function normalizeControlPlanPayees(value, fallback = [], buckets = []) {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const bucketIds = new Set(buckets.map((bucket) => bucket.id));
+  const payees = value
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+
+      const allowedBucketId = controlPlanBucketId(item.allowedBucketId);
+      const status = cleanText(item.status, 40);
+
+      if (
+        !allowedBucketId ||
+        !bucketIds.has(allowedBucketId) ||
+        !controlPlanPayeeStatuses.has(status)
+      ) {
+        return null;
+      }
+
+      return {
+        allowedBucketId,
+        id: cleanText(item.id, 120) || `payee_${allowedBucketId}`,
+        maxCents: controlPlanIntegerCents(item.maxCents),
+        name: cleanText(item.name, 80) || "Approved payee",
+        status,
+      };
+    })
+    .filter(Boolean);
+
+  return payees.length ? payees : fallback;
+}
+
 function defaultControlTransferBucket(buckets = [], payees = []) {
   return (
     protectedControlBuckets(buckets).find(
@@ -2728,9 +3021,11 @@ function normalizeHouseholdControlPlanInput(payload, buckets = [], payees = []) 
     max: 500_000,
     min: 0,
   });
-  const bucketIds = new Set(buckets.map((bucket) => bucket.id));
-  const preferredBucket = cleanText(record.preferredTransferBucketId, 80);
-  const defaultBucket = defaultControlTransferBucket(buckets, payees);
+  const planBuckets = normalizeControlPlanBuckets(record.buckets, buckets);
+  const planPayees = normalizeControlPlanPayees(record.payees, payees, planBuckets);
+  const bucketIds = new Set(planBuckets.map((bucket) => bucket.id));
+  const preferredBucket = controlPlanBucketId(record.preferredTransferBucketId);
+  const defaultBucket = defaultControlTransferBucket(planBuckets, planPayees);
   const preferredTransferBucketId =
     preferredBucket && bucketIds.has(preferredBucket)
       ? preferredBucket
@@ -2756,8 +3051,10 @@ function normalizeHouseholdControlPlanInput(payload, buckets = [], payees = []) 
   return {
     errors: [],
     input: {
+      buckets: planBuckets,
       employerName: cleanText(record.employerName, 80) || "Payroll deposit",
       expectedFrequency: normalizeControlPlanFrequency(record.expectedFrequency),
+      payees: planPayees,
       paycheckAmountCents: paycheckAmountCents ?? 300_000,
       preferredPayeeId,
       preferredTransferBucketId,
@@ -2799,7 +3096,50 @@ function buildHouseholdControlAllocation(buckets, paycheckAmountCents) {
       0,
     ),
     projectedSafeToSpendCents: Math.max(0, remaining),
+    shortfallCents: planBuckets.reduce((sum, bucket) => sum + bucket.shortCents, 0),
   };
+}
+
+function buildHouseholdControlFundingSchedule(allocation) {
+  const protectedSchedule = allocation.buckets.map((bucket, index) => {
+    const status =
+      bucket.projectedFundingCents >= bucket.targetCents
+        ? "funded"
+        : bucket.projectedFundingCents > 0
+          ? "partial"
+          : "waiting";
+
+    return {
+      amountCents: bucket.projectedFundingCents,
+      bucketId: bucket.bucketId,
+      due: bucket.due,
+      key: `bucket:${bucket.bucketId}`,
+      label: bucket.name,
+      protection: bucket.protection,
+      sequence: index + 1,
+      shortCents: bucket.shortCents,
+      status,
+      targetCents: bucket.targetCents,
+      type: "protected_bucket",
+    };
+  });
+
+  return [
+    ...protectedSchedule,
+    {
+      amountCents: allocation.projectedSafeToSpendCents,
+      bucketId: "safe_spending",
+      due: "Remainder",
+      key: "safe_to_spend",
+      label: "Safe to Spend",
+      protection: "spendable",
+      sequence: protectedSchedule.length + 1,
+      shortCents: 0,
+      status: "safe_to_spend",
+      targetCents: 0,
+      type: "safe_to_spend",
+    },
+  ];
 }
 
 function buildHouseholdControlTransferPlan({ buckets, moneyRails, payees, planInput }) {
@@ -2861,10 +3201,13 @@ function controlPlanFromOperations(body, env, payload = {}) {
   }
 
   const planInput = normalized.input;
+  const planBuckets = planInput.buckets;
+  const planPayees = planInput.payees;
   const allocation = buildHouseholdControlAllocation(
-    buckets,
+    planBuckets,
     planInput.paycheckAmountCents,
   );
+  const fundingSchedule = buildHouseholdControlFundingSchedule(allocation);
   const liveMoneyGates = missingCoreGates(body.readiness);
   const bankLinkGates = body.moneyRails.missing.filter(
     (gate) => gate.includes("PLAID") || gate.includes("TOKEN_VAULT"),
@@ -2888,9 +3231,9 @@ function controlPlanFromOperations(body, env, payload = {}) {
   const paidAccessReady = commercialActivationReady(env, body.commercialAccess);
   const paymentCollectionReady = Boolean(body.commercialAccess.readyForCheckout);
   const transferPlan = buildHouseholdControlTransferPlan({
-    buckets,
+    buckets: planBuckets,
     moneyRails: body.moneyRails,
-    payees,
+    payees: planPayees,
     planInput,
   });
   const operatingSteps = [
@@ -2945,9 +3288,11 @@ function controlPlanFromOperations(body, env, payload = {}) {
         "Confirm bucket targets, priority order, due rules, approved payees, and unlock behavior.",
       ready: true,
       status:
-        body.controls?.bucketPersistence?.persistence === "postgres"
+        planBuckets === buckets && body.controls?.bucketPersistence?.persistence === "postgres"
           ? "durable"
-          : "customizable_now",
+          : planBuckets === buckets
+            ? "customizable_now"
+            : "workspace_profile",
       title: "Protected buckets",
       userAction: "Protect obligations before Safe to Spend is calculated.",
     },
@@ -3011,6 +3356,7 @@ function controlPlanFromOperations(body, env, payload = {}) {
         transactionNamePattern: planInput.employerName,
       },
       generatedAt: new Date().toISOString(),
+      fundingSchedule,
       household: body.household,
       input: planInput,
       monetization: {
@@ -3034,12 +3380,18 @@ function controlPlanFromOperations(body, env, payload = {}) {
       },
       service: "payshield-household-control-plan",
       source: {
-        bucketPersistence: body.controls?.bucketPersistence?.persistence ?? "memory",
+        bucketPersistence:
+          planBuckets === buckets
+            ? (body.controls?.bucketPersistence?.persistence ?? "memory")
+            : "workspace_profile",
         ledger: body.ledger.source,
-        payeePersistence: body.controls?.payeePersistence?.persistence ?? "memory",
+        payeePersistence:
+          planPayees === payees
+            ? (body.controls?.payeePersistence?.persistence ?? "memory")
+            : "workspace_profile",
       },
       summary: {
-        approvedPayeeCount: payees.filter((payee) => payee.status === "approved").length,
+        approvedPayeeCount: planPayees.filter((payee) => payee.status === "approved").length,
         bucketCount: allocation.buckets.length,
         nextActionKey: nextAction.key,
         paycheckAmountCents: planInput.paycheckAmountCents,
@@ -3050,10 +3402,343 @@ function controlPlanFromOperations(body, env, payload = {}) {
           0,
         ),
         readyStepCount: operatingSteps.filter((step) => step.canRunNow).length,
+        shortfallCents: allocation.shortfallCents,
         totalStepCount: operatingSteps.length,
       },
       support: body.support,
       transferPlan,
+    },
+    status: 200,
+  };
+}
+
+function cleanProfileDate(value) {
+  const raw = cleanText(value, 24);
+
+  if (!raw) {
+    return null;
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return null;
+  }
+
+  const date = new Date(`${raw}T00:00:00.000Z`);
+
+  return !Number.isNaN(date.getTime()) &&
+    date.toISOString().slice(0, 10) === raw
+    ? raw
+    : null;
+}
+
+function normalizeHouseholdMoneyProfileInput(payload = {}) {
+  const record = safeObject(payload);
+  const errors = [];
+  const employerName = cleanText(record.employerName, 80) || "Payroll deposit";
+  const expectedFrequency = normalizedPaycheckRuleFrequency(
+    record.expectedFrequency,
+  );
+  const paycheckAmountCents = toIntegerCents(record.paycheckAmountCents, {
+    max: 2_000_000,
+    min: 10_000,
+  });
+  const requestedTransferCents = toIntegerCents(
+    record.requestedTransferCents ?? 0,
+    {
+      max: 500_000,
+      min: 0,
+    },
+  );
+  const nextPayday = cleanProfileDate(record.nextPayday);
+
+  if (paycheckAmountCents === null) {
+    errors.push("paycheckAmountCents must be integer cents from 10000 to 2000000.");
+  }
+
+  if (requestedTransferCents === null) {
+    errors.push("requestedTransferCents must be integer cents from 0 to 500000.");
+  }
+
+  if (record.nextPayday && !nextPayday) {
+    errors.push("nextPayday must use YYYY-MM-DD.");
+  }
+
+  if (errors.length > 0) {
+    return {
+      errors,
+      input: null,
+      ok: false,
+    };
+  }
+
+  return {
+    errors: [],
+    input: {
+      bankConnectionId: cleanText(record.bankConnectionId, 120) || null,
+      detectionRuleId: cleanText(record.detectionRuleId, 120) || null,
+      employerName,
+      expectedFrequency,
+      idempotencyKey: cleanText(record.idempotencyKey, 120),
+      metadata: {
+        configuredFrom: "payshield_app",
+        profileVersion: 1,
+      },
+      nextPayday,
+      paycheckAmountCents: paycheckAmountCents ?? 300_000,
+      preferredPayeeId: cleanText(record.preferredPayeeId, 120) || null,
+      preferredTransferBucketId:
+        cleanText(record.preferredTransferBucketId, 120) || null,
+      requestedTransferCents: requestedTransferCents ?? 0,
+      source: "app_profile",
+    },
+    ok: true,
+  };
+}
+
+function profileToControlPlanInput(profile) {
+  return {
+    employerName: profile.employerName,
+    expectedFrequency: profile.expectedFrequency,
+    paycheckAmountCents: profile.paycheckAmountCents,
+    preferredPayeeId: profile.preferredPayeeId,
+    preferredTransferBucketId: profile.preferredTransferBucketId,
+    requestedTransferCents: profile.requestedTransferCents,
+    ruleName: `${profile.employerName || "Primary"} paycheck`,
+  };
+}
+
+function defaultHouseholdMoneyProfile() {
+  return {
+    bankConnectionId: null,
+    detectionRuleId: null,
+    employerName: "Payroll deposit",
+    expectedFrequency: "biweekly",
+    idempotencyKey: null,
+    nextPayday: null,
+    paycheckAmountCents: 300_000,
+    preferredPayeeId: neobankPayees[0]?.id ?? null,
+    preferredTransferBucketId: "rent",
+    requestedTransferCents: 25_000,
+    source: "core_control_model",
+  };
+}
+
+async function ensureDurableBucketProfile(actorInput, env = process.env) {
+  const actor = normalizeActor(actorInput);
+  const existing = await loadBucketProfile(actor.householdId, env);
+
+  if (persistenceFailed(existing)) {
+    return {
+      ok: false,
+      persistence: existing,
+    };
+  }
+
+  if (existing.persistence === "postgres" && existing.profileFound) {
+    return {
+      buckets: existing.profile,
+      ok: true,
+      persistence: existing,
+      seeded: false,
+    };
+  }
+
+  if (existing.persistence === "memory") {
+    return {
+      buckets: neobankBuckets.filter(
+        (bucket) => bucket.id !== "safe_spending",
+      ),
+      ok: true,
+      persistence: existing,
+      seeded: false,
+    };
+  }
+
+  const buckets = neobankBuckets.filter(
+    (bucket) => bucket.id !== "safe_spending",
+  );
+  const persistence = await persistBucketProfile(
+    {
+      actorUserId: actor.id,
+      betaAccessStatus: actor.profileAccess,
+      buckets,
+      clerkSubject: actor.clerkSubject,
+      householdId: actor.householdId,
+      idempotencyKey: `default-bucket-profile:${actor.householdId}`,
+      kycStatus: actor.kycStatus,
+      userEmail: actor.email,
+      userName: actor.name,
+    },
+    env,
+  );
+
+  return {
+    buckets,
+    ok:
+      persistence.persistence === "postgres" &&
+      persistence.persisted === true,
+    persistence,
+    seeded: true,
+  };
+}
+
+function bucketProfileRequiredResult(profileSetup, service) {
+  return {
+    body: {
+      code: "bucket_profile_required",
+      error: "Your protected buckets could not be prepared. Try again before continuing.",
+      persistence: profileSetup.persistence,
+      service,
+    },
+    status: 503,
+  };
+}
+
+export async function getHouseholdMoneyProfile(
+  env = process.env,
+  actorInput = demoUser,
+) {
+  const actorResolution = await resolveActorIdentity(
+    env,
+    actorInput,
+    "household money profile lookup",
+  );
+
+  if (!actorResolution.ok) {
+    return actorResolution.result;
+  }
+
+  const actor = actorResolution.actor;
+  const persistence = await loadHouseholdMoneyProfile(actor.householdId, env);
+
+  if (persistenceFailed(persistence)) {
+    return {
+      body: {
+        error: "Household money profile could not be loaded from durable core controls.",
+        persistence,
+        readiness: getCoreReadiness(env, { coreOnline: true }),
+        service: "payshield-household-money-profile",
+      },
+      status: 503,
+    };
+  }
+
+  const profile = persistence.profileFound
+    ? persistence.profile
+    : defaultHouseholdMoneyProfile();
+  const controlPlan = await getHouseholdControlPlan(
+    env,
+    actor,
+    profileToControlPlanInput(profile),
+  );
+
+  return {
+    body: {
+      controlPlan: controlPlan.status === 200 ? controlPlan.body : null,
+      household: {
+        authMode: actor.authMode,
+        email: actor.email,
+        householdId: actor.householdId,
+        name: actor.name,
+        userId: actor.id,
+      },
+      message: persistence.profileFound
+        ? "Household money profile loaded from durable core controls."
+        : "Household money profile loaded from the core control model.",
+      persisted: Boolean(persistence.profileFound),
+      persistence,
+      profile,
+      profilePersistence: persistence.profileFound
+        ? "durable_core"
+        : "core_service_model",
+      service: "payshield-household-money-profile",
+    },
+    status: 200,
+  };
+}
+
+export async function saveHouseholdMoneyProfile(payload, env = process.env) {
+  const actor = actorFromPayload(payload);
+  const normalized = normalizeHouseholdMoneyProfileInput(payload);
+
+  if (!normalized.ok) {
+    return {
+      body: {
+        errors: normalized.errors,
+        service: "payshield-household-money-profile",
+      },
+      status: 400,
+    };
+  }
+
+  const profileInput = normalized.input;
+  const profileSetup = await ensureDurableBucketProfile(actor, env);
+
+  if (!profileSetup.ok) {
+    return bucketProfileRequiredResult(
+      profileSetup,
+      "payshield-household-money-profile",
+    );
+  }
+
+  const persistence = await persistHouseholdMoneyProfile(
+    {
+      actorUserId: actor.id,
+      betaAccessStatus: actor.profileAccess,
+      clerkSubject: actor.clerkSubject,
+      householdId: actor.householdId,
+      kycStatus: actor.kycStatus,
+      userEmail: actor.email,
+      userName: actor.name,
+      ...profileInput,
+    },
+    env,
+  );
+
+  if (persistence.persistence === "control_conflict") {
+    return {
+      body: {
+        code: persistence.code,
+        error:
+          "Choose an active bucket, approved destination, and household-owned account settings.",
+        persistence,
+        service: "payshield-household-money-profile",
+      },
+      status: 409,
+    };
+  }
+
+  if (persistenceFailed(persistence)) {
+    return {
+      body: {
+        error: "Household money profile could not be persisted.",
+        persistence,
+        readiness: getCoreReadiness(env, { coreOnline: true }),
+        service: "payshield-household-money-profile",
+      },
+      status: 503,
+    };
+  }
+
+  const persisted = persistence.persistence === "postgres";
+  const profile = persistence.profile || profileInput;
+  const controlPlan = await getHouseholdControlPlan(
+    env,
+    actor,
+    profileToControlPlanInput(profile),
+  );
+
+  return {
+    body: {
+      controlPlan: controlPlan.status === 200 ? controlPlan.body : null,
+      message: persisted
+        ? "Household money profile saved to durable core controls."
+        : "Household money profile validated by the core control model.",
+      persisted,
+      persistence,
+      profile,
+      profilePersistence: persisted ? "durable_core" : "core_service_model",
+      service: "payshield-household-money-profile",
     },
     status: 200,
   };
@@ -4220,7 +4905,7 @@ function buildActivationRunway(
       revenueImpact:
         "Creates support, compliance, and household trust evidence for retention.",
       setupAction:
-        "Deploy the always-on core, verify Postgres schema 0013, and require durable storage.",
+        "Deploy the always-on core, verify Postgres schema 0019, and require durable storage.",
       title: "Prove the ledger evidence",
     },
     {
@@ -4296,7 +4981,7 @@ function buildActivationRunway(
       "Configure Stripe and core access activation",
       "Turn on Clerk household identity",
       "Configure Plaid and token custody",
-      "Verify Postgres ledger schema 0013",
+      "Verify Postgres ledger schema 0019",
       "Connect BaaS/card provider adapter",
       "Record counsel, sponsor, and runbook approvals before live money",
     ],
@@ -4306,7 +4991,7 @@ function buildActivationRunway(
       healthEndpoint: "/api/health",
       operationsEndpoint: "/api/app/operations",
       productionStatusCommand:
-        "npm run market:status -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app",
+        "npm run smoke:deploy -- https://payshield-lime.vercel.app && npm run production:routes -- https://payshield-lime.vercel.app",
       requiredBeforeLiveMoney: uniqueList([
         ...coreGateMissing,
         ...moneyRails.providerAdapterMissing,
@@ -4449,8 +5134,12 @@ async function buildHouseholdOperations(env = process.env, actorInput = demoUser
       directDeposit: snapshot.directDeposit,
       generatedAt: new Date().toISOString(),
       household: {
+        authMode: actor.authMode,
+        clerkSubject: actor.clerkSubject,
+        email: actor.email,
         householdId: actor.householdId,
         kycStatus: actor.kycStatus,
+        name: actor.name,
         profileAccess: actor.profileAccess,
         userId: actor.id,
       },
@@ -4596,8 +5285,8 @@ function activationPacketFromOperations(body, env = process.env) {
       smokeCommands: [
         `curl -fsS ${siteUrl}/api/health`,
         `curl -fsS ${siteUrl}/api/launch/activation`,
-        "npm run vercel:env:audit -- --profile commercial",
-        `npm run market:status -- ${siteUrl} --expect-site-url ${siteUrl}`,
+        `npm run smoke:deploy -- ${siteUrl}`,
+        `npm run production:routes -- ${siteUrl}`,
         'PAYSHIELD_LEDGER_DATABASE_URL="<postgres-url>" npm run core:migrations:verify',
       ],
     },
@@ -4839,7 +5528,7 @@ export async function getBucketProfile(env = process.env, actorInput = demoUser)
   }
 
   const actor = actorResolution.actor;
-  const snapshot = createNeobankSnapshot(undefined, env, {}, actor);
+  const snapshot = createNeobankSnapshot(new LedgerBook(), env, {}, actor);
   const persistence = await loadBucketProfile(actor.householdId, env);
 
   if (persistenceFailed(persistence)) {
@@ -4856,11 +5545,15 @@ export async function getBucketProfile(env = process.env, actorInput = demoUser)
 
   if (persistence.profileFound) {
     const buckets = withSafeSpendingBucket(persistence.profile);
-    const book = createDemoLedgerBook(300_000, buckets);
+    const ledger = await loadHouseholdLedger(env, actor, { buckets });
+
+    if (ledger.error) {
+      return ledger.error;
+    }
 
     return {
       body: {
-        buckets: buildBucketBalances(book, buckets),
+        buckets: buildBucketBalances(ledger.book, buckets),
         message: "Household bucket profile loaded from durable core controls.",
         persisted: true,
         persistence,
@@ -4939,6 +5632,28 @@ export async function saveBucketProfile(payload, env = process.env) {
       env,
     );
 
+    if (persistence.persistence === "control_conflict") {
+      const blockedNames = (persistence.blockedBuckets || [])
+        .map((bucket) => bucket.name)
+        .filter(Boolean)
+        .join(", ");
+
+      return {
+        body: {
+          blockedBuckets: persistence.blockedBuckets || [],
+          buckets: profile,
+          error: blockedNames
+            ? `Move funds and finish or reassign active controls before removing ${blockedNames}.`
+            : "Move funds and finish or reassign active controls before removing this bucket.",
+          persistence,
+          protectedCents,
+          readiness: getCoreReadiness(env, { coreOnline: true }),
+          service: "payshield-bucket-controls",
+        },
+        status: 409,
+      };
+    }
+
     if (persistenceFailed(persistence)) {
       return {
         body: {
@@ -5008,7 +5723,6 @@ export async function saveBucketProfile(payload, env = process.env) {
       idempotencyKey:
         cleanText(payload.idempotencyKey, 120) || `bucket-target-${payload.bucketId}-${targetCents}`,
       kycStatus: actor.kycStatus,
-      payees: neobankPayees,
       userEmail: actor.email,
       userName: actor.name,
     },
@@ -5134,27 +5848,102 @@ async function providerCreateCustomer(env, actor) {
   };
 }
 
-async function providerStartKyc(env, actor) {
+function normalizedProviderKycStatus(value) {
+  const status = safeString(value, 40).toLowerCase();
+
+  if (["approved", "verified", "complete", "completed", "passed"].includes(status)) {
+    return "approved";
+  }
+
+  if (["rejected", "denied", "failed", "declined"].includes(status)) {
+    return "rejected";
+  }
+
+  if (["manual_review", "review", "under_review"].includes(status)) {
+    return "manual_review";
+  }
+
+  if (["expired", "abandoned"].includes(status)) {
+    return "expired";
+  }
+
+  if (["submitted", "pending", "provider_pending", "started"].includes(status)) {
+    return status === "pending" ? "provider_pending" : status;
+  }
+
+  return "started";
+}
+
+function appKycStatus(providerStatus) {
+  if (providerStatus === "approved") {
+    return "approved";
+  }
+
+  if (providerStatus === "rejected" || providerStatus === "expired") {
+    return "rejected";
+  }
+
+  if (providerStatus === "manual_review") {
+    return "manual_review";
+  }
+
+  return providerStatus === "submitted" ? "submitted" : "provider_pending";
+}
+
+async function providerStartKyc(
+  env,
+  actor,
+  providerCustomerId,
+  idempotencyKey = `kyc:${actor.id}`,
+) {
   const payload = await providerAdapterRequest(
     env,
     "startKyc",
     getProviderAdapterConfig(env).endpoints.kyc,
     {
       email: actor.email,
-      idempotencyKey: `kyc:${actor.id}`,
+      idempotencyKey,
       name: actor.name,
+      providerCustomerId,
       userId: actor.id,
     },
   );
 
+  const status = normalizedProviderKycStatus(
+    payload?.status || payload?.kycStatus || payload?.applicationStatus,
+  );
+  const hostedVerification = safeObject(payload?.hostedVerification);
+  const verificationUrl = cleanProviderHostedUrl(
+    payload?.verificationUrl ||
+      payload?.applicationUrl ||
+      payload?.onboardingUrl ||
+      payload?.redirectUrl ||
+      payload?.url ||
+      hostedVerification.url,
+    env,
+  );
+
+  if (["started", "provider_pending"].includes(status) && !verificationUrl) {
+    throw new ProviderAdapterError(
+      "Provider KYC response did not include a secure verification URL.",
+    );
+  }
+
   return {
+    expiresAt: cleanProviderHostedExpiry(
+      payload?.expiresAt ||
+        payload?.expiration ||
+        payload?.verificationExpiresAt ||
+        hostedVerification.expiresAt,
+    ),
     providerApplicationId: requireProviderField(
       payload,
       ["providerApplicationId", "applicationId"],
       "Provider KYC response did not include an application id.",
     ),
     providerRequestId: providerRequestId(payload) || undefined,
-    status: "started",
+    status,
+    verificationUrl: verificationUrl || null,
   };
 }
 
@@ -5176,7 +5965,11 @@ async function providerOpenFinancialAccount(env, providerCustomerId) {
       "Provider account response did not include an account id.",
     ),
     providerRequestId: providerRequestId(payload) || undefined,
-    status: "opened",
+    status: ["active", "restricted", "suspended", "closed"].includes(
+      safeString(payload?.status, 40).toLowerCase(),
+    )
+      ? safeString(payload.status, 40).toLowerCase()
+      : "opened",
   };
 }
 
@@ -5217,7 +6010,11 @@ async function providerIssueCard(env, actor, providerAccountId) {
   return {
     cardLast4,
     providerCardId,
-    status: "issued",
+    status: ["active", "frozen", "closed"].includes(
+      safeString(payload?.status, 40).toLowerCase(),
+    )
+      ? safeString(payload.status, 40).toLowerCase()
+      : "issued",
   };
 }
 
@@ -5257,6 +6054,135 @@ async function providerCreateBillPayment(env, input) {
   };
 }
 
+function cleanProviderHostedUrl(value, env) {
+  const raw = safeString(value, 2_000);
+
+  if (!raw) {
+    return "";
+  }
+
+  try {
+    const url = new URL(raw);
+    const localHttp =
+      url.protocol === "http:" &&
+      ["127.0.0.1", "::1", "localhost"].includes(url.hostname) &&
+      env.VERCEL_ENV !== "production";
+
+    if (
+      url.username ||
+      url.password ||
+      (url.protocol !== "https:" && !localHttp)
+    ) {
+      return "";
+    }
+
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+function cleanProviderHostedExpiry(value) {
+  const raw = safeString(value, 80);
+
+  if (!raw) {
+    return null;
+  }
+
+  const timestamp = Date.parse(raw);
+
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null;
+}
+
+function normalizedProviderPayeeStatus(value) {
+  const status = safeString(value, 40).toLowerCase();
+
+  if (["approved", "active", "verified", "complete", "completed"].includes(status)) {
+    return "approved";
+  }
+
+  if (["rejected", "denied", "failed", "declined"].includes(status)) {
+    return "rejected";
+  }
+
+  return "provider_pending";
+}
+
+async function providerStartPayeeEnrollment(env, input) {
+  const payload = await providerAdapterRequest(
+    env,
+    "startPayeeVerification",
+    getProviderAdapterConfig(env).endpoints.payeeEnrollment,
+    input,
+  );
+  const providerPayeeId = requireProviderField(
+    payload,
+    ["providerPayeeId", "payeeId"],
+    "Provider payee response did not include a payee id.",
+  );
+  const status = normalizedProviderPayeeStatus(
+    payload?.status || payload?.verificationStatus,
+  );
+  const enrollmentUrl = cleanProviderHostedUrl(
+    payload?.enrollmentUrl || payload?.verificationUrl || payload?.url,
+    env,
+  );
+
+  if (status === "provider_pending" && !enrollmentUrl) {
+    throw new ProviderAdapterError(
+      "Provider payee response did not include a secure enrollment URL.",
+    );
+  }
+
+  return {
+    enrollmentUrl: enrollmentUrl || null,
+    providerPayeeId,
+    status,
+  };
+}
+
+async function providerCancelBillPayment(env, input) {
+  const payload = await providerAdapterRequest(
+    env,
+    "cancelBillPayment",
+    getProviderAdapterConfig(env).endpoints.billPaymentCancel,
+    input,
+  );
+  const status = safeString(payload?.status, 40).toLowerCase();
+
+  if (status && !["canceled", "cancelled"].includes(status)) {
+    throw new ProviderAdapterError(
+      "Provider did not confirm the bill payment cancellation.",
+    );
+  }
+
+  return {
+    providerBillPaymentId: input.providerBillPaymentId,
+    status: "canceled",
+  };
+}
+
+async function providerSetCardStatus(env, input) {
+  const payload = await providerAdapterRequest(
+    env,
+    "updateCardStatus",
+    getProviderAdapterConfig(env).endpoints.cardStatus,
+    input,
+  );
+  const status = safeString(payload?.status, 40).toLowerCase();
+
+  if (status !== input.status) {
+    throw new ProviderAdapterError(
+      "Provider did not confirm the requested card status.",
+    );
+  }
+
+  return {
+    providerCardId: input.providerCardId,
+    status,
+  };
+}
+
 export function startOnboarding(env = process.env, actorInput = demoUser) {
   return startOnboardingWithPaidAccess(env, actorInput);
 }
@@ -5276,6 +6202,14 @@ export async function createDirectDepositSetup(payload = {}, env = process.env) 
   }
 
   actor = paidAccess.actor;
+  const profileSetup = await ensureDurableBucketProfile(actor, env);
+
+  if (!profileSetup.ok) {
+    return bucketProfileRequiredResult(
+      profileSetup,
+      "payshield-direct-deposit-setup",
+    );
+  }
 
   const providerName =
     cleanText(payload?.providerName, 40).toLowerCase() ||
@@ -5592,6 +6526,17 @@ async function startOnboardingWithPaidAccess(env = process.env, actorInput = dem
   }
 
   actor = paidAccess.actor;
+  const profileSetup = await ensureDurableBucketProfile(actor, env);
+
+  if (!profileSetup.ok) {
+    return bucketProfileRequiredResult(
+      profileSetup,
+      "payshield-provider-onboarding",
+    );
+  }
+
+  const providerName =
+    getProviderAdapterConfig(env).providerName || "payshield";
 
   let customer = {
     providerCustomerId: "provider-contract-required",
@@ -5614,38 +6559,281 @@ async function startOnboardingWithPaidAccess(env = process.env, actorInput = dem
   let card = {
     cardLast4: "----",
     providerCardId: "card-provider-contract-required",
-    status: "blocked",
+      status: "blocked",
   };
 
-  if (!blocked) {
-    try {
+  if (blocked) {
+    return {
+      body: {
+        card,
+        customer,
+        directDeposit,
+        financialAccount,
+        kyc,
+        liveMoney: liveGate,
+        message:
+          "Account setup is unavailable until the required banking services are active.",
+        profileAccess: actor.profileAccess,
+      },
+      status: 423,
+    };
+  }
+
+  const persistenceInput = (state = {}) => ({
+    actorUserId: actor.id,
+    betaAccessStatus: actor.profileAccess,
+    clerkSubject: actor.clerkSubject,
+    householdId: actor.householdId,
+    kycStatus: state.kyc
+      ? appKycStatus(state.kyc.status)
+      : actor.kycStatus,
+    providerName,
+    userEmail: actor.email,
+    userName: actor.name,
+    ...state,
+  });
+  const current = await loadProviderOnboardingState(
+    actor.householdId,
+    providerName,
+    env,
+  );
+
+  if (persistenceFailed(current) || !current.state) {
+    return {
+      body: {
+        error: "Account setup state could not be loaded.",
+        liveMoney: liveGate,
+        persistence: current,
+        readiness,
+        service: "payshield-provider-onboarding",
+      },
+      status: 503,
+    };
+  }
+
+  ({ card, customer, directDeposit, financialAccount, kyc } = current.state);
+
+  try {
+    if (!customer) {
       customer = await providerCreateCustomer(env, actor);
-      kyc = await providerStartKyc(env, actor);
-      financialAccount = await providerOpenFinancialAccount(
+      const persistedCustomer = await persistProviderOnboardingState(
+        persistenceInput({ customer }),
+        env,
+      );
+
+      if (persistenceFailed(persistedCustomer) || !persistedCustomer.state) {
+        return {
+          body: {
+            error: "Customer setup could not be saved.",
+            liveMoney: liveGate,
+            persistence: persistedCustomer,
+            readiness,
+            service: "payshield-provider-onboarding",
+          },
+          status: 503,
+        };
+      }
+
+      ({ card, customer, directDeposit, financialAccount, kyc } =
+        persistedCustomer.state);
+    }
+
+    const hostedVerificationExpired = Boolean(
+      kyc?.expiresAt && Date.parse(kyc.expiresAt) <= Date.now(),
+    );
+    const hostedVerificationMissing = Boolean(
+      kyc &&
+        ["started", "provider_pending"].includes(kyc.status) &&
+        !kyc.verificationUrl,
+    );
+    const restartIdentityVerification = Boolean(
+      kyc?.status === "expired" ||
+        hostedVerificationExpired ||
+        hostedVerificationMissing,
+    );
+
+    if (!kyc || restartIdentityVerification) {
+      const startedKyc = await providerStartKyc(
+        env,
+        actor,
+        customer.providerCustomerId,
+        restartIdentityVerification
+          ? `kyc:${actor.id}:restart:${kyc?.providerApplicationId || "missing"}`
+          : `kyc:${actor.id}`,
+      );
+      const persistedKyc = await persistProviderOnboardingState(
+        persistenceInput({
+          kyc: {
+            ...startedKyc,
+            providerCustomerId: customer.providerCustomerId,
+          },
+        }),
+        env,
+      );
+
+      if (persistenceFailed(persistedKyc) || !persistedKyc.state) {
+        return {
+          body: {
+            error: "Identity verification state could not be saved.",
+            liveMoney: liveGate,
+            persistence: persistedKyc,
+            readiness,
+            service: "payshield-provider-onboarding",
+          },
+          status: 503,
+        };
+      }
+
+      ({ card, customer, directDeposit, financialAccount, kyc } =
+        persistedKyc.state);
+    }
+
+    if (kyc.status === "rejected" || kyc.status === "expired") {
+      return {
+        body: {
+          card,
+          customer,
+          directDeposit,
+          financialAccount,
+          kyc,
+          liveMoney: liveGate,
+          message:
+            kyc.status === "expired"
+              ? "Identity verification expired. Start a new review to continue."
+              : "Identity verification needs support review before setup can continue.",
+          profileAccess: actor.profileAccess,
+          service: "payshield-provider-onboarding",
+        },
+        status: 409,
+      };
+    }
+
+    if (kyc.status !== "approved") {
+      return {
+        body: {
+          card,
+          customer,
+          directDeposit,
+          financialAccount,
+          kyc,
+          liveMoney: liveGate,
+          message: "Identity verification is in progress.",
+          profileAccess: actor.profileAccess,
+          service: "payshield-provider-onboarding",
+        },
+        status: 202,
+      };
+    }
+
+    if (!financialAccount) {
+      const openedAccount = await providerOpenFinancialAccount(
         env,
         customer.providerCustomerId,
       );
-      directDeposit = await providerCreateDirectDepositInstructions(
+      const persistedAccount = await persistProviderOnboardingState(
+        persistenceInput({
+          financialAccount: {
+            ...openedAccount,
+            providerCustomerId: customer.providerCustomerId,
+          },
+        }),
         env,
-        financialAccount.providerAccountId,
       );
-      card = await providerIssueCard(
+
+      if (persistenceFailed(persistedAccount) || !persistedAccount.state) {
+        return {
+          body: {
+            error: "Account state could not be saved.",
+            liveMoney: liveGate,
+            persistence: persistedAccount,
+            readiness,
+            service: "payshield-provider-onboarding",
+          },
+          status: 503,
+        };
+      }
+
+      ({ card, customer, directDeposit, financialAccount, kyc } =
+        persistedAccount.state);
+    }
+
+    if (!directDeposit || directDeposit.status !== "ready") {
+      const directDepositResult = await createDirectDepositSetup(
+        {
+          __payshieldActor: actor,
+          idempotencyKey: `onboarding-direct-deposit-${actor.householdId}`,
+          providerAccountId: financialAccount.providerAccountId,
+          providerCustomerId: customer.providerCustomerId,
+          providerName,
+        },
+        env,
+      );
+
+      if (directDepositResult.status >= 400) {
+        return directDepositResult;
+      }
+
+      directDeposit =
+        directDepositResult.body.setup ||
+        directDepositResult.body.directDeposit ||
+        directDeposit;
+    }
+
+    if (!card) {
+      const issuedCard = await providerIssueCard(
         env,
         actor,
         financialAccount.providerAccountId,
       );
-    } catch (error) {
-      const result = providerErrorResult(error, "payshield-provider-onboarding");
+      const persistedCard = await persistProviderOnboardingState(
+        persistenceInput({
+          card: {
+            ...issuedCard,
+            providerAccountId: financialAccount.providerAccountId,
+          },
+        }),
+        env,
+      );
 
-      return {
-        body: {
-          ...result.body,
-          liveMoney: liveGate,
-          readiness,
-        },
-        status: result.status,
-      };
+      if (persistenceFailed(persistedCard) || !persistedCard.state) {
+        return {
+          body: {
+            error: "Card state could not be saved.",
+            liveMoney: liveGate,
+            persistence: persistedCard,
+            readiness,
+            service: "payshield-provider-onboarding",
+          },
+          status: 503,
+        };
+      }
+
+      ({ card, customer, directDeposit, financialAccount, kyc } =
+        persistedCard.state);
     }
+  } catch (error) {
+    const exceptionPersistence = await recordMoneyRailProviderException(
+      {
+        actor,
+        amountCents: null,
+        error,
+        idempotencyKey: `onboarding:${actor.id}`,
+        operation: "startOnboarding",
+        rail: "provider_onboarding",
+      },
+      env,
+    );
+    const result = providerErrorResult(error, "payshield-provider-onboarding");
+
+    return {
+      body: {
+        ...result.body,
+        exceptionPersistence,
+        liveMoney: liveGate,
+        readiness,
+      },
+      status: persistenceFailed(exceptionPersistence) ? 503 : result.status,
+    };
   }
 
   return {
@@ -5656,21 +6844,348 @@ async function startOnboardingWithPaidAccess(env = process.env, actorInput = dem
       financialAccount,
       kyc,
       liveMoney: liveGate,
-      message: liveGate.ok
-        ? "Onboarding started with the configured provider."
-        : "Onboarding is queued. Provider activation is required before account, card, and transfer setup.",
+      message: "Account and card setup are complete.",
       profileAccess: actor.profileAccess,
+      service: "payshield-provider-onboarding",
     },
-    status: liveGate.ok ? 200 : 423,
+    status: 200,
   };
 }
 
-function modeledPayeeId(name) {
-  return `payee_modeled_${name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
+export async function setCardStatus(payload, env = process.env) {
+  let actor = actorFromPayload(payload);
+  const status = cleanText(payload?.status, 40).toLowerCase();
+
+  if (!["active", "frozen"].includes(status)) {
+    return {
+      body: { error: "Card status must be active or frozen." },
+      status: 400,
+    };
+  }
+
+  const paidAccess = await requireActivePaidAccess(
+    env,
+    actor,
+    "card controls",
+  );
+
+  if (!paidAccess.ok) {
+    return paidAccess.result;
+  }
+
+  actor = paidAccess.actor;
+  const providerName = getProviderAdapterConfig(env).providerName;
+  const current = await loadProviderOnboardingState(
+    actor.householdId,
+    providerName,
+    env,
+  );
+
+  if (
+    persistenceFailed(current) ||
+    current.persistence !== "postgres" ||
+    !current.state
+  ) {
+    return {
+      body: {
+        error: "Card controls are unavailable.",
+        persistence: current,
+        service: "payshield-card-controls",
+      },
+      status: 503,
+    };
+  }
+
+  const card = current.state.card;
+
+  if (!card) {
+    return {
+      body: {
+        error: "No issued card was found.",
+        service: "payshield-card-controls",
+      },
+      status: 404,
+    };
+  }
+
+  if (card.status === "closed") {
+    return {
+      body: {
+        error: "A closed card cannot be reactivated.",
+        service: "payshield-card-controls",
+      },
+      status: 409,
+    };
+  }
+
+  if (card.status === status) {
+    return {
+      body: {
+        card,
+        message: status === "frozen" ? "Card is already frozen." : "Card is already active.",
+        replayed: true,
+      },
+      status: 200,
+    };
+  }
+
+  const idempotencyKey =
+    cleanText(payload?.idempotencyKey, 120) ||
+    `card-status:${card.providerCardId}:${status}`;
+  let providerCard;
+
+  try {
+    providerCard = await providerSetCardStatus(env, {
+      idempotencyKey,
+      providerCardId: card.providerCardId,
+      status,
+    });
+  } catch (error) {
+    const exceptionPersistence = await recordMoneyRailProviderException(
+      {
+        actor,
+        amountCents: null,
+        error,
+        idempotencyKey,
+        operation: "updateCardStatus",
+        rail: "card",
+      },
+      env,
+    );
+    const result = providerErrorResult(error, "payshield-card-controls");
+
+    return {
+      body: {
+        ...result.body,
+        exceptionPersistence,
+      },
+      status: persistenceFailed(exceptionPersistence) ? 503 : result.status,
+    };
+  }
+
+  const persistence = await updateProviderCardStatus(
+    {
+      householdId: actor.householdId,
+      providerCardId: card.providerCardId,
+      status: providerCard.status,
+      userId: actor.id,
+    },
+    env,
+  );
+
+  if (persistenceFailed(persistence) || !persistence.found) {
+    const exceptionPersistence = await recordMoneyRailProviderException(
+      {
+        actor,
+        amountCents: null,
+        error: new Error(
+          "Provider card status changed but the local card record did not update.",
+        ),
+        idempotencyKey: `card-status-commit:${card.providerCardId}:${status}`,
+        operation: "updateCardStatus",
+        rail: "card",
+      },
+      env,
+    );
+
+    return {
+      body: {
+        error: "Card status changed but could not be confirmed locally.",
+        exceptionPersistence,
+        persistence,
+        service: "payshield-card-controls",
+      },
+      status: 503,
+    };
+  }
+
+  return {
+    body: {
+      card: persistence.card,
+      message: status === "frozen" ? "Card frozen." : "Card activated.",
+      persistence,
+    },
+    status: 200,
+  };
+}
+
+function payeeIdForHousehold(householdId, name) {
+  const slug =
+    name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 48) || "payee";
+  const digest = createHash("sha256")
+    .update(`${householdId}:${slug}`)
+    .digest("hex")
+    .slice(0, 32);
+
+  return `payee_${digest}`;
+}
+
+async function beginPayeeVerification(actor, payee, idempotencyKey, env) {
+  const providerName = getProviderAdapterConfig(env).providerName;
+  const enrollment = await providerStartPayeeEnrollment(env, {
+    allowedBucketId: payee.allowedBucketId,
+    idempotencyKey,
+    maxCents: payee.maxCents,
+    name: payee.name,
+    payeeId: payee.id,
+    userId: actor.id,
+  });
+  const persistence = await updatePayeeProviderStatus(
+    {
+      householdId: actor.householdId,
+      idempotencyKey: `payee-enrollment:${idempotencyKey}`,
+      payeeId: payee.id,
+      providerName,
+      providerPayeeId: enrollment.providerPayeeId,
+      status: enrollment.status,
+      userId: actor.id,
+    },
+    env,
+  );
+
+  if (persistenceFailed(persistence) || !persistence.found) {
+    throw new ProviderAdapterError(
+      "Payee verification started but could not be confirmed locally.",
+    );
+  }
+
+  return {
+    ...enrollment,
+    payee: persistence.payee,
+    persistence,
+  };
+}
+
+export async function startPayeeVerification(payload, env = process.env) {
+  let actor = actorFromPayload(payload);
+  const payeeId = cleanText(payload?.payeeId, 120);
+
+  if (!payeeId) {
+    return {
+      body: { error: "Provide payeeId." },
+      status: 400,
+    };
+  }
+
+  const paidAccess = await requireActivePaidAccess(
+    env,
+    actor,
+    "payment destination verification",
+  );
+
+  if (!paidAccess.ok) {
+    return paidAccess.result;
+  }
+
+  actor = paidAccess.actor;
+  const providerConfig = getProviderAdapterConfig(env);
+
+  if (!providerConfig.ok) {
+    return {
+      body: {
+        code: "payee_verification_unavailable",
+        error: "Payment destination verification is temporarily unavailable.",
+        service: "payshield-payees",
+      },
+      status: 423,
+    };
+  }
+
+  const lookup = await loadPayees(actor.householdId, env);
+
+  if (persistenceFailed(lookup) || lookup.persistence !== "postgres") {
+    return {
+      body: {
+        error: "Payment destinations are unavailable.",
+        persistence: lookup,
+        service: "payshield-payees",
+      },
+      status: 503,
+    };
+  }
+
+  const payee = lookup.payees?.find((candidate) => candidate.id === payeeId);
+
+  if (!payee) {
+    return {
+      body: {
+        error: "Payment destination was not found.",
+        service: "payshield-payees",
+      },
+      status: 404,
+    };
+  }
+
+  if (payee.status === "approved") {
+    return {
+      body: {
+        message: "Payment destination is ready.",
+        payee,
+        replayed: true,
+      },
+      status: 200,
+    };
+  }
+
+  const idempotencyKey =
+    cleanText(payload?.idempotencyKey, 120) ||
+    `payee-verify:${payee.id}:${payee.allowedBucketId}:${payee.maxCents}`;
+
+  try {
+    const verification = await beginPayeeVerification(
+      actor,
+      payee,
+      idempotencyKey,
+      env,
+    );
+
+    return {
+      body: {
+        enrollmentUrl: verification.enrollmentUrl,
+        message:
+          verification.status === "approved"
+            ? "Payment destination is ready."
+            : "Continue with secure destination verification.",
+        payee: verification.payee,
+        persistence: verification.persistence,
+        status: verification.status,
+      },
+      status: 200,
+    };
+  } catch (error) {
+    const exceptionPersistence = await recordMoneyRailProviderException(
+      {
+        actor,
+        amountCents: payee.maxCents,
+        error,
+        idempotencyKey,
+        operation: "startPayeeVerification",
+        payeeId,
+        rail: "bill_payment",
+        sourceBucketId: payee.allowedBucketId,
+      },
+      env,
+    );
+    const result = providerErrorResult(error, "payshield-payees");
+
+    return {
+      body: {
+        ...result.body,
+        exceptionPersistence,
+        payee,
+      },
+      status: persistenceFailed(exceptionPersistence) ? 503 : result.status,
+    };
+  }
 }
 
 export async function createPayee(payload, env = process.env) {
-  const actor = actorFromPayload(payload);
+  let actor = actorFromPayload(payload);
   const name = cleanText(payload?.name, 80);
   const maxCents = toIntegerCents(payload?.maxCents, { min: 1 });
 
@@ -5692,23 +7207,44 @@ export async function createPayee(payload, env = process.env) {
     };
   }
 
+  const paidAccess = await requireActivePaidAccess(
+    env,
+    actor,
+    "bill payment destinations",
+  );
+
+  if (!paidAccess.ok) {
+    return paidAccess.result;
+  }
+
+  actor = paidAccess.actor;
+  const profileSetup = await ensureDurableBucketProfile(actor, env);
+
+  if (!profileSetup.ok) {
+    return bucketProfileRequiredResult(profileSetup, "payshield-payees");
+  }
+
   const readiness = getCoreReadiness(env, { coreOnline: true });
-  const status = readiness.liveMoneyReady ? "approved" : "provider_pending";
-  const modeledPayee = {
+  const status = "provider_pending";
+  const payee = {
     allowedBucketId: payload.allowedBucketId,
-    id: modeledPayeeId(name),
+    id: payeeIdForHousehold(actor.householdId, name),
     maxCents,
     name,
     status,
   };
+  const idempotencyKey =
+    cleanText(payload?.idempotencyKey, 120) ||
+    `payee-create:${payee.id}:${maxCents}`;
   const persistence = await persistPayee(
     {
       actorUserId: actor.id,
-      allowedBucketId: modeledPayee.allowedBucketId,
+      allowedBucketId: payee.allowedBucketId,
       betaAccessStatus: actor.profileAccess,
       clerkSubject: actor.clerkSubject,
       householdId: actor.householdId,
-      id: modeledPayee.id,
+      id: payee.id,
+      idempotencyKey,
       kycStatus: actor.kycStatus,
       maxCents,
       name,
@@ -5719,11 +7255,25 @@ export async function createPayee(payload, env = process.env) {
     env,
   );
 
+  if (persistence.persistence === "control_conflict") {
+    return {
+      body: {
+        code: persistence.code,
+        error: "Save and select an active protected bucket before adding this destination.",
+        payee,
+        persistence,
+        readiness,
+        service: "payshield-payees",
+      },
+      status: 409,
+    };
+  }
+
   if (persistenceFailed(persistence)) {
     return {
       body: {
-        error: "Payee could not be persisted.",
-        payee: modeledPayee,
+        error: "Payment destination could not be saved.",
+        payee,
         persistence,
         readiness,
         service: "payshield-payees",
@@ -5733,16 +7283,231 @@ export async function createPayee(payload, env = process.env) {
   }
 
   const persisted = persistence.persistence === "postgres";
+  let verification = null;
+
+  if (persisted && getProviderAdapterConfig(env).ok) {
+    try {
+      verification = await beginPayeeVerification(
+        actor,
+        persistence.payee || payee,
+        `payee-verify:${idempotencyKey}`,
+        env,
+      );
+    } catch (error) {
+      await recordMoneyRailProviderException(
+        {
+          actor,
+          amountCents: maxCents,
+          error,
+          idempotencyKey,
+          operation: "startPayeeVerification",
+          payeeId: payee.id,
+          rail: "bill_payment",
+          sourceBucketId: payee.allowedBucketId,
+        },
+        env,
+      );
+    }
+  }
 
   return {
     body: {
-      message: persisted
-        ? "Payee saved to durable core controls for protected bill routing."
-        : "Payee modeled. Provider approval is required before real bill routing.",
-      payee: persistence.payee || modeledPayee,
+      enrollmentUrl: verification?.enrollmentUrl || null,
+      message: verification
+        ? verification.status === "approved"
+          ? "Payment destination is ready."
+          : "Payment destination saved. Continue with secure verification."
+        : persisted
+          ? "Payment destination saved. Verification is pending."
+          : "Payment destination prepared. Durable storage is required before verification.",
+      payee: verification?.payee || persistence.payee || payee,
       persisted,
       persistence,
       readiness,
+      verificationStatus:
+        verification?.status || (persisted ? "provider_pending" : "local"),
+    },
+    status: 200,
+  };
+}
+
+export async function updatePayee(payload, env = process.env) {
+  let actor = actorFromPayload(payload);
+  const payeeId = cleanText(payload?.payeeId, 120);
+  const name = cleanText(payload?.name, 80);
+  const maxCents = toIntegerCents(payload?.maxCents, { min: 1 });
+
+  if (
+    !payeeId ||
+    !name ||
+    !isBucketId(payload?.allowedBucketId) ||
+    payload.allowedBucketId === "safe_spending" ||
+    maxCents === null
+  ) {
+    return {
+      body: {
+        error:
+          "Provide payeeId, name, a protected allowedBucketId, and integer maxCents.",
+      },
+      status: 400,
+    };
+  }
+
+  const paidAccess = await requireActivePaidAccess(
+    env,
+    actor,
+    "bill payment destinations",
+  );
+
+  if (!paidAccess.ok) {
+    return paidAccess.result;
+  }
+
+  actor = paidAccess.actor;
+  const persistence = await updatePayeeControl(
+    {
+      action: "update",
+      actorUserId: actor.id,
+      allowedBucketId: payload.allowedBucketId,
+      betaAccessStatus: actor.profileAccess,
+      clerkSubject: actor.clerkSubject,
+      householdId: actor.householdId,
+      idempotencyKey:
+        cleanText(payload?.idempotencyKey, 120) ||
+        `payee-update:${payeeId}:${payload.allowedBucketId}:${maxCents}`,
+      kycStatus: actor.kycStatus,
+      maxCents,
+      name,
+      payeeId,
+      userEmail: actor.email,
+      userName: actor.name,
+    },
+    env,
+  );
+
+  if (persistence.persistence === "control_conflict") {
+    return {
+      body: {
+        code: persistence.code,
+        error: "Select an active protected bucket before updating this destination.",
+        persistence,
+        service: "payshield-payees",
+      },
+      status: 409,
+    };
+  }
+
+  if (persistenceFailed(persistence) || persistence.persistence !== "postgres") {
+    return {
+      body: {
+        error: "Payment destination could not be updated.",
+        persistence,
+        service: "payshield-payees",
+      },
+      status: 503,
+    };
+  }
+
+  if (!persistence.found) {
+    return {
+      body: {
+        error: "Payment destination was not found.",
+        service: "payshield-payees",
+      },
+      status: 404,
+    };
+  }
+
+  return {
+    body: {
+      message: "Payment destination updated.",
+      payee: persistence.payee,
+      persistence,
+    },
+    status: 200,
+  };
+}
+
+export async function archivePayee(payload, env = process.env) {
+  let actor = actorFromPayload(payload);
+  const payeeId = cleanText(payload?.payeeId, 120);
+
+  if (!payeeId) {
+    return {
+      body: { error: "Provide payeeId." },
+      status: 400,
+    };
+  }
+
+  const paidAccess = await requireActivePaidAccess(
+    env,
+    actor,
+    "bill payment destinations",
+  );
+
+  if (!paidAccess.ok) {
+    return paidAccess.result;
+  }
+
+  actor = paidAccess.actor;
+  const persistence = await updatePayeeControl(
+    {
+      action: "archive",
+      actorUserId: actor.id,
+      betaAccessStatus: actor.profileAccess,
+      clerkSubject: actor.clerkSubject,
+      householdId: actor.householdId,
+      idempotencyKey:
+        cleanText(payload?.idempotencyKey, 120) ||
+        `payee-archive:${payeeId}`,
+      kycStatus: actor.kycStatus,
+      payeeId,
+      userEmail: actor.email,
+      userName: actor.name,
+    },
+    env,
+  );
+
+  if (persistence.persistence === "control_conflict") {
+    return {
+      body: {
+        blockers: persistence.blockers,
+        code: persistence.code,
+        error:
+          "Finish or reassign scheduled payments and preferred transfer settings before removing this destination.",
+        persistence,
+        service: "payshield-payees",
+      },
+      status: 409,
+    };
+  }
+
+  if (persistenceFailed(persistence) || persistence.persistence !== "postgres") {
+    return {
+      body: {
+        error: "Payment destination could not be removed.",
+        persistence,
+        service: "payshield-payees",
+      },
+      status: 503,
+    };
+  }
+
+  if (!persistence.found) {
+    return {
+      body: {
+        error: "Payment destination was not found.",
+        service: "payshield-payees",
+      },
+      status: 404,
+    };
+  }
+
+  return {
+    body: {
+      message: "Payment destination removed.",
+      payeeId,
+      persistence,
     },
     status: 200,
   };
@@ -6059,6 +7824,7 @@ function getMoneyRailReadiness(env = process.env) {
   const neobank = getCoreReadiness(env, { coreOnline: true });
   const providerAdapter = getProviderAdapterConfig(env);
   const plaidConfigured = envPresent(env, "PLAID_CLIENT_ID") && envPresent(env, "PLAID_SECRET");
+  const plaidWebhookConfigured = Boolean(cleanPlaidWebhookUrl(env));
   const vault = tokenVaultReadiness(env);
   const transferConfigured =
     envTrue(env, "PAYSHIELD_TRANSFER_ENABLED") && providerAdapter.ok;
@@ -6069,20 +7835,24 @@ function getMoneyRailReadiness(env = process.env) {
   );
   const transactionSyncReady =
     plaidConfigured &&
+    plaidWebhookConfigured &&
     vault.custodyReady &&
     neobank.backendConfigured &&
     neobank.postgresSchemaVerified;
 
   return {
-    bankLinkReady: plaidConfigured && vault.custodyReady,
+    bankLinkReady: plaidConfigured && plaidWebhookConfigured && vault.custodyReady,
     detectionMode: plaidConfigured
       ? "plaid_transactions_sync"
       : "core_detection_required",
     paycheckDetectionReady:
-      plaidConfigured && vault.custodyReady && providerWebhookSigningConfigured,
+      plaidConfigured && plaidWebhookConfigured && vault.custodyReady,
     liveMoneyReady: neobank.liveMoneyReady,
     missing: [
       ...(plaidConfigured ? [] : ["PLAID_CLIENT_ID", "PLAID_SECRET"]),
+      ...(plaidConfigured && !plaidWebhookConfigured
+        ? ["PLAID_WEBHOOK_URL"]
+        : []),
       ...(transferConfigured
         ? []
         : [
@@ -6103,12 +7873,12 @@ function getMoneyRailReadiness(env = process.env) {
       ...(plaidConfigured && vault.webhookReady && !vault.encryptionKeyReady
         ? ["PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY"]
         : []),
-      ...(plaidConfigured && vault.custodyReady && !providerWebhookSigningConfigured
-        ? ["PAYSHIELD_PROVIDER_WEBHOOK_SECRET"]
-        : []),
     ],
     plaidConfigured,
     plaidEnv: env.PLAID_ENV?.trim() || "sandbox",
+    plaidWebhookConfigured,
+    plaidWebhookVerificationReady:
+      plaidConfigured && plaidWebhookConfigured,
     providerAdapterConfigured: providerAdapter.ok,
     providerAdapterMissing: providerAdapter.missing,
     providerWebhookSigningConfigured,
@@ -6143,6 +7913,37 @@ function cleanTokenVaultUrl(env = process.env) {
     }
 
     if (url.protocol !== "https:" && !localHttp) {
+      return "";
+    }
+
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+function cleanPlaidWebhookUrl(env = process.env) {
+  const value = env.PLAID_WEBHOOK_URL?.trim();
+
+  if (!value) {
+    return "";
+  }
+
+  try {
+    const url = new URL(value);
+    const localHttp =
+      url.protocol === "http:" &&
+      ["127.0.0.1", "::1", "localhost"].includes(url.hostname) &&
+      env.NODE_ENV !== "production" &&
+      env.VERCEL_ENV !== "production";
+
+    if (
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      (url.protocol !== "https:" && !localHttp)
+    ) {
       return "";
     }
 
@@ -6278,26 +8079,37 @@ function plaidBaseUrl(env = process.env) {
   return "https://sandbox.plaid.com";
 }
 
+function plaidTimeoutMs(env = process.env) {
+  const parsed = Number(env.PAYSHIELD_PLAID_TIMEOUT_MS);
+
+  return Number.isInteger(parsed) && parsed >= 1_000 && parsed <= 15_000
+    ? parsed
+    : 8_000;
+}
+
 async function plaidRequest(env, path, body) {
-  const response = await fetch(`${plaidBaseUrl(env)}${path}`, {
-    body: JSON.stringify({
-      client_id: env.PLAID_CLIENT_ID?.trim() || "",
-      secret: env.PLAID_SECRET?.trim() || "",
-      ...body,
-    }),
-    headers: {
-      "content-type": "application/json",
-    },
-    method: "POST",
-  });
+  let response;
+
+  try {
+    response = await fetch(`${plaidBaseUrl(env)}${path}`, {
+      body: JSON.stringify({
+        client_id: env.PLAID_CLIENT_ID?.trim() || "",
+        secret: env.PLAID_SECRET?.trim() || "",
+        ...body,
+      }),
+      headers: {
+        "content-type": "application/json",
+      },
+      method: "POST",
+      signal: AbortSignal.timeout(plaidTimeoutMs(env)),
+    });
+  } catch {
+    throw new Error("plaid_request_failed");
+  }
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(
-      payload.error_message ||
-        payload.error_code ||
-        `Plaid request failed with status ${response.status}.`,
-    );
+    throw new Error("plaid_request_failed");
   }
 
   return payload;
@@ -6466,12 +8278,172 @@ function providerWebhookSignatureRequired(env, readiness, moneyReadiness) {
   );
 }
 
-function verifyProviderWebhookSignature(
+function decodeJwtSection(value) {
+  try {
+    const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8"));
+
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function plaidVerificationKey(env, keyId) {
+  const cached = plaidVerificationKeyCache.get(keyId);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+
+  if (cached && cached.expiresAt > nowSeconds) {
+    return cached.key;
+  }
+
+  let response;
+
+  try {
+    response = await plaidRequest(env, "/webhook_verification_key/get", {
+      key_id: keyId,
+    });
+  } catch {
+    throw new PlaidVerificationUnavailableError();
+  }
+  const jwk = response?.key;
+
+  if (
+    !jwk ||
+    jwk.alg !== "ES256" ||
+    jwk.crv !== "P-256" ||
+    jwk.kid !== keyId ||
+    jwk.kty !== "EC" ||
+    jwk.use !== "sig" ||
+    typeof jwk.x !== "string" ||
+    typeof jwk.y !== "string"
+  ) {
+    throw new Error("invalid_plaid_verification_key");
+  }
+
+  const providerExpiry = Number(jwk.expired_at);
+  const expiresAt = Number.isFinite(providerExpiry) && providerExpiry > 0
+    ? Math.min(providerExpiry, nowSeconds + 86_400)
+    : nowSeconds + 86_400;
+
+  if (expiresAt <= nowSeconds) {
+    throw new Error("expired_plaid_verification_key");
+  }
+
+  const key = await importJWK(jwk, "ES256");
+
+  if (plaidVerificationKeyCache.size >= 8) {
+    plaidVerificationKeyCache.delete(plaidVerificationKeyCache.keys().next().value);
+  }
+
+  plaidVerificationKeyCache.set(keyId, { expiresAt, key });
+  return key;
+}
+
+async function verifyPlaidWebhookSignature(payload, env) {
+  const rawBody =
+    typeof payload.__payshieldProviderRawBody === "string"
+      ? payload.__payshieldProviderRawBody.slice(0, 64 * 1024)
+      : "";
+  const token = safeString(payload.__payshieldPlaidVerification, 4096);
+
+  if (!envPresent(env, "PLAID_CLIENT_ID") || !envPresent(env, "PLAID_SECRET")) {
+    return {
+      error: "Plaid webhook verification is not configured.",
+      mode: "plaid_verification_unavailable",
+      ok: false,
+      status: 503,
+    };
+  }
+
+  if (!rawBody || !token) {
+    return {
+      error: "Plaid webhook requires a signed raw body.",
+      mode: "missing_plaid_signature",
+      ok: false,
+      status: 401,
+    };
+  }
+
+  const sections = token.split(".");
+  const header = sections.length === 3 ? decodeJwtSection(sections[0]) : null;
+  const keyId = safeString(header?.kid, 160);
+
+  if (!header || header.alg !== "ES256" || !keyId) {
+    return {
+      error: "Plaid webhook signature header is invalid.",
+      mode: "invalid_plaid_signature_header",
+      ok: false,
+      status: 401,
+    };
+  }
+
+  try {
+    const key = await plaidVerificationKey(env, keyId);
+    const verified = await jwtVerify(token, key, {
+      algorithms: ["ES256"],
+      clockTolerance: 5,
+      maxTokenAge: "5 min",
+    });
+    const issuedAt = Number(verified.payload.iat);
+    const claimedHash = safeString(
+      verified.payload.request_body_sha256,
+      128,
+    ).toLowerCase();
+    const actualHash = createHash("sha256").update(rawBody).digest("hex");
+    const nowSeconds = Math.floor(Date.now() / 1000);
+
+    if (
+      !Number.isInteger(issuedAt) ||
+      issuedAt > nowSeconds + 5 ||
+      nowSeconds - issuedAt > 300 ||
+      !compareHexDigest(actualHash, claimedHash)
+    ) {
+      return {
+        error: "Plaid webhook signature claims are invalid.",
+        mode: "invalid_plaid_signature_claims",
+        ok: false,
+        status: 401,
+      };
+    }
+
+    return {
+      mode: "verified_plaid",
+      ok: true,
+    };
+  } catch (error) {
+    if (error instanceof PlaidVerificationUnavailableError) {
+      return {
+        error: "Plaid webhook verification is temporarily unavailable.",
+        mode: "plaid_verification_unavailable",
+        ok: false,
+        status: 503,
+      };
+    }
+
+    return {
+      error: "Plaid webhook signature could not be verified.",
+      mode: "invalid_plaid_signature",
+      ok: false,
+      status: 401,
+    };
+  }
+}
+
+async function verifyProviderWebhookSignature(
   payload,
   env = process.env,
   readiness,
   moneyReadiness,
 ) {
+  if (
+    payload.__payshieldProviderSource === "plaid" ||
+    payload.__payshieldPlaidVerification
+  ) {
+    return verifyPlaidWebhookSignature(payload, env);
+  }
+
   const required = providerWebhookSignatureRequired(env, readiness, moneyReadiness);
   const secret = env.PAYSHIELD_PROVIDER_WEBHOOK_SECRET?.trim() || "";
   const rawBody =
@@ -6874,6 +8846,57 @@ export async function persistTransactionSyncException({
 
 export async function syncLinkedBankPaychecks(payload = {}, env = process.env) {
   let actor = actorFromPayload(payload);
+  let trustedBankConnection = null;
+
+  if (payload[trustedPlaidWebhookSync] === true) {
+    const providerItemId = safeString(payload.providerItemId, 240);
+
+    if (!providerItemId) {
+      return {
+        body: {
+          error: "Plaid webhook did not identify a linked bank item.",
+          service: "payshield-paycheck-transaction-sync",
+        },
+        status: 400,
+      };
+    }
+
+    const lookup = await loadBankConnectionForProvider(
+      {
+        providerAccountId: null,
+        providerItemId,
+        providerName: "plaid",
+      },
+      env,
+    );
+
+    if (persistenceFailed(lookup)) {
+      return {
+        body: {
+          error: "Linked bank ownership could not be loaded for webhook sync.",
+          service: "payshield-paycheck-transaction-sync",
+        },
+        status: 503,
+      };
+    }
+
+    if (!lookup.bankConnection) {
+      return {
+        body: {
+          error: "Plaid webhook could not be matched to a linked bank account.",
+          service: "payshield-paycheck-transaction-sync",
+        },
+        status: 404,
+      };
+    }
+
+    trustedBankConnection = lookup.bankConnection;
+    actor = normalizeActor({
+      householdId: trustedBankConnection.householdId,
+      userId: trustedBankConnection.userId,
+    });
+  }
+
   const paidAccess = await requireActivePaidAccess(
     env,
     actor,
@@ -6917,15 +8940,21 @@ export async function syncLinkedBankPaychecks(payload = {}, env = process.env) {
   }
 
   const providerName = "plaid";
-  const bankConnectionLookup = await loadActiveBankConnectionForHousehold(
-    {
-      bankConnectionId: safeString(payload.bankConnectionId, 160) || null,
-      householdId: actor.householdId,
-      providerAccountId: safeString(payload.providerAccountId, 160) || null,
-      providerName,
-    },
-    env,
-  );
+  const bankConnectionLookup = trustedBankConnection
+    ? {
+        bankConnection: trustedBankConnection,
+        persisted: true,
+        persistence: "postgres",
+      }
+    : await loadActiveBankConnectionForHousehold(
+        {
+          bankConnectionId: safeString(payload.bankConnectionId, 160) || null,
+          householdId: actor.householdId,
+          providerAccountId: safeString(payload.providerAccountId, 160) || null,
+          providerName,
+        },
+        env,
+      );
 
   if (persistenceFailed(bankConnectionLookup)) {
     return {
@@ -7025,11 +9054,8 @@ export async function syncLinkedBankPaychecks(payload = {}, env = process.env) {
       hasMore = page.has_more === true;
       pageCount += 1;
     }
-  } catch (error) {
-    const reason =
-      error instanceof Error
-        ? error.message
-        : "Plaid transaction sync failed.";
+  } catch {
+    const reason = "Bank transaction sync could not be completed.";
     const exceptionPersistence = await persistTransactionSyncException({
       actor,
       bankConnection,
@@ -7227,6 +9253,7 @@ export async function syncLinkedBankPaychecks(payload = {}, env = process.env) {
 
     const result = await detectPaycheck(
       {
+        [trustedPaycheckDetection]: true,
         __payshieldActor: {
           householdId: detectionActor.householdId,
           userId: detectionActor.id,
@@ -7383,6 +9410,76 @@ export async function syncLinkedBankPaychecks(payload = {}, env = process.env) {
   };
 }
 
+export async function processPlaidSyncJobs(
+  env = process.env,
+  { limit = 2, workerId = env.HOSTNAME || "payshield-core" } = {},
+) {
+  const claimed = await claimPlaidSyncJobs({ limit, workerId }, env);
+
+  if (persistenceFailed(claimed)) {
+    return {
+      claimed: 0,
+      completed: 0,
+      failed: 0,
+      persistence: claimed,
+    };
+  }
+
+  let completed = 0;
+  let failed = 0;
+
+  for (const job of claimed.jobs || []) {
+    const result = await syncLinkedBankPaychecks(
+      {
+        [trustedPlaidWebhookSync]: true,
+        maxPages: 20,
+        providerEventId: `${job.providerEventId}:sync`,
+        providerItemId: job.providerItemId,
+      },
+      env,
+    );
+    let retryable = result.status >= 500 || result.status === 404;
+
+    if (result.status < 400) {
+      const completion = await completePlaidSyncJob(
+        { id: job.id, workerId },
+        env,
+      );
+
+      if (!persistenceFailed(completion) && completion.updated) {
+        completed += 1;
+        continue;
+      }
+
+      retryable = true;
+    }
+
+    const failure = await failPlaidSyncJob(
+      {
+        errorCode: retryable ? "sync_temporarily_unavailable" : "sync_blocked",
+        id: job.id,
+        retryable,
+        workerId,
+      },
+      env,
+    );
+
+    if (!persistenceFailed(failure) && failure.updated) {
+      failed += 1;
+    }
+  }
+
+  return {
+    claimed: claimed.jobs?.length || 0,
+    completed,
+    failed,
+    persistence: {
+      persisted: true,
+      persistence: "postgres",
+    },
+  };
+}
+
 function persistenceFailed(result) {
   return ["postgres_error", "postgres_missing", "postgres_required"].includes(
     result?.persistence,
@@ -7473,7 +9570,7 @@ export async function recordProductionGateEvidence(payload, env = process.env) {
       body: {
         code: "postgres_ledger_required",
         error:
-          "Production gate evidence requires PAYSHIELD_LEDGER_DATABASE_URL and schema 0013 before approvals can be recorded.",
+          "Production gate evidence requires durable ledger storage and schema 0019 before approvals can be recorded.",
         service: "payshield-production-gate-evidence",
       },
       status: 503,
@@ -7517,19 +9614,6 @@ export async function recordProductionGateEvidence(payload, env = process.env) {
     },
     status: 200,
   };
-}
-
-async function persistOperationalJournal(entry, env = process.env, actorInput = demoUser) {
-  const actor = normalizeActor(actorInput);
-
-  return persistJournalEntry(
-    {
-      betaAccessStatus: actor.profileAccess,
-      entry,
-      householdId: actor.householdId,
-    },
-    env,
-  );
 }
 
 function paycheckReplayMatchesInput(existingDetection, input) {
@@ -7604,6 +9688,27 @@ function replayedPaycheckDetectionBody({
 }
 
 export async function detectPaycheck(payload, env = process.env) {
+  const durableProviderEvidenceRequired =
+    databaseConfigured(env) ||
+    env.NODE_ENV === "production" ||
+    env.VERCEL_ENV === "production" ||
+    envTrue(env, "PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE") ||
+    envTrue(env, "PAYSHIELD_LIVE_MONEY_ENABLED");
+
+  if (
+    durableProviderEvidenceRequired &&
+    payload?.[trustedPaycheckDetection] !== true
+  ) {
+    return {
+      body: {
+        error:
+          "Paycheck posting requires a verified bank sync or signed provider event.",
+        service: "payshield-paycheck-detection",
+      },
+      status: 403,
+    };
+  }
+
   let actor = actorFromPayload(payload);
   const amountCents = toIntegerCents(payload?.amountCents, {
     max: 2_000_000,
@@ -7631,6 +9736,14 @@ export async function detectPaycheck(payload, env = process.env) {
   }
 
   actor = paidAccess.actor;
+  const profileSetup = await ensureDurableBucketProfile(actor, env);
+
+  if (!profileSetup.ok) {
+    return bucketProfileRequiredResult(
+      profileSetup,
+      "payshield-paycheck-detection",
+    );
+  }
 
   const controls = await loadOperationalControls(env, actor);
 
@@ -7726,22 +9839,14 @@ export async function detectPaycheck(payload, env = process.env) {
     return ruleMatch.error;
   }
 
-  const book =
+  let book =
     ledger.ledgerSource === "control_model" ? new LedgerBook() : ledger.book;
-  const entry = postPaycheckDeposit(book, controls.buckets, {
+  let entry = postPaycheckDeposit(book, controls.buckets, {
     amountCents,
     employerName,
     idempotencyKey: paycheckInput.idempotencyKey,
     receivedAt: paycheckInput.receivedAt,
   });
-  const balances = buildBucketBalances(book, controls.buckets);
-  const safeToSpendCents =
-    balances.find((bucket) => bucket.id === "safe_spending")?.availableCents ??
-    0;
-  const protectedCents = balances
-    .filter((bucket) => bucket.id !== "safe_spending")
-    .reduce((sum, bucket) => sum + bucket.availableCents, 0);
-
   let journalPersistence = {
     persisted: false,
     persistence: "pending_paycheck_detection",
@@ -7766,6 +9871,7 @@ export async function detectPaycheck(payload, env = process.env) {
     {
       amountCents,
       bankConnectionId: ruleMatch.rule?.bankConnectionId || null,
+      buckets: controls.buckets,
       detectionRuleId: ruleMatch.rule?.id || null,
       employerName,
       householdId: actor.householdId,
@@ -7778,6 +9884,21 @@ export async function detectPaycheck(payload, env = process.env) {
     },
     env,
   );
+
+  if (persistence.persistence === "control_conflict") {
+    return {
+      body: {
+        code: persistence.code,
+        error:
+          "Your protected bucket rules changed before this paycheck could be posted. Refresh and try again.",
+        persistence,
+        readiness,
+        service: "payshield-paycheck-detection",
+      },
+      status: 409,
+    };
+  }
+
   if (persistenceFailed(persistence)) {
     return {
       body: {
@@ -7815,6 +9936,26 @@ export async function detectPaycheck(payload, env = process.env) {
       status: 200,
     };
   }
+
+  if (persistence.journalEntry) {
+    const priorEntries = book
+      .allEntries()
+      .filter(
+        (candidate) =>
+          candidate.idempotencyKey !== persistence.journalEntry.idempotencyKey,
+      );
+
+    entry = persistence.journalEntry;
+    book = new LedgerBook([...priorEntries, entry]);
+  }
+
+  const balances = buildBucketBalances(book, controls.buckets);
+  const safeToSpendCents =
+    balances.find((bucket) => bucket.id === "safe_spending")?.availableCents ??
+    0;
+  const protectedCents = balances
+    .filter((bucket) => bucket.id !== "safe_spending")
+    .reduce((sum, bucket) => sum + bucket.availableCents, 0);
 
   const auditPersistence = await persistMoneyRailEvent(
     {
@@ -7882,9 +10023,12 @@ export async function detectPaycheck(payload, env = process.env) {
             : ledger.ledgerSource,
       },
       message:
-        "Paycheck detected and split by bucket priority before Safe to Spend is computed.",
+        persistence.recoveryAllocations?.length
+          ? "Paycheck split completed and scheduled bucket recovery was applied."
+          : "Paycheck detected and split by bucket priority before Safe to Spend is computed.",
       persistence,
       protectedCents,
+      recoveryAllocations: persistence.recoveryAllocations || [],
       readiness,
       safeToSpendCents,
     },
@@ -8010,14 +10154,46 @@ export async function createTransferIntent(payload, env = process.env) {
   }
 
   const readiness = getMoneyRailReadiness(env);
+
+  if (!readiness.liveMoneyReady || !readiness.transferConfigured) {
+    return {
+      body: {
+        code: "protected_transfer_unavailable",
+        error: "Protected transfers are temporarily unavailable.",
+        readiness,
+        service: "payshield-transfer-intents",
+      },
+      status: 423,
+    };
+  }
+
   const idempotencyKey =
     cleanText(payload?.idempotencyKey, 120) ||
     `transfer-${payload.sourceBucketId}-${destinationPayeeId}-${amountCents}`;
-  const providerName = readiness.transferConfigured
-    ? env.PAYSHIELD_BAAS_PROVIDER || "configured_rail"
-    : null;
-  const liveProviderExecution =
-    readiness.liveMoneyReady && readiness.transferConfigured;
+  const providerName = env.PAYSHIELD_BAAS_PROVIDER || "configured_rail";
+
+  if (
+    !destinationPayee.providerPayeeId ||
+    destinationPayee.providerName !== providerName
+  ) {
+    return {
+      body: {
+        code: "destination_verification_required",
+        error: "Verify this payment destination before moving protected money.",
+        service: "payshield-transfer-intents",
+      },
+      status: 409,
+    };
+  }
+
+  const reservationEntry = reserveProtectedTransfer(book, {
+    amountCents,
+    destinationPayeeId,
+    destinationPayeeName: destinationPayee.name,
+    idempotencyKey,
+    sourceBucketId: payload.sourceBucketId,
+  });
+  const liveProviderExecution = true;
   let providerTransfer = {
     providerTransferId: "transfer-provider-contract-required",
     status: "blocked",
@@ -8029,6 +10205,7 @@ export async function createTransferIntent(payload, env = process.env) {
       destinationPayeeId,
       householdId: actor.householdId,
       idempotencyKey,
+      journalEntry: reservationEntry,
       providerName,
       providerStatus: liveProviderExecution ? "pending" : providerTransfer.status,
       providerTransferId: liveProviderExecution
@@ -8039,12 +10216,36 @@ export async function createTransferIntent(payload, env = process.env) {
     },
     env,
   );
+  const journalPersistence = persistence.journalPersistence || {
+    persisted: false,
+    persistence: "not_posted",
+    persistenceReason: "Transfer reservation was not posted.",
+  };
 
-  if (persistenceFailed(persistence)) {
+  if (persistence.persistence === "control_conflict") {
+    return {
+      body: {
+        code: persistence.code,
+        error:
+          persistence.code === "insufficient_bucket_funds"
+            ? "The bucket balance changed before this transfer could be reserved."
+            : persistence.code === "bucket_not_active"
+              ? "This protected bucket is no longer active. Refresh and choose another bucket."
+              : "The payment destination changed before this transfer could be reserved.",
+        persistence,
+        readiness,
+        service: "payshield-transfer-intents",
+      },
+      status: 409,
+    };
+  }
+
+  if (persistenceFailed(persistence) || persistenceFailed(journalPersistence)) {
     return {
       body: {
         error: "Transfer intent could not be persisted before provider execution.",
         persistence,
+        journalPersistence,
         readiness,
         service: "payshield-transfer-intents",
       },
@@ -8082,6 +10283,7 @@ export async function createTransferIntent(payload, env = process.env) {
           "Transfer intent already exists. PayShield will not replay provider execution after a durable terminal or blocked status.",
         destinationPayee,
         persistence,
+        journalPersistence,
         providerTransfer: {
           providerTransferId:
             persistence.providerTransferId || "durable-intent-replayed",
@@ -8098,17 +10300,19 @@ export async function createTransferIntent(payload, env = process.env) {
       providerTransfer = await providerCreateAchTransfer(env, {
         amountCents,
         destinationPayeeId,
+        providerPayeeId: destinationPayee.providerPayeeId,
         idempotencyKey,
         sourceBucketId: payload.sourceBucketId,
       });
     } catch (error) {
-      const failurePersistence = await updateTransferIntentProviderStatus(
+      const failurePersistence = await applyTransferLifecycle(
         {
           failureCode: "provider_adapter_error",
           householdId: actor.householdId,
           idempotencyKey,
+          providerEventId: `adapter-failure:${idempotencyKey}`,
+          providerName,
           providerStatus: "failed",
-          providerTransferId: null,
           status: "failed",
         },
         env,
@@ -8133,6 +10337,7 @@ export async function createTransferIntent(payload, env = process.env) {
           ...result.body,
           exceptionPersistence,
           failurePersistence,
+          journalPersistence,
           persistence,
           readiness,
         },
@@ -8195,6 +10400,7 @@ export async function createTransferIntent(payload, env = process.env) {
     return {
       body: {
         auditPersistence,
+        balances: buildBucketBalances(book, controls.buckets),
         error: "Transfer intent audit event could not be persisted.",
         persistence,
         readiness,
@@ -8207,6 +10413,7 @@ export async function createTransferIntent(payload, env = process.env) {
   return {
     body: {
       auditPersistence,
+      balances: buildBucketBalances(book, controls.buckets),
       intent: {
         amountCents,
         destinationPayeeId,
@@ -8232,6 +10439,7 @@ export async function createTransferIntent(payload, env = process.env) {
           : "Transfer intent validated. Provider execution remains locked until approved money-rail credentials are active.",
       destinationPayee,
       persistence,
+      journalPersistence,
       providerTransfer,
       sourceBucket,
     },
@@ -8275,6 +10483,20 @@ export async function createBillPayment(payload, env = process.env) {
   }
 
   actor = paidAccess.actor;
+  const readiness = getCoreReadiness(env, { coreOnline: true });
+  const liveGate = assertLiveMoneyReady(readiness);
+
+  if (!liveGate.ok) {
+    return {
+      body: {
+        code: "bill_payment_unavailable",
+        error: "Bill payments are temporarily unavailable.",
+        liveMoney: liveGate,
+        service: "payshield-bill-payments",
+      },
+      status: 423,
+    };
+  }
 
   const controls = await loadOperationalControls(env, actor);
 
@@ -8300,10 +10522,26 @@ export async function createBillPayment(payload, env = process.env) {
     payeeId,
     scheduledFor,
   });
-  const readiness = getCoreReadiness(env, { coreOnline: true });
   const payee = controls.payees.find((candidate) => candidate.id === payeeId);
+  const providerName = getProviderAdapterConfig(env).providerName;
+
+  if (
+    decision.accepted &&
+    payee &&
+    (!payee.providerPayeeId || payee.providerName !== providerName)
+  ) {
+    return {
+      body: {
+        code: "destination_verification_required",
+        error: "Verify this payment destination before scheduling a payment.",
+        service: "payshield-bill-payments",
+      },
+      status: 409,
+    };
+  }
+
   const liveProviderExecution =
-    decision.accepted && readiness.liveMoneyReady && Boolean(payee);
+    decision.accepted && Boolean(payee);
   let providerBillPayment = decision.accepted
     ? {
         providerBillPaymentId: "bill-pay-provider-contract-required",
@@ -8317,27 +10555,6 @@ export async function createBillPayment(payload, env = process.env) {
   const postedEntry = decision.accepted
     ? book.findByIdempotencyKey(idempotencyKey)
     : null;
-  const journalPersistence = postedEntry
-    ? await persistOperationalJournal(postedEntry, env, actor)
-    : {
-        persisted: false,
-        persistence: "not_posted",
-        persistenceReason: "Rejected bill payments do not create ledger entries.",
-      };
-
-  if (persistenceFailed(journalPersistence)) {
-    return {
-      body: {
-        decision,
-        error: "Bill payment ledger entry could not be persisted.",
-        journalPersistence,
-        readiness,
-        service: "payshield-bill-payments",
-      },
-      status: 503,
-    };
-  }
-
   let decisionPersistence = await persistBillPaymentSchedule(
     {
       amountCents,
@@ -8345,9 +10562,10 @@ export async function createBillPayment(payload, env = process.env) {
       decisionCode: decision.code,
       householdId: actor.householdId,
       idempotencyKey,
-      journalEntryId: journalPersistence.postgresId || null,
+      journalEntry: postedEntry,
       memo: memo || null,
       payeeId,
+      providerName,
       providerBillPaymentId: liveProviderExecution
         ? null
         : providerBillPayment.providerBillPaymentId,
@@ -8358,8 +10576,34 @@ export async function createBillPayment(payload, env = process.env) {
     },
     env,
   );
+  const journalPersistence = decisionPersistence.journalPersistence || {
+    persisted: false,
+    persistence: "not_posted",
+    persistenceReason: "Rejected bill payments do not create ledger entries.",
+  };
 
-  if (persistenceFailed(decisionPersistence)) {
+  if (decisionPersistence.persistence === "control_conflict") {
+    return {
+      body: {
+        code: decisionPersistence.code,
+        error:
+          decisionPersistence.code === "insufficient_bucket_funds"
+            ? "The bucket balance changed before this payment could be reserved."
+            : decisionPersistence.code === "bucket_not_active"
+              ? "This protected bucket is no longer active. Refresh and choose another bucket."
+              : "The payment destination changed before this payment could be reserved.",
+        decisionPersistence,
+        readiness,
+        service: "payshield-bill-payments",
+      },
+      status: 409,
+    };
+  }
+
+  if (
+    persistenceFailed(decisionPersistence) ||
+    persistenceFailed(journalPersistence)
+  ) {
     return {
       body: {
         decision,
@@ -8424,17 +10668,28 @@ export async function createBillPayment(payload, env = process.env) {
     try {
       providerBillPayment = await providerCreateBillPayment(env, {
         amountCents,
+        bucketId: decision.bucketId,
         idempotencyKey,
+        memo: memo || null,
         payee,
+        providerPayeeId: payee.providerPayeeId,
+        scheduledFor,
       });
     } catch (error) {
-      const failurePersistence = await updateBillPaymentProviderStatus(
+      const reversalEntry = reverseBillPaymentReservation(book, postedEntry, {
+        idempotencyKey: `bill-provider-failure:${decisionPersistence.postgresId}`,
+        reason: "Payment submission failed.",
+        reversedEntryId: journalPersistence.postgresId,
+        scheduleId: decisionPersistence.postgresId,
+      });
+      const failurePersistence = await cancelBillPaymentSchedule(
         {
           householdId: actor.householdId,
-          idempotencyKey,
-          providerBillPaymentId: null,
           providerStatus: "failed",
-          status: "failed",
+          reason: "Payment submission failed; reserved funds were released.",
+          reversalEntry,
+          scheduleId: decisionPersistence.postgresId,
+          userId: actor.id,
         },
         env,
       );
@@ -8455,6 +10710,7 @@ export async function createBillPayment(payload, env = process.env) {
       return {
         body: {
           ...result.body,
+          balances: buildBucketBalances(book, controls.buckets),
           decisionPersistence,
           exceptionPersistence,
           failurePersistence,
@@ -8531,6 +10787,231 @@ export async function createBillPayment(payload, env = process.env) {
   };
 }
 
+export async function cancelBillPayment(payload, env = process.env) {
+  let actor = actorFromPayload(payload);
+  const scheduleId = cleanText(payload?.scheduleId, 160);
+  const reason =
+    cleanText(payload?.reason, 140) || "Canceled by the household";
+
+  if (!scheduleId) {
+    return {
+      body: { error: "Provide scheduleId." },
+      status: 400,
+    };
+  }
+
+  const paidAccess = await requireActivePaidAccess(
+    env,
+    actor,
+    "scheduled bill cancellation",
+  );
+
+  if (!paidAccess.ok) {
+    return paidAccess.result;
+  }
+
+  actor = paidAccess.actor;
+  const scheduleLookup = await loadBillPaymentSchedule(
+    { householdId: actor.householdId, scheduleId },
+    env,
+  );
+
+  if (
+    persistenceFailed(scheduleLookup) ||
+    scheduleLookup.persistence !== "postgres"
+  ) {
+    return {
+      body: {
+        error: "Scheduled payment records are unavailable.",
+        persistence: scheduleLookup,
+        service: "payshield-bill-payments",
+      },
+      status: 503,
+    };
+  }
+
+  const schedule = scheduleLookup.schedule;
+
+  if (!schedule) {
+    return {
+      body: {
+        error: "Scheduled payment was not found.",
+        service: "payshield-bill-payments",
+      },
+      status: 404,
+    };
+  }
+
+  if (schedule.status === "canceled") {
+    return {
+      body: {
+        message: "Scheduled payment is already canceled.",
+        replayed: true,
+        schedule,
+      },
+      status: 200,
+    };
+  }
+
+  if (!["scheduled", "blocked", "submitted"].includes(schedule.status)) {
+    return {
+      body: {
+        error: "This payment can no longer be canceled.",
+        schedule,
+        service: "payshield-bill-payments",
+      },
+      status: 409,
+    };
+  }
+
+  const hasProviderPayment =
+    Boolean(schedule.providerBillPaymentId) &&
+    ["created", "submitted"].includes(schedule.providerStatus);
+  let providerCancellation = null;
+
+  if (hasProviderPayment) {
+    try {
+      providerCancellation = await providerCancelBillPayment(env, {
+        idempotencyKey: `bill-cancel-provider:${schedule.id}`,
+        providerBillPaymentId: schedule.providerBillPaymentId,
+        reason,
+      });
+    } catch (error) {
+      const exceptionPersistence = await recordMoneyRailProviderException(
+        {
+          actor,
+          amountCents: schedule.amountCents,
+          error,
+          idempotencyKey: `bill-cancel-provider:${schedule.id}`,
+          operation: "cancelBillPayment",
+          payeeId: schedule.payeeId,
+          rail: "bill_payment",
+        },
+        env,
+      );
+      const result = providerErrorResult(error, "payshield-bill-payments");
+
+      return {
+        body: {
+          ...result.body,
+          exceptionPersistence,
+          message:
+            "The payment remains scheduled because cancellation was not confirmed.",
+        },
+        status: persistenceFailed(exceptionPersistence) ? 503 : result.status,
+      };
+    }
+  }
+
+  const controls = await loadOperationalControls(env, actor);
+
+  if (controls.error) {
+    return controls.error;
+  }
+
+  const ledger = await loadHouseholdLedger(env, actor, controls);
+
+  if (ledger.error) {
+    return ledger.error;
+  }
+
+  const book = ledger.book;
+  const originalEntry =
+    book.allEntries().find((entry) => entry.id === schedule.journalEntryId) ||
+    book.findByIdempotencyKey(schedule.idempotencyKey);
+
+  if (!originalEntry) {
+    const exceptionPersistence = await recordMoneyRailProviderException(
+      {
+        actor,
+        amountCents: schedule.amountCents,
+        error: new Error("Scheduled payment ledger reservation was not found."),
+        idempotencyKey: `bill-cancel-ledger:${schedule.id}`,
+        operation: "cancelBillPayment",
+        payeeId: schedule.payeeId,
+        rail: "bill_payment",
+      },
+      env,
+    );
+
+    return {
+      body: {
+        error:
+          "The payment could not be released because its ledger reservation is unavailable.",
+        exceptionPersistence,
+        service: "payshield-bill-payments",
+      },
+      status: 503,
+    };
+  }
+
+  const reversalEntry = reverseBillPaymentReservation(book, originalEntry, {
+    idempotencyKey: `bill-cancel:${schedule.id}`,
+    reason,
+    reversedEntryId: schedule.journalEntryId || originalEntry.id,
+    scheduleId: schedule.id,
+  });
+  const cancellationPersistence = await cancelBillPaymentSchedule(
+    {
+      householdId: actor.householdId,
+      providerStatus: "canceled",
+      reason,
+      reversalEntry,
+      scheduleId: schedule.id,
+      userId: actor.id,
+    },
+    env,
+  );
+
+  if (
+    persistenceFailed(cancellationPersistence) ||
+    !cancellationPersistence.canceled
+  ) {
+    const exceptionPersistence = providerCancellation
+      ? await recordMoneyRailProviderException(
+          {
+            actor,
+            amountCents: schedule.amountCents,
+            error: new Error(
+              "Provider cancellation succeeded but the local cancellation did not commit.",
+            ),
+            idempotencyKey: `bill-cancel-commit:${schedule.id}`,
+            operation: "cancelBillPayment",
+            payeeId: schedule.payeeId,
+            rail: "bill_payment",
+          },
+          env,
+        )
+      : null;
+
+    return {
+      body: {
+        cancellationPersistence,
+        error: cancellationPersistence.terminal
+          ? "This payment can no longer be canceled."
+          : "Payment cancellation could not be committed.",
+        exceptionPersistence,
+        service: "payshield-bill-payments",
+      },
+      status: cancellationPersistence.terminal ? 409 : 503,
+    };
+  }
+
+  return {
+    body: {
+      balances: buildBucketBalances(book, controls.buckets),
+      cancellation: cancellationPersistence.schedule,
+      ledger: {
+        entryCount: book.allEntries().length,
+        source: ledger.ledgerSource,
+      },
+      message: "Scheduled payment canceled and reserved funds released.",
+      providerCancellation,
+    },
+    status: 200,
+  };
+}
+
 function isUnlockMode(value) {
   return value === "slow_free" || value === "instant_fixed_fee";
 }
@@ -8566,6 +11047,20 @@ export async function createUnlock(payload, env = process.env) {
   }
 
   actor = paidAccess.actor;
+  const readiness = getCoreReadiness(env, { coreOnline: true });
+  const liveGate = assertLiveMoneyReady(readiness);
+
+  if (!liveGate.ok) {
+    return {
+      body: {
+        code: "protected_unlock_unavailable",
+        error: "Protected money access is temporarily unavailable.",
+        liveMoney: liveGate,
+        service: "payshield-unlocks",
+      },
+      status: 423,
+    };
+  }
 
   const input = {
     amountCents,
@@ -8598,16 +11093,25 @@ export async function createUnlock(payload, env = process.env) {
   }
 
   const book = ledger.book;
-  const result = unlockProtectedFunds(book, input);
-  const postedEntry = book.findByIdempotencyKey(input.idempotencyKey);
-  const journalPersistence = await persistOperationalJournal(postedEntry, env, actor);
 
-  if (persistenceFailed(journalPersistence)) {
+  if (amountCents > book.bucketAvailable(input.bucketId)) {
     return {
       body: {
-        error: "Unlock ledger entry could not be persisted.",
-        journalPersistence,
-        readiness: getCoreReadiness(env, { coreOnline: true }),
+        error: "Amount exceeds the selected bucket balance.",
+        service: "payshield-unlocks",
+      },
+      status: 400,
+    };
+  }
+
+  const result = unlockProtectedFunds(book, input);
+  const postedEntry = book.findByIdempotencyKey(input.idempotencyKey);
+
+  if (!postedEntry) {
+    return {
+      body: {
+        error: "Unlock did not produce a ledger entry.",
+        readiness,
         result,
         service: "payshield-unlocks",
       },
@@ -8621,24 +11125,54 @@ export async function createUnlock(payload, env = process.env) {
       bucketId: input.bucketId,
       householdId: actor.householdId,
       idempotencyKey: input.idempotencyKey,
-      journalEntryId: journalPersistence.postgresId || null,
+      journalEntry: postedEntry,
       reason: input.reason,
       recoveryChecks: result.recoveryChecks,
       recoveryPerCheckCents: result.recoveryPerCheckCents,
-      status: journalPersistence.replayed ? "replayed" : "posted",
+      status: "posted",
       unlockMode: input.mode,
       unlockedCents: result.unlockedCents,
     },
     env,
   );
 
+  if (decisionPersistence.persistence === "control_conflict") {
+    return {
+      body: {
+        code: decisionPersistence.code,
+        error:
+          decisionPersistence.code === "bucket_not_active"
+            ? "This protected bucket is no longer active. Refresh and choose another bucket."
+            : "The bucket balance changed before protected money could be moved.",
+        decisionPersistence,
+        readiness,
+        service: "payshield-unlocks",
+      },
+      status: 409,
+    };
+  }
+
   if (persistenceFailed(decisionPersistence)) {
     return {
       body: {
         decisionPersistence,
         error: "Unlock request could not be persisted.",
+        readiness,
+        result,
+        service: "payshield-unlocks",
+      },
+      status: 503,
+    };
+  }
+  const journalPersistence = decisionPersistence.journalPersistence;
+
+  if (persistenceFailed(journalPersistence)) {
+    return {
+      body: {
+        decisionPersistence,
+        error: "Unlock ledger entry could not be persisted.",
         journalPersistence,
-        readiness: getCoreReadiness(env, { coreOnline: true }),
+        readiness,
         result,
         service: "payshield-unlocks",
       },
@@ -8660,9 +11194,9 @@ export async function createUnlock(payload, env = process.env) {
         source: ledger.ledgerSource,
       },
       journalPersistence,
-      message: "Recovery plan created. Provider execution requires active money-movement controls.",
+      message: "Protected money moved to Safe to Spend. Your recovery plan is active.",
       mode: "core_ledger",
-      readiness: getCoreReadiness(env, { coreOnline: true }),
+      readiness,
       result,
     },
     status: 200,
@@ -8727,7 +11261,123 @@ function replayedCardDecisionBody({
 }
 
 export async function authorizeCard(payload, env = process.env) {
+  const readiness = getCoreReadiness(env, { coreOnline: true });
+  const providerSignature = await verifyProviderWebhookSignature(
+    payload,
+    env,
+    readiness,
+    getMoneyRailReadiness(env),
+  );
+
+  if (!providerSignature.ok) {
+    return {
+      body: {
+        approved: false,
+        error: providerSignature.error,
+        mode: "blocked",
+        providerAuthorizationAuthenticity: providerSignature.mode,
+        readiness,
+        service: "payshield-card-authorization",
+      },
+      status: providerSignature.status,
+    };
+  }
+
+  const configuredProviderName = getProviderAdapterConfig(env).providerName;
+  const providerName =
+    safeString(payload?.providerName, 40).toLowerCase() ||
+    safeString(payload?.provider, 40).toLowerCase() ||
+    configuredProviderName ||
+    "payshield";
+  const providerCardId = providerField(payload, [
+    "providerCardId",
+    "cardId",
+    "cardToken",
+    "card_token",
+  ]);
+  const providerAuthorizationId = providerField(payload, [
+    "providerAuthorizationId",
+    "authorizationId",
+    "transactionToken",
+    "transaction_token",
+    "idempotencyKey",
+  ]);
+  const durableProviderDecision =
+    databaseConfigured(env) || providerSignature.mode === "verified";
   let actor = actorFromPayload(payload);
+  let providerCard = null;
+
+  if (durableProviderDecision) {
+    if (!providerCardId || !providerAuthorizationId) {
+      return {
+        body: {
+          approved: false,
+          error:
+            "Signed card authorizations require provider card and authorization identifiers.",
+          mode: "blocked",
+          readiness,
+          service: "payshield-card-authorization",
+        },
+        status: 400,
+      };
+    }
+
+    const cardActor = await loadProviderCardActor(
+      { providerCardId, providerName },
+      env,
+    );
+
+    if (persistenceFailed(cardActor)) {
+      return {
+        body: {
+          approved: false,
+          error: "Issued-card ownership could not be verified.",
+          mode: "blocked",
+          persistence: cardActor,
+          readiness,
+          service: "payshield-card-authorization",
+        },
+        status: 503,
+      };
+    }
+
+    if (cardActor.persistence !== "postgres") {
+      return {
+        body: {
+          approved: false,
+          error:
+            "Issued-card ownership requires durable account records before authorization.",
+          mode: "blocked",
+          persistence: cardActor,
+          readiness,
+          service: "payshield-card-authorization",
+        },
+        status: 503,
+      };
+    }
+
+    if (!cardActor.actor || !cardActor.card) {
+      return {
+        body: {
+          approved: false,
+          decision: {
+            approved: false,
+            approvedAmountCents: 0,
+            code: "card_not_found",
+            reason: "The card is not active for a PayShield household.",
+          },
+          mode: "blocked",
+          readiness,
+          service: "payshield-card-authorization",
+        },
+        status: 404,
+      };
+    }
+
+    actor = normalizeActor(cardActor.actor);
+    providerCard = cardActor.card;
+  }
+
   const amountCents = toIntegerCents(payload?.amountCents, { min: 1 });
 
   if (amountCents === null) {
@@ -8754,13 +11404,12 @@ export async function authorizeCard(payload, env = process.env) {
   const input = {
     amountCents,
     idempotencyKey:
-      cleanText(payload?.idempotencyKey, 120) ||
+      cleanText(providerAuthorizationId, 120) ||
       `card-auth-${cleanText(payload?.merchantName, 120) || "merchant"}-${amountCents}`,
     merchantCategoryCode: typeof payload?.merchantCategoryCode === "string" ? cleanText(payload.merchantCategoryCode, 20) : undefined,
     merchantName: cleanText(payload?.merchantName, 120) || "Unknown merchant",
     payeeId: typeof payload?.payeeId === "string" ? cleanText(payload.payeeId, 120) : undefined,
   };
-  const readiness = getCoreReadiness(env, { coreOnline: true });
 
   const replayLookup = await loadCardAuthorizationDecision(
     {
@@ -8818,7 +11467,17 @@ export async function authorizeCard(payload, env = process.env) {
   }
 
   const book = ledger.book;
-  const decision = authorizeCardTransaction(book, controls.payees, input);
+  const cardAvailable =
+    !providerCard || ["issued", "active"].includes(providerCard.status);
+  const decision = cardAvailable
+    ? authorizeCardTransaction(book, controls.payees, input)
+    : {
+        approved: false,
+        approvedAmountCents: 0,
+        bucketId: "safe_spending",
+        code: "card_unavailable",
+        reason: "This card cannot be used in its current state.",
+      };
   const postedEntry = decision.approved
     ? book.findByIdempotencyKey(input.idempotencyKey)
     : null;
@@ -8863,6 +11522,9 @@ export async function authorizeCard(payload, env = process.env) {
       merchantCategoryCode: input.merchantCategoryCode || null,
       merchantName: input.merchantName,
       payeeId: input.payeeId || null,
+      providerAuthorizationId: providerAuthorizationId || null,
+      providerCardId: providerCard?.providerCardId || null,
+      providerName,
       providerStatus: readiness.liveMoneyReady
         ? "provider_gateway"
         : "blocked",
@@ -8882,6 +11544,34 @@ export async function authorizeCard(payload, env = process.env) {
         service: "payshield-card-authorization",
       },
       status: 503,
+    };
+  }
+
+  if (decisionPersistence.controlConflict) {
+    const persistedDecision = decisionPersistence.decision;
+
+    return {
+      body: {
+        decision: {
+          approved: false,
+          approvedAmountCents: 0,
+          bucketId: persistedDecision.bucketId,
+          code: persistedDecision.decisionCode,
+          reason: persistedDecision.reason,
+        },
+        decisionPersistence,
+        journalPersistence: {
+          persisted: false,
+          persistence: "not_posted",
+          persistenceReason:
+            "The durable balance check declined this authorization.",
+          replayed: false,
+        },
+        mode: readiness.liveMoneyReady ? "provider_gateway" : "core_ledger",
+        readiness,
+        service: "payshield-card-authorization",
+      },
+      status: 200,
     };
   }
 
@@ -8950,7 +11640,7 @@ function stableEventId(providerName, payload) {
   }
 
   return `webhook_${providerName}_${createHash("sha256")
-    .update(JSON.stringify(payload || {}))
+    .update(JSON.stringify(redactProviderWebhookPayload(payload || {})))
     .digest("hex")
     .slice(0, 24)}`;
 }
@@ -9303,6 +11993,443 @@ async function persistProviderWebhookException({
   );
 }
 
+function providerKycUpdateFromPayload(payload) {
+  const eventType = safeString(
+    payload?.eventType || payload?.webhook_code || payload?.type,
+    120,
+  ).toLowerCase();
+  const candidates = [
+    payload,
+    safeObject(payload?.data),
+    safeObject(payload?.data?.object),
+    safeObject(payload?.application),
+    safeObject(payload?.customer),
+  ];
+  let providerApplicationId = "";
+  let providerCustomerId = "";
+  let rawStatus = "";
+  let failureReason = "";
+
+  for (const candidate of candidates) {
+    providerApplicationId ||= providerField(candidate, [
+      "providerApplicationId",
+      "applicationId",
+      "application_id",
+      "kycId",
+      "kyc_id",
+    ]);
+    providerCustomerId ||= providerField(candidate, [
+      "providerCustomerId",
+      "customerId",
+      "customer_id",
+    ]);
+    rawStatus ||= providerField(candidate, [
+      "kycStatus",
+      "kyc_status",
+      "applicationStatus",
+      "application_status",
+      "verificationStatus",
+      "verification_status",
+      "status",
+    ]);
+    failureReason ||= providerField(candidate, [
+      "failureReason",
+      "failure_reason",
+      "reason",
+    ]);
+  }
+
+  const hasKycSignal =
+    /kyc|identity|verification|due_diligence/.test(eventType) ||
+    Boolean(
+      providerApplicationId &&
+        candidates.some((candidate) =>
+          [
+            "kycStatus",
+            "kyc_status",
+            "applicationStatus",
+            "application_status",
+            "verificationStatus",
+            "verification_status",
+          ].some((field) => safeString(candidate?.[field], 40)),
+        ),
+    );
+
+  if (
+    !hasKycSignal ||
+    (!providerApplicationId && !providerCustomerId) ||
+    !rawStatus
+  ) {
+    return null;
+  }
+
+  return {
+    failureReason: failureReason || null,
+    providerApplicationId: providerApplicationId || null,
+    providerCustomerId: providerCustomerId || null,
+    status: normalizedProviderKycStatus(rawStatus),
+  };
+}
+
+const providerMoneyLifecycleTypes = new Map([
+  ["bill_payment.canceled", ["bill_payment", "canceled"]],
+  ["bill_payment.cancelled", ["bill_payment", "canceled"]],
+  ["bill_payment.failed", ["bill_payment", "failed"]],
+  ["bill_payment.reversed", ["bill_payment", "reversed"]],
+  ["bill_payment.settled", ["bill_payment", "settled"]],
+  ["card_authorization.expired", ["card", "expired"]],
+  ["card_authorization.reversed", ["card", "reversed"]],
+  ["card_authorization.settled", ["card", "settled"]],
+  ["card_transaction.reversed", ["card", "reversed"]],
+  ["card_transaction.settled", ["card", "settled"]],
+  ["transfer.canceled", ["transfer", "canceled"]],
+  ["transfer.cancelled", ["transfer", "canceled"]],
+  ["transfer.failed", ["transfer", "failed"]],
+  ["transfer.reversed", ["transfer", "reversed"]],
+  ["transfer.settled", ["transfer", "settled"]],
+]);
+
+function normalizedProviderEventType(payload) {
+  return safeString(
+    payload?.eventType || payload?.webhook_code || payload?.type,
+    120,
+  )
+    .toLowerCase()
+    .replace(/bill[- ]payment/g, "bill_payment")
+    .replace(/card[- ]authorization/g, "card_authorization")
+    .replace(/card[- ]transaction/g, "card_transaction")
+    .replace(/[/:\s]+/g, ".")
+    .replace(/_(canceled|cancelled|expired|failed|reversed|settled)$/, ".$1");
+}
+
+function providerLifecycleCandidates(payload) {
+  const data = safeObject(payload?.data);
+
+  return [
+    safeObject(data.object),
+    safeObject(payload?.billPayment),
+    safeObject(payload?.bill_payment),
+    safeObject(payload?.transfer),
+    safeObject(payload?.cardAuthorization),
+    safeObject(payload?.card_authorization),
+    safeObject(payload?.cardTransaction),
+    safeObject(payload?.card_transaction),
+    data,
+    safeObject(payload?.event),
+    payload,
+  ];
+}
+
+function lifecycleField(candidates, fields) {
+  for (const candidate of candidates) {
+    const value = providerField(candidate, fields);
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return "";
+}
+
+function providerLifecycleAmount(candidates) {
+  for (const candidate of candidates) {
+    for (const field of ["amountCents", "amount_cents", "settledAmountCents", "settled_amount_cents"]) {
+      const value = Number(candidate?.[field]);
+
+      if (Number.isSafeInteger(value) && value > 0) {
+        return value;
+      }
+    }
+
+    const amount = Number(candidate?.amount);
+
+    if (Number.isFinite(amount) && amount > 0) {
+      const centsValue = Math.round(amount * 100);
+
+      if (Number.isSafeInteger(centsValue) && centsValue > 0) {
+        return centsValue;
+      }
+    }
+  }
+
+  return null;
+}
+
+function providerLifecycleOccurredAt(candidates) {
+  const value = lifecycleField(candidates, [
+    "occurredAt",
+    "occurred_at",
+    "settledAt",
+    "settled_at",
+    "updatedAt",
+    "updated_at",
+    "createdAt",
+    "created_at",
+  ]);
+  const parsed = value ? new Date(value) : null;
+
+  return parsed && Number.isFinite(parsed.getTime())
+    ? parsed.toISOString()
+    : new Date().toISOString();
+}
+
+function providerMoneyLifecycleFromPayload(payload) {
+  const eventType = normalizedProviderEventType(payload);
+  const lifecycle = providerMoneyLifecycleTypes.get(eventType);
+
+  if (!lifecycle) {
+    return null;
+  }
+
+  const [kind, status] = lifecycle;
+  const candidates = providerLifecycleCandidates(payload);
+  const amountCents = providerLifecycleAmount(candidates);
+  const providerBillPaymentId = lifecycleField(candidates, [
+    "providerBillPaymentId",
+    "billPaymentId",
+    "bill_payment_id",
+  ]);
+  const providerTransferId = lifecycleField(candidates, [
+    "providerTransferId",
+    "transferId",
+    "transfer_id",
+  ]);
+  const providerAuthorizationId = lifecycleField(candidates, [
+    "providerAuthorizationId",
+    "authorizationId",
+    "authorization_id",
+  ]);
+  const providerTransactionId = lifecycleField(candidates, [
+    "providerTransactionId",
+    "transactionId",
+    "transaction_id",
+  ]);
+  const providerReferenceId =
+    kind === "bill_payment"
+      ? providerBillPaymentId
+      : kind === "transfer"
+        ? providerTransferId
+        : providerAuthorizationId || providerTransactionId;
+  const missing = [
+    ...(providerReferenceId ? [] : ["provider reference"]),
+    ...(status === "settled" && amountCents === null
+      ? ["positive integer amountCents"]
+      : []),
+  ];
+
+  return {
+    amountCents,
+    eventType,
+    failureCode:
+      lifecycleField(candidates, ["failureCode", "failure_code", "code"]) ||
+      null,
+    invalidReason: missing.length
+      ? `Provider lifecycle event is missing ${missing.join(" and ")}.`
+      : "",
+    kind,
+    occurredAt: providerLifecycleOccurredAt(candidates),
+    providerAuthorizationId: providerAuthorizationId || null,
+    providerBillPaymentId: providerBillPaymentId || null,
+    providerReferenceId: providerReferenceId || null,
+    providerTransactionId: providerTransactionId || null,
+    providerTransferId: providerTransferId || null,
+    status,
+  };
+}
+
+async function persistProviderLifecycleException(
+  { lifecycle, lifecyclePersistence, providerEventId, providerName },
+  env,
+) {
+  const reasonCode = lifecycle.invalidReason
+    ? "invalid_provider_lifecycle_event"
+    : !lifecyclePersistence?.found
+      ? "provider_money_record_not_found"
+      : lifecyclePersistence?.amountMismatch
+        ? "provider_money_amount_mismatch"
+        : "provider_money_state_conflict";
+
+  return persistReconciliationException(
+    {
+      householdId: lifecyclePersistence?.householdId || null,
+      idempotencyKey: `provider-lifecycle:${providerName}:${providerEventId}:${reasonCode}`,
+      metadata: {
+        amountCents: lifecycle.amountCents,
+        eventType: lifecycle.eventType,
+        expectedAmountCents:
+          lifecyclePersistence?.expectedAmountCents || null,
+        kind: lifecycle.kind,
+        providerReferenceId: lifecycle.providerReferenceId,
+        receivedAmountCents:
+          lifecyclePersistence?.receivedAmountCents || null,
+        status: lifecycle.status,
+      },
+      providerEventId,
+      providerName,
+      providerTransactionId:
+        lifecycle.providerTransactionId || lifecycle.providerReferenceId,
+      reasonCode,
+      severity: lifecyclePersistence?.amountMismatch ? "critical" : "warning",
+      source: "provider_webhook",
+      summary:
+        lifecycle.invalidReason ||
+        lifecyclePersistence?.reason ||
+        `A signed ${lifecycle.eventType} event could not be matched to a valid money lifecycle.`,
+    },
+    env,
+  );
+}
+
+async function applyProviderMoneyLifecycle(
+  lifecycle,
+  { env, providerEventId, providerName },
+) {
+  if (lifecycle.invalidReason) {
+    return {
+      found: false,
+      invalid: true,
+      persisted: true,
+      persistence: "validation",
+    };
+  }
+
+  if (lifecycle.kind === "bill_payment") {
+    return applyBillPaymentLifecycle(
+      {
+        amountCents: lifecycle.amountCents,
+        failureCode: lifecycle.failureCode,
+        occurredAt: lifecycle.occurredAt,
+        providerEventId,
+        providerName,
+        providerReferenceId: lifecycle.providerBillPaymentId,
+        status: lifecycle.status,
+      },
+      env,
+    );
+  }
+
+  if (lifecycle.kind === "transfer") {
+    return applyTransferLifecycle(
+      {
+        amountCents: lifecycle.amountCents,
+        failureCode: lifecycle.failureCode,
+        occurredAt: lifecycle.occurredAt,
+        providerEventId,
+        providerName,
+        providerReferenceId: lifecycle.providerTransferId,
+        status: lifecycle.status,
+      },
+      env,
+    );
+  }
+
+  return applyCardAuthorizationLifecycle(
+    {
+      amountCents: lifecycle.amountCents,
+      occurredAt: lifecycle.occurredAt,
+      providerAuthorizationId: lifecycle.providerAuthorizationId,
+      providerEventId,
+      providerName,
+      providerTransactionId: lifecycle.providerTransactionId,
+      status: lifecycle.status,
+    },
+    env,
+  );
+}
+
+function providerPayeeUpdateFromPayload(payload) {
+  const eventType = normalizedProviderEventType(payload);
+
+  if (!eventType.startsWith("payee.")) {
+    return null;
+  }
+
+  const candidates = providerLifecycleCandidates(payload);
+  const eventStatus = eventType.split(".").at(-1);
+  const rawStatus = ["approved", "pending", "rejected"].includes(eventStatus)
+    ? eventStatus
+    : lifecycleField(candidates, [
+        "verificationStatus",
+        "verification_status",
+        "payeeStatus",
+        "payee_status",
+        "status",
+      ]);
+  const providerPayeeId = lifecycleField(candidates, [
+    "providerPayeeId",
+    "payeeId",
+    "payee_id",
+  ]);
+
+  if (!providerPayeeId || !rawStatus) {
+    return {
+      eventType,
+      invalidReason:
+        "Provider payee event is missing a payee reference or verification status.",
+      providerPayeeId: providerPayeeId || null,
+      status: "provider_pending",
+    };
+  }
+
+  return {
+    eventType,
+    invalidReason: "",
+    providerPayeeId,
+    status: normalizedProviderPayeeStatus(rawStatus),
+  };
+}
+
+async function persistProviderPayeeException(
+  { payeePersistence, payeeUpdate, providerEventId, providerName },
+  env,
+) {
+  const reasonCode = payeeUpdate.invalidReason
+    ? "invalid_provider_payee_event"
+    : "provider_payee_not_found";
+
+  return persistReconciliationException(
+    {
+      householdId: payeePersistence?.householdId || null,
+      idempotencyKey: `provider-payee:${providerName}:${providerEventId}:${reasonCode}`,
+      metadata: {
+        eventType: payeeUpdate.eventType,
+        providerPayeeId: payeeUpdate.providerPayeeId,
+        status: payeeUpdate.status,
+      },
+      providerEventId,
+      providerName,
+      providerTransactionId: payeeUpdate.providerPayeeId,
+      reasonCode,
+      severity: "warning",
+      source: "provider_webhook",
+      summary:
+        payeeUpdate.invalidReason ||
+        "A signed payee verification update could not be matched to a payment destination.",
+    },
+    env,
+  );
+}
+
+function plaidWebhookRequestsTransactionSync(payload) {
+  if (payload.__payshieldProviderSource !== "plaid") {
+    return false;
+  }
+
+  const webhookType = safeString(payload.webhook_type, 80).toUpperCase();
+  const webhookCode = safeString(payload.webhook_code, 120).toUpperCase();
+
+  return (
+    webhookType === "TRANSACTIONS" &&
+    new Set([
+      "DEFAULT_UPDATE",
+      "HISTORICAL_UPDATE",
+      "INITIAL_UPDATE",
+      "SYNC_UPDATES_AVAILABLE",
+    ]).has(webhookCode)
+  );
+}
+
 export async function handleProviderWebhook(payload, env = process.env) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return {
@@ -9322,7 +12449,36 @@ export async function handleProviderWebhook(payload, env = process.env) {
   const providerName = providerNameFromPayload(payload);
   const providerEventId = stableEventId(providerName, payload);
   const detections = extractProviderPaycheckDetections(payload, providerEventId);
-  const providerSignature = verifyProviderWebhookSignature(
+  const kycUpdate = providerKycUpdateFromPayload(payload);
+  let moneyLifecycle = providerMoneyLifecycleFromPayload(payload);
+  let payeeUpdate = providerPayeeUpdateFromPayload(payload);
+  const configuredProviderName = getProviderAdapterConfig(env)
+    .providerName.toLowerCase();
+
+  if (
+    moneyLifecycle &&
+    (!configuredProviderName || providerName !== configuredProviderName)
+  ) {
+    moneyLifecycle = {
+      ...moneyLifecycle,
+      invalidReason: configuredProviderName
+        ? `Provider lifecycle event names ${providerName}; expected ${configuredProviderName}.`
+        : "Provider lifecycle event arrived before a BaaS provider was configured.",
+    };
+  }
+
+  if (
+    payeeUpdate &&
+    (!configuredProviderName || providerName !== configuredProviderName)
+  ) {
+    payeeUpdate = {
+      ...payeeUpdate,
+      invalidReason: configuredProviderName
+        ? `Provider payee event names ${providerName}; expected ${configuredProviderName}.`
+        : "Provider payee event arrived before a BaaS provider was configured.",
+    };
+  }
+  const providerSignature = await verifyProviderWebhookSignature(
     payload,
     env,
     readiness,
@@ -9371,13 +12527,364 @@ export async function handleProviderWebhook(payload, env = process.env) {
     };
   }
 
-  if (eventPersistence.replayed) {
+  if (plaidWebhookRequestsTransactionSync(payload)) {
+    const providerItemId = safeString(payload.item_id, 240);
+
+    if (!providerItemId) {
+      const exceptionPersistence = await persistReconciliationException(
+        {
+          householdId: null,
+          idempotencyKey: `plaid-sync-item-missing:${providerEventId}`,
+          metadata: {
+            webhookCode: safeString(payload.webhook_code, 120),
+            webhookType: safeString(payload.webhook_type, 80),
+          },
+          providerEventId,
+          providerName: "plaid",
+          providerTransactionId: null,
+          reasonCode: "plaid_item_id_missing",
+          severity: "warning",
+          source: "provider_webhook",
+          summary:
+            "A verified Plaid transaction webhook did not identify a linked item.",
+        },
+        env,
+      );
+
+      if (persistenceFailed(exceptionPersistence)) {
+        return {
+          body: {
+            accepted: false,
+            error: "Plaid webhook exception could not be queued.",
+            eventPersistence,
+            providerEventId,
+            service: "payshield-provider-webhook",
+          },
+          status: 503,
+        };
+      }
+
+      return {
+        body: {
+          accepted: true,
+          eventPersistence,
+          exceptionPersistence,
+          mode: "review_required",
+          providerEventId,
+          service: "payshield-provider-webhook",
+        },
+        status: 202,
+      };
+    }
+
+    const syncJobPersistence = await enqueuePlaidSyncJob(
+      {
+        providerEventId,
+        providerItemId,
+      },
+      env,
+    );
+
+    if (persistenceFailed(syncJobPersistence)) {
+      return {
+        body: {
+          accepted: false,
+          error: "Linked-bank webhook sync could not be queued.",
+          eventPersistence,
+          mode: "retry_required",
+          providerEventId,
+          readiness,
+          service: "payshield-provider-webhook",
+          syncJobPersistence,
+        },
+        status: 503,
+      };
+    }
+
     return {
       body: {
         accepted: true,
-        duplicate: true,
+        duplicate: eventPersistence.replayed,
         eventPersistence,
-        mode: "replayed",
+        mode: "plaid_sync_queued",
+        providerEventId,
+        readiness,
+        service: "payshield-provider-webhook",
+        syncJob: syncJobPersistence.job,
+        syncJobPersistence,
+      },
+      status: 202,
+    };
+  }
+
+  if (moneyLifecycle) {
+    const lifecyclePersistence = await applyProviderMoneyLifecycle(
+      moneyLifecycle,
+      { env, providerEventId, providerName },
+    );
+
+    if (persistenceFailed(lifecyclePersistence)) {
+      return {
+        body: {
+          accepted: false,
+          error: "Provider money lifecycle could not be persisted.",
+          eventPersistence,
+          lifecyclePersistence,
+          providerEventId,
+          readiness,
+          service: "payshield-provider-webhook",
+        },
+        status: 503,
+      };
+    }
+
+    if (
+      moneyLifecycle.invalidReason ||
+      !lifecyclePersistence.found ||
+      lifecyclePersistence.amountMismatch ||
+      lifecyclePersistence.conflict
+    ) {
+      const exceptionPersistence = await persistProviderLifecycleException(
+        {
+          lifecycle: moneyLifecycle,
+          lifecyclePersistence,
+          providerEventId,
+          providerName,
+        },
+        env,
+      );
+
+      if (persistenceFailed(exceptionPersistence)) {
+        return {
+          body: {
+            accepted: false,
+            error: "Provider money exception could not be queued.",
+            eventPersistence,
+            exceptionPersistence,
+            lifecyclePersistence,
+            providerEventId,
+            readiness,
+            service: "payshield-provider-webhook",
+          },
+          status: 503,
+        };
+      }
+
+      return {
+        body: {
+          accepted: true,
+          duplicate: eventPersistence.replayed,
+          eventPersistence,
+          exceptionPersistence,
+          lifecycle: moneyLifecycle,
+          lifecyclePersistence,
+          mode: "review_required",
+          providerEventId,
+          readiness,
+          service: "payshield-provider-webhook",
+        },
+        status: 202,
+      };
+    }
+
+    return {
+      body: {
+        accepted: true,
+        duplicate: eventPersistence.replayed,
+        eventPersistence,
+        lifecycle: moneyLifecycle,
+        lifecyclePersistence,
+        mode: lifecyclePersistence.replayed
+          ? "money_lifecycle_replayed"
+          : "money_lifecycle_updated",
+        providerEventId,
+        readiness,
+        service: "payshield-provider-webhook",
+      },
+      status: 202,
+    };
+  }
+
+  if (payeeUpdate) {
+    const payeePersistence = payeeUpdate.invalidReason
+      ? {
+          found: false,
+          invalid: true,
+          persisted: true,
+          persistence: "validation",
+        }
+      : await updatePayeeProviderStatus(
+          {
+            idempotencyKey: `provider-payee:${providerName}:${providerEventId}`,
+            providerEventId,
+            providerName,
+            providerPayeeId: payeeUpdate.providerPayeeId,
+            status: payeeUpdate.status,
+          },
+          env,
+        );
+
+    if (persistenceFailed(payeePersistence)) {
+      return {
+        body: {
+          accepted: false,
+          error: "Payment destination verification could not be updated.",
+          eventPersistence,
+          payeePersistence,
+          providerEventId,
+          readiness,
+          service: "payshield-provider-webhook",
+        },
+        status: 503,
+      };
+    }
+
+    if (payeeUpdate.invalidReason || !payeePersistence.found) {
+      const exceptionPersistence = await persistProviderPayeeException(
+        {
+          payeePersistence,
+          payeeUpdate,
+          providerEventId,
+          providerName,
+        },
+        env,
+      );
+
+      if (persistenceFailed(exceptionPersistence)) {
+        return {
+          body: {
+            accepted: false,
+            error: "Payment destination exception could not be queued.",
+            eventPersistence,
+            exceptionPersistence,
+            payeePersistence,
+            providerEventId,
+            readiness,
+            service: "payshield-provider-webhook",
+          },
+          status: 503,
+        };
+      }
+
+      return {
+        body: {
+          accepted: true,
+          duplicate: eventPersistence.replayed,
+          eventPersistence,
+          exceptionPersistence,
+          mode: "review_required",
+          payeePersistence,
+          providerEventId,
+          readiness,
+          service: "payshield-provider-webhook",
+        },
+        status: 202,
+      };
+    }
+
+    return {
+      body: {
+        accepted: true,
+        duplicate: eventPersistence.replayed,
+        eventPersistence,
+        mode: "payee_updated",
+        payee: payeePersistence.payee,
+        payeePersistence,
+        providerEventId,
+        readiness,
+        service: "payshield-provider-webhook",
+      },
+      status: 202,
+    };
+  }
+
+  if (kycUpdate) {
+    const kycPersistence = await updateProviderKycApplicationStatus(
+      {
+        ...kycUpdate,
+        metadata: {
+          providerEventId,
+          source: "signed_provider_webhook",
+        },
+        providerName,
+        userKycStatus: appKycStatus(kycUpdate.status),
+      },
+      env,
+    );
+
+    if (persistenceFailed(kycPersistence)) {
+      return {
+        body: {
+          accepted: false,
+          error: "Identity verification update could not be persisted.",
+          eventPersistence,
+          kycPersistence,
+          providerEventId,
+          readiness,
+          service: "payshield-provider-webhook",
+        },
+        status: 503,
+      };
+    }
+
+    if (!kycPersistence.updated) {
+      const exceptionPersistence = await persistReconciliationException(
+        {
+          householdId: null,
+          idempotencyKey: `provider-kyc-unmatched:${providerName}:${providerEventId}`,
+          metadata: {
+            providerApplicationId: kycUpdate.providerApplicationId,
+            providerCustomerId: kycUpdate.providerCustomerId,
+            status: kycUpdate.status,
+          },
+          providerEventId,
+          providerName,
+          providerTransactionId: null,
+          reasonCode: "provider_kyc_application_not_found",
+          severity: "warning",
+          source: "provider_webhook",
+          summary:
+            "A signed identity verification update could not be matched to an onboarding application.",
+        },
+        env,
+      );
+
+      if (persistenceFailed(exceptionPersistence)) {
+        return {
+          body: {
+            accepted: false,
+            error: "Unmatched identity verification update could not be queued.",
+            eventPersistence,
+            exceptionPersistence,
+            providerEventId,
+            readiness,
+            service: "payshield-provider-webhook",
+          },
+          status: 503,
+        };
+      }
+
+      return {
+        body: {
+          accepted: true,
+          eventPersistence,
+          exceptionPersistence,
+          mode: "review_required",
+          providerEventId,
+          readiness,
+          service: "payshield-provider-webhook",
+        },
+        status: 202,
+      };
+    }
+
+    return {
+      body: {
+        accepted: true,
+        eventPersistence,
+        kyc: kycPersistence.kyc,
+        kycPersistence,
+        mode: "identity_updated",
         providerEventId,
         readiness,
         service: "payshield-provider-webhook",
@@ -9533,6 +13040,7 @@ export async function handleProviderWebhook(payload, env = process.env) {
 
     const result = await detectPaycheck(
       {
+        [trustedPaycheckDetection]: true,
         __payshieldActor: {
           householdId: actor.householdId,
           userId: actor.id,

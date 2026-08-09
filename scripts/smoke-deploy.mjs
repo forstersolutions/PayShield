@@ -1,430 +1,199 @@
-const args = process.argv.slice(2);
-const targetUrl = args.find((arg) => !arg.startsWith("--"));
-const submitTestLead = args.includes("--submit-test");
-const requireWebhook = args.includes("--require-webhook");
-const timeoutMs = 10_000;
-const failures = [];
+import { pathToFileURL } from "node:url";
 
-if (!targetUrl) {
-  console.error(
-    "Usage: npm run smoke:deploy -- https://your-domain.com [--expect-site-url https://your-domain.com] [--submit-test] [--require-webhook]",
-  );
-  process.exit(1);
+const securityHeaders = {
+  "permissions-policy": ["camera=()", "microphone=()", "geolocation=()", "payment=()"],
+  "referrer-policy": ["strict-origin-when-cross-origin"],
+  "strict-transport-security": ["max-age=31536000"],
+  "x-content-type-options": ["nosniff"],
+  "x-frame-options": ["DENY"],
+};
+const rejectedCopy = [/early access/i, /paid beta/i, /prototype/i, /not a bank/i];
+
+export function normalizeUrl(value) {
+  const url = new URL(value);
+
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
+    throw new Error("Deployment URL must be an absolute HTTP(S) URL without credentials.");
+  }
+
+  url.hash = "";
+  url.search = "";
+  url.pathname = url.pathname.replace(/\/+$/, "") || "/";
+  return url;
 }
 
-if (requireWebhook && !submitTestLead) {
-  console.error("--require-webhook must be used with --submit-test.");
-  process.exit(1);
+async function boundedBody(response, maxBytes = 2 * 1024 * 1024) {
+  const buffer = await response.arrayBuffer();
+
+  if (buffer.byteLength > maxBytes) {
+    throw new Error(`Response exceeded ${maxBytes} bytes.`);
+  }
+
+  return new TextDecoder().decode(buffer);
 }
 
-function flagValue(name) {
+export async function runDeploySmoke({ targetUrl, timeoutMs = 10_000 }) {
+  const baseUrl = normalizeUrl(targetUrl);
+  const checks = [];
+  const failures = [];
+
+  async function request(path, init = {}) {
+    try {
+      const response = await fetch(new URL(path, baseUrl), {
+        redirect: "manual",
+        signal: AbortSignal.timeout(timeoutMs),
+        ...init,
+      });
+      return response;
+    } catch (error) {
+      failures.push(`${path} request failed: ${error instanceof Error ? error.message : "network error"}`);
+      return null;
+    }
+  }
+
+  async function textPage(path, required) {
+    const response = await request(path);
+
+    if (!response) return "";
+
+    const body = await boundedBody(response).catch((error) => {
+      failures.push(`${path} could not be read: ${error.message}`);
+      return "";
+    });
+    const ok = response.status === 200;
+    checks.push(`${path} responds`);
+
+    if (!ok) failures.push(`${path} returned HTTP ${response.status}.`);
+
+    for (const marker of required) {
+      if (!body.toLowerCase().includes(marker.toLowerCase())) {
+        failures.push(`${path} is missing ${marker}.`);
+      }
+    }
+
+    for (const pattern of rejectedCopy) {
+      if (pattern.test(body)) failures.push(`${path} contains rejected copy ${pattern}.`);
+    }
+
+    for (const [name, expectedParts] of Object.entries(securityHeaders)) {
+      const value = response.headers.get(name) || "";
+
+      for (const expected of expectedParts) {
+        if (!value.toLowerCase().includes(expected.toLowerCase())) {
+          failures.push(`${path} ${name} is missing ${expected}.`);
+        }
+      }
+    }
+
+    return body;
+  }
+
+  await textPage("/", ["PayShield", "Safe to Spend", "support@graystontechnologies.com"]);
+  await textPage("/privacy", ["Privacy", "Grayston Technologies", "support@graystontechnologies.com"]);
+  await textPage("/terms", ["Terms", "Grayston Technologies", "support@graystontechnologies.com"]);
+
+  const healthResponse = await request("/api/health");
+  if (healthResponse) {
+    const health = await healthResponse.json().catch(() => ({}));
+    checks.push("public health is minimal");
+    if (healthResponse.status !== 200 || health.ok !== true || health.service !== "payshield-web-app") {
+      failures.push("/api/health returned an invalid health payload.");
+    }
+    const serialized = JSON.stringify(health);
+    if (/secret|credential|database|waitlist|readiness/i.test(serialized)) {
+      failures.push("/api/health exposes internal state.");
+    }
+  }
+
+  const membershipResponse = await request("/api/public/billing/status");
+  if (membershipResponse) {
+    const membership = await membershipResponse.json().catch(() => ({}));
+    if (
+      membershipResponse.status !== 200 ||
+      membership.service !== "payshield-membership-status" ||
+      !["available", "unavailable"].includes(membership.status)
+    ) {
+      failures.push("/api/public/billing/status returned an invalid payload.");
+    }
+  }
+  checks.push("membership status is public-safe");
+
+  const accountResponse = await request("/api/app/me");
+  if (accountResponse && ![200, 401, 403, 503].includes(accountResponse.status)) {
+    failures.push(`/api/app/me returned unexpected HTTP ${accountResponse.status}.`);
+  }
+  checks.push("protected account route responds predictably");
+
+  const removedWaitlist = await request("/api/waitlist", { method: "POST" });
+  if (removedWaitlist && ![404, 405].includes(removedWaitlist.status)) {
+    failures.push("Obsolete /api/waitlist endpoint is still active.");
+  }
+  checks.push("obsolete intake route is absent");
+
+  const assets = [
+    ["/favicon.ico", "image/"],
+    ["/icon.svg", "image/svg+xml"],
+    ["/apple-icon.png", "image/png"],
+    ["/images/payshield-social-card.jpg", "image/jpeg"],
+    ["/manifest.webmanifest", "application/manifest+json"],
+    ["/.well-known/security.txt", "text/plain"],
+    ["/robots.txt", "text/plain"],
+    ["/sitemap.xml", "application/xml"],
+  ];
+
+  for (const [path, contentType] of assets) {
+    const response = await request(path);
+
+    if (!response || response.status !== 200) {
+      failures.push(`${path} is unavailable.`);
+      continue;
+    }
+
+    if (!(response.headers.get("content-type") || "").includes(contentType)) {
+      failures.push(`${path} has an unexpected content type.`);
+    }
+    checks.push(`${path} is available`);
+  }
+
+  return {
+    checks,
+    failures,
+    ok: failures.length === 0,
+    service: "payshield-deployment-smoke",
+    targetUrl: `${baseUrl.origin}${baseUrl.pathname === "/" ? "" : baseUrl.pathname}`,
+  };
+}
+
+function usage() {
+  return "Usage: npm run smoke:deploy -- https://your-domain.com [--timeout-ms 10000]";
+}
+
+function flagValue(args, name) {
   const inline = args.find((arg) => arg.startsWith(`${name}=`));
-
-  if (inline) {
-    return inline.slice(name.length + 1);
-  }
-
+  if (inline) return inline.slice(name.length + 1);
   const index = args.indexOf(name);
-  const next = args[index + 1];
-
-  if (index === -1 || !next || next.startsWith("--")) {
-    return "";
-  }
-
-  return next;
+  return index >= 0 ? args[index + 1] || "" : "";
 }
 
-const expectedSiteUrlInput = flagValue("--expect-site-url");
+async function main() {
+  const args = process.argv.slice(2);
+  const targetUrl = args.find((arg) => !arg.startsWith("--"));
 
-let baseUrl;
-
-try {
-  baseUrl = new URL(targetUrl);
-  baseUrl.hash = "";
-  baseUrl.search = "";
-  baseUrl.pathname = baseUrl.pathname.replace(/\/+$/, "");
-} catch {
-  console.error(`Invalid URL: ${targetUrl}`);
-  process.exit(1);
-}
-
-let expectedSiteUrl = "";
-
-if (expectedSiteUrlInput) {
-  try {
-    const url = new URL(expectedSiteUrlInput);
-    const pathname = url.pathname.replace(/\/+$/, "");
-    expectedSiteUrl = `${url.origin}${pathname}`;
-  } catch {
-    console.error(`Invalid --expect-site-url: ${expectedSiteUrlInput}`);
-    process.exit(1);
-  }
-}
-
-function urlFor(path) {
-  return new URL(path, `${baseUrl.origin}${baseUrl.pathname || "/"}`).toString();
-}
-
-async function request(path, init = {}) {
-  return fetch(urlFor(path), {
-    ...init,
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-}
-
-async function expectStatus(path, expectedStatus, init = {}) {
-  const response = await request(path, init);
-
-  if (response.status !== expectedStatus) {
-    failures.push(`${path} returned ${response.status}; expected ${expectedStatus}`);
-  }
-
-  return response;
-}
-
-async function expectText(path, requiredText) {
-  const response = await expectStatus(path, 200);
-  const body = await response.text();
-  const normalizedBody = body.replace(/\s+/g, " ");
-
-  for (const text of requiredText) {
-    const normalizedText = text.replace(/\s+/g, " ");
-
-    if (!normalizedBody.includes(normalizedText)) {
-      failures.push(`${path} is missing required text: ${text}`);
-    }
-  }
-
-  return { body, response };
-}
-
-async function expectNotFoundText(path, requiredText) {
-  const response = await expectStatus(path, 404);
-  const body = await response.text();
-  const normalizedBody = body.replace(/\s+/g, " ");
-
-  for (const text of requiredText) {
-    const normalizedText = text.replace(/\s+/g, " ");
-
-    if (!normalizedBody.includes(normalizedText)) {
-      failures.push(`${path} 404 is missing required text: ${text}`);
-    }
-  }
-
-  return { body, response };
-}
-
-async function expectAsset(path, expectedType, maxBytes) {
-  let response = await expectStatus(path, 200, { method: "HEAD" });
-  let contentType = response.headers.get("content-type") ?? "";
-  let contentLength = Number(response.headers.get("content-length") ?? 0);
-
-  if (!contentType.includes(expectedType) || !contentLength) {
-    response = await expectStatus(path, 200);
-    contentType = response.headers.get("content-type") ?? contentType;
-    contentLength =
-      Number(response.headers.get("content-length") ?? 0) ||
-      (await response.arrayBuffer()).byteLength;
-  }
-
-  if (!contentType.includes(expectedType)) {
-    failures.push(`${path} content-type is ${contentType}; expected ${expectedType}`);
-  }
-
-  if (!contentLength || contentLength > maxBytes) {
-    failures.push(`${path} content-length is ${contentLength}; expected <= ${maxBytes}`);
-  }
-}
-
-async function expectMissingAsset(path) {
-  await expectStatus(path, 404, { method: "HEAD" });
-}
-
-async function checkWaitlistValidation() {
-  const response = await expectStatus("/api/waitlist", 400, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      email: "smoke-validation@example.com",
-      segment: "Household",
-      consent: false,
-    }),
-  });
-  const body = await response.json().catch(() => ({}));
-
-  if (body.error !== "Accept the privacy and terms notice.") {
-    failures.push("/api/waitlist consent validation returned an unexpected body");
-  }
-}
-
-async function checkHealth() {
-  const response = await expectStatus("/api/health", 200);
-  const body = await response.json().catch(() => ({}));
-
-  if (body.service !== "payshield-web-app") {
-    failures.push("/api/health returned an unexpected service name");
-  }
-
-  if (body.ok !== true) {
-    failures.push("/api/health did not report ok=true");
-  }
-
-  if (!["blob", "demo", "upstash", "webhook"].includes(String(body.waitlist?.mode))) {
-    failures.push("/api/health returned an unexpected waitlist mode");
-  }
-
-  if (requireWebhook && body.waitlist?.paidTrafficReady !== true) {
-    failures.push(
-      "/api/health does not report paid-traffic-ready signed waitlist capture",
-    );
-  }
-
-  if (
-    requireWebhook &&
-    body.waitlist?.mode === "webhook" &&
-    body.waitlist?.webhookSigningConfigured !== true
-  ) {
-    failures.push("/api/health does not report signed webhook configuration");
-  }
-
-  if (
-    requireWebhook &&
-    ["blob", "upstash"].includes(String(body.waitlist?.mode)) &&
-    body.waitlist?.storageConfigured !== true
-  ) {
-    failures.push("/api/health does not report durable storage configuration");
-  }
-}
-
-async function checkBillPaymentSimulation() {
-  const response = await expectStatus("/api/app/bill-payments", 200, {
-    body: JSON.stringify({
-      amountCents: 50_000,
-      idempotencyKey: `deploy-smoke-bill-${Date.now()}`,
-      payeeId: "payee_abc_apartments",
-      scheduledFor: "2026-07-01",
-    }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
-  const body = await response.json().catch(() => ({}));
-
-  if (
-    body.decision?.accepted !== true ||
-    body.decision?.bucketId !== "rent" ||
-    body.decision?.providerStatus !== "blocked"
-  ) {
-    failures.push("/api/app/bill-payments returned an unexpected demo decision");
-  }
-}
-
-function expectHeader(response, path, name, expectedValue) {
-  const actual = response.headers.get(name);
-
-  if (actual !== expectedValue) {
-    failures.push(
-      `${path} ${name} header is ${actual || "missing"}; expected ${expectedValue}`,
-    );
-  }
-}
-
-function expectHeaderIncludes(response, path, name, expectedParts) {
-  const actual = response.headers.get(name) ?? "";
-
-  for (const part of expectedParts) {
-    if (!actual.includes(part)) {
-      failures.push(`${path} ${name} header is missing ${part}`);
-    }
-  }
-}
-
-function expectSecurityHeaders(response, path) {
-  expectHeader(response, path, "x-content-type-options", "nosniff");
-  expectHeader(response, path, "referrer-policy", "strict-origin-when-cross-origin");
-  expectHeader(response, path, "x-frame-options", "DENY");
-  expectHeader(response, path, "strict-transport-security", "max-age=31536000");
-  expectHeaderIncludes(response, path, "permissions-policy", [
-    "camera=()",
-    "microphone=()",
-    "geolocation=()",
-    "payment=()",
-  ]);
-}
-
-function expectConfiguredSiteUrl(homeBody, robotsBody, sitemapBody, securityBody) {
-  if (!expectedSiteUrl) {
+  if (!targetUrl || args.includes("--help") || args.includes("-h")) {
+    console.log(usage());
+    process.exitCode = targetUrl ? 0 : 1;
     return;
   }
 
-  const canonicalHref = `href="${expectedSiteUrl}/"`;
-  const canonicalHrefWithoutSlash = `href="${expectedSiteUrl}"`;
-
-  if (
-    !homeBody.includes(canonicalHref) &&
-    !homeBody.includes(canonicalHrefWithoutSlash)
-  ) {
-    failures.push(
-      `/ canonical metadata does not match --expect-site-url ${expectedSiteUrl}`,
-    );
-  }
-
-  if (
-    !homeBody.includes(`${expectedSiteUrl}/images/payshield-social-card.jpg`)
-  ) {
-    failures.push(
-      `/ social image metadata does not use --expect-site-url ${expectedSiteUrl}`,
-    );
-  }
-
-  for (const path of ["", "/privacy", "/terms"]) {
-    const expectedEntry = `${expectedSiteUrl}${path}`;
-
-    if (!sitemapBody.includes(expectedEntry)) {
-      failures.push(`/sitemap.xml is missing ${expectedEntry}`);
-    }
-  }
-
-  if (!robotsBody.includes(`Sitemap: ${expectedSiteUrl}/sitemap.xml`)) {
-    failures.push(`/robots.txt sitemap does not use ${expectedSiteUrl}`);
-  }
-
-  if (!securityBody.includes(`Canonical: ${expectedSiteUrl}/.well-known/security.txt`)) {
-    failures.push(
-      `/.well-known/security.txt canonical does not use ${expectedSiteUrl}`,
-    );
-  }
+  const timeoutMs = Number(flagValue(args, "--timeout-ms") || 10_000);
+  const result = await runDeploySmoke({ targetUrl, timeoutMs });
+  console.log(JSON.stringify(result, null, 2));
+  if (!result.ok) process.exitCode = 1;
 }
 
-async function submitLead() {
-  const response = await expectStatus("/api/waitlist", 200, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      attribution: {
-        landingPath: "/",
-        utmCampaign: "deploy-smoke",
-        utmMedium: "ops",
-        utmSource: "smoke-test",
-      },
-      email: `smoke+${Date.now()}@example.com`,
-      name: "Deploy Smoke Test",
-      segment: "Investor or partner",
-      message: "Automated post-deploy smoke test.",
-      consent: true,
-    }),
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : "Deployment smoke failed.");
+    process.exit(1);
   });
-  const body = await response.json().catch(() => ({}));
-
-  if (
-    body.ok !== true ||
-    !["blob", "demo", "upstash", "webhook"].includes(String(body.mode))
-  ) {
-    failures.push("/api/waitlist submit test returned an unexpected body");
-  }
-
-  if (requireWebhook && !["blob", "upstash", "webhook"].includes(String(body.mode))) {
-    failures.push(
-      `/api/waitlist submit test returned mode ${String(
-        body.mode ?? "missing",
-      )}; expected durable capture`,
-    );
-  }
 }
-
-try {
-  const home = await expectText("/", [
-    "PayShield by Grayston | Paycheck Control App",
-    "/manifest.webmanifest",
-    "/icon.svg",
-    "payshield-social-card.jpg",
-    "Safe to Spend",
-    "Paycheck control software by Grayston Technologies.",
-    "Bucket control studio",
-    "Bill routing",
-    "Provider readiness",
-    "support@graystontechnologies.com",
-  ]);
-  expectSecurityHeaders(home.response, "/");
-
-  await expectText("/app", [
-    "Household command center",
-    "Safe to Spend",
-    "Usable product map",
-    "Money path",
-    "Ledger journal",
-    "Money operations",
-    "Commercial access",
-    "Activate paid access",
-    "Bank connection",
-    "Paycheck detection",
-    "Protected transfers",
-    "Operations ledger",
-    "Export audit",
-    "Card authorization",
-    "Recovery unlock",
-    "Bucket control studio",
-    "Bill routing",
-  ]);
-
-  await expectText("/privacy", [
-    "Privacy Notice",
-    "PayShield is operated by Grayston Technologies.",
-    "utm_source",
-    "Vercel Web Analytics",
-    "does not send email addresses, names, bank details",
-    "free-text financial notes to analytics",
-    "support@graystontechnologies.com",
-  ]);
-  await expectText("/terms", [
-    "Terms",
-    "Provider-enabled services",
-    "Account opening, card controls, and money movement stay locked until approved provider credentials, disclosures, and operating controls are active.",
-  ]);
-  const robots = await expectText("/robots.txt", ["User-Agent: *", "Sitemap:"]);
-  const sitemap = await expectText("/sitemap.xml", ["/privacy", "/terms"]);
-  const security = await expectText("/.well-known/security.txt", [
-    "Contact: mailto:support@graystontechnologies.com",
-    "Policy: https://github.com/forstersolutions/PayShield/security/policy",
-    "Preferred-Languages: en",
-    "Canonical:",
-    "Expires:",
-  ]);
-  await expectText("/manifest.webmanifest", ["PayShield", "/icon.svg"]);
-  await expectAsset("/icon.svg", "image/svg+xml", 5_000);
-  await expectAsset("/images/payshield-social-card.jpg", "image/jpeg", 250_000);
-  const missingRoute = await expectNotFoundText("/missing-route-smoke", [
-    "Route unavailable",
-    "This screen is not in the PayShield control surface.",
-    "Open app",
-    "Product profile",
-    "Support",
-  ]);
-  expectSecurityHeaders(missingRoute.response, "/missing-route-smoke");
-  await expectMissingAsset("/file.svg");
-  await expectMissingAsset("/globe.svg");
-  await expectMissingAsset("/next.svg");
-  await expectMissingAsset("/vercel.svg");
-  await expectMissingAsset("/window.svg");
-  await checkHealth();
-  await checkBillPaymentSimulation();
-  await checkWaitlistValidation();
-  expectConfiguredSiteUrl(home.body, robots.body, sitemap.body, security.body);
-
-  if (submitTestLead) {
-    await submitLead();
-  }
-} catch (error) {
-  failures.push(error instanceof Error ? error.message : "Unknown smoke-test failure");
-}
-
-if (failures.length) {
-  console.error(`Deploy smoke checks failed for ${baseUrl.origin}${baseUrl.pathname}:`);
-  failures.forEach((failure) => console.error(`- ${failure}`));
-  process.exit(1);
-}
-
-console.log(
-  `Deploy smoke checks passed for ${baseUrl.origin}${baseUrl.pathname}${
-    submitTestLead ? " with submit test" : ""
-  }.`,
-);

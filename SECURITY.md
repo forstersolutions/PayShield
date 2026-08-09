@@ -1,47 +1,32 @@
 # Security Policy
 
-PayShield is operated by Grayston Technologies as paycheck control software.
-Financial accounts, cards, money movement, and insurance coverage are available
-only through approved regulated partners when enabled.
+PayShield is operated by Grayston Technologies.
 
-## Reporting a Vulnerability
+## Report A Vulnerability
 
-Do not open a public issue for security vulnerabilities, exposed secrets,
-lead-data leaks, authentication weaknesses, or regulated-finance data handling
-concerns.
+Email `support@graystontechnologies.com` and request a secure handoff channel
+before sharing sensitive details. Do not open a public issue for vulnerabilities
+or exposed personal, financial, authentication, provider, or infrastructure data.
 
-Email `support@graystontechnologies.com` with a concise report and request a
-secure handoff channel before sharing sensitive technical detail. The production
-site also publishes `/.well-known/security.txt` with the Grayston support
-contact and this policy URL.
+Include the affected route or component, reproduction steps, expected impact,
+and whether any account or credential may have been exposed. Do not include real
+account numbers, card data, government identifiers, bank credentials, access
+tokens, signing secrets, or production customer records in the initial message.
 
-Include:
+## Security Baseline
 
-- Affected URL, route, script, dependency, or configuration.
-- Reproduction steps and expected impact.
-- Whether any personal data, credentials, webhook secrets, or Vercel
-  environment values may be exposed.
+- Clerk protects account access and stable subjects map to isolated households.
+- Vercel is a stateless facade; the dedicated core owns regulated operations.
+- RDS PostgreSQL stores an immutable, household-scoped double-entry ledger.
+- Provider and Plaid callbacks are signature verified against exact raw bodies.
+- Money writes and provider events are idempotent and reconciled.
+- Provider access tokens are encrypted in server-side custody.
+- AWS workloads use private subnets, KMS, Secrets Manager, WAF, least-purpose
+  security groups, non-root read-only containers, immutable images, backups,
+  alarms, and automatic deployment rollback.
+- Public health exposes no configuration or readiness detail.
+- `npm run verify` includes tests, route parity, infrastructure controls,
+  migration checks, production build, and dependency audit.
 
-Do not include:
-
-- Real pilot lead data.
-- Bank credentials, account numbers, cards, SSNs, or government IDs.
-- Production webhook secrets, Vercel tokens, GitHub tokens, or other live
-  credentials.
-
-## Production Security Baseline
-
-- GitHub secret scanning and push protection are enabled.
-- GitHub Dependabot security updates are enabled.
-- GitHub private vulnerability reporting is enabled.
-- `npm run verify` includes a production dependency audit.
-- Vercel deployment smoke checks verify browser security headers and
-  `/.well-known/security.txt`.
-- Waitlist webhook payloads support HMAC-SHA256 signatures and timestamp replay
-  checks.
-
-## Regulated-Finance Scope
-
-Any future live-money release must complete sponsor-bank, BaaS, KYC/AML,
-ledgering, ACH/card, dispute, disclosure, support, and counsel review before
-handling regulated financial activity.
+Production response procedures are maintained in
+`docs/money-rails-production.md` and the approved external operations runbooks.

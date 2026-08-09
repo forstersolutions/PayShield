@@ -2,12 +2,33 @@ import { randomBytes } from "node:crypto";
 import { execFile } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
-import { parseDockerPortOutput } from "./smoke-docker-receiver.mjs";
 
 const execFileAsync = promisify(execFile);
 const defaultImage = "payshield-core:ci-smoke";
 const defaultTimeoutMs = 30_000;
 const corePort = "8080/tcp";
+
+function parseDockerPortOutput(output) {
+  const line = output
+    .split("\n")
+    .map((value) => value.trim())
+    .find(Boolean);
+  const match = line?.match(/^(.*):(\d+)$/);
+
+  if (!match) {
+    throw new Error(`Unable to parse Docker port output: ${output.trim()}`);
+  }
+
+  const host = ["", "0.0.0.0", "::", "[::]"].includes(match[1])
+    ? "127.0.0.1"
+    : match[1];
+
+  return {
+    host,
+    port: Number(match[2]),
+    url: `http://${host}:${match[2]}`,
+  };
+}
 
 function usage() {
   return [
@@ -160,6 +181,7 @@ export function summarizeDockerCoreSmoke({
   health,
   image,
   onboarding,
+  ready,
   unauthorizedBalances,
 }) {
   return {
@@ -189,6 +211,10 @@ export function summarizeDockerCoreSmoke({
     onboarding: {
       liveMoneyOk: onboarding.body.liveMoney?.ok === true,
       status: onboarding.response.status,
+    },
+    readiness: {
+      liveMoneyReady: ready.body.readiness?.liveMoneyReady === true,
+      status: ready.response.status,
     },
     durableStorage: {
       required: durablePersistenceStatus(authorizedBalances.body) === "postgres_required",
@@ -243,8 +269,25 @@ export async function runDockerCoreSmoke({
     requireCheck(
       checks,
       health?.service === "payshield-core" &&
-        health?.readiness?.liveMoneyReady === false,
-      "core health reports payshield-core and fail-closed live money",
+        health?.status === "healthy" &&
+        health?.readiness === undefined,
+      "public core health reports minimal liveness without readiness details",
+    );
+
+    const authorizedHeaders = {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+    };
+    const ready = await readJson(`${mapped.url}/ready`, {
+      headers: authorizedHeaders,
+      timeoutMs,
+    });
+
+    requireCheck(
+      checks,
+      ready.response.status === 503 &&
+        ready.body?.readiness?.liveMoneyReady === false,
+      "authenticated core readiness remains fail-closed without live-money gates",
     );
 
     const unauthorizedBalances = await readJson(`${mapped.url}/api/app/balances`, {
@@ -257,10 +300,6 @@ export async function runDockerCoreSmoke({
       "protected core routes reject requests without the service token",
     );
 
-    const authorizedHeaders = {
-      authorization: `Bearer ${token}`,
-      "content-type": "application/json",
-    };
     const authorizedBalances = await readJson(`${mapped.url}/api/app/balances`, {
       headers: authorizedHeaders,
       timeoutMs,
@@ -328,6 +367,7 @@ export async function runDockerCoreSmoke({
       health,
       image,
       onboarding,
+      ready,
       unauthorizedBalances,
     });
   } finally {

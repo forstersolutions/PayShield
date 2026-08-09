@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server.js";
 import { createCommercialCheckoutSession } from "../../../../lib/commercial/billing.ts";
 import { readCommercialJsonPayload } from "../../../../lib/commercial/request-body.ts";
@@ -6,7 +7,11 @@ import {
   getAppSession,
   unauthorizedAppResponse,
 } from "../../../../lib/neobank/auth.ts";
-import { forwardCoreRequest } from "../../../../lib/neobank/core-client.ts";
+import {
+  coreReportsLiveMoneyReady,
+  forwardCoreRequest,
+} from "../../../../lib/neobank/core-client.ts";
+import { requireDurableCoreService } from "../../../../lib/neobank/core-required.ts";
 
 function cleanPath(value: unknown, fallback: string) {
   if (typeof value !== "string") {
@@ -29,7 +34,7 @@ function cleanText(value: unknown, maxLength: number) {
 }
 
 function checkoutIdempotencyKey(value: unknown, userId: string) {
-  return cleanText(value, 120) || `checkout-${userId}`;
+  return cleanText(value, 120) || `checkout-${userId}-${randomUUID()}`;
 }
 
 async function recordCheckoutIntent(input: {
@@ -86,6 +91,15 @@ export async function POST(request: NextRequest) {
       return payloadResult.response;
     }
 
+    const coreRequired = requireDurableCoreService({
+      operation: "Starting membership",
+      service: "payshield-checkout",
+    });
+
+    if (coreRequired) {
+      return coreRequired;
+    }
+
     const payload = payloadResult.payload;
     const idempotencyKey = checkoutIdempotencyKey(
       payload.idempotencyKey,
@@ -106,10 +120,16 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const productReady = await coreReportsLiveMoneyReady();
     const result = await createCommercialCheckoutSession({
       cancelPath: cleanPath(payload.cancelPath, "/app?billing=cancelled"),
       email: session.email,
+      idempotencyKey,
       origin: request.nextUrl.origin,
+      productReady,
+      requireAccessActivation: true,
+      requireCheckoutSession: true,
+      requireProductReady: true,
       successPath: cleanPath(payload.successPath, "/app?billing=active"),
       userId: session.userId,
     });
@@ -171,13 +191,8 @@ export async function POST(request: NextRequest) {
       result.status === 200
         ? {
             activation: {
-              autoActivationReady: result.readiness.checkoutOperationalReady,
-              mode: result.readiness.checkoutOperationalReady
-                ? "automatic"
-                : "payment_collection_only",
-              warning: result.readiness.checkoutOperationalReady
-                ? ""
-                : "Payment collection can start, but webhook activation and core persistence must be finished before paid app access unlocks automatically.",
+              autoActivationReady: true,
+              mode: "automatic",
             },
             checkoutIntent,
             checkoutSessionId: result.checkoutSessionId,

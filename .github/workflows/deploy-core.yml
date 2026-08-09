@@ -1,0 +1,273 @@
+name: Deploy PayShield core
+
+on:
+  workflow_dispatch:
+    inputs:
+      desired_count:
+        description: Running ECS task count after migration
+        required: true
+        default: "2"
+        type: choice
+        options: ["2", "3", "4"]
+      live_money_enabled:
+        description: Enable live money only after every regulated gate is approved
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: payshield-core-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Migrate and deploy core
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 60
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      STACK_NAME: ${{ vars.PAYSHIELD_CORE_STACK_NAME }}
+      CORE_DOMAIN_NAME: ${{ vars.PAYSHIELD_CORE_DOMAIN_NAME }}
+      HOSTED_ZONE_ID: ${{ vars.PAYSHIELD_HOSTED_ZONE_ID }}
+      CERTIFICATE_ARN: ${{ vars.PAYSHIELD_CORE_CERTIFICATE_ARN }}
+      CFN_EXECUTION_ROLE_ARN: ${{ vars.PAYSHIELD_CFN_EXECUTION_ROLE_ARN }}
+      ALERT_EMAIL: ${{ vars.PAYSHIELD_ALERT_EMAIL }}
+      PLAID_ENV: ${{ vars.PLAID_ENV }}
+      PLAID_CLIENT_ID_SECRET_ARN: ${{ secrets.PLAID_CLIENT_ID_SECRET_ARN }}
+      PLAID_SECRET_ARN: ${{ secrets.PLAID_SECRET_ARN }}
+      BAAS_PROVIDER: ${{ vars.PAYSHIELD_BAAS_PROVIDER }}
+      BAAS_API_BASE_URL: ${{ vars.PAYSHIELD_BAAS_API_BASE_URL }}
+      BAAS_API_KEY_SECRET_ARN: ${{ secrets.PAYSHIELD_BAAS_API_KEY_SECRET_ARN }}
+      BAAS_CONTRACT_APPROVED: ${{ vars.PAYSHIELD_BAAS_CONTRACT_APPROVED }}
+      SPONSOR_DISCLOSURES_APPROVED: ${{ vars.PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED }}
+      REGULATED_COUNSEL_SIGNOFF: ${{ vars.PAYSHIELD_REGULATED_COUNSEL_SIGNOFF }}
+      OPERATIONS_RUNBOOKS_APPROVED: ${{ vars.PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED }}
+      FRONTEND_AUTH_VERIFIED: ${{ vars.PAYSHIELD_FRONTEND_AUTH_VERIFIED }}
+      TRANSFER_ENABLED: ${{ vars.PAYSHIELD_TRANSFER_ENABLED }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Configure short-lived AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: payshield-core-${{ github.run_id }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+
+      - name: Validate deployment inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(AWS_REGION CORE_DOMAIN_NAME CERTIFICATE_ARN CFN_EXECUTION_ROLE_ARN)
+          for name in "${required[@]}"; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing GitHub production variable: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Validate infrastructure template
+        run: |
+          node scripts/aws-infra-audit.mjs
+          aws cloudformation validate-template \
+            --template-body file://infra/aws/payshield-core.yaml >/dev/null
+
+      - name: Create or update zero-task infrastructure
+        id: stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          stack_name="${STACK_NAME:-payshield-production-core}"
+          alert_email="${ALERT_EMAIL:-support@graystontechnologies.com}"
+          plaid_env="${PLAID_ENV:-sandbox}"
+          parameters=(
+            "EnvironmentName=production"
+            "CoreDomainName=$CORE_DOMAIN_NAME"
+            "HostedZoneId=$HOSTED_ZONE_ID"
+            "CertificateArn=$CERTIFICATE_ARN"
+            "ContainerImageTag=$GITHUB_SHA"
+            "DesiredCount=0"
+            "AlertEmail=$alert_email"
+            "PlaidEnvironment=$plaid_env"
+            "PlaidClientIdSecretArn=${PLAID_CLIENT_ID_SECRET_ARN:-}"
+            "PlaidSecretArn=${PLAID_SECRET_ARN:-}"
+            "BaasProvider=${BAAS_PROVIDER:-}"
+            "BaasApiBaseUrl=${BAAS_API_BASE_URL:-}"
+            "BaasApiKeySecretArn=${BAAS_API_KEY_SECRET_ARN:-}"
+            "BaasContractApproved=${BAAS_CONTRACT_APPROVED:-false}"
+            "SponsorDisclosuresApproved=${SPONSOR_DISCLOSURES_APPROVED:-false}"
+            "RegulatedCounselSignoff=${REGULATED_COUNSEL_SIGNOFF:-false}"
+            "OperationsRunbooksApproved=${OPERATIONS_RUNBOOKS_APPROVED:-false}"
+            "FrontendAuthVerified=${FRONTEND_AUTH_VERIFIED:-false}"
+            "TransferEnabled=${TRANSFER_ENABLED:-false}"
+            "LiveMoneyEnabled=false"
+          )
+          aws cloudformation deploy \
+            --stack-name "$stack_name" \
+            --template-file infra/aws/payshield-core.yaml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --role-arn "$CFN_EXECUTION_ROLE_ARN" \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides "${parameters[@]}" \
+            --tags application=payshield environment=production owner=grayston-technologies
+          echo "name=$stack_name" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and publish immutable core image
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          repository_uri=$(aws cloudformation describe-stacks \
+            --stack-name "${{ steps.stack.outputs.name }}" \
+            --query 'Stacks[0].Outputs[?OutputKey==`CoreRepositoryUri`].OutputValue' \
+            --output text)
+          repository_name="${repository_uri#*/}"
+          if ! aws ecr describe-images \
+            --repository-name "$repository_name" \
+            --image-ids "imageTag=$GITHUB_SHA" >/dev/null 2>&1; then
+            docker build --platform linux/amd64 \
+              --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+              --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+              -f Dockerfile.core \
+              -t "$repository_uri:$GITHUB_SHA" .
+            docker push "$repository_uri:$GITHUB_SHA"
+          fi
+          echo "uri=$repository_uri:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Run forward-only database migrations
+        id: migrate
+        shell: bash
+        run: |
+          set -euo pipefail
+          stack_name="${{ steps.stack.outputs.name }}"
+          output() {
+            aws cloudformation describe-stacks --stack-name "$stack_name" \
+              --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text
+          }
+          cluster=$(output CoreClusterName)
+          task_definition=$(output CoreTaskDefinitionArn)
+          subnets=$(output AppSubnetIds)
+          security_group=$(output AppSecurityGroupId)
+          network="awsvpcConfiguration={subnets=[$subnets],securityGroups=[$security_group],assignPublicIp=DISABLED}"
+          overrides='{"containerOverrides":[{"name":"payshield-core","command":["node","scripts/core-migrations.mjs","--apply"]}]}'
+          task_arn=$(aws ecs run-task \
+            --cluster "$cluster" \
+            --task-definition "$task_definition" \
+            --launch-type FARGATE \
+            --network-configuration "$network" \
+            --overrides "$overrides" \
+            --started-by "github-${GITHUB_RUN_ID}" \
+            --query 'tasks[0].taskArn' --output text)
+          if [[ -z "$task_arn" || "$task_arn" == "None" ]]; then
+            echo "ECS did not start the migration task." >&2
+            exit 1
+          fi
+          aws ecs wait tasks-stopped --cluster "$cluster" --tasks "$task_arn"
+          exit_code=$(aws ecs describe-tasks --cluster "$cluster" --tasks "$task_arn" \
+            --query 'tasks[0].containers[?name==`payshield-core`].exitCode | [0]' --output text)
+          stop_reason=$(aws ecs describe-tasks --cluster "$cluster" --tasks "$task_arn" \
+            --query 'tasks[0].stoppedReason' --output text)
+          if [[ "$exit_code" != "0" ]]; then
+            echo "Migration task failed with exit code $exit_code: $stop_reason" >&2
+            exit 1
+          fi
+
+      - name: Start production service after successful migration
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          stack_name="${{ steps.stack.outputs.name }}"
+          alert_email="${ALERT_EMAIL:-support@graystontechnologies.com}"
+          plaid_env="${PLAID_ENV:-sandbox}"
+          live_money="${{ inputs.live_money_enabled }}"
+          parameters=(
+            "EnvironmentName=production"
+            "CoreDomainName=$CORE_DOMAIN_NAME"
+            "HostedZoneId=$HOSTED_ZONE_ID"
+            "CertificateArn=$CERTIFICATE_ARN"
+            "ContainerImageTag=$GITHUB_SHA"
+            "DesiredCount=${{ inputs.desired_count }}"
+            "AlertEmail=$alert_email"
+            "PlaidEnvironment=$plaid_env"
+            "PlaidClientIdSecretArn=${PLAID_CLIENT_ID_SECRET_ARN:-}"
+            "PlaidSecretArn=${PLAID_SECRET_ARN:-}"
+            "BaasProvider=${BAAS_PROVIDER:-}"
+            "BaasApiBaseUrl=${BAAS_API_BASE_URL:-}"
+            "BaasApiKeySecretArn=${BAAS_API_KEY_SECRET_ARN:-}"
+            "BaasContractApproved=${BAAS_CONTRACT_APPROVED:-false}"
+            "SponsorDisclosuresApproved=${SPONSOR_DISCLOSURES_APPROVED:-false}"
+            "RegulatedCounselSignoff=${REGULATED_COUNSEL_SIGNOFF:-false}"
+            "OperationsRunbooksApproved=${OPERATIONS_RUNBOOKS_APPROVED:-false}"
+            "FrontendAuthVerified=${FRONTEND_AUTH_VERIFIED:-false}"
+            "TransferEnabled=${TRANSFER_ENABLED:-false}"
+            "LiveMoneyEnabled=$live_money"
+          )
+          aws cloudformation deploy \
+            --stack-name "$stack_name" \
+            --template-file infra/aws/payshield-core.yaml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --role-arn "$CFN_EXECUTION_ROLE_ARN" \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides "${parameters[@]}" \
+            --tags application=payshield environment=production owner=grayston-technologies
+          cluster=$(aws cloudformation describe-stacks --stack-name "$stack_name" \
+            --query 'Stacks[0].Outputs[?OutputKey==`CoreClusterName`].OutputValue' --output text)
+          service=$(aws cloudformation describe-stacks --stack-name "$stack_name" \
+            --query 'Stacks[0].Outputs[?OutputKey==`CoreServiceName`].OutputValue' --output text)
+          aws ecs wait services-stable --cluster "$cluster" --services "$service"
+          core_url=$(aws cloudformation describe-stacks --stack-name "$stack_name" \
+            --query 'Stacks[0].Outputs[?OutputKey==`CoreApiUrl`].OutputValue' --output text)
+          echo "url=$core_url" >> "$GITHUB_OUTPUT"
+
+      - name: Verify deployed health and authenticated readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          core_url="${{ steps.release.outputs.url }}"
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error "$core_url/health" | jq -e '.ok == true and .service == "payshield-core"' >/dev/null; then
+              break
+            fi
+            if [[ "$attempt" == "30" ]]; then
+              echo "Core health did not become ready." >&2
+              exit 1
+            fi
+            sleep 10
+          done
+          token_secret=$(aws cloudformation describe-stacks \
+            --stack-name "${{ steps.stack.outputs.name }}" \
+            --query 'Stacks[0].Outputs[?OutputKey==`CoreServiceTokenSecretArn`].OutputValue' \
+            --output text)
+          service_token=$(aws secretsmanager get-secret-value \
+            --secret-id "$token_secret" --query SecretString --output text)
+          response=$(mktemp)
+          status=$(curl --silent --show-error --output "$response" --write-out '%{http_code}' \
+            -H "Authorization: Bearer $service_token" "$core_url/ready")
+          jq -e '.service == "payshield-core" and (.readiness.gates | type == "array")' "$response" >/dev/null
+          if [[ "$status" != "200" && "$status" != "503" ]]; then
+            echo "Authenticated readiness returned HTTP $status." >&2
+            exit 1
+          fi
+          rm -f "$response"
+
+      - name: Publish deployment summary
+        run: |
+          {
+            echo "### PayShield core release"
+            echo "- Image: \`${{ steps.image.outputs.uri }}\`"
+            echo "- Core URL: ${{ steps.release.outputs.url }}"
+            echo "- ECS tasks: ${{ inputs.desired_count }}"
+            echo "- Schema: \`0019\`"
+            echo "- Live money requested: \`${{ inputs.live_money_enabled }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

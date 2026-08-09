@@ -9,8 +9,8 @@ export default function manifest(): MetadataRoute.Manifest {
       "Paycheck control app with customizable protected buckets and safe-spend rules.",
     start_url: "/",
     display: "standalone",
-    background_color: "#050607",
-    theme_color: "#050607",
+    background_color: "#0c100f",
+    theme_color: "#0c100f",
     icons: [
       {
         src: "/images/payshield-favicon.png",

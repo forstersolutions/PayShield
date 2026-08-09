@@ -32,12 +32,15 @@ export type LedgerAccountId =
   | "asset:program_cash"
   | "liability:card_settlement"
   | "liability:bill_pay_pending"
+  | "liability:transfer_pending"
   | `liability:bucket:${BucketId}`;
 
 export type JournalEntryType =
   | "paycheck_deposit"
   | "card_authorization"
   | "bill_payment"
+  | "transfer_reservation"
+  | "money_settlement"
   | "bucket_unlock"
   | "reversal";
 
@@ -87,7 +90,14 @@ export type Payee = {
   id: string;
   maxCents: number;
   name: string;
-  status: "modeled" | "provider_pending" | "approved";
+  providerName?: string;
+  providerPayeeId?: string;
+  status:
+    | "modeled"
+    | "provider_pending"
+    | "approved"
+    | "rejected"
+    | "archived";
 };
 
 export type DirectDepositInstructions = {
@@ -124,7 +134,7 @@ export type NeobankReadiness = {
   clerkConfigured: boolean;
   gates: NeobankReadinessGate[];
   liveMoneyReady: boolean;
-  mode: "architecture" | "sandbox" | "live";
+  mode: "setup" | "sandbox" | "live";
   postgresConfigured: boolean;
   postgresSchemaVerified: boolean;
   postgresSchemaVersion: string;

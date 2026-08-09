@@ -17,8 +17,59 @@ function isProtectedRoute(request: NextRequest) {
   return (
     pathname === "/app" ||
     pathname.startsWith("/app/") ||
+    pathname === "/launch" ||
+    pathname.startsWith("/launch/") ||
     pathname === "/api/app" ||
-    pathname.startsWith("/api/app/")
+    pathname.startsWith("/api/app/") ||
+    pathname === "/api/launch" ||
+    pathname.startsWith("/api/launch/")
+  );
+}
+
+function isProtectedApiWrite(request: NextRequest) {
+  return (
+    isProtectedRoute(request) &&
+    request.nextUrl.pathname.startsWith("/api/") &&
+    !["GET", "HEAD", "OPTIONS"].includes(request.method.toUpperCase())
+  );
+}
+
+function trustedWriteOrigin(request: NextRequest) {
+  if (request.headers.get("sec-fetch-site") === "cross-site") {
+    return false;
+  }
+
+  const origin = request.headers.get("origin");
+
+  if (!origin) {
+    return true;
+  }
+
+  try {
+    const accepted = new Set([request.nextUrl.origin]);
+    const configuredSite = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+
+    if (configuredSite) {
+      accepted.add(new URL(configuredSite).origin);
+    }
+
+    return accepted.has(new URL(origin).origin);
+  } catch {
+    return false;
+  }
+}
+
+function crossSiteWriteResponse() {
+  return NextResponse.json(
+    {
+      code: "cross_site_request_rejected",
+      error: "This request could not be verified.",
+      service: "payshield-request-protection",
+    },
+    {
+      headers: { "cache-control": "no-store" },
+      status: 403,
+    },
   );
 }
 
@@ -87,13 +138,13 @@ function protectedAppUnavailableResponse(request: NextRequest) {
   const appAccess = getAppAccessReadiness();
   const accessNotice =
     accessState === "invalid"
-      ? `<p class="notice danger">That review token was not accepted. Check the owner token and try again.</p>`
+      ? `<p class="notice danger">That access token was not accepted. Check the token and try again.</p>`
       : accessState === "not_configured"
-        ? `<p class="notice danger">Review access is not configured for this deployment. Add <code>PAYSHIELD_REVIEW_APP_ACCESS_TOKEN</code> or activate Clerk.</p>`
+        ? `<p class="notice danger">We could not verify secure account access. Contact Grayston support.</p>`
         : "";
   const reviewAccessHelp = appAccess.reviewTokenConfigured
-    ? "Enter the owner review token to open the app for this browser."
-    : "Review access needs PAYSHIELD_REVIEW_APP_ACCESS_TOKEN before this form can unlock the app.";
+    ? "Enter your PayShield access token to open the app on this browser."
+    : "Contact Grayston support to restore household access.";
   const headers = {
     "cache-control": "no-store",
   };
@@ -112,29 +163,18 @@ function protectedAppUnavailableResponse(request: NextRequest) {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>PayShield App Activation</title>
+    <title>PayShield Secure Access</title>
     <style>
       * { box-sizing: border-box; }
       body {
         margin: 0;
         min-height: 100vh;
-        background:
-          linear-gradient(115deg, rgba(18, 109, 255, .16), transparent 34%),
-          radial-gradient(circle at 76% 18%, rgba(255, 178, 55, .14), transparent 28%),
-          #050607;
+        background: #0c100f;
         color: #f7f8fb;
         font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
       body::before {
-        position: fixed;
-        inset: 0;
-        pointer-events: none;
-        content: "";
-        background-image:
-          linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
-        background-size: 44px 44px;
-        mask-image: linear-gradient(to bottom, rgba(0,0,0,.76), transparent 86%);
+        display: none;
       }
       main {
         position: relative;
@@ -151,9 +191,24 @@ function protectedAppUnavailableResponse(request: NextRequest) {
         min-height: 68px;
       }
       .logo {
-        width: min(54vw, 208px);
-        height: auto;
-        display: block;
+        display: inline-flex;
+        height: 42px;
+        align-items: center;
+        gap: 6px;
+        color: #f5f7f6;
+        font-size: 20px;
+        font-weight: 650;
+        line-height: 1;
+        text-decoration: none;
+      }
+      .logo img {
+        width: 42px;
+        height: 42px;
+        object-fit: contain;
+      }
+      .logo b {
+        color: #2f8cff;
+        font-weight: 650;
       }
       .support {
         color: #dffaff;
@@ -171,9 +226,7 @@ function protectedAppUnavailableResponse(request: NextRequest) {
       .panel {
         border: 1px solid rgba(255,255,255,.14);
         border-radius: 8px;
-        background:
-          linear-gradient(145deg, rgba(57,232,255,.08), rgba(255,178,55,.075)),
-          rgba(10,12,14,.94);
+        background: #141a18;
         box-shadow: 0 24px 80px rgba(0,0,0,.36);
       }
       .hero {
@@ -226,9 +279,37 @@ function protectedAppUnavailableResponse(request: NextRequest) {
         text-decoration: none;
         font-weight: 950;
       }
-      .primary { background: linear-gradient(135deg, #fff, #dff7ff); color: #050607; }
+      .primary { background: #f5f7f6; color: #0c100f; }
       .secondary { border: 1px solid rgba(57,232,255,.28); background: rgba(57,232,255,.1); color: #dffaff; }
       .quiet { border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.055); color: #f7f8fb; }
+      .unlock-strip {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        margin-top: 22px;
+      }
+      .unlock-step {
+        border: 1px solid rgba(255,255,255,.12);
+        border-radius: 8px;
+        background: rgba(0,0,0,.32);
+        min-height: 96px;
+        padding: 12px;
+      }
+      .unlock-step b {
+        color: #68f0c2;
+        display: block;
+        font-size: 12px;
+        font-weight: 950;
+        text-transform: uppercase;
+      }
+      .unlock-step span {
+        color: #f7f8fb;
+        display: block;
+        font-size: 14px;
+        font-weight: 900;
+        line-height: 1.35;
+        margin-top: 8px;
+      }
       .token-form {
         display: grid;
         gap: 10px;
@@ -239,6 +320,7 @@ function protectedAppUnavailableResponse(request: NextRequest) {
         background: rgba(57,232,255,.08);
         padding: 14px;
       }
+      .is-hidden { display: none; }
       .token-form label {
         color: #fff;
         font-size: 13px;
@@ -270,8 +352,8 @@ function protectedAppUnavailableResponse(request: NextRequest) {
         min-height: 46px;
         border: 0;
         border-radius: 8px;
-        background: linear-gradient(135deg, #fff, #dff7ff);
-        color: #050607;
+        background: #f5f7f6;
+        color: #0c100f;
         cursor: pointer;
         font: inherit;
         font-weight: 950;
@@ -316,6 +398,64 @@ function protectedAppUnavailableResponse(request: NextRequest) {
         font-size: 14px;
         line-height: 1.55;
       }
+      .paycheck-preview {
+        border: 1px solid rgba(104,240,194,.26);
+        background: #14201c;
+      }
+      .paycheck-preview strong {
+        color: #dffaff;
+      }
+      .money-row {
+        display: grid;
+        grid-template-columns: 32px minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        border-top: 1px solid rgba(255,255,255,.1);
+        margin-top: 10px;
+        padding-top: 10px;
+      }
+      .money-row:first-of-type {
+        border-top: 0;
+      }
+      .money-row i {
+        align-items: center;
+        background: rgba(57,232,255,.12);
+        border-radius: 8px;
+        color: #dffaff;
+        display: grid;
+        font-style: normal;
+        font-size: 12px;
+        font-weight: 950;
+        height: 32px;
+        justify-items: center;
+      }
+      .money-row em {
+        color: #f7f8fb;
+        display: block;
+        font-style: normal;
+        font-size: 14px;
+        font-weight: 950;
+      }
+      .money-row small {
+        color: #8f99aa;
+        display: block;
+        font-size: 12px;
+        font-weight: 800;
+        margin-top: 2px;
+      }
+      .money-row strong {
+        color: #fff;
+        font-size: 14px;
+        text-align: right;
+      }
+      .money-row.safe i {
+        background: rgba(104,240,194,.15);
+        color: #9af7d5;
+      }
+      .money-row.safe small,
+      .money-row.safe strong {
+        color: #cffff0;
+      }
       code {
         color: #ffcf72;
         font-weight: 850;
@@ -326,50 +466,69 @@ function protectedAppUnavailableResponse(request: NextRequest) {
         .layout { grid-template-columns: 1fr; min-height: auto; padding-top: 18px; }
         .support { min-height: 40px; display: inline-flex; align-items: center; }
         .token-row { grid-template-columns: 1fr; }
+        .unlock-strip { grid-template-columns: 1fr 1fr; }
+      }
+      @media (max-width: 520px) {
+        .unlock-strip { grid-template-columns: 1fr; }
+        .money-row { grid-template-columns: 32px minmax(0, 1fr); }
+        .money-row strong { grid-column: 2; text-align: left; }
       }
     </style>
   </head>
   <body>
     <main>
       <header>
-        <a aria-label="PayShield home" href="/">
-          <img class="logo" alt="PayShield" src="/images/payshield-logo-clean.png" />
+        <a aria-label="PayShield home" class="logo" href="/">
+          <img alt="" src="/images/payshield-mark.png" /><span><b>Pay</b>Shield</span>
         </a>
         <a class="support" href="mailto:support@graystontechnologies.com">support@graystontechnologies.com</a>
       </header>
       <div class="layout">
         <section class="panel hero">
-          <span class="kicker">Household app activation</span>
-          <h1>Turn on secure app access before household money controls open.</h1>
-          <p class="lead">PayShield is ready to run the paid-access, bank-link, paycheck detection, protected bucket, transfer, card-decision, and audit workflow once authenticated access is configured.</p>
-          <form class="token-form" action="/api/review-access" method="post" autocomplete="off">
+          <span class="kicker">Secure household access</span>
+          <h1>Open your PayShield account.</h1>
+          <p class="lead">Sign in to see Safe to Spend, manage paycheck rules, protect household obligations, schedule approved bills, and control your PayShield card.</p>
+          <div class="unlock-strip" aria-label="PayShield setup sequence">
+            <div class="unlock-step"><b>01 Account</b><span>Secure access keeps household controls private.</span></div>
+            <div class="unlock-step"><b>02 Paycheck</b><span>Recognize deposits and fund priorities in order.</span></div>
+            <div class="unlock-step"><b>03 Protection</b><span>Keep obligations outside everyday spending.</span></div>
+            <div class="unlock-step"><b>04 Control</b><span>Manage cards, bills, transfers, and recovery.</span></div>
+          </div>
+          <form class="token-form ${appAccess.reviewTokenConfigured ? "" : "is-hidden"}" action="/api/review-access" method="post" autocomplete="off">
             ${accessNotice}
-            <label for="review_access_token">Owner review access</label>
+            <label for="review_access_token">Access token</label>
             <div class="token-row">
-              <input id="review_access_token" name="review_access_token" type="password" minlength="16" required placeholder="Enter owner token" />
+              <input id="review_access_token" name="review_access_token" type="password" minlength="16" required placeholder="Enter access token" />
               <button type="submit">Open app</button>
             </div>
             <input name="return_to" type="hidden" value="/app" />
-            <p class="form-help">${reviewAccessHelp} Accepted tokens are stored only as a hashed HTTP-only cookie for eight hours.</p>
+            <p class="form-help">${reviewAccessHelp} This browser stays authorized for eight hours after a valid token is accepted.</p>
           </form>
           <div class="actions">
-            <a class="button primary" href="/launch">Open revenue + rails console</a>
-            <a class="button secondary" href="/">View product profile</a>
-            <a class="button quiet" href="/api/health">Review production health</a>
+            <a class="button primary" href="/">Return to PayShield</a>
+            <a class="button secondary" href="mailto:support@graystontechnologies.com">Contact support</a>
+            <a class="button quiet" href="/privacy">Privacy</a>
           </div>
         </section>
         <aside class="stack">
           <div class="card">
-            <strong>What is blocking this route?</strong>
-            <span>Clerk app access has not been activated for this production deployment.</span>
+            <strong>Your PayShield membership</strong>
+            <span>Billing, household access, and money controls stay tied to one secure account.</span>
+          </div>
+          <div class="card paycheck-preview">
+            <strong>Your paycheck order</strong>
+            <span>Your own bucket targets fund by priority, then the remainder becomes Safe to Spend.</span>
+            <div class="money-row"><i>1</i><span><em>Required bills</em><small>Approved destinations only</small></span><strong>First</strong></div>
+            <div class="money-row"><i>2</i><span><em>Household goals</em><small>Your custom protection rules</small></span><strong>Next</strong></div>
+            <div class="money-row safe"><i>3</i><span><em>Safe to Spend</em><small>Remainder after protection</small></span><strong>Last</strong></div>
           </div>
           <div class="card">
-            <strong>What unlocks it?</strong>
-            <span>Set <code>NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</code> and <code>CLERK_SECRET_KEY</code>. For owner review before Clerk is active, set a 16+ character <code>PAYSHIELD_REVIEW_APP_ACCESS_TOKEN</code> and use the owner access form on this page. Use <code>PAYSHIELD_ALLOW_REVIEW_APP_ACCESS=true</code> only for an isolated review deployment.</span>
+            <strong>How does it connect to banks?</strong>
+            <span>The app opens a secure bank connection, saves payroll rules, and uses linked activity to recognize paycheck deposits.</span>
           </div>
           <div class="card">
-            <strong>Who operates PayShield?</strong>
-            <span>PayShield is operated by Grayston Technologies. Product and support requests route to Grayston support.</span>
+            <strong>How does it protect money?</strong>
+            <span>Buckets, approved payees, transfer requests, card checks, unlocks, and audit export all run inside the app flow operated by Grayston Technologies.</span>
           </div>
         </aside>
       </div>
@@ -389,6 +548,10 @@ function protectedAppUnavailableResponse(request: NextRequest) {
 export default async function proxy(request: NextRequest, event: NextFetchEvent) {
   const reviewToken = reviewTokenFromRequest(request);
   const appAccess = getAppAccessReadiness(process.env, reviewToken);
+
+  if (isProtectedApiWrite(request) && !trustedWriteOrigin(request)) {
+    return crossSiteWriteResponse();
+  }
 
   if (isProtectedRoute(request) && appAccess.locked) {
     return protectedAppUnavailableResponse(request);

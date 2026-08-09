@@ -5,16 +5,14 @@ import {
   GRAYSTON_COMPANY_NAME,
   GRAYSTON_SUPPORT_EMAIL,
   PAYSHIELD_OWNERSHIP_LINE,
-  REGULATED_PARTNER_DISCLOSURE,
 } from "@/app/lib/brand";
 
 export const metadata: Metadata = {
   title: "Terms | PayShield",
-  description:
-    "Terms for using PayShield by Grayston Technologies.",
+  description: "Terms for using PayShield by Grayston Technologies.",
 };
 
-const lastUpdated = "June 12, 2026";
+const lastUpdated = "August 8, 2026";
 
 export default function TermsPage() {
   return (
@@ -28,11 +26,9 @@ export default function TermsPage() {
         </Link>
 
         <div className="brand-panel mt-8 rounded-[8px] p-6 sm:p-8">
-          <p className="brand-kicker">
-            PayShield by Grayston Technologies
-          </p>
+          <p className="brand-kicker">PayShield by Grayston Technologies</p>
           <h1 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
-            Terms
+            Terms of Use
           </h1>
           <p className="mt-3 text-sm text-[#aab3c2]">
             Last updated: {lastUpdated}
@@ -40,48 +36,80 @@ export default function TermsPage() {
 
           <div className="mt-8 grid gap-8 text-base leading-7 text-[#c9d0da]">
             <section>
-              <h2 className="text-xl font-semibold text-white">
-                Product controls
-              </h2>
+              <h2 className="text-xl font-semibold text-white">Agreement</h2>
               <p className="mt-3">
-                {PAYSHIELD_OWNERSHIP_LINE} PayShield provides paycheck control
-                software for modeling protected buckets, bill rules,
-                safe-to-spend decisions, and recovery plans. Product and support
-                requests route to {GRAYSTON_SUPPORT_EMAIL}.
+                These terms govern your use of PayShield. By creating an
+                account or using the service, you agree to these terms and the
+                Privacy Notice. {PAYSHIELD_OWNERSHIP_LINE}
               </p>
             </section>
 
             <section>
               <h2 className="text-xl font-semibold text-white">
-                Provider-enabled services
+                Eligibility and account security
               </h2>
               <p className="mt-3">
-                {REGULATED_PARTNER_DISCLOSURE} PayShield and{" "}
-                {GRAYSTON_COMPANY_NAME} do not activate account, card, transfer,
-                or bill-payment workflows before those controls are in place.
+                You must be at least 18 years old, reside in the United States,
+                provide accurate information, complete required verification,
+                and be legally able to enter this agreement. Keep your sign-in
+                credentials and devices secure, and notify us promptly of
+                suspected unauthorized access.
               </p>
             </section>
 
             <section>
               <h2 className="text-xl font-semibold text-white">
-                No financial advice
+                PayShield services
               </h2>
               <p className="mt-3">
-                Bucket examples, safe-to-spend calculations, and recovery plans
-                are product tools. They are not financial, legal, accounting,
-                tax, or credit advice.
+                PayShield lets you connect eligible accounts, recognize
+                paycheck deposits, assign money to protected buckets, approve
+                payment destinations, schedule bills and transfers, control an
+                eligible card, review Safe to Spend, and create recovery plans.
+                Available services, limits, timing, and eligibility may vary by
+                account and provider.
+              </p>
+              <p className="mt-3">
+                You authorize PayShield and its service providers to act on
+                instructions submitted through your account. Review amounts,
+                destinations, dates, and bucket assignments before confirming a
+                transaction. Transactions may be delayed, declined, reversed,
+                or restricted for security, legal, provider, balance, or
+                operational reasons.
               </p>
             </section>
 
             <section>
               <h2 className="text-xl font-semibold text-white">
-                Local data and exports
+                Membership and billing
               </h2>
               <p className="mt-3">
-                PayShield may save household profile settings in browser local
-                storage and can export a profile file at your request. You are
-                responsible for reviewing exported files before sharing them and
-                for keeping sensitive information out of free-text fields.
+                Paid memberships renew automatically at the price and interval
+                shown at checkout until canceled. You authorize the payment
+                provider to charge your selected payment method. You can manage
+                or cancel billing through the PayShield billing portal. Unless
+                required by law or stated at checkout, fees already charged are
+                nonrefundable.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-semibold text-white">
+                Errors, disputes, and support
+              </h2>
+              <p className="mt-3">
+                Review your activity and report suspected errors or
+                unauthorized transactions promptly. Different deadlines and
+                procedures may apply to particular account, card, or payment
+                services. Instructions shown with those services are part of
+                these terms. Contact{" "}
+                <a
+                  className="text-[#39e8ff] hover:text-[#9bf4ff]"
+                  href={`mailto:${GRAYSTON_SUPPORT_EMAIL}`}
+                >
+                  {GRAYSTON_SUPPORT_EMAIL}
+                </a>{" "}
+                for assistance.
               </p>
             </section>
 
@@ -90,21 +118,77 @@ export default function TermsPage() {
                 Acceptable use
               </h2>
               <p className="mt-3">
-                Do not misuse the site, interfere with its operation, attempt
-                unauthorized access, submit unlawful content, or use automated
-                systems to overload the app or its APIs.
+                Do not use PayShield for unlawful activity, fraud, abuse,
+                unauthorized access, money movement for another person,
+                interference with service operation, automated overload,
+                reverse engineering prohibited by law, or evasion of security,
+                identity, account, transaction, or provider controls.
               </p>
             </section>
 
             <section>
               <h2 className="text-xl font-semibold text-white">
-                Changes
+                Service availability and changes
               </h2>
               <p className="mt-3">
-                These terms may be updated as PayShield adds features, partner
-                onboarding, or provider-enabled product functionality.
-                Continued use of the site after updates means you accept the
-                updated terms.
+                We may maintain, modify, suspend, restrict, or discontinue a
+                feature when reasonably necessary for security, reliability,
+                provider availability, legal compliance, or product operation.
+                We may update these terms and will provide notice when required.
+                Continued use after an effective update constitutes acceptance.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-semibold text-white">
+                No professional advice
+              </h2>
+              <p className="mt-3">
+                PayShield calculations and controls are tools for carrying out
+                your instructions. They are not financial, legal, accounting,
+                tax, investment, or credit advice.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-semibold text-white">
+                Ownership and termination
+              </h2>
+              <p className="mt-3">
+                PayShield software, branding, and content belong to{" "}
+                {GRAYSTON_COMPANY_NAME} or its licensors. We grant you a
+                personal, limited, revocable, nontransferable right to use the
+                service under these terms. You may stop using PayShield at any
+                time. We may restrict or close an account that violates these
+                terms or creates legal, security, fraud, or operational risk.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-semibold text-white">
+                Disclaimers and liability
+              </h2>
+              <p className="mt-3">
+                To the extent permitted by law, PayShield is provided without
+                warranties not expressly stated in these terms. Grayston
+                Technologies is not liable for indirect, incidental, special,
+                consequential, or punitive damages, or for losses caused by
+                events outside its reasonable control. Rights that cannot be
+                waived under applicable law remain unaffected.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-semibold text-white">Contact</h2>
+              <p className="mt-3">
+                Questions about these terms may be sent to{" "}
+                <a
+                  className="text-[#39e8ff] hover:text-[#9bf4ff]"
+                  href={`mailto:${GRAYSTON_SUPPORT_EMAIL}`}
+                >
+                  {GRAYSTON_SUPPORT_EMAIL}
+                </a>
+                .
               </p>
             </section>
           </div>

@@ -5,6 +5,7 @@ import { NextRequest } from "next/server.js";
 import { POST as authorizeCard } from "../src/app/api/card/authorize/route.ts";
 import { POST as startCheckout } from "../src/app/api/app/billing/checkout/route.ts";
 import { POST as startPublicCheckout } from "../src/app/api/public/billing/checkout/route.ts";
+import { GET as getPublicBillingStatus } from "../src/app/api/public/billing/status/route.ts";
 import { POST as openBillingPortal } from "../src/app/api/app/billing/portal/route.ts";
 import { POST as billingWebhook } from "../src/app/api/app/billing/webhook/route.ts";
 import { POST as createBankLinkToken } from "../src/app/api/app/bank-link/token/route.ts";
@@ -23,6 +24,10 @@ import {
   GET as getBuckets,
   POST as saveBuckets,
 } from "../src/app/api/app/buckets/route.ts";
+import {
+  GET as getMoneyProfile,
+  POST as saveMoneyProfile,
+} from "../src/app/api/app/money-profile/route.ts";
 import { POST as scheduleBillPayment } from "../src/app/api/app/bill-payments/route.ts";
 import { GET as getMe } from "../src/app/api/app/me/route.ts";
 import { POST as startOnboarding } from "../src/app/api/app/onboarding/start/route.ts";
@@ -56,8 +61,12 @@ beforeEach(() => {
   delete process.env.PAYSHIELD_CORE_REQUIRE_SERVICE_TOKEN;
   delete process.env.PAYSHIELD_CORE_SERVICE_TOKEN;
   delete process.env.PAYSHIELD_LEDGER_DATABASE_URL;
+  delete process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED;
+  delete process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION;
   delete process.env.PAYSHIELD_LIVE_MONEY_ENABLED;
   delete process.env.PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED;
+  delete process.env.PAYSHIELD_ALLOW_OPERATOR_REVIEW_ACCESS;
+  delete process.env.PAYSHIELD_ALLOW_REVIEW_APP_ACCESS;
   delete process.env.PAYSHIELD_REQUIRE_PAID_ACCESS;
   delete process.env.PAYSHIELD_PROVIDER_WEBHOOK_REPLAY_TOLERANCE_SECONDS;
   delete process.env.PAYSHIELD_PROVIDER_WEBHOOK_SECRET;
@@ -73,6 +82,26 @@ beforeEach(() => {
   delete process.env.STRIPE_WEBHOOK_SECRET;
   delete process.env.VERCEL_ENV;
 });
+
+function configureCheckoutProductReady() {
+  process.env.CLERK_SECRET_KEY = "clerk-secret";
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_payshield";
+  process.env.PAYSHIELD_BAAS_ADAPTER = "http_json";
+  process.env.PAYSHIELD_BAAS_API_BASE_URL = "https://provider.payshield.test";
+  process.env.PAYSHIELD_BAAS_API_KEY = "provider-secret";
+  process.env.PAYSHIELD_BAAS_CONTRACT_APPROVED = "true";
+  process.env.PAYSHIELD_BAAS_PROVIDER = "test_baas";
+  process.env.PAYSHIELD_CORE_API_URL = "https://core.payshield.test";
+  process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-secret";
+  process.env.PAYSHIELD_LEDGER_DATABASE_URL =
+    "postgres://payshield:secret@database.invalid:5432/payshield";
+  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
+  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0019";
+  process.env.PAYSHIELD_LIVE_MONEY_ENABLED = "true";
+  process.env.PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED = "true";
+  process.env.PAYSHIELD_REGULATED_COUNSEL_SIGNOFF = "true";
+  process.env.PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED = "true";
+}
 
 function makeRequest(path: string, payload: unknown) {
   return new NextRequest(`${endpoint}${path}`, {
@@ -386,6 +415,7 @@ test("control plan endpoint turns paycheck input into a usable operating plan", 
   const summary = body.summary as Record<string, unknown>;
   const allocation = body.allocation as Record<string, unknown>;
   const buckets = allocation.buckets as Array<Record<string, unknown>>;
+  const fundingSchedule = body.fundingSchedule as Array<Record<string, unknown>>;
   const operatingSteps = body.operatingSteps as Array<Record<string, unknown>>;
   const monetization = body.monetization as Record<string, unknown>;
   const transferPlan = body.transferPlan as Record<string, unknown>;
@@ -396,6 +426,7 @@ test("control plan endpoint turns paycheck input into a usable operating plan", 
   assert.equal(summary.paycheckAmountCents, 300_000);
   assert.equal(summary.projectedProtectedCents, 155_000);
   assert.equal(summary.projectedSafeToSpendCents, 145_000);
+  assert.equal(summary.shortfallCents, 0);
   assert.equal(summary.readyStepCount, 4);
   assert.equal(monetization.priceLabel, "$19/month");
   assert.equal(monetization.endpoint, "POST /api/app/billing/checkout");
@@ -433,6 +464,10 @@ test("control plan endpoint turns paycheck input into a usable operating plan", 
     ),
     true,
   );
+  assert.equal(fundingSchedule[0]?.key, "bucket:rent");
+  assert.equal(fundingSchedule[0]?.status, "funded");
+  assert.equal(fundingSchedule.at(-1)?.key, "safe_to_spend");
+  assert.equal(fundingSchedule.at(-1)?.amountCents, 145_000);
   assert.equal(transferPlan.endpoint, "POST /api/app/transfers");
   assert.equal(proof.planEndpoint, "/api/app/control-plan");
   assert.equal(proof.auditEndpoint, "/api/app/audit/export");
@@ -451,11 +486,14 @@ test("control plan post validates and regenerates paycheck projections", async (
   const body = await parseJson(response);
   const summary = body.summary as Record<string, unknown>;
   const detectionRule = body.detectionRule as Record<string, unknown>;
+  const fundingSchedule = body.fundingSchedule as Array<Record<string, unknown>>;
 
   assert.equal(response.status, 200);
   assert.equal(summary.paycheckAmountCents, 220_000);
   assert.equal(summary.projectedProtectedCents, 155_000);
   assert.equal(summary.projectedSafeToSpendCents, 65_000);
+  assert.equal(fundingSchedule.at(-1)?.key, "safe_to_spend");
+  assert.equal(fundingSchedule.at(-1)?.amountCents, 65_000);
   assert.equal(detectionRule.employerNamePattern, "Acme Payroll");
   assert.equal(detectionRule.ruleName, "Acme weekly payroll");
 
@@ -494,6 +532,106 @@ test("control plan post rejects oversized and malformed request bodies", async (
   assert.equal(malformedBody.service, "payshield-household-control-plan");
 });
 
+test("bucket profile returns a rule preview without inventing available cash", async () => {
+  const response = await saveBuckets(
+    makeRequest("/api/app/buckets", {
+      action: "replace_profile",
+      buckets: [
+        {
+          due: "1st",
+          id: "rent",
+          name: "Rent",
+          protection: "bill_only",
+          targetCents: 90_000,
+        },
+        {
+          due: "Every check",
+          id: "custom_childcare",
+          name: "Childcare",
+          protection: "hard_lock",
+          targetCents: 25_000,
+        },
+      ],
+    }),
+  );
+  const body = await parseJson(response);
+  const buckets = body.buckets as Array<Record<string, unknown>>;
+  const safe = buckets.find((bucket) => bucket.id === "safe_spending");
+
+  assert.equal(response.status, 200);
+  assert.equal(body.service, "payshield-bucket-controls");
+  assert.equal(body.persisted, false);
+  assert.equal(body.profilePersistence, "app_session_model");
+  assert.equal(body.profileSource, "app_session_model");
+  assert.equal(body.protectedCents, 115_000);
+  assert.equal(body.safeToSpendPreviewCents, undefined);
+  assert.equal(safe?.availableCents, 0);
+  assert.match(String(body.message), /session/i);
+
+  const invalid = await saveBuckets(
+    makeRequest("/api/app/buckets", {
+      action: "replace_profile",
+      buckets: [
+        {
+          due: "Remainder",
+          id: "safe_spending",
+          name: "Safe to Spend",
+          protection: "spendable",
+          targetCents: 100,
+        },
+      ],
+    }),
+  );
+  const invalidBody = await parseJson(invalid);
+
+  assert.equal(invalid.status, 400);
+  assert.equal(Array.isArray(invalidBody.errors), true);
+});
+
+test("household money profile saves as a session draft and returns a plan without durable core", async () => {
+  const getResponse = await getMoneyProfile();
+  const getBody = await parseJson(getResponse);
+
+  assert.equal(getResponse.status, 200);
+  assert.equal(getBody.service, "payshield-household-money-profile");
+  assert.equal(getBody.profilePersistence, "app_control_model");
+
+  const response = await saveMoneyProfile(
+    makeRequest("/api/app/money-profile", {
+      employerName: "Acme Payroll",
+      expectedFrequency: "weekly",
+      nextPayday: "2026-07-03",
+      paycheckAmountCents: 220_000,
+      requestedTransferCents: 20_000,
+    }),
+  );
+  const body = await parseJson(response);
+  const profile = body.profile as Record<string, unknown>;
+  const controlPlan = body.controlPlan as Record<string, unknown>;
+  const summary = controlPlan.summary as Record<string, unknown>;
+
+  assert.equal(response.status, 200);
+  assert.equal(body.service, "payshield-household-money-profile");
+  assert.equal(body.persisted, false);
+  assert.equal(body.profilePersistence, "app_session_model");
+  assert.equal(body.profileSource, "app_session_model");
+  assert.equal(profile.employerName, "Acme Payroll");
+  assert.equal(profile.expectedFrequency, "weekly");
+  assert.equal(profile.nextPayday, "2026-07-03");
+  assert.equal(summary.projectedSafeToSpendCents, 65_000);
+  assert.equal(summary.projectedProtectedCents, 155_000);
+
+  const invalid = await saveMoneyProfile(
+    makeRequest("/api/app/money-profile", {
+      paycheckAmountCents: 1,
+    }),
+  );
+  const invalidBody = await parseJson(invalid);
+
+  assert.equal(invalid.status, 400);
+  assert.equal(Array.isArray(invalidBody.errors), true);
+});
+
 test("activation endpoint exposes operator launch checklist and smoke commands", async () => {
   const response = await getActivation();
   const body = await parseJson(response);
@@ -516,7 +654,11 @@ test("activation endpoint exposes operator launch checklist and smoke commands",
     true,
   );
   assert.equal(
-    smokeCommands.includes("npm run vercel:env:audit -- --profile commercial"),
+    smokeCommands.some((command) => command.startsWith("npm run smoke:deploy -- ")),
+    true,
+  );
+  assert.equal(
+    smokeCommands.some((command) => command.startsWith("npm run production:routes -- ")),
     true,
   );
   assert.equal(
@@ -565,6 +707,21 @@ test("activation endpoint exposes operator launch checklist and smoke commands",
 });
 
 test("launch gate evidence route requires durable authenticated core", async () => {
+  const forbidden = await recordLaunchGateEvidence(
+    makeRequest("/api/launch/gate-evidence", {
+      approvedBy: "Grayston Operations",
+      evidenceRef: "notion-counsel-signoff-2026-06",
+      evidenceSummary:
+        "Redacted counsel approval summary for production launch controls.",
+      gateId: "counsel_signoff",
+      scope: "counsel",
+      status: "approved",
+    }),
+  );
+
+  assert.equal(forbidden.status, 403);
+
+  process.env.PAYSHIELD_ALLOW_OPERATOR_REVIEW_ACCESS = "true";
   const response = await recordLaunchGateEvidence(
     makeRequest("/api/launch/gate-evidence", {
       approvedBy: "Grayston Operations",
@@ -584,7 +741,7 @@ test("launch gate evidence route requires durable authenticated core", async () 
   assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
 });
 
-test("launch activation endpoint stays available while app auth is locked and redacts secrets", async () => {
+test("launch activation endpoint requires operator access and redacts secrets", async () => {
   process.env.VERCEL_ENV = "production";
   process.env.STRIPE_SECRET_KEY = "sk_live_secret-value";
   process.env.STRIPE_WEBHOOK_SECRET = "stripe-webhook-secret";
@@ -594,7 +751,13 @@ test("launch activation endpoint stays available while app auth is locked and re
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "https://vault.example/token";
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
 
-  const response = getLaunchActivation();
+  const forbidden = await getLaunchActivation();
+  assert.equal(forbidden.status, 503);
+
+  process.env.PAYSHIELD_ALLOW_REVIEW_APP_ACCESS = "true";
+  process.env.PAYSHIELD_ALLOW_OPERATOR_REVIEW_ACCESS = "true";
+
+  const response = await getLaunchActivation();
   const body = await parseJson(response);
   const operatorRunbook = body.operatorRunbook as Record<string, unknown>;
   const serialized = JSON.stringify(body);
@@ -623,22 +786,16 @@ test("billing status exposes household paid-access state", async () => {
   assert.equal(commercialAccess.priceLabel, "$19/month");
 });
 
-test("billing portal requires durable Stripe customer state", async () => {
+test("billing portal requires the dedicated core before reading Stripe customer state", async () => {
   const response = await openBillingPortal(
     makeRequest("/api/app/billing/portal", {
       returnPath: "/app?billing=manage",
     }),
   );
   const body = await parseJson(response);
-  const readiness = body.readiness as Record<string, unknown>;
-
-  assert.equal(response.status, 424);
-  assert.match(String(body.error), /Stripe customer/i);
-  assert.equal(readiness.portalConfigured, false);
-  assert.deepEqual(readiness.missing, [
-    "STRIPE_SECRET_KEY",
-    "provider_customer_id",
-  ]);
+  assert.equal(response.status, 503);
+  assert.equal(body.code, "core_service_required");
+  assert.equal(body.service, "payshield-billing-portal");
 });
 
 test("billing portal rejects oversized request bodies", async () => {
@@ -707,7 +864,7 @@ test("bucket endpoint loads editable household profile templates", async () => {
   assert.equal((body.templates as string[]).includes("Childcare"), true);
 });
 
-test("bucket endpoint requires the dedicated core before saving protected profiles", async () => {
+test("bucket endpoint applies protected profiles as session previews without core", async () => {
   const response = await saveBuckets(
     makeRequest("/api/app/buckets", {
       action: "replace_profile",
@@ -730,11 +887,17 @@ test("bucket endpoint requires the dedicated core before saving protected profil
     }),
   );
   const body = await parseJson(response);
+  const buckets = body.buckets as Array<Record<string, unknown>>;
+  const safe = buckets.find((bucket) => bucket.id === "safe_spending");
 
-  assert.equal(response.status, 503);
-  assert.equal(body.code, "core_service_required");
+  assert.equal(response.status, 200);
   assert.equal(body.service, "payshield-bucket-controls");
-  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
+  assert.equal(body.persisted, false);
+  assert.equal(body.profilePersistence, "app_session_model");
+  assert.equal(body.profileSource, "app_session_model");
+  assert.equal(body.protectedCents, 70_000);
+  assert.equal(safe?.availableCents, 0);
+  assert.match(String(body.message), /preview updated/i);
 });
 
 test("onboarding requires the dedicated authenticated core service", async () => {
@@ -747,7 +910,7 @@ test("onboarding requires the dedicated authenticated core service", async () =>
   assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
 });
 
-test("paid access checkout reports missing Stripe configuration", async () => {
+test("paid access checkout requires durable activation before Stripe configuration", async () => {
   const response = await startCheckout(
     makeRequest("/api/app/billing/checkout", {
       cancelPath: "/app?billing=cancelled",
@@ -755,14 +918,9 @@ test("paid access checkout reports missing Stripe configuration", async () => {
     }),
   );
   const body = await parseJson(response);
-  const readiness = body.readiness as Record<string, unknown>;
-  const checkoutIntent = body.checkoutIntent as Record<string, unknown>;
-
-  assert.equal(response.status, 424);
-  assert.equal(readiness.checkoutConfigured, false);
-  assert.equal(checkoutIntent.status, "blocked");
-  assert.equal(checkoutIntent.errorCode, "checkout_not_configured");
-  assert.equal(Array.isArray(readiness.missing), true);
+  assert.equal(response.status, 503);
+  assert.equal(body.code, "core_service_required");
+  assert.equal(body.service, "payshield-checkout");
 });
 
 test("paid access checkout rejects oversized and malformed request bodies", async () => {
@@ -798,7 +956,7 @@ test("production runtime requires paid access before money workflows", () => {
   assert.equal(gate.readiness.checkoutConfigured, false);
 });
 
-test("paid access checkout can return a configured payment link", async () => {
+test("authenticated checkout rejects static payment links without household identity", async () => {
   process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL =
     "https://buy.stripe.com/live_123";
   process.env.PAYSHIELD_CORE_API_URL = "https://core.payshield.test";
@@ -807,8 +965,17 @@ test("paid access checkout can return a configured payment link", async () => {
   const originalFetch = globalThis.fetch;
   let coreCalls = 0;
 
-  globalThis.fetch = async (_input, init) => {
+  globalThis.fetch = async (input, init) => {
     coreCalls += 1;
+    const url = String(input);
+
+    if (url.endsWith("/ready")) {
+      return Response.json({
+        readiness: { liveMoneyReady: true },
+        service: "payshield-core",
+      });
+    }
+
     const requestBody = JSON.parse(String(init?.body ?? "{}")) as Record<
       string,
       unknown
@@ -851,17 +1018,18 @@ test("paid access checkout can return a configured payment link", async () => {
     const body = await parseJson(response);
     const checkoutIntent = body.checkoutIntent as Record<string, unknown>;
 
-    assert.equal(response.status, 200);
-    assert.equal(body.url, "https://buy.stripe.com/live_123");
-    assert.equal(checkoutIntent.status, "payment_link");
-    assert.equal(checkoutIntent.checkoutUrlPresent, true);
-    assert.equal(coreCalls, 2);
+    assert.equal(response.status, 424);
+    assert.equal(body.url, undefined);
+    assert.equal(checkoutIntent.status, "blocked");
+    assert.equal(checkoutIntent.checkoutUrlPresent, false);
+    assert.equal(checkoutIntent.errorCode, "checkout_session_required");
+    assert.equal(coreCalls, 3);
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test("authenticated paid access checkout can collect while activation persistence is pending", async () => {
+test("authenticated paid access checkout cannot collect while activation persistence is unavailable", async () => {
   process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL =
     "https://buy.stripe.com/live_missing_core";
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
@@ -873,19 +1041,10 @@ test("authenticated paid access checkout can collect while activation persistenc
     }),
   );
   const body = await parseJson(response);
-  const activation = body.activation as Record<string, unknown>;
-  const readiness = body.readiness as Record<string, unknown>;
-  const checkoutIntent = body.checkoutIntent as Record<string, unknown>;
-
-  assert.equal(response.status, 200);
-  assert.equal(body.url, "https://buy.stripe.com/live_missing_core");
-  assert.equal(activation.autoActivationReady, false);
-  assert.equal(activation.mode, "payment_collection_only");
-  assert.equal(readiness.checkoutConfigured, true);
-  assert.equal(readiness.checkoutOperationalReady, false);
-  assert.equal(readiness.paymentCollectionReady, true);
-  assert.equal(checkoutIntent.status, "payment_link");
-  assert.equal(checkoutIntent.errorCode, null);
+  assert.equal(response.status, 503);
+  assert.equal(body.code, "core_service_required");
+  assert.equal(body.service, "payshield-checkout");
+  assert.equal(body.url, undefined);
 });
 
 test("paid access checkout session uses the authenticated customer identity", async () => {
@@ -896,12 +1055,16 @@ test("paid access checkout session uses the authenticated customer identity", as
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
   const originalFetch = globalThis.fetch;
   let capturedBody = "";
+  let capturedIdempotencyKey = "";
   let capturedStripeVersion = "";
 
   globalThis.fetch = async (_input, init) => {
     capturedBody = String(init?.body ?? "");
     capturedStripeVersion = String(
       (init?.headers as Record<string, string>)?.["stripe-version"] ?? "",
+    );
+    capturedIdempotencyKey = String(
+      (init?.headers as Record<string, string>)?.["idempotency-key"] ?? "",
     );
 
     return new Response(
@@ -919,6 +1082,7 @@ test("paid access checkout session uses the authenticated customer identity", as
   try {
     const result = await createCommercialCheckoutSession({
       email: "customer@example.com",
+      idempotencyKey: "checkout-attempt-123",
       origin: endpoint,
       userId: "user_clerk_123",
     });
@@ -926,6 +1090,7 @@ test("paid access checkout session uses the authenticated customer identity", as
 
     assert.equal(result.status, 200);
     assert.equal(capturedStripeVersion, "2026-02-25.clover");
+    assert.equal(capturedIdempotencyKey, "checkout-attempt-123");
     assert.equal(form.get("customer_email"), "customer@example.com");
     assert.equal(form.get("client_reference_id"), "user_clerk_123");
     assert.equal(
@@ -946,6 +1111,40 @@ test("paid access checkout session uses the authenticated customer identity", as
   }
 });
 
+test("membership checkout stays closed until account services are live", async () => {
+  process.env.PAYSHIELD_COMMERCIAL_PRICE_ID = "price_payShield";
+  process.env.PAYSHIELD_CORE_API_URL = "https://core.payshield.test";
+  process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-secret";
+  process.env.STRIPE_SECRET_KEY = "sk_test_payShield";
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+  const originalFetch = globalThis.fetch;
+  let providerCalled = false;
+
+  globalThis.fetch = async () => {
+    providerCalled = true;
+    throw new Error("Stripe must not be called before account services are live.");
+  };
+
+  try {
+    const result = await createCommercialCheckoutSession({
+      email: "customer@example.com",
+      idempotencyKey: "checkout-product-gate",
+      origin: endpoint,
+      productReady: false,
+      requireAccessActivation: true,
+      requireCheckoutSession: true,
+      requireProductReady: true,
+      userId: "user_clerk_123",
+    });
+
+    assert.equal(result.status, 424);
+    assert.equal(result.errorCode, "checkout_product_not_ready");
+    assert.equal(providerCalled, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("public checkout requires valid email before collecting payment", async () => {
   const response = await startPublicCheckout(
     makeRequest("/api/public/billing/checkout", {
@@ -956,6 +1155,46 @@ test("public checkout requires valid email before collecting payment", async () 
 
   assert.equal(response.status, 400);
   assert.match(String(body.error), /valid email/i);
+});
+
+test("public membership status is minimal and unavailable until checkout and core are live", async () => {
+  const response = await getPublicBillingStatus();
+  const body = await parseJson(response);
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(body, {
+    available: false,
+    membership: { priceLabel: "$19/month" },
+    service: "payshield-membership-status",
+    status: "unavailable",
+  });
+  assert.doesNotMatch(JSON.stringify(body), /secret|credential|missing/i);
+});
+
+test("public membership status opens only when checkout and core controls are live", async () => {
+  configureCheckoutProductReady();
+  process.env.STRIPE_SECRET_KEY = "sk_test_membership_status";
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_membership_status";
+  process.env.PAYSHIELD_COMMERCIAL_PRICE_ID = "price_membership_status";
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    if (String(input) === "https://core.payshield.test/ready") {
+      return Response.json({ readiness: { liveMoneyReady: true } });
+    }
+
+    return originalFetch(input);
+  }) as typeof fetch;
+
+  try {
+    const response = await getPublicBillingStatus();
+    const body = await parseJson(response);
+
+    assert.equal(body.available, true);
+    assert.equal(body.status, "available");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("public checkout rejects oversized commercial request bodies", async () => {
@@ -1045,27 +1284,34 @@ test("public checkout rejects static payment links that cannot carry household i
     assert.equal(response.status, 424);
     assert.equal(checkoutIntent.status, "blocked");
     assert.equal(checkoutIntent.errorCode, "checkout_session_required");
-    assert.match(String(body.error), /Checkout Session mode/i);
+    assert.equal(body.error, "Membership signup is temporarily unavailable.");
+    assert.equal(
+      (body.readiness as Record<string, unknown>).missing,
+      undefined,
+    );
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
 test("public checkout creates Stripe session with email-stable PayShield identity", async () => {
+  configureCheckoutProductReady();
   process.env.PAYSHIELD_COMMERCIAL_PRICE_ID = "price_public_access";
-  process.env.PAYSHIELD_CORE_API_URL = "https://core.payshield.test";
-  process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-secret";
   process.env.STRIPE_SECRET_KEY = "sk_test_public_checkout";
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
   const originalFetch = globalThis.fetch;
   const coreBodies: Record<string, unknown>[] = [];
   let stripeBody = "";
+  let stripeIdempotencyKey = "";
 
   globalThis.fetch = async (input, init) => {
     const url = String(input);
 
     if (url === "https://api.stripe.com/v1/checkout/sessions") {
       stripeBody = String(init?.body ?? "");
+      stripeIdempotencyKey = String(
+        (init?.headers as Record<string, string>)?.["idempotency-key"] ?? "",
+      );
 
       return new Response(
         JSON.stringify({
@@ -1077,6 +1323,13 @@ test("public checkout creates Stripe session with email-stable PayShield identit
           status: 200,
         },
       );
+    }
+
+    if (url.endsWith("/ready")) {
+      return Response.json({
+        readiness: { liveMoneyReady: true },
+        service: "payshield-core",
+      });
     }
 
     const requestBody = JSON.parse(String(init?.body ?? "{}")) as Record<
@@ -1116,6 +1369,7 @@ test("public checkout creates Stripe session with email-stable PayShield identit
     const response = await startPublicCheckout(
       makeRequest("/api/public/billing/checkout", {
         email: "Buyer@Example.com",
+        idempotencyKey: "public-attempt-456",
         name: "Buyer Household",
       }),
     );
@@ -1128,6 +1382,7 @@ test("public checkout creates Stripe session with email-stable PayShield identit
     assert.equal(coreBodies.length, 2);
     assert.equal(coreBodies[0]?.status, "requested");
     assert.equal(coreBodies[1]?.status, "created");
+    assert.equal(stripeIdempotencyKey, "public-attempt-456");
     assert.equal(form.get("customer_email"), "buyer@example.com");
     assert.match(userId, /^email_[a-f0-9]{32}$/);
     assert.equal(
@@ -1143,6 +1398,62 @@ test("public checkout creates Stripe session with email-stable PayShield identit
       form.get("subscription_data[metadata][payshield_user_id]"),
       userId,
     );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("public checkout rate-limits repeated attempts without exposing identity", async () => {
+  process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL =
+    "https://buy.stripe.com/live_rate_limit";
+  process.env.PAYSHIELD_CORE_API_URL = "https://core.payshield.test";
+  process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-secret";
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (_input, init) => {
+    const requestBody = JSON.parse(String(init?.body ?? "{}")) as Record<
+      string,
+      unknown
+    >;
+
+    return new Response(
+      JSON.stringify({
+        checkoutIntent: {
+          idempotencyKey: requestBody.idempotencyKey,
+          status: requestBody.status,
+        },
+        persistence: { persisted: true, persistence: "postgres" },
+      }),
+      {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      },
+    );
+  };
+
+  try {
+    const statuses: number[] = [];
+
+    for (let index = 0; index < 7; index += 1) {
+      const response = await startPublicCheckout(
+        makeRawRequest(
+          "/api/public/billing/checkout",
+          JSON.stringify({
+            email: "checkout-rate-limit@example.com",
+            idempotencyKey: `rate-limit-${index}`,
+          }),
+          {
+            "content-type": "application/json",
+            "x-forwarded-for": "198.51.100.77",
+          },
+        ),
+      );
+      statuses.push(response.status);
+      await response.text();
+    }
+
+    assert.deepEqual(statuses, [424, 424, 424, 424, 424, 424, 429]);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -1406,24 +1717,6 @@ test("money workflows require activation-ready paid access or the dedicated core
         setupDirectDeposit(
           makeRequest("/api/app/direct-deposit", {
             idempotencyKey: "route-paid-gate-direct-deposit",
-          }),
-        ),
-    ],
-    [
-      "protected bucket profile changes",
-      () =>
-        saveBuckets(
-          makeRequest("/api/app/buckets", {
-            action: "replace_profile",
-            buckets: [
-              {
-                due: "1st",
-                id: "rent",
-                name: "Rent",
-                protection: "bill_only",
-                targetCents: 50_000,
-              },
-            ],
           }),
         ),
     ],

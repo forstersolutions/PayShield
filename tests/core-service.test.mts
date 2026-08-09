@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { once } from "node:events";
 import { readFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, test } from "node:test";
+import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { shouldUpdateCommercialSubscription } from "../services/core/database.mjs";
 import { createCoreServer } from "../services/core/server.mjs";
 import {
+  getCoreHealth,
   persistTransactionSyncException,
   recordMoneyRailProviderException,
   replayJournalEntriesForBalances,
@@ -27,6 +29,7 @@ const coreEnvKeys = [
   "PAYSHIELD_CORE_REQUIRE_DURABLE_STORAGE",
   "PAYSHIELD_CORE_REQUIRE_SERVICE_TOKEN",
   "PAYSHIELD_CORE_SERVICE_TOKEN",
+  "PAYSHIELD_FRONTEND_AUTH_VERIFIED",
   "PAYSHIELD_LEDGER_DATABASE_URL",
   "PAYSHIELD_LEDGER_SCHEMA_FINGERPRINT",
   "PAYSHIELD_LEDGER_SCHEMA_VERIFIED",
@@ -47,6 +50,13 @@ const coreEnvKeys = [
   "PLAID_CLIENT_ID",
   "PLAID_SECRET",
   "PLAID_TRANSFER_CLIENT_ID",
+  "PLAID_WEBHOOK_URL",
+  "PGDATABASE",
+  "PGHOST",
+  "PGPASSWORD",
+  "PGPORT",
+  "PGSSLMODE",
+  "PGUSER",
   "STRIPE_SECRET_KEY",
   "STRIPE_WEBHOOK_SECRET",
 ];
@@ -147,38 +157,40 @@ function signedProviderJsonPost(
   };
 }
 
-test("core health exposes product operation routes and fail-closed readiness", async () => {
+test("core health stays minimal while authenticated readiness fails closed", async () => {
   await withCoreServer(async (baseUrl) => {
-    const { body, response } = await getJson(baseUrl, "/health");
-    const readiness = body.readiness as Record<string, unknown>;
-    const routes = body.routes as string[];
+    const health = await getJson(baseUrl, "/health");
+    const ready = await getJson(baseUrl, "/ready");
+    const readiness = ready.body.readiness as Record<string, unknown>;
 
-    assert.equal(response.status, 200);
-    assert.equal(body.service, "payshield-core");
+    assert.equal(health.response.status, 200);
+    assert.deepEqual(health.body, {
+      ok: true,
+      service: "payshield-core",
+      status: "healthy",
+    });
+    assert.equal(ready.response.status, 503);
+    assert.equal(ready.body.service, "payshield-core");
     assert.equal(readiness.liveMoneyReady, false);
     assert.equal(readiness.backendConfigured, true);
-    assert.equal(routes.includes("GET /app/activation"), true);
-    assert.equal(routes.includes("POST /app/bill-payments"), true);
-    assert.equal(routes.includes("POST /app/billing/checkout"), true);
-    assert.equal(routes.includes("POST /token-vault/plaid"), true);
-    assert.equal(routes.includes("POST /app/bank-link/token"), true);
-    assert.equal(routes.includes("POST /app/bank-link/exchange"), true);
-    assert.equal(routes.includes("POST /app/bank-connections"), true);
-    assert.equal(routes.includes("POST /app/direct-deposit"), true);
-    assert.equal(routes.includes("GET /app/billing/status"), true);
-    assert.equal(routes.includes("POST /commercial/billing-events"), true);
-    assert.equal(routes.includes("POST /card/authorize"), true);
-    assert.equal(routes.includes("GET /app/operations"), true);
-    assert.equal(routes.includes("GET /app/control-plan"), true);
-    assert.equal(routes.includes("POST /app/control-plan"), true);
-    assert.equal(routes.includes("GET /app/audit/export"), true);
-    assert.equal(routes.includes("POST /app/onboarding/start"), true);
-    assert.equal(routes.includes("POST /app/paychecks/rules"), true);
-    assert.equal(routes.includes("POST /app/paychecks/detect"), true);
-    assert.equal(routes.includes("POST /app/paychecks/sync"), true);
-    assert.equal(routes.includes("POST /app/transfers"), true);
-    assert.equal(routes.includes("POST /app/reconciliation/resolve"), true);
-    assert.equal(routes.includes("POST /launch/gate-evidence"), true);
+  });
+});
+
+test("core rejects non-object bodies before product handlers", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(
+      baseUrl,
+      "/app/control-plan",
+      {
+        body: "null",
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+
+    assert.equal(response.status, 400);
+    assert.equal(body.error, "Request body must be a JSON object.");
+    assert.equal(body.service, "payshield-core");
   });
 });
 
@@ -274,7 +286,6 @@ test("core bill payment execution persists the ledger and schedule before live p
     createBillPaymentStart,
     createBillPaymentEnd,
   );
-  const journalIndex = billPaymentSource.indexOf("persistOperationalJournal(");
   const scheduleIndex = billPaymentSource.indexOf("persistBillPaymentSchedule(");
   const replayIndex = billPaymentSource.indexOf("decisionPersistence.replayed");
   const resumeIndex = billPaymentSource.indexOf(
@@ -285,11 +296,8 @@ test("core bill payment execution persists the ledger and schedule before live p
     "updateBillPaymentProviderStatus(",
   );
 
-  assert.ok(journalIndex >= 0, "bill payment ledger entry must be persisted");
-  assert.ok(
-    scheduleIndex > journalIndex,
-    "bill payment schedule must follow ledger persistence",
-  );
+  assert.ok(scheduleIndex >= 0, "bill payment must use atomic schedule persistence");
+  assert.match(billPaymentSource, /journalEntry: postedEntry/);
   assert.ok(
     providerIndex > scheduleIndex,
     "bill payment provider call must follow durable schedule persistence",
@@ -318,6 +326,11 @@ test("core bill payment execution persists the ledger and schedule before live p
     billPaymentSource,
     /Provider bill payment was created but the durable schedule status could not be updated/,
   );
+  assert.match(
+    databaseSource,
+    /export async function persistBillPaymentSchedule[\s\S]+BEGIN[\s\S]+insertJournalEntry\(client[\s\S]+INSERT INTO bill_payment_schedules[\s\S]+COMMIT/,
+  );
+  assert.match(databaseSource, /persistence: "control_conflict"/);
   assert.match(
     databaseSource,
     /export async function updateBillPaymentProviderStatus/,
@@ -406,6 +419,9 @@ test("core card authorization replays durable decisions before recomputing funds
     databaseSource,
     /export async function loadCardAuthorizationDecision/,
   );
+  assert.match(authorizeCardSource, /loadProviderCardActor/);
+  assert.match(authorizeCardSource, /verifyProviderWebhookSignature/);
+  assert.match(databaseSource, /export async function loadProviderCardActor/);
   assert.match(
     databaseSource,
     /UPDATE card_authorization_decisions[\s\S]+SET journal_entry_id/,
@@ -482,7 +498,11 @@ test("core paycheck detection replays durable detections before recomputing spli
   );
   assert.match(
     databaseSource,
-    /UPDATE paycheck_detections[\s\S]+SET journal_entry_id/,
+    /export async function persistPaycheckDetection[\s\S]+insertJournalEntry\(client[\s\S]+INSERT INTO paycheck_detections/,
+  );
+  assert.match(
+    databaseSource,
+    /UPDATE unlock_requests[\s\S]+remaining_recovery_cents/,
   );
   assert.match(databaseSource, /paycheckDetectionFromRow/);
 });
@@ -723,7 +743,7 @@ test("core profile route fails closed when durable identity storage is required"
     assert.equal(body.code, "postgres_identity_required");
     assert.equal(body.service, "payshield-household-identity");
     assert.equal(identityPersistence.persistence, "postgres_required");
-    assert.match(String(body.error), /PAYSHIELD_LEDGER_DATABASE_URL/);
+    assert.match(String(body.error), /durable ledger storage/i);
   });
 });
 
@@ -931,6 +951,7 @@ test("core control-plan endpoint derives a usable household money plan from oper
     const summary = body.summary as Record<string, unknown>;
     const allocation = body.allocation as Record<string, unknown>;
     const buckets = allocation.buckets as Array<Record<string, unknown>>;
+    const fundingSchedule = body.fundingSchedule as Array<Record<string, unknown>>;
     const operatingSteps = body.operatingSteps as Array<Record<string, unknown>>;
     const monetization = body.monetization as Record<string, unknown>;
     const transferPlan = body.transferPlan as Record<string, unknown>;
@@ -942,6 +963,7 @@ test("core control-plan endpoint derives a usable household money plan from oper
     assert.equal(summary.paycheckAmountCents, 300_000);
     assert.equal(summary.projectedProtectedCents, 155_000);
     assert.equal(summary.projectedSafeToSpendCents, 145_000);
+    assert.equal(summary.shortfallCents, 0);
     assert.equal(summary.readyStepCount, 4);
     assert.equal(source.ledger, "control_model");
     assert.equal(monetization.priceLabel, "$19/month");
@@ -981,6 +1003,10 @@ test("core control-plan endpoint derives a usable household money plan from oper
       ),
       true,
     );
+    assert.equal(fundingSchedule[0]?.key, "bucket:rent");
+    assert.equal(fundingSchedule[0]?.status, "funded");
+    assert.equal(fundingSchedule.at(-1)?.key, "safe_to_spend");
+    assert.equal(fundingSchedule.at(-1)?.amountCents, 145_000);
     assert.equal(transferPlan.endpoint, "POST /api/app/transfers");
     assert.equal(proof.planEndpoint, "/api/app/control-plan");
     assert.equal(proof.operationsEndpoint, "/api/app/operations");
@@ -1033,21 +1059,77 @@ test("core control-plan post validates and regenerates paycheck projections", as
   });
 });
 
+test("core money-profile route saves setup and regenerates the household plan", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const read = await getJson(baseUrl, "/api/app/money-profile");
+    const readProfile = read.body.profile as Record<string, unknown>;
+
+    assert.equal(read.response.status, 200);
+    assert.equal(read.body.service, "payshield-household-money-profile");
+    assert.equal(read.body.persisted, false);
+    assert.equal(readProfile.paycheckAmountCents, 300_000);
+
+    const saved = await getJson(
+      baseUrl,
+      "/api/app/money-profile",
+      jsonPost(
+        {
+          employerName: "Acme Payroll",
+          expectedFrequency: "weekly",
+          idempotencyKey: "core-money-profile-acme",
+          nextPayday: "2026-07-03",
+          paycheckAmountCents: 220_000,
+          preferredPayeeId: "payee_abc_apartments",
+          preferredTransferBucketId: "rent",
+          requestedTransferCents: 15_000,
+        },
+        {
+          headers: {
+            "x-payshield-user-id": "user_money_profile",
+          },
+        },
+      ),
+    );
+    const savedProfile = saved.body.profile as Record<string, unknown>;
+    const controlPlan = saved.body.controlPlan as Record<string, unknown>;
+    const summary = controlPlan.summary as Record<string, unknown>;
+    const fundingSchedule = controlPlan.fundingSchedule as Array<
+      Record<string, unknown>
+    >;
+
+    assert.equal(saved.response.status, 200);
+    assert.equal(saved.body.service, "payshield-household-money-profile");
+    assert.equal(saved.body.persisted, false);
+    assert.equal(savedProfile.employerName, "Acme Payroll");
+    assert.equal(savedProfile.nextPayday, "2026-07-03");
+    assert.equal(summary.paycheckAmountCents, 220_000);
+    assert.equal(summary.projectedSafeToSpendCents, 65_000);
+    assert.equal(fundingSchedule.at(-1)?.key, "safe_to_spend");
+    assert.equal(fundingSchedule.at(-1)?.amountCents, 65_000);
+
+    const invalid = await getJson(
+      baseUrl,
+      "/api/app/money-profile",
+      jsonPost({
+        nextPayday: "July 3",
+        paycheckAmountCents: 1,
+      }),
+    );
+
+    assert.equal(invalid.response.status, 400);
+    assert.equal(invalid.body.service, "payshield-household-money-profile");
+  });
+});
+
 test("core protected routes fail closed when service token is required but missing", async () => {
   process.env.PAYSHIELD_CORE_REQUIRE_SERVICE_TOKEN = "true";
 
   await withCoreServer(async (baseUrl) => {
     const health = await getJson(baseUrl, "/health");
     const blocked = await getJson(baseUrl, "/api/app/balances");
-    const readiness = health.body.readiness as Record<string, unknown>;
-    const gates = readiness.gates as Array<Record<string, unknown>>;
 
     assert.equal(health.response.status, 200);
-    assert.equal(readiness.serviceAuthConfigured, false);
-    assert.equal(
-      gates.find((gate) => gate.id === "core_service_auth")?.ok,
-      false,
-    );
+    assert.equal(health.body.status, "healthy");
     assert.equal(blocked.response.status, 503);
     assert.equal(blocked.body.code, "core_service_token_required");
     assert.equal(blocked.body.service, "payshield-core");
@@ -1091,7 +1173,11 @@ test("core activation endpoint exposes operator launch checklist", async () => {
       true,
     );
     assert.equal(
-      smokeCommands.includes("npm run vercel:env:audit -- --profile commercial"),
+      smokeCommands.some((command) => command.startsWith("npm run smoke:deploy -- ")),
+      true,
+    );
+    assert.equal(
+      smokeCommands.some((command) => command.startsWith("npm run production:routes -- ")),
       true,
     );
     assert.equal(
@@ -1386,7 +1472,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
     "postgres://payshield:secret@example.invalid:5432/ledger";
 
   await withCoreServer(async (baseUrl) => {
-    const urlOnly = await getJson(baseUrl, "/health");
+    const urlOnly = await getJson(baseUrl, "/ready");
     const urlOnlyReadiness = urlOnly.body.readiness as Record<string, unknown>;
     const urlOnlyGates = urlOnlyReadiness.gates as Array<
       Record<string, unknown>
@@ -1397,13 +1483,13 @@ test("core postgres gate requires verified ledger schema version", async () => {
 
     assert.equal(urlOnlyReadiness.postgresConfigured, true);
     assert.equal(urlOnlyReadiness.postgresSchemaVerified, false);
-    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0013");
+    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0019");
     assert.equal(postgresGate?.ok, false);
 
     process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
     process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0002";
 
-    const staleVersion = await getJson(baseUrl, "/health");
+    const staleVersion = await getJson(baseUrl, "/ready");
     const staleReadiness = staleVersion.body.readiness as Record<
       string,
       unknown
@@ -1415,9 +1501,9 @@ test("core postgres gate requires verified ledger schema version", async () => {
       false,
     );
 
-    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0013";
+    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0019";
 
-    const verified = await getJson(baseUrl, "/health");
+    const verified = await getJson(baseUrl, "/ready");
     const verifiedReadiness = verified.body.readiness as Record<
       string,
       unknown
@@ -1430,6 +1516,31 @@ test("core postgres gate requires verified ledger schema version", async () => {
     assert.equal(verifiedReadiness.postgresSchemaVerified, true);
     assert.equal(
       verifiedGates.find((gate) => gate.id === "postgres_ledger")?.ok,
+      true,
+    );
+  });
+});
+
+test("core postgres gate accepts secret-injected RDS connection fields", async () => {
+  process.env.PGHOST = "ledger.cluster-example.us-east-1.rds.amazonaws.com";
+  process.env.PGPORT = "5432";
+  process.env.PGDATABASE = "payshield";
+  process.env.PGUSER = "payshield_core";
+  process.env.PGPASSWORD = "test-password-not-used";
+  process.env.PGSSLMODE = "require";
+  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
+  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0019";
+
+  await withCoreServer(async (baseUrl) => {
+    const { body, response } = await getJson(baseUrl, "/ready");
+    const readiness = body.readiness as Record<string, unknown>;
+    const gates = readiness.gates as Array<Record<string, unknown>>;
+
+    assert.equal(response.status, 503);
+    assert.equal(readiness.postgresConfigured, true);
+    assert.equal(readiness.postgresSchemaVerified, true);
+    assert.equal(
+      gates.find((gate) => gate.id === "postgres_ledger")?.ok,
       true,
     );
   });
@@ -1585,7 +1696,7 @@ test("core launch gate evidence route requires redacted durable approval records
 
     assert.equal(missingPostgres.response.status, 503);
     assert.equal(missingPostgres.body.code, "postgres_ledger_required");
-    assert.match(String(missingPostgres.body.error), /schema 0013/);
+    assert.match(String(missingPostgres.body.error), /schema 0019/);
   });
 });
 
@@ -1775,6 +1886,7 @@ test("core active billing event unlocks paid-gated money workflows", async () =>
 test("core bank connection route records Plaid rail readiness", async () => {
   process.env.PLAID_CLIENT_ID = "plaid-client";
   process.env.PLAID_SECRET = "plaid-secret";
+  process.env.PLAID_WEBHOOK_URL = "https://core.payshield.test/plaid/webhooks";
   process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "http://127.0.0.1/vault";
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
@@ -1832,7 +1944,7 @@ test("core direct deposit route records paycheck routing setup", async () => {
   });
 });
 
-test("core paycheck readiness requires provider webhook signing", async () => {
+test("core paycheck readiness requires a verified Plaid webhook destination", async () => {
   process.env.PLAID_CLIENT_ID = "plaid-client";
   process.env.PLAID_SECRET = "plaid-secret";
   process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
@@ -1858,24 +1970,23 @@ test("core paycheck readiness requires provider webhook signing", async () => {
     process.env.PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY =
       "0123456789abcdef0123456789abcdef";
 
-    const unsigned = await getJson(baseUrl, "/api/app/operations");
-    const unsignedMoneyRails = unsigned.body.moneyRails as Record<
+    const missingWebhook = await getJson(baseUrl, "/api/app/operations");
+    const missingWebhookRails = missingWebhook.body.moneyRails as Record<
       string,
       unknown
     >;
-    const unsignedMissing = unsignedMoneyRails.missing as string[];
+    const missingWebhookGates = missingWebhookRails.missing as string[];
 
-    assert.equal(unsigned.response.status, 200);
-    assert.equal(unsignedMoneyRails.bankLinkReady, true);
-    assert.equal(unsignedMoneyRails.paycheckDetectionReady, false);
+    assert.equal(missingWebhook.response.status, 200);
+    assert.equal(missingWebhookRails.bankLinkReady, false);
+    assert.equal(missingWebhookRails.paycheckDetectionReady, false);
     assert.equal(
-      unsignedMoneyRails.providerWebhookSigningConfigured,
-      false,
-    );
-    assert.equal(
-      unsignedMissing.includes("PAYSHIELD_PROVIDER_WEBHOOK_SECRET"),
+      missingWebhookGates.includes("PLAID_WEBHOOK_URL"),
       true,
     );
+
+    process.env.PLAID_WEBHOOK_URL =
+      "https://core.payshield.test/plaid/webhooks";
 
     process.env.PAYSHIELD_PROVIDER_WEBHOOK_SECRET = "provider-secret";
 
@@ -1883,7 +1994,9 @@ test("core paycheck readiness requires provider webhook signing", async () => {
     const signedMoneyRails = signed.body.moneyRails as Record<string, unknown>;
 
     assert.equal(signed.response.status, 200);
+    assert.equal(signedMoneyRails.bankLinkReady, true);
     assert.equal(signedMoneyRails.paycheckDetectionReady, true);
+    assert.equal(signedMoneyRails.plaidWebhookVerificationReady, true);
     assert.equal(signedMoneyRails.providerWebhookSigningConfigured, true);
   });
 });
@@ -1966,18 +2079,18 @@ test("core bank link token fails closed without signed token vault handoff", asy
 test("core readiness can use the core service URL as the token-vault receiver", async () => {
   process.env.PLAID_CLIENT_ID = "plaid-client";
   process.env.PLAID_SECRET = "plaid-secret";
+  process.env.PLAID_WEBHOOK_URL = "https://core.payshield.test/plaid/webhooks";
   process.env.PAYSHIELD_CORE_API_URL = "https://core.payshield.test";
   process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
   process.env.PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY =
     "0123456789abcdef0123456789abcdef";
 
-  await withCoreServer(async (baseUrl) => {
-    const { body, response } = await getJson(baseUrl, "/health");
+  await withCoreServer(async () => {
+    const body = getCoreHealth(process.env);
     const moneyRails = body.moneyRails as Record<string, unknown>;
     const missing = moneyRails.missing as string[];
 
-    assert.equal(response.status, 200);
     assert.equal(moneyRails.bankLinkReady, true);
     assert.equal(moneyRails.tokenVaultHandoffReady, true);
     assert.equal(moneyRails.tokenVaultStoreReady, true);
@@ -2218,6 +2331,16 @@ test("core money-control routes require Postgres when durable storage mode is en
       "/api/app/direct-deposit",
       jsonPost({ idempotencyKey: "durable-required-routing" }),
     );
+    const moneyProfile = await getJson(
+      baseUrl,
+      "/api/app/money-profile",
+      jsonPost({
+        employerName: "Acme Payroll",
+        expectedFrequency: "biweekly",
+        paycheckAmountCents: 300_000,
+        requestedTransferCents: 20_000,
+      }),
+    );
     const paycheckRule = await getJson(
       baseUrl,
       "/api/app/paychecks/rules",
@@ -2268,9 +2391,14 @@ test("core money-control routes require Postgres when durable storage mode is en
     );
 
     assert.equal(profile.response.status, 503);
+    assert.equal(moneyProfile.response.status, 503);
     assert.equal(directDeposit.response.status, 503);
     assert.equal(paycheckRule.response.status, 503);
-    assert.equal(paycheckDetection.response.status, 503);
+    assert.equal(paycheckDetection.response.status, 403);
+    assert.match(
+      String(paycheckDetection.body.error),
+      /verified bank sync or signed provider event/i,
+    );
     assert.equal(paycheckSync.response.status, 503);
     assert.equal(transfer.response.status, 503);
     assert.equal(bankConnection.response.status, 503);
@@ -2278,10 +2406,13 @@ test("core money-control routes require Postgres when durable storage mode is en
       (profile.body.persistence as Record<string, unknown>).persistence,
       "postgres_required",
     );
+    assert.equal(
+      (moneyProfile.body.persistence as Record<string, unknown>).persistence,
+      "postgres_required",
+    );
     for (const route of [
       directDeposit,
       paycheckRule,
-      paycheckDetection,
       paycheckSync,
       transfer,
     ]) {
@@ -2353,7 +2484,47 @@ test("core card authorization approves safe spend and declines protected overrea
   });
 });
 
-test("core unlock route creates a recovery plan without mutating protected rules", async () => {
+test("core card authorization requires a valid provider signature when signing is configured", async () => {
+  process.env.PAYSHIELD_PROVIDER_WEBHOOK_SECRET = "card-provider-secret";
+
+  await withCoreServer(async (baseUrl) => {
+    const payload = {
+      amountCents: 8_000,
+      merchantName: "Grocery market",
+      providerAuthorizationId: "auth_signed_001",
+      providerCardId: "card_signed_001",
+      providerName: "marqeta",
+    };
+    const unsigned = await getJson(
+      baseUrl,
+      "/api/card/authorize",
+      jsonPost(payload),
+    );
+    const invalid = await getJson(
+      baseUrl,
+      "/api/card/authorize",
+      jsonPost(payload, {
+        headers: {
+          "x-payshield-provider-signature": "t=123,v1=bad",
+        },
+      }),
+    );
+    const signed = await getJson(
+      baseUrl,
+      "/api/card/authorize",
+      signedProviderJsonPost(payload, "card-provider-secret"),
+    );
+
+    assert.equal(unsigned.response.status, 401);
+    assert.match(String(unsigned.body.error), /signed raw body/i);
+    assert.equal(invalid.response.status, 401);
+    assert.match(String(invalid.body.error), /timestamp|signature/i);
+    assert.equal(signed.response.status, 503);
+    assert.match(String(signed.body.error), /durable account records/i);
+  });
+});
+
+test("core unlock route refuses to present a release before live controls are ready", async () => {
   await withCoreServer(async (baseUrl) => {
     const { body, response } = await getJson(
       baseUrl,
@@ -2366,22 +2537,9 @@ test("core unlock route creates a recovery plan without mutating protected rules
         reason: "Emergency repair",
       }),
     );
-    const result = body.result as Record<string, unknown>;
-    const decisionPersistence = body.decisionPersistence as Record<
-      string,
-      unknown
-    >;
-    const journalPersistence = body.journalPersistence as Record<
-      string,
-      unknown
-    >;
-
-    assert.equal(response.status, 200);
-    assert.equal(body.mode, "core_ledger");
-    assert.equal(decisionPersistence.persistence, "memory");
-    assert.equal(journalPersistence.persistence, "memory");
-    assert.equal(result.unlockedCents, 20_000);
-    assert.equal(result.recoveryPerCheckCents, 10_000);
+    assert.equal(response.status, 423);
+    assert.equal(body.code, "protected_unlock_unavailable");
+    assert.equal(body.result, undefined);
   });
 });
 
@@ -2435,7 +2593,7 @@ test("core payee route accepts custom protected bucket controls", async () => {
 
     assert.equal(response.status, 200);
     assert.equal(payee.allowedBucketId, "custom_childcare");
-    assert.equal(payee.id, "payee_modeled_childcare_center");
+    assert.match(String(payee.id), /^payee_[a-f0-9]{32}$/);
     assert.equal(payee.status, "provider_pending");
   });
 });
@@ -2455,10 +2613,13 @@ test("core payee route fails closed when durable persistence fails", async () =>
         name: "New landlord",
       }),
     );
-    const persistence = body.persistence as Record<string, unknown>;
+    const persistence = body.identityPersistence as Record<string, unknown>;
 
     assert.equal(response.status, 503);
-    assert.equal(body.error, "Payee could not be persisted.");
+    assert.equal(
+      body.error,
+      "Household identity could not be persisted before bill payment destinations.",
+    );
     assert.equal(persistence.persistence, "postgres_error");
   });
 });
@@ -2503,12 +2664,8 @@ test("core transfer route validates bucket funds and provider status", async () 
         sourceBucketId: "rent",
       }),
     );
-    const auditPersistence = body.auditPersistence as Record<string, unknown>;
-    const providerTransfer = body.providerTransfer as Record<string, unknown>;
-
-    assert.equal(response.status, 200);
-    assert.equal(auditPersistence.persistence, "memory");
-    assert.equal(providerTransfer.status, "blocked");
+    assert.equal(response.status, 423);
+    assert.equal(body.code, "protected_transfer_unavailable");
 
     const rejected = await getJson(
       baseUrl,
@@ -2598,14 +2755,10 @@ test("core money operations fail closed when configured ledger persistence fails
       }),
     );
 
-    assert.equal(paycheck.response.status, 503);
+    assert.equal(paycheck.response.status, 403);
     assert.equal(
       paycheck.body.error,
-      "Household identity could not be persisted before paycheck detection.",
-    );
-    assert.equal(
-      (paycheck.body.identityPersistence as Record<string, unknown>).persistence,
-      "postgres_error",
+      "Paycheck posting requires a verified bank sync or signed provider event.",
     );
     assert.equal(transfer.response.status, 503);
     assert.equal(
@@ -2619,7 +2772,7 @@ test("core money operations fail closed when configured ledger persistence fails
   });
 });
 
-test("core bill payment route schedules approved payee from protected bucket", async () => {
+test("core bill payment route refuses to schedule before live controls are ready", async () => {
   await withCoreServer(async (baseUrl) => {
     const { body, response } = await getJson(
       baseUrl,
@@ -2632,28 +2785,9 @@ test("core bill payment route schedules approved payee from protected bucket", a
         scheduledFor: "2026-07-01",
       }),
     );
-    const decision = body.decision as Record<string, unknown>;
-    const decisionPersistence = body.decisionPersistence as Record<
-      string,
-      unknown
-    >;
-    const providerBillPayment = body.providerBillPayment as Record<
-      string,
-      unknown
-    >;
-    const journalPersistence = body.journalPersistence as Record<
-      string,
-      unknown
-    >;
-
-    assert.equal(response.status, 200);
-    assert.equal(decision.accepted, true);
-    assert.equal(decision.code, "scheduled");
-    assert.equal(decision.bucketId, "rent");
-    assert.equal(decisionPersistence.persistence, "memory");
-    assert.equal(journalPersistence.persistence, "memory");
-    assert.equal(providerBillPayment.status, "blocked");
-    assert.equal(Array.isArray(body.ledgerEntries), true);
+    assert.equal(response.status, 423);
+    assert.equal(body.code, "bill_payment_unavailable");
+    assert.equal(body.ledgerEntries, undefined);
   });
 });
 
@@ -2677,17 +2811,9 @@ test("core bill payment route rejects invalid payees and malformed dates", async
         scheduledFor: "2026-07-01",
       }),
     );
-    const decision = unapproved.body.decision as Record<string, unknown>;
-    const decisionPersistence = unapproved.body.decisionPersistence as Record<
-      string,
-      unknown
-    >;
-
     assert.equal(invalidDate.response.status, 400);
-    assert.equal(unapproved.response.status, 400);
-    assert.equal(decision.accepted, false);
-    assert.equal(decision.code, "payee_not_allowed");
-    assert.equal(decisionPersistence.persistence, "memory");
+    assert.equal(unapproved.response.status, 423);
+    assert.equal(unapproved.body.code, "bill_payment_unavailable");
   });
 });
 
@@ -2717,9 +2843,131 @@ test("core provider webhook accepts object events but rejects invalid JSON shape
   });
 });
 
-test("core provider webhook posts income transactions into paycheck split flow", async () => {
+test("core accepts verified Plaid webhooks without the private app service token", async () => {
+  process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "private-app-token";
   process.env.PLAID_CLIENT_ID = "plaid-client";
   process.env.PLAID_SECRET = "plaid-secret";
+  process.env.PLAID_WEBHOOK_URL =
+    "https://core.payshield.test/plaid/webhooks";
+  const originalFetch = globalThis.fetch;
+  const keyId = `plaid-test-${Date.now()}`;
+  const { privateKey, publicKey } = await generateKeyPair("ES256");
+  const jwk = await exportJWK(publicKey);
+  const payload = {
+    environment: "sandbox",
+    item_id: "item_verified_plaid",
+    webhook_code: "SYNC_UPDATES_AVAILABLE",
+    webhook_type: "TRANSACTIONS",
+  };
+  const rawBody = JSON.stringify(payload);
+  const token = await new SignJWT({
+    request_body_sha256: createHash("sha256").update(rawBody).digest("hex"),
+  })
+    .setIssuedAt()
+    .setProtectedHeader({ alg: "ES256", kid: keyId, typ: "JWT" })
+    .sign(privateKey);
+
+  globalThis.fetch = async (input, init) => {
+    if (!String(input).endsWith("/webhook_verification_key/get")) {
+      return originalFetch(input, init);
+    }
+
+    return Response.json({
+      key: {
+        ...jwk,
+        alg: "ES256",
+        created_at: Math.floor(Date.now() / 1000) - 60,
+        expired_at: null,
+        kid: keyId,
+        use: "sig",
+      },
+      request_id: "plaid-verification-request",
+    });
+  };
+
+  try {
+    await withCoreServer(async (baseUrl) => {
+      const { body, response } = await getJson(baseUrl, "/plaid/webhooks", {
+        body: rawBody,
+        headers: {
+          "content-type": "application/json",
+          "plaid-verification": token,
+        },
+        method: "POST",
+      });
+
+      assert.equal(response.status, 202);
+      assert.equal(body.accepted, true);
+      assert.equal(body.mode, "plaid_sync_queued");
+      assert.equal(body.service, "payshield-provider-webhook");
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("core rejects Plaid webhooks when the signed body hash does not match", async () => {
+  process.env.PLAID_CLIENT_ID = "plaid-client";
+  process.env.PLAID_SECRET = "plaid-secret";
+  const originalFetch = globalThis.fetch;
+  const keyId = `plaid-hash-test-${Date.now()}`;
+  const { privateKey, publicKey } = await generateKeyPair("ES256");
+  const jwk = await exportJWK(publicKey);
+  const rawBody = JSON.stringify({
+    environment: "sandbox",
+    item_id: "item_plaid_hash_mismatch",
+    webhook_code: "SYNC_UPDATES_AVAILABLE",
+    webhook_type: "TRANSACTIONS",
+  });
+  const token = await new SignJWT({
+    request_body_sha256: "0".repeat(64),
+  })
+    .setIssuedAt()
+    .setProtectedHeader({ alg: "ES256", kid: keyId, typ: "JWT" })
+    .sign(privateKey);
+
+  globalThis.fetch = async (input, init) => {
+    if (!String(input).endsWith("/webhook_verification_key/get")) {
+      return originalFetch(input, init);
+    }
+
+    return Response.json({
+      key: {
+        ...jwk,
+        alg: "ES256",
+        created_at: Math.floor(Date.now() / 1000) - 60,
+        expired_at: null,
+        kid: keyId,
+        use: "sig",
+      },
+    });
+  };
+
+  try {
+    await withCoreServer(async (baseUrl) => {
+      const { body, response } = await getJson(baseUrl, "/plaid/webhooks", {
+        body: rawBody,
+        headers: {
+          "content-type": "application/json",
+          "plaid-verification": token,
+        },
+        method: "POST",
+      });
+
+      assert.equal(response.status, 401);
+      assert.equal(body.accepted, false);
+      assert.equal(body.providerWebhookAuthenticity, "invalid_plaid_signature_claims");
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("core provider webhook posts income transactions into paycheck split flow", async () => {
+  process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "private-app-service-token";
+  process.env.PLAID_CLIENT_ID = "plaid-client";
+  process.env.PLAID_SECRET = "plaid-secret";
+  process.env.PLAID_WEBHOOK_URL = "https://core.payshield.test/plaid/webhooks";
   process.env.PAYSHIELD_PROVIDER_WEBHOOK_SECRET = "provider-webhook-secret";
   process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
   process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL = "http://127.0.0.1/vault";
@@ -2997,10 +3245,13 @@ test("core service token protects internal operation routes when configured", as
   await withCoreServer(async (baseUrl) => {
     const blocked = await getJson(baseUrl, "/api/app/balances");
     const blockedOperations = await getJson(baseUrl, "/api/app/operations");
+    const blockedReadiness = await getJson(baseUrl, "/ready");
 
     assert.equal(blocked.response.status, 401);
     assert.equal(blocked.body.error, "Unauthorized");
     assert.equal(blockedOperations.response.status, 401);
+    assert.equal(blockedReadiness.response.status, 401);
+    assert.equal(blockedReadiness.body.error, "Unauthorized");
 
     const authorized = await getJson(baseUrl, "/api/app/balances", {
       headers: {
@@ -3012,11 +3263,23 @@ test("core service token protects internal operation routes when configured", as
         authorization: "Bearer core-test-token",
       },
     });
+    const authorizedReadiness = await getJson(baseUrl, "/ready", {
+      headers: {
+        authorization: "Bearer core-test-token",
+      },
+    });
 
     assert.equal(authorized.response.status, 200);
     assert.equal(authorized.body.safeToSpendCents, 145_000);
     assert.equal(authorizedOperations.response.status, 200);
     assert.equal(authorizedOperations.body.service, "payshield-household-operations");
+    assert.equal(authorizedReadiness.response.status, 503);
+    assert.equal(authorizedReadiness.body.service, "payshield-core");
+    assert.equal(
+      (authorizedReadiness.body.readiness as Record<string, unknown>)
+        .liveMoneyReady,
+      false,
+    );
   });
 });
 

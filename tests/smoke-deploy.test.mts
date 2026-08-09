@@ -1,12 +1,9 @@
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { promisify } from "node:util";
+import { createServer, type ServerResponse } from "node:http";
 import { test } from "node:test";
+import { normalizeUrl, runDeploySmoke } from "../scripts/smoke-deploy.mjs";
 
-const execFileAsync = promisify(execFile);
-
-const securityHeaders = {
+const headers = {
   "permissions-policy": "camera=(), microphone=(), geolocation=(), payment=()",
   "referrer-policy": "strict-origin-when-cross-origin",
   "strict-transport-security": "max-age=31536000",
@@ -14,278 +11,59 @@ const securityHeaders = {
   "x-frame-options": "DENY",
 };
 
-function html(siteUrl: string) {
-  return [
-    "<html><head>",
-    `<link rel="canonical" href="${siteUrl}/">`,
-    `<meta property="og:image" content="${siteUrl}/images/payshield-social-card.jpg">`,
-    '<link rel="manifest" href="/manifest.webmanifest">',
-    '<link rel="icon" href="/icon.svg">',
-    "</head><body>",
-    "PayShield by Grayston | Paycheck Control App",
-    "/manifest.webmanifest",
-    "/icon.svg",
-    "payshield-social-card.jpg",
-    "Safe to Spend",
-    "Paycheck control software by Grayston Technologies.",
-    "Bucket control studio",
-    "Bill routing",
-    "Provider readiness",
-    "support@graystontechnologies.com",
-    "</body></html>",
-  ].join("");
-}
-
-function appHtml() {
-  return [
-    "<html><head>",
-    '<meta name="robots" content="noindex,nofollow">',
-    "</head><body>",
-    "Household command center",
-    "Safe to Spend",
-    "Usable product map",
-    "Money path",
-    "Ledger journal",
-    "Money operations",
-    "Commercial access",
-    "Activate paid access",
-    "Bank connection",
-    "Paycheck detection",
-    "Protected transfers",
-    "Operations ledger",
-    "Export audit",
-    "Card authorization",
-    "Recovery unlock",
-    "Bucket control studio",
-    "Bill routing",
-    "</body></html>",
-  ].join("");
-}
-
 function send(
   response: ServerResponse,
   status: number,
   body: string,
-  headers: Record<string, string> = {},
+  contentType = "text/html",
 ) {
-  response.writeHead(status, {
-    ...securityHeaders,
-    "content-length": String(Buffer.byteLength(body)),
-    ...headers,
-  });
+  response.writeHead(status, { ...headers, "content-type": contentType });
   response.end(body);
 }
 
-async function readBody(request: IncomingMessage) {
-  const chunks: Buffer[] = [];
+async function target() {
+  const server = createServer((request, response) => {
+    const path = new URL(request.url || "/", "http://localhost").pathname;
 
-  for await (const chunk of request) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-
-  return Buffer.concat(chunks).toString("utf8");
-}
-
-async function startSmokeTarget() {
-  const server = createServer(async (request, response) => {
-    const siteUrl = `http://${request.headers.host}`;
-    const url = new URL(request.url ?? "/", siteUrl);
-
-    if (url.pathname === "/") {
-      send(response, 200, html(siteUrl), { "content-type": "text/html" });
-      return;
-    }
-
-    if (url.pathname === "/app") {
-      send(response, 200, appHtml(), { "content-type": "text/html" });
-      return;
-    }
-
-    if (url.pathname === "/privacy") {
-      send(
-        response,
-        200,
-        [
-          "Privacy Notice",
-          "PayShield is operated by Grayston Technologies.",
-          "utm_source",
-          "Vercel Web Analytics",
-          "does not send email addresses, names, bank details",
-          "free-text financial notes to analytics",
-          "support@graystontechnologies.com",
-        ].join("\n"),
-        { "content-type": "text/html" },
-      );
-      return;
-    }
-
-    if (url.pathname === "/terms") {
-      send(
-        response,
-        200,
-        [
-          "Terms",
-          "Provider-enabled services",
-          "Account opening, card controls, and money movement stay locked until approved provider credentials, disclosures, and operating controls are active.",
-        ].join("\n"),
-        { "content-type": "text/html" },
-      );
-      return;
-    }
-
-    if (url.pathname === "/robots.txt") {
-      send(response, 200, `User-Agent: *\nSitemap: ${siteUrl}/sitemap.xml`, {
-        "content-type": "text/plain",
-      });
-      return;
-    }
-
-    if (url.pathname === "/sitemap.xml") {
-      send(
-        response,
-        200,
-        `${siteUrl}\n${siteUrl}/privacy\n${siteUrl}/terms`,
-        { "content-type": "application/xml" },
-      );
-      return;
-    }
-
-    if (url.pathname === "/.well-known/security.txt") {
-      send(
-        response,
-        200,
-        [
-          "Contact: mailto:support@graystontechnologies.com",
-          "Policy: https://github.com/forstersolutions/PayShield/security/policy",
-          "Preferred-Languages: en",
-          `Canonical: ${siteUrl}/.well-known/security.txt`,
-          "Expires: 2027-06-05T00:00:00.000Z",
-        ].join("\n"),
-        { "content-type": "text/plain" },
-      );
-      return;
-    }
-
-    if (url.pathname === "/manifest.webmanifest") {
-      send(response, 200, '{"name":"PayShield","icons":[{"src":"/icon.svg"}]}', {
-        "content-type": "application/manifest+json",
-      });
-      return;
-    }
-
-    if (url.pathname === "/icon.svg") {
-      send(response, 200, "<svg></svg>", { "content-type": "image/svg+xml" });
-      return;
-    }
-
-    if (url.pathname === "/images/payshield-social-card.jpg") {
-      send(response, 200, "jpg", { "content-type": "image/jpeg" });
-      return;
-    }
-
-    if (url.pathname === "/api/health") {
-      send(
-        response,
-        200,
-        JSON.stringify({
-          ok: true,
-          service: "payshield-web-app",
-          waitlist: {
-            mode: "upstash",
-            paidTrafficReady: true,
-            storageConfigured: true,
-          },
-        }),
-        { "content-type": "application/json" },
-      );
-      return;
-    }
-
-    if (url.pathname === "/api/waitlist" && request.method === "POST") {
-      const payload = JSON.parse(await readBody(request)) as { consent?: boolean };
-
-      if (payload.consent !== true) {
-        send(
-          response,
-          400,
-          JSON.stringify({ error: "Accept the privacy and terms notice." }),
-          { "content-type": "application/json" },
-        );
-        return;
-      }
-
-      send(response, 200, JSON.stringify({ ok: true, mode: "upstash" }), {
-        "content-type": "application/json",
-      });
-      return;
-    }
-
-    if (url.pathname === "/api/app/bill-payments" && request.method === "POST") {
-      send(
-        response,
-        200,
-        JSON.stringify({
-          decision: {
-            accepted: true,
-            bucketId: "rent",
-            providerStatus: "blocked",
-          },
-        }),
-        { "content-type": "application/json" },
-      );
-      return;
-    }
-
-    send(
-      response,
-      404,
-      [
-        "Route unavailable",
-        "This screen is not in the PayShield control surface.",
-        "Open app",
-        "Product profile",
-        "Support",
-      ].join("\n"),
-      { "content-type": "text/html" },
-    );
+    if (path === "/") return send(response, 200, "PayShield Safe to Spend support@graystontechnologies.com");
+    if (path === "/privacy") return send(response, 200, "Privacy Grayston Technologies support@graystontechnologies.com");
+    if (path === "/terms") return send(response, 200, "Terms Grayston Technologies support@graystontechnologies.com");
+    if (path === "/api/health") return send(response, 200, JSON.stringify({ ok: true, service: "payshield-web-app", status: "healthy" }), "application/json");
+    if (path === "/api/public/billing/status") return send(response, 200, JSON.stringify({ available: true, membership: { priceLabel: "$19/month" }, service: "payshield-membership-status", status: "available" }), "application/json");
+    if (path === "/api/app/me") return send(response, 401, "{}", "application/json");
+    if (path === "/api/waitlist") return send(response, 404, "not found", "text/plain");
+    if (path === "/favicon.ico") return send(response, 200, "icon", "image/png");
+    if (path === "/icon.svg") return send(response, 200, "<svg/>", "image/svg+xml");
+    if (path === "/apple-icon.png") return send(response, 200, "png", "image/png");
+    if (path === "/images/payshield-social-card.jpg") return send(response, 200, "jpg", "image/jpeg");
+    if (path === "/manifest.webmanifest") return send(response, 200, "{}", "application/manifest+json");
+    if (path === "/.well-known/security.txt" || path === "/robots.txt") return send(response, 200, "PayShield", "text/plain");
+    if (path === "/sitemap.xml") return send(response, 200, "<xml/>", "application/xml");
+    return send(response, 404, "not found", "text/plain");
   });
 
-  await new Promise<void>((resolve) => {
-    server.listen(0, "127.0.0.1", resolve);
-  });
-
+  await new Promise<void>((resolve) =>
+    server.listen(0, "127.0.0.1", () => resolve()),
+  );
   const address = server.address();
-
-  assert(address && typeof address === "object");
-
-  return {
-    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
-    url: `http://127.0.0.1:${address.port}`,
-  };
+  if (!address || typeof address === "string") throw new Error("test server failed");
+  return { server, url: `http://127.0.0.1:${address.port}` };
 }
 
-test("post-deploy smoke accepts Upstash durable submit mode", async () => {
-  const target = await startSmokeTarget();
+test("normalizes deployment URLs and rejects credentials", () => {
+  assert.equal(normalizeUrl("https://example.com/path/").toString(), "https://example.com/path");
+  assert.throws(() => normalizeUrl("https://user:pass@example.com"), /without credentials/);
+});
+
+test("deployment smoke verifies the release surface without submitting data", async () => {
+  const fixture = await target();
 
   try {
-    const { stdout } = await execFileAsync(
-      process.execPath,
-      [
-        "scripts/smoke-deploy.mjs",
-        target.url,
-        "--expect-site-url",
-        target.url,
-        "--submit-test",
-        "--require-webhook",
-      ],
-      {
-        cwd: process.cwd(),
-      },
-    );
-
-    assert.match(stdout, /Deploy smoke checks passed/);
-    assert.match(stdout, /with submit test/);
+    const result = await runDeploySmoke({ targetUrl: fixture.url });
+    assert.equal(result.ok, true, result.failures.join("\n"));
+    assert.equal(result.failures.length, 0);
+    assert.equal(result.checks.includes("obsolete intake route is absent"), true);
   } finally {
-    await target.close();
+    fixture.server.close();
   }
 });

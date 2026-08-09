@@ -6,10 +6,16 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts
 
 COPY services/core ./services/core
+COPY scripts/core-migrations.mjs ./scripts/core-migrations.mjs
+
+RUN apk add --no-cache postgresql-client \
+  && chown -R node:node /app
 
 ENV NODE_ENV=production
 ENV PAYSHIELD_CORE_PORT=8080
 
 EXPOSE 8080
+
+USER node
 
 CMD ["node", "services/core/server.mjs"]

@@ -3,7 +3,7 @@ import { clerkAppConfigured } from "./app-access.ts";
 import { getCoreServiceConfig } from "./core-config.ts";
 import { getProviderAdapterConfig } from "./provider-adapter.ts";
 
-export const CORE_LEDGER_SCHEMA_VERSION = "0013";
+export const CORE_LEDGER_SCHEMA_VERSION = "0019";
 
 function envTrue(name: string) {
   return process.env[name]?.trim().toLowerCase() === "true";
@@ -88,7 +88,7 @@ export function getNeobankReadiness(): NeobankReadiness {
     clerkConfigured: gates.some((gate) => gate.id === "clerk_auth" && gate.ok),
     gates,
     liveMoneyReady,
-    mode: liveMoneyReady ? "live" : providerConfigured ? "sandbox" : "architecture",
+    mode: liveMoneyReady ? "live" : providerConfigured ? "sandbox" : "setup",
     postgresConfigured: envPresent("PAYSHIELD_LEDGER_DATABASE_URL"),
     postgresSchemaVerified: gates.some(
       (gate) => gate.id === "postgres_ledger" && gate.ok,

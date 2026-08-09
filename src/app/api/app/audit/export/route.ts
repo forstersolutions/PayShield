@@ -5,6 +5,7 @@ import {
   unauthorizedAppResponse,
 } from "../../../../lib/neobank/auth.ts";
 import { forwardCoreRequest } from "../../../../lib/neobank/core-client.ts";
+import { requireCoreForSession } from "../../../../lib/neobank/core-required.ts";
 import { createHouseholdAuditPacket } from "../../../../lib/neobank/operations.ts";
 
 const exportHeaders = {
@@ -15,6 +16,15 @@ const exportHeaders = {
 export async function GET() {
   try {
     const session = await getAppSession();
+    const coreRequired = requireCoreForSession(session, {
+      operation: "Account activity export",
+      service: "payshield-household-audit",
+    });
+
+    if (coreRequired) {
+      return coreRequired;
+    }
+
     const coreResponse = await forwardCoreRequest({
       method: "GET",
       path: "/api/app/audit/export",

@@ -1,13 +1,20 @@
 "use client";
 
 import {
-  CheckCircle2,
+  ArrowRight,
+  Check,
   CircleDollarSign,
+  Loader2,
   LockOpen,
   RotateCcw,
   ShieldAlert,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import {
+  completeActionAttempt,
+  idempotencyKeyForAction,
+} from "@/app/lib/client-action-idempotency";
+import type { ActionAttemptRef } from "@/app/lib/client-action-idempotency";
 import type {
   BucketBalance,
   BucketId,
@@ -17,293 +24,192 @@ import type {
 type UnlockResponse = {
   error?: string;
   message?: string;
-  mode?: string;
   result?: {
     recoveryChecks?: number;
     recoveryPerCheckCents?: number;
     unlockedCents?: number;
   };
 };
-
-type SaveState =
-  | { status: "idle"; message: string }
-  | { status: "creating"; message: string }
-  | { status: "created"; message: string }
-  | { status: "error"; message: string };
+type RequestState = {
+  message: string;
+  status: "idle" | "loading" | "ready" | "error";
+};
 
 function dollarsToCents(value: string) {
-  const parsed = Number(value);
-
-  if (!Number.isFinite(parsed)) {
-    return 0;
-  }
-
-  return Math.max(0, Math.round(parsed * 100));
+  const amount = Number(value);
+  return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : 0;
 }
 
-function formatMoney(cents: number) {
+function formatMoney(cents: number, digits = 0) {
   return new Intl.NumberFormat("en-US", {
     currency: "USD",
-    maximumFractionDigits: 0,
+    maximumFractionDigits: digits,
+    minimumFractionDigits: digits,
     style: "currency",
   }).format(cents / 100);
 }
 
-export function UnlockControlPanel({
-  buckets,
-}: {
-  buckets: BucketBalance[];
-}) {
+export function UnlockControlPanel({ buckets }: { buckets: BucketBalance[] }) {
   const protectedBuckets = useMemo(
     () => buckets.filter((bucket) => bucket.id !== "safe_spending"),
     [buckets],
   );
-  const [amount, setAmount] = useState("200");
   const [bucketId, setBucketId] = useState<BucketId | "">(
     protectedBuckets[0]?.id ?? "",
   );
+  const [amount, setAmount] = useState("");
   const [mode, setMode] = useState<UnlockMode>("slow_free");
-  const [reason, setReason] = useState("Emergency repair");
-  const [result, setResult] = useState<UnlockResponse | null>(null);
-  const [state, setState] = useState<SaveState>({
+  const [reason, setReason] = useState("");
+  const [response, setResponse] = useState<UnlockResponse | null>(null);
+  const [requestState, setRequestState] = useState<RequestState>({
     message: "",
     status: "idle",
   });
+  const unlockAttempt = useRef<ActionAttemptRef["current"]>(null);
   const selectedBucket = protectedBuckets.find((bucket) => bucket.id === bucketId);
   const amountCents = dollarsToCents(amount);
-  const canUnlock = Boolean(
-    selectedBucket && amountCents > 0 && amountCents <= selectedBucket.availableCents,
+  const remainingCents = Math.max(
+    0,
+    (selectedBucket?.availableCents ?? 0) - amountCents,
+  );
+  const recoveryChecks = mode === "instant_fixed_fee" ? 1 : 2;
+  const recoveryPerCheckCents = Math.ceil(amountCents / recoveryChecks);
+  const valid = Boolean(
+    selectedBucket &&
+      reason.trim() &&
+      amountCents > 0 &&
+      amountCents <= selectedBucket.availableCents,
   );
 
-  async function createUnlockPlan() {
-    setState({
-      message: "Creating recovery plan...",
-      status: "creating",
-    });
-    setResult(null);
+  async function unlockFunds() {
+    if (!valid || !selectedBucket) {
+      return;
+    }
+
+    setRequestState({ message: "Moving protected money...", status: "loading" });
+    setResponse(null);
+    const intent = {
+      amountCents,
+      bucketId: selectedBucket.id,
+      mode,
+      reason: reason.trim(),
+    };
+    const idempotencyKey = idempotencyKeyForAction(
+      unlockAttempt,
+      "unlock",
+      intent,
+    );
 
     try {
-      const response = await fetch("/api/app/unlocks", {
+      const result = await fetch("/api/app/unlocks", {
         body: JSON.stringify({
-          amountCents,
-          bucketId,
-          idempotencyKey: `ui-unlock-${crypto.randomUUID()}`,
-          mode,
-          reason,
+          ...intent,
+          idempotencyKey,
         }),
         headers: { "content-type": "application/json" },
         method: "POST",
       });
-      const payload = (await response.json().catch(() => ({}))) as
-        UnlockResponse;
+      const payload = (await result.json().catch(() => ({}))) as UnlockResponse;
+      setResponse(payload);
 
-      setResult(payload);
-
-      if (!response.ok || !payload.result) {
-        setState({
-          message: payload.error ?? "Unlock plan could not be created.",
+      if (!result.ok || !payload.result) {
+        setRequestState({
+          message: payload.error ?? "Protected money could not be moved.",
           status: "error",
         });
         return;
       }
 
-      setState({
-        message:
-          payload.message ??
-          `Recovery plan created for ${formatMoney(payload.result.unlockedCents ?? 0)}.`,
-        status: "created",
+      setRequestState({
+        message: payload.message ?? "Protected money moved to Safe to Spend.",
+        status: "ready",
       });
+      completeActionAttempt(unlockAttempt, idempotencyKey);
     } catch {
-      setState({
-        message: "Network error. Recovery plan was not created.",
+      setRequestState({
+        message: "Protected money could not be moved. Nothing was changed.",
         status: "error",
       });
     }
   }
 
   return (
-    <section
-      className="relative z-10 border-b border-white/10 bg-[#090b0d]"
-      id="unlock-controls"
-    >
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.86fr_1.14fr] lg:px-8">
-        <div className="accent-rule pt-5">
-          <p className="inline-flex items-center gap-2 rounded-[8px] border border-[#ffb237]/30 bg-[#ffb237]/10 px-3 py-2 text-sm font-black text-[#ffe4ad]">
-            <LockOpen className="size-4" aria-hidden="true" />
-            Recovery unlock
-          </p>
-          <h2 className="mt-4 text-3xl font-black leading-tight text-white sm:text-4xl">
-            Emergency access needs a recovery path.
-          </h2>
-          <p className="mt-4 text-lg leading-8 text-[#c9d0da]">
-            Protected money can be modeled for a controlled unlock with an
-            automatic per-check recovery plan, so shortfalls are visible before
-            the household commits.
-          </p>
-
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <div className="brand-panel-soft rounded-[8px] p-4">
-              <p className="brand-kicker">Selected bucket</p>
-              <p className="mt-2 text-2xl font-black text-white">
-                {selectedBucket?.name ?? "No bucket"}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-[#aab3c2]">
-                {selectedBucket
-                  ? `${formatMoney(selectedBucket.availableCents)} available`
-                  : "$0 available"}
-              </p>
-            </div>
-            <div
-              className={`rounded-[8px] border p-4 ${
-                canUnlock
-                  ? "border-[#39e8ff]/25 bg-[#39e8ff]/10"
-                  : "border-[#ff8a7a]/35 bg-[#ff8a7a]/10"
-              }`}
-            >
-              <p className="brand-kicker">Shortfall warning</p>
-              <p className="mt-2 text-lg font-black text-white">
-                {canUnlock ? "Plan can be created" : "Adjust amount"}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-[#aab3c2]">
-                Unlocks cannot exceed the selected protected bucket balance.
-              </p>
-            </div>
+    <section className="pay-unlock-tool" id="unlock-controls">
+      <div className="pay-unlock-form-pane">
+        <div className="pay-tool-heading">
+          <div>
+            <p className="pay-eyebrow">Emergency access</p>
+            <h2>Move protected money carefully</h2>
           </div>
+          <LockOpen className="size-5" />
         </div>
 
-        <div className="brand-panel rounded-[8px] p-4">
-          <div className="grid gap-4 md:grid-cols-[1fr_0.82fr]">
-            <div className="grid gap-3">
-              <label className="grid gap-2 text-sm font-black text-white">
-                Bucket
-                <select
-                  className="h-11 rounded-[8px] border border-white/10 bg-black/45 px-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
-                  onChange={(event) =>
-                    setBucketId(event.target.value as BucketId)
-                  }
-                  value={bucketId}
-                >
-                  {protectedBuckets.map((bucket) => (
-                    <option key={bucket.id} value={bucket.id}>
-                      {bucket.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="grid gap-2 text-sm font-black text-white">
-                  Amount
-                  <span className="relative">
-                    <CircleDollarSign
-                      className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#39e8ff]"
-                      aria-hidden="true"
-                    />
-                    <input
-                      className="h-11 w-full rounded-[8px] border border-white/10 bg-black/45 pl-10 pr-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
-                      inputMode="decimal"
-                      min="0"
-                      onChange={(event) => setAmount(event.target.value)}
-                      type="number"
-                      value={amount}
-                    />
-                  </span>
-                </label>
-                <label className="grid gap-2 text-sm font-black text-white">
-                  Mode
-                  <select
-                    className="h-11 rounded-[8px] border border-white/10 bg-black/45 px-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
-                    onChange={(event) => setMode(event.target.value as UnlockMode)}
-                    value={mode}
-                  >
-                    <option value="slow_free">Slow/free</option>
-                    <option value="instant_fixed_fee">Instant review</option>
-                  </select>
-                </label>
-              </div>
-
-              <label className="grid gap-2 text-sm font-black text-white">
-                Reason
-                <input
-                  className="h-11 rounded-[8px] border border-white/10 bg-black/45 px-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
-                  maxLength={120}
-                  onChange={(event) => setReason(event.target.value)}
-                  value={reason}
-                />
-              </label>
-
-              <button
-                className="brand-button-blue inline-flex h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={
-                  !canUnlock ||
-                  !reason.trim() ||
-                  state.status === "creating"
-                }
-                onClick={createUnlockPlan}
-                type="button"
-              >
-                <RotateCcw className="size-4" aria-hidden="true" />
-                Create recovery plan
-              </button>
-            </div>
-
-            <div className="grid content-start gap-3">
-              <div
-                className={`rounded-[8px] border p-4 ${
-                  state.status === "created"
-                    ? "border-[#39e8ff]/25 bg-[#39e8ff]/10"
-                    : state.status === "error"
-                      ? "border-[#ff8a7a]/35 bg-[#ff8a7a]/10"
-                      : "border-white/10 bg-black/40"
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  {state.status === "created" ? (
-                    <CheckCircle2
-                      className="mt-0.5 size-5 shrink-0 text-[#39e8ff]"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <ShieldAlert
-                      className="mt-0.5 size-5 shrink-0 text-[#ffcf72]"
-                      aria-hidden="true"
-                    />
-                  )}
-                  <div>
-                    <p className="text-sm font-black text-white">
-                      {state.status === "created"
-                        ? "Recovery plan ready"
-                        : "Unlock guardrail"}
-                    </p>
-                    <p
-                      aria-live={
-                        state.status === "error" ? "assertive" : "polite"
-                      }
-                      className="mt-1 text-sm leading-6 text-[#c9d0da]"
-                      role={state.status === "error" ? "alert" : "status"}
-                    >
-                      {state.message ||
-                        "Create a plan before protected money is released."}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {result?.result ? (
-                <div className="rounded-[8px] border border-white/10 bg-black/40 p-4">
-                  <p className="brand-kicker">Recovery schedule</p>
-                  <p className="mt-2 text-sm font-black text-white">
-                    {formatMoney(result.result.recoveryPerCheckCents ?? 0)} per
-                    check for {result.result.recoveryChecks ?? 0} checks
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-[#aab3c2]">
-                    Unlocked: {formatMoney(result.result.unlockedCents ?? 0)}
-                  </p>
-                </div>
-              ) : null}
-            </div>
-          </div>
+        <div className="pay-compact-form">
+          <label>
+            From bucket
+            <select onChange={(event) => setBucketId(event.target.value as BucketId)} value={bucketId}>
+              {protectedBuckets.map((bucket) => (
+                <option key={bucket.id} value={bucket.id}>{bucket.name} · {formatMoney(bucket.availableCents)} available</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Amount
+            <span className="pay-money-input"><CircleDollarSign className="size-4" /><input inputMode="decimal" min="1" onChange={(event) => setAmount(event.target.value)} type="number" value={amount} /></span>
+          </label>
+          <label>
+            Why do you need it?
+            <input maxLength={140} onChange={(event) => setReason(event.target.value)} placeholder="Emergency repair, medical expense..." value={reason} />
+          </label>
         </div>
+
+        <fieldset className="pay-recovery-choice">
+          <legend>Put it back over</legend>
+          <button data-selected={mode === "slow_free"} onClick={() => setMode("slow_free")} type="button">
+            <strong>2 paychecks</strong><small>{formatMoney(Math.ceil(amountCents / 2))} each</small>
+          </button>
+          <button data-selected={mode === "instant_fixed_fee"} onClick={() => setMode("instant_fixed_fee")} type="button">
+            <strong>Next paycheck</strong><small>{formatMoney(amountCents)} once</small>
+          </button>
+        </fieldset>
+      </div>
+
+      <div className="pay-unlock-review-pane">
+        <div className="pay-tool-heading">
+          <div>
+            <p className="pay-eyebrow">Before you move it</p>
+            <h2>Review the impact</h2>
+          </div>
+          <RotateCcw className="size-5" />
+        </div>
+
+        <div className="pay-unlock-amount">
+          <small>Moving to Safe to Spend</small>
+          <strong>{formatMoney(amountCents, 2)}</strong>
+        </div>
+        <dl className="pay-unlock-summary">
+          <div><dt>From</dt><dd>{selectedBucket?.name ?? "Choose bucket"}</dd></div>
+          <div><dt>Bucket left</dt><dd>{formatMoney(remainingCents, 2)}</dd></div>
+          <div><dt>Recovery</dt><dd>{formatMoney(recoveryPerCheckCents, 2)} × {recoveryChecks}</dd></div>
+        </dl>
+
+        <div className="pay-editor-note" data-warning={!valid}>
+          {valid ? <Check className="size-4" /> : <ShieldAlert className="size-4" />}
+          <span>{valid ? "The full amount is available and the recovery plan is clear." : "Choose an available amount and add a reason before continuing."}</span>
+        </div>
+
+        <button className="pay-primary-button" disabled={!valid || requestState.status === "loading"} onClick={() => void unlockFunds()} type="button">
+          {requestState.status === "loading" ? <Loader2 className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
+          Move to Safe to Spend
+        </button>
+
+        {requestState.message ? <p className="pay-inline-state" data-error={requestState.status === "error"} role={requestState.status === "error" ? "alert" : "status"}>{requestState.message}</p> : null}
+        {response?.result ? (
+          <div className="pay-unlock-success">
+            <Check className="size-4" />
+            <span><strong>{formatMoney(response.result.unlockedCents ?? 0)} available now</strong><small>{formatMoney(response.result.recoveryPerCheckCents ?? 0)} from each of the next {response.result.recoveryChecks ?? 0} paycheck{response.result.recoveryChecks === 1 ? "" : "s"}</small></span>
+          </div>
+        ) : null}
       </div>
     </section>
   );

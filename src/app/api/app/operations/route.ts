@@ -5,11 +5,21 @@ import {
   unauthorizedAppResponse,
 } from "../../../lib/neobank/auth.ts";
 import { forwardCoreRequest } from "../../../lib/neobank/core-client.ts";
+import { requireCoreForSession } from "../../../lib/neobank/core-required.ts";
 import { createHouseholdOperationsPacket } from "../../../lib/neobank/operations.ts";
 
 export async function GET() {
   try {
     const session = await getAppSession();
+    const coreRequired = requireCoreForSession(session, {
+      operation: "Account balances and activity",
+      service: "payshield-household-operations",
+    });
+
+    if (coreRequired) {
+      return coreRequired;
+    }
+
     const coreResponse = await forwardCoreRequest({
       method: "GET",
       path: "/api/app/operations",

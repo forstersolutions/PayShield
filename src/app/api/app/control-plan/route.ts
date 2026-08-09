@@ -5,6 +5,7 @@ import {
   unauthorizedAppResponse,
 } from "../../../lib/neobank/auth.ts";
 import { forwardCoreRequest } from "../../../lib/neobank/core-client.ts";
+import { requireCoreForSession } from "../../../lib/neobank/core-required.ts";
 import {
   createHouseholdMoneyControlPlan,
   normalizeMoneyControlPlanInput,
@@ -18,6 +19,15 @@ const noStoreHeaders = {
 export async function GET() {
   try {
     const session = await getAppSession();
+    const coreRequired = requireCoreForSession(session, {
+      operation: "Paycheck allocation",
+      service: "payshield-household-control-plan",
+    });
+
+    if (coreRequired) {
+      return coreRequired;
+    }
+
     const coreResponse = await forwardCoreRequest({
       method: "GET",
       path: "/api/app/control-plan",
@@ -28,7 +38,7 @@ export async function GET() {
       return coreResponse;
     }
 
-    return NextResponse.json(createHouseholdMoneyControlPlan(), {
+    return NextResponse.json(createHouseholdMoneyControlPlan({}, session), {
       headers: noStoreHeaders,
       status: 200,
     });
@@ -40,6 +50,15 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const session = await getAppSession();
+    const coreRequired = requireCoreForSession(session, {
+      operation: "Saving paycheck allocation",
+      service: "payshield-household-control-plan",
+    });
+
+    if (coreRequired) {
+      return coreRequired;
+    }
+
     const coreResponse = await forwardCoreRequest({
       method: "POST",
       path: "/api/app/control-plan",
@@ -75,10 +94,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(createHouseholdMoneyControlPlan(normalized.input), {
-      headers: noStoreHeaders,
-      status: 200,
-    });
+    return NextResponse.json(
+      createHouseholdMoneyControlPlan(normalized.input, session),
+      {
+        headers: noStoreHeaders,
+        status: 200,
+      },
+    );
   } catch (error) {
     return appSessionErrorResponse(error) ?? unauthorizedAppResponse();
   }

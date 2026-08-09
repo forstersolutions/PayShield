@@ -2,36 +2,41 @@
 
 import {
   CalendarDays,
-  CheckCircle2,
-  CircleDollarSign,
-  Landmark,
+  Check,
+  Clock3,
+  Loader2,
+  ReceiptText,
   Send,
   ShieldAlert,
+  X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import {
+  completeActionAttempt,
+  idempotencyKeyForAction,
+} from "@/app/lib/client-action-idempotency";
+import type { ActionAttemptRef } from "@/app/lib/client-action-idempotency";
 import type { BucketBalance, Payee } from "@/app/lib/neobank/types.ts";
 
-type SaveState =
-  | { status: "idle"; message: string }
-  | { status: "submitting"; message: string }
-  | { status: "scheduled"; message: string }
-  | { status: "error"; message: string };
+export type BillPaymentRecord = {
+  amountCents?: number;
+  bucketId?: string | null;
+  canceledAt?: string | null;
+  id?: string;
+  memo?: string | null;
+  payeeId?: string;
+  scheduledFor?: string;
+  status?: string;
+};
 
+type RequestState = {
+  message: string;
+  status: "idle" | "loading" | "ready" | "error";
+};
 type BillPaymentResponse = {
-  decision?: {
-    accepted?: boolean;
-    amountCents?: number;
-    bucketId?: string;
-    code?: string;
-    providerStatus?: string;
-    reason?: string;
-    scheduledFor?: string;
-  };
+  decision?: { reason?: string };
   error?: string;
   message?: string;
-  providerBillPayment?: {
-    status?: string;
-  };
 };
 
 function formatMoney(cents: number) {
@@ -42,263 +47,297 @@ function formatMoney(cents: number) {
   }).format(cents / 100);
 }
 
+function formatDate(value?: string) {
+  if (!value) {
+    return "Date unavailable";
+  }
+
+  const date = new Date(value.includes("T") ? value : `${value}T12:00:00`);
+
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat("en-US", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }).format(date);
+}
+
 function defaultScheduleDate() {
   const date = new Date();
-  date.setDate(date.getDate() + 14);
-
+  date.setDate(date.getDate() + 7);
   return date.toISOString().slice(0, 10);
 }
 
 function dollarsToCents(value: string) {
-  const parsed = Number(value);
+  const amount = Number(value);
 
-  if (!Number.isFinite(parsed)) {
-    return 0;
-  }
-
-  return Math.max(0, Math.round(parsed * 100));
+  return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : 0;
 }
 
 export function BillPaymentPanel({
+  billPayments = [],
   buckets,
+  onRefresh,
   payees,
 }: {
+  billPayments?: BillPaymentRecord[];
   buckets: BucketBalance[];
+  onRefresh?: () => Promise<void> | void;
   payees: Payee[];
 }) {
   const approvedPayees = useMemo(
     () => payees.filter((payee) => payee.status === "approved"),
     [payees],
   );
-  const [amount, setAmount] = useState("500");
-  const [memo, setMemo] = useState("July rent");
+  const upcomingPayments = useMemo(
+    () =>
+      billPayments
+        .filter((payment) =>
+          ["scheduled", "submitted", "blocked"].includes(payment.status ?? ""),
+        )
+        .sort((left, right) =>
+          String(left.scheduledFor).localeCompare(String(right.scheduledFor)),
+        ),
+    [billPayments],
+  );
+  const [amount, setAmount] = useState("");
+  const [memo, setMemo] = useState("");
   const [payeeId, setPayeeId] = useState(approvedPayees[0]?.id ?? "");
-  const [result, setResult] = useState<BillPaymentResponse | null>(null);
   const [scheduledFor, setScheduledFor] = useState(defaultScheduleDate);
-  const [saveState, setSaveState] = useState<SaveState>({
+  const [requestState, setRequestState] = useState<RequestState>({
     message: "",
     status: "idle",
   });
-  const selectedPayee = approvedPayees.find((payee) => payee.id === payeeId);
+  const [cancelState, setCancelState] = useState<RequestState>({
+    message: "",
+    status: "idle",
+  });
+  const [confirmCancelId, setConfirmCancelId] = useState("");
+  const scheduleAttempt = useRef<ActionAttemptRef["current"]>(null);
+  const cancelAttempt = useRef<ActionAttemptRef["current"]>(null);
+  const selectedPayee =
+    approvedPayees.find((payee) => payee.id === payeeId) ?? approvedPayees[0];
   const selectedBucket = buckets.find(
     (bucket) => bucket.id === selectedPayee?.allowedBucketId,
   );
   const amountCents = dollarsToCents(amount);
-  const fitsBucket = Boolean(
+  const fitsLimit = Boolean(
+    selectedPayee && amountCents > 0 && amountCents <= selectedPayee.maxCents,
+  );
+  const fitsBalance = Boolean(
     selectedBucket && amountCents > 0 && amountCents <= selectedBucket.availableCents,
   );
-  const fitsPayee = Boolean(
-    selectedPayee && amountCents > 0 && amountCents <= selectedPayee.maxCents,
+  const canSchedule = Boolean(
+    selectedPayee && scheduledFor && fitsLimit && fitsBalance,
   );
 
   async function schedulePayment() {
-    setSaveState({
-      message: "Scheduling bill payment...",
-      status: "submitting",
-    });
+    if (!canSchedule || !selectedPayee) {
+      return;
+    }
+
+    setRequestState({ message: "Scheduling payment...", status: "loading" });
+    const intent = {
+      amountCents,
+      memo: memo.trim() || undefined,
+      payeeId: selectedPayee.id,
+      scheduledFor,
+    };
+    const idempotencyKey = idempotencyKeyForAction(
+      scheduleAttempt,
+      "bill",
+      intent,
+    );
 
     try {
       const response = await fetch("/api/app/bill-payments", {
         body: JSON.stringify({
-          amountCents,
-          idempotencyKey: `ui-bill-${payeeId}-${amountCents}-${scheduledFor}`,
-          memo,
-          payeeId,
-          scheduledFor,
+          ...intent,
+          idempotencyKey,
         }),
         headers: { "content-type": "application/json" },
         method: "POST",
       });
       const payload = (await response.json().catch(() => ({}))) as BillPaymentResponse;
-      setResult(payload);
 
       if (!response.ok) {
-        setSaveState({
-          message: payload.error ?? payload.decision?.reason ?? "Bill not scheduled.",
+        setRequestState({
+          message:
+            payload.error ?? payload.decision?.reason ?? "Payment could not be scheduled.",
           status: "error",
         });
         return;
       }
 
-      setSaveState({
-        message: payload.message ?? "Bill payment scheduled.",
-        status: "scheduled",
+      setRequestState({
+        message: payload.message ?? "Payment scheduled.",
+        status: "ready",
       });
+      completeActionAttempt(scheduleAttempt, idempotencyKey);
+      setMemo("");
+      setAmount("");
+      await onRefresh?.();
     } catch {
-      setSaveState({
-        message: "Network error. Bill payment was not scheduled.",
+      setRequestState({
+        message: "Payment could not be scheduled. Nothing was changed.",
+        status: "error",
+      });
+    }
+  }
+
+  async function cancelPayment(payment: BillPaymentRecord) {
+    if (!payment.id) {
+      return;
+    }
+
+    setCancelState({ message: "Canceling payment...", status: "loading" });
+    const intent = {
+      reason: "Canceled from PayShield",
+      scheduleId: payment.id,
+    };
+    const idempotencyKey = idempotencyKeyForAction(
+      cancelAttempt,
+      "bill-cancel",
+      intent,
+    );
+
+    try {
+      const response = await fetch("/api/app/bill-payments/cancel", {
+        body: JSON.stringify({
+          ...intent,
+          idempotencyKey,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => ({}))) as BillPaymentResponse;
+
+      if (!response.ok) {
+        setCancelState({
+          message: payload.error ?? "Payment could not be canceled.",
+          status: "error",
+        });
+        return;
+      }
+
+      setConfirmCancelId("");
+      completeActionAttempt(cancelAttempt, idempotencyKey);
+      setCancelState({
+        message: payload.message ?? "Payment canceled.",
+        status: "ready",
+      });
+      await onRefresh?.();
+    } catch {
+      setCancelState({
+        message: "Payment could not be canceled. Nothing was changed.",
         status: "error",
       });
     }
   }
 
   return (
-    <section
-      className="relative z-10 border-b border-white/10 bg-[#090b0d]"
-      id="bill-routing"
-    >
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.85fr_1.15fr] lg:px-8">
-        <div className="accent-rule pt-5">
-          <p className="inline-flex items-center gap-2 rounded-[8px] border border-[#ffb237]/30 bg-[#ffb237]/10 px-3 py-2 text-sm font-black uppercase tracking-[0.14em] text-[#ffe4ad]">
-            <Landmark className="size-4" aria-hidden="true" />
-            Bill routing
-          </p>
-          <h2 className="mt-4 text-3xl font-black leading-tight text-white sm:text-4xl">
-            Approved bills draw from their protected bucket.
-          </h2>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <div className="brand-panel-soft rounded-[8px] p-4">
-              <p className="brand-kicker">Selected bucket</p>
-              <p className="mt-2 text-2xl font-black text-white">
-                {selectedBucket?.name ?? "No payee"}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-[#aab3c2]">
-                {selectedBucket ? formatMoney(selectedBucket.availableCents) : "$0"} available
-              </p>
+    <section className="pay-bill-tool" id="bill-routing">
+      <div className="pay-bill-form-pane">
+        <div className="pay-tool-heading">
+          <div>
+            <p className="pay-eyebrow">Schedule a bill</p>
+            <h2>Pay from the right bucket</h2>
+          </div>
+          <ReceiptText className="size-5" aria-hidden="true" />
+        </div>
+
+        {approvedPayees.length ? (
+          <div className="pay-compact-form">
+            <label>
+              Destination
+              <select onChange={(event) => setPayeeId(event.target.value)} value={selectedPayee?.id ?? ""}>
+                {approvedPayees.map((payee) => (
+                  <option key={payee.id} value={payee.id}>{payee.name}</option>
+                ))}
+              </select>
+            </label>
+            <div className="pay-form-pair">
+              <label>
+                Amount
+                <span className="pay-money-input"><span>$</span><input inputMode="decimal" min="1" onChange={(event) => setAmount(event.target.value)} type="number" value={amount} /></span>
+              </label>
+              <label>
+                Pay on
+                <span className="pay-date-input"><CalendarDays className="size-4" /><input min={new Date().toISOString().slice(0, 10)} onChange={(event) => setScheduledFor(event.target.value)} type="date" value={scheduledFor} /></span>
+              </label>
             </div>
-            <div className="brand-panel-soft rounded-[8px] p-4">
-              <p className="brand-kicker">Payee limit</p>
-              <p className="mt-2 text-2xl font-black text-white">
-                {selectedPayee ? formatMoney(selectedPayee.maxCents) : "$0"}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-[#aab3c2]">
-                {selectedPayee?.name ?? "No approved payee"}
-              </p>
-            </div>
+            <label>
+              Note <span className="pay-optional">optional</span>
+              <input maxLength={120} onChange={(event) => setMemo(event.target.value)} placeholder="June rent" value={memo} />
+            </label>
+          </div>
+        ) : (
+          <div className="pay-empty-inline">
+            <ShieldAlert className="size-5" />
+            <span><strong>No ready destinations</strong><small>Add a destination above and complete verification before scheduling.</small></span>
+          </div>
+        )}
+
+        <div className="pay-payment-check">
+          <span data-ready={fitsBalance && fitsLimit}>
+            {fitsBalance && fitsLimit ? <Check className="size-4" /> : <ShieldAlert className="size-4" />}
+          </span>
+          <div>
+            <strong>{selectedBucket?.name ?? "Choose a destination"}</strong>
+            <small>
+              {selectedBucket
+                ? `${formatMoney(selectedBucket.availableCents)} available · ${formatMoney(selectedPayee?.maxCents ?? 0)} payment limit`
+                : "The bill must fit its bucket balance and destination limit."}
+            </small>
           </div>
         </div>
 
-        <div className="brand-panel rounded-[8px] p-4">
-          <div className="grid gap-4 md:grid-cols-[1fr_0.85fr]">
-            <div className="grid gap-3">
-              <label className="grid gap-2 text-sm font-black text-white">
-                Payee
-                <select
-                  className="h-11 rounded-[8px] border border-white/10 bg-black/45 px-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
-                  onChange={(event) => setPayeeId(event.target.value)}
-                  value={payeeId}
-                >
-                  {approvedPayees.map((payee) => (
-                    <option key={payee.id} value={payee.id}>
-                      {payee.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+        <button className="pay-primary-button" disabled={!canSchedule || requestState.status === "loading"} onClick={() => void schedulePayment()} type="button">
+          {requestState.status === "loading" ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+          Schedule {amountCents > 0 ? formatMoney(amountCents) : "payment"}
+        </button>
+        {requestState.message ? <p className="pay-inline-state" data-error={requestState.status === "error"} role={requestState.status === "error" ? "alert" : "status"}>{requestState.message}</p> : null}
+      </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="grid gap-2 text-sm font-black text-white">
-                  Amount
-                  <span className="relative">
-                    <CircleDollarSign
-                      className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#39e8ff]"
-                      aria-hidden="true"
-                    />
-                    <input
-                      className="h-11 w-full rounded-[8px] border border-white/10 bg-black/45 pl-10 pr-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
-                      inputMode="decimal"
-                      min="0"
-                      onChange={(event) => setAmount(event.target.value)}
-                      type="number"
-                      value={amount}
-                    />
-                  </span>
-                </label>
-                <label className="grid gap-2 text-sm font-black text-white">
-                  Date
-                  <span className="relative">
-                    <CalendarDays
-                      className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#39e8ff]"
-                      aria-hidden="true"
-                    />
-                    <input
-                      className="h-11 w-full rounded-[8px] border border-white/10 bg-black/45 pl-10 pr-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
-                      onChange={(event) => setScheduledFor(event.target.value)}
-                      type="date"
-                      value={scheduledFor}
-                    />
-                  </span>
-                </label>
-              </div>
+      <div className="pay-upcoming-pane">
+        <div className="pay-tool-heading">
+          <div>
+            <p className="pay-eyebrow">Upcoming</p>
+            <h2>{upcomingPayments.length} scheduled</h2>
+          </div>
+          <Clock3 className="size-5" />
+        </div>
 
-              <label className="grid gap-2 text-sm font-black text-white">
-                Memo
-                <input
-                  className="h-11 rounded-[8px] border border-white/10 bg-black/45 px-3 text-sm font-bold text-white outline-none transition focus:border-[#39e8ff]"
-                  maxLength={120}
-                  onChange={(event) => setMemo(event.target.value)}
-                  value={memo}
-                />
-              </label>
+        <div className="pay-upcoming-list">
+          {upcomingPayments.length ? (
+            upcomingPayments.map((payment) => {
+              const payee = payees.find((item) => item.id === payment.payeeId);
+              const confirming = confirmCancelId === payment.id;
 
-              <button
-                className="brand-button-primary inline-flex h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={
-                  !payeeId ||
-                  !scheduledFor ||
-                  amountCents <= 0 ||
-                  saveState.status === "submitting"
-                }
-                onClick={schedulePayment}
-                type="button"
-              >
-                <Send className="size-4" aria-hidden="true" />
-                Schedule bill
-              </button>
-            </div>
-
-            <div className="grid content-start gap-3">
-              <div
-                className={`rounded-[8px] border p-4 ${
-                  fitsBucket && fitsPayee
-                    ? "border-[#39e8ff]/25 bg-[#39e8ff]/10"
-                    : "border-[#ffb237]/35 bg-[#ffb237]/10"
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  {fitsBucket && fitsPayee ? (
-                    <CheckCircle2
-                      className="mt-0.5 size-5 shrink-0 text-[#39e8ff]"
-                      aria-hidden="true"
-                    />
+              return (
+                <div className="pay-upcoming-row" key={payment.id ?? `${payment.payeeId}-${payment.scheduledFor}`}>
+                  <span className="pay-upcoming-date"><small>{formatDate(payment.scheduledFor)}</small><strong>{formatMoney(payment.amountCents ?? 0)}</strong></span>
+                  <span className="pay-upcoming-copy"><strong>{payee?.name ?? "Scheduled bill"}</strong><small>{payment.memo || buckets.find((bucket) => bucket.id === payment.bucketId)?.name || "Protected bucket"}</small></span>
+                  {confirming ? (
+                    <span className="pay-cancel-actions">
+                      <button disabled={cancelState.status === "loading"} onClick={() => void cancelPayment(payment)} type="button">Confirm</button>
+                      <button onClick={() => setConfirmCancelId("")} type="button">Keep</button>
+                    </span>
                   ) : (
-                    <ShieldAlert
-                      className="mt-0.5 size-5 shrink-0 text-[#ffcf72]"
-                      aria-hidden="true"
-                    />
+                    <button className="pay-icon-command danger" onClick={() => setConfirmCancelId(payment.id ?? "")} title="Cancel payment" type="button"><X className="size-4" /><span className="sr-only">Cancel payment</span></button>
                   )}
-                  <div>
-                    <p className="text-sm font-black text-white">
-                      {fitsBucket && fitsPayee ? "Ready to schedule" : "Needs adjustment"}
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-[#c9d0da]">
-                      {fitsBucket && fitsPayee
-                        ? `${formatMoney(amountCents)} fits ${selectedBucket?.name}.`
-                        : "Amount must fit the payee limit and bucket balance."}
-                    </p>
-                  </div>
                 </div>
-              </div>
-
-              {saveState.message ? (
-                <div
-                  className={`rounded-[8px] border p-4 ${
-                    saveState.status === "error"
-                      ? "border-[#ff6b35]/35 bg-[#ff6b35]/10 text-[#ffd2c2]"
-                      : "border-[#39e8ff]/25 bg-[#39e8ff]/10 text-[#dffaff]"
-                  }`}
-                >
-                  <p className="text-sm font-black">{saveState.message}</p>
-                  {result?.decision ? (
-                    <p className="mt-2 text-xs leading-5 text-[#c9d0da]">
-                      {result.decision.code} / {result.decision.providerStatus}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
+              );
+            })
+          ) : (
+            <div className="pay-empty-inline">
+              <CalendarDays className="size-5" />
+              <span><strong>No upcoming payments</strong><small>Scheduled bills will appear here.</small></span>
             </div>
-          </div>
+          )}
         </div>
+        {cancelState.message ? <p className="pay-inline-state" data-error={cancelState.status === "error"} role={cancelState.status === "error" ? "alert" : "status"}>{cancelState.message}</p> : null}
       </div>
     </section>
   );

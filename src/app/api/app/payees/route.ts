@@ -10,7 +10,10 @@ import {
   requiredCoreUnavailable,
 } from "../../../lib/neobank/core-required.ts";
 
-export async function POST(request: NextRequest) {
+async function forwardPayeeRequest(
+  request: NextRequest,
+  method: "DELETE" | "PATCH" | "POST",
+) {
   try {
     const session = await getAppSession();
     const coreRequired = requireDurableCoreService({
@@ -23,7 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     const coreResponse = await forwardCoreRequest({
-      method: "POST",
+      method,
       path: "/api/app/payees",
       request,
       session,
@@ -41,4 +44,16 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return appSessionErrorResponse(error) ?? unauthorizedAppResponse();
   }
+}
+
+export async function POST(request: NextRequest) {
+  return forwardPayeeRequest(request, "POST");
+}
+
+export async function PATCH(request: NextRequest) {
+  return forwardPayeeRequest(request, "PATCH");
+}
+
+export async function DELETE(request: NextRequest) {
+  return forwardPayeeRequest(request, "DELETE");
 }

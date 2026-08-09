@@ -3,16 +3,16 @@ import Link from "next/link";
 import { SiteFooter } from "@/app/components/site-footer";
 import {
   GRAYSTON_COMPANY_NAME,
-  REGULATED_PARTNER_DISCLOSURE,
+  GRAYSTON_SUPPORT_EMAIL,
+  PAYSHIELD_OWNERSHIP_LINE,
 } from "@/app/lib/brand";
 
 export const metadata: Metadata = {
   title: "Privacy Notice | PayShield",
-  description:
-    "How PayShield by Grayston Technologies handles product and support information.",
+  description: "How PayShield handles personal and financial information.",
 };
 
-const lastUpdated = "June 12, 2026";
+const lastUpdated = "August 8, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -26,9 +26,7 @@ export default function PrivacyPage() {
         </Link>
 
         <div className="brand-panel mt-8 rounded-[8px] p-6 sm:p-8">
-          <p className="brand-kicker">
-            PayShield by Grayston Technologies
-          </p>
+          <p className="brand-kicker">PayShield by Grayston Technologies</p>
           <h1 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
             Privacy Notice
           </h1>
@@ -38,14 +36,11 @@ export default function PrivacyPage() {
 
           <div className="mt-8 grid gap-8 text-base leading-7 text-[#c9d0da]">
             <section>
-              <h2 className="text-xl font-semibold text-white">
-                What this notice covers
-              </h2>
+              <h2 className="text-xl font-semibold text-white">Scope</h2>
               <p className="mt-3">
-                PayShield is operated by Grayston Technologies. This notice
-                covers the product website, household profile tools, support
-                requests, analytics, and private onboarding.{" "}
-                {REGULATED_PARTNER_DISCLOSURE}
+                {PAYSHIELD_OWNERSHIP_LINE} This notice covers the PayShield
+                website, account, membership, money controls, communications,
+                and support services.
               </p>
             </section>
 
@@ -54,15 +49,29 @@ export default function PrivacyPage() {
                 Information we collect
               </h2>
               <p className="mt-3">
-                Profile inputs such as paycheck amounts, bucket targets,
-                protection modes, due rules, purchase checks, and recovery
-                settings may be saved in browser local storage so the household
-                rules remain available on the same device. The website may also
-                process basic technical information such as IP address, browser
-                metadata, timestamps, performance data, and anti-abuse signals.
-                Campaign links may add allowlisted attribution fields such as
-                utm_source, utm_medium, utm_campaign, utm_content, utm_term, and
-                the landing path without query parameters.
+                We collect account information such as your name, email
+                address, authentication identifiers, household settings, and
+                support communications. Identity-verification providers may
+                collect information needed to verify eligibility and return
+                verification status and provider references to PayShield.
+              </p>
+              <p className="mt-3">
+                When you use money controls, we process linked-account
+                references, transaction activity, paycheck-recognition rules,
+                direct-deposit status, protected bucket settings, approved
+                destinations, bill instructions, transfers, card decisions,
+                unlock and recovery records, balances, and audit history. We
+                also process membership and billing status from our payment
+                provider. PayShield does not store full payment-card numbers,
+                online-banking passwords, or identity documents in the web
+                application.
+              </p>
+              <p className="mt-3">
+                We receive device, browser, IP address, request, performance,
+                security, and diagnostic data needed to operate and protect the
+                service. Product analytics exclude names, email addresses,
+                account and routing numbers, card numbers, government
+                identifiers, and free-text financial notes.
               </p>
             </section>
 
@@ -71,55 +80,89 @@ export default function PrivacyPage() {
                 How we use information
               </h2>
               <p className="mt-3">
-                We use technical and performance information to operate,
-                secure, debug, and improve the app. Vercel Web Analytics and
-                Speed Insights may process non-PII event, campaign, and
-                performance metadata so PayShield can measure page experience
-                and product usage patterns. Product and support requests route
-                to support@graystontechnologies.com.
-              </p>
-              <p className="mt-3">
-                PayShield does not send email addresses, names, bank details,
-                card details, Social Security numbers, or free-text financial
-                notes to analytics events. {GRAYSTON_COMPANY_NAME} applies the
-                same boundary to PayShield product analytics.
+                We use information to authenticate users, verify identity,
+                connect accounts, recognize deposits, maintain ledger balances,
+                enforce bucket and card rules, execute authorized instructions,
+                manage subscriptions, prevent fraud, reconcile provider events,
+                resolve disputes, provide support, meet legal obligations, and
+                improve reliability.
               </p>
             </section>
 
             <section>
               <h2 className="text-xl font-semibold text-white">
-                Sharing and storage
+                When information is shared
               </h2>
               <p className="mt-3">
-                Household profile inputs remain in your browser unless you
-                submit a product/support request, save through an authenticated
-                app workflow, export them, or share them. We do not sell
-                personal information. Do not enter bank account numbers, Social
-                Security numbers, card numbers, routing numbers, passwords, or
-                other sensitive financial credentials into free-text fields or
-                exported files.
+                We share information only as needed with service providers that
+                support authentication, payment processing, bank connectivity,
+                identity verification, account and card services, cloud
+                hosting, security, analytics, communications, and customer
+                support. We may also disclose information to comply with law,
+                protect users and the service, complete a business transaction,
+                or act on your direction. We do not sell personal information.
               </p>
             </section>
 
             <section>
               <h2 className="text-xl font-semibold text-white">
-                Your choices
+                Storage, retention, and security
               </h2>
               <p className="mt-3">
-                You can clear saved profile data by using your browser’s site
-                data controls for PayShield. Product and support questions can
-                be sent to support@graystontechnologies.com.
+                PayShield separates the public web application from the core
+                ledger and provider services. Sensitive provider credentials
+                are kept in server-side custody, data is encrypted in transit,
+                and money events are recorded with audit and reconciliation
+                controls. We retain records for as long as needed to provide
+                the service, meet financial and legal obligations, resolve
+                disputes, prevent abuse, and enforce agreements. No security
+                system can eliminate every risk.
               </p>
             </section>
 
             <section>
               <h2 className="text-xl font-semibold text-white">
-                Provider-enabled controls
+                Your choices and rights
               </h2>
               <p className="mt-3">
-                If provider-enabled account, card, or payment controls are
-                activated, additional privacy, compliance, consent, support, and
-                product notices will be shown before activation.
+                You may update account settings in PayShield, manage membership
+                billing through the billing portal, disconnect eligible linked
+                accounts, and request access, correction, or deletion where
+                applicable. Some financial, security, compliance, and dispute
+                records must be retained. To make a privacy request, email{" "}
+                <a
+                  className="text-[#39e8ff] hover:text-[#9bf4ff]"
+                  href={`mailto:${GRAYSTON_SUPPORT_EMAIL}`}
+                >
+                  {GRAYSTON_SUPPORT_EMAIL}
+                </a>
+                . We may verify your identity before completing a request.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-semibold text-white">
+                Children and updates
+              </h2>
+              <p className="mt-3">
+                PayShield is not intended for children under 18. We may update
+                this notice as the service or legal requirements change. We
+                will post the current version here and provide additional
+                notice when required.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-semibold text-white">Contact</h2>
+              <p className="mt-3">
+                Privacy questions may be sent to {GRAYSTON_COMPANY_NAME} at{" "}
+                <a
+                  className="text-[#39e8ff] hover:text-[#9bf4ff]"
+                  href={`mailto:${GRAYSTON_SUPPORT_EMAIL}`}
+                >
+                  {GRAYSTON_SUPPORT_EMAIL}
+                </a>
+                .
               </p>
             </section>
           </div>

@@ -7,6 +7,7 @@ import {
   unauthorizedAppResponse,
 } from "../../../../lib/neobank/auth.ts";
 import { forwardCoreRequest } from "../../../../lib/neobank/core-client.ts";
+import { requireDurableCoreService } from "../../../../lib/neobank/core-required.ts";
 import { createHouseholdOperationsPacket } from "../../../../lib/neobank/operations.ts";
 
 function cleanPath(value: unknown, fallback: string) {
@@ -82,6 +83,15 @@ export async function POST(request: NextRequest) {
 
     if (!payloadResult.ok) {
       return payloadResult.response;
+    }
+
+    const coreRequired = requireDurableCoreService({
+      operation: "Managing membership",
+      service: "payshield-billing-portal",
+    });
+
+    if (coreRequired) {
+      return coreRequired;
     }
 
     const payload = payloadResult.payload;

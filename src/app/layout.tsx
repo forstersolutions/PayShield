@@ -4,13 +4,13 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Geist, Geist_Mono } from "next/font/google";
 import {
   GRAYSTON_COMPANY_NAME,
-  REGULATED_PARTNER_DISCLOSURE,
 } from "@/app/lib/brand";
 import "./globals.css";
 
 const siteUrl =
-  process.env.NEXT_PUBLIC_SITE_URL || "https://payshield.vercel.app";
+  process.env.NEXT_PUBLIC_SITE_URL || "https://payshield-lime.vercel.app";
 const socialImageUrl = "/images/payshield-social-card.jpg";
+const vercelObservabilityEnabled = process.env.VERCEL === "1";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: "PayShield by Grayston | Paycheck Control App",
   description:
-    "PayShield by Grayston Technologies is paycheck control software built around Safe to Spend, customizable protected buckets, and provider-ready operating controls.",
+    "PayShield protects the money your household needs first, then gives you one honest Safe to Spend balance.",
   alternates: {
     canonical: "/",
   },
@@ -43,7 +43,8 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   openGraph: {
     title: `PayShield by ${GRAYSTON_COMPANY_NAME}`,
-    description: REGULATED_PARTNER_DISCLOSURE,
+    description:
+      "Spend what's free. Protect what's spoken for. PayShield gives every paycheck a plan.",
     images: [
       {
         url: socialImageUrl,
@@ -57,7 +58,8 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: `PayShield by ${GRAYSTON_COMPANY_NAME}`,
-    description: REGULATED_PARTNER_DISCLOSURE,
+    description:
+      "Spend what's free. Protect what's spoken for. PayShield gives every paycheck a plan.",
     images: [socialImageUrl],
   },
 };
@@ -70,12 +72,17 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      data-scroll-behavior="smooth"
       className={`${geistSans.variable} ${geistMono.variable} h-full`}
     >
       <body className="flex min-h-full flex-col antialiased">
         {children}
-        <Analytics />
-        <SpeedInsights />
+        {vercelObservabilityEnabled ? (
+          <>
+            <Analytics />
+            <SpeedInsights />
+          </>
+        ) : null}
       </body>
     </html>
   );

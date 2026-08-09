@@ -13,6 +13,9 @@
 # testing
 /coverage
 /.cache
+/playwright-report
+/test-results
+/blob-report
 
 # next.js
 /.next/
@@ -20,10 +23,7 @@
 
 # production
 /build
-/data/waitlist/
-/data/waitlist-backups/
 /launch-evidence/
-/receiver-evidence.json
 /counsel-signoff.json
 /analytics-evidence.json
 /market-go-no-go.json
@@ -41,7 +41,6 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
-!.env.receiver.example
 
 # vercel
 .vercel

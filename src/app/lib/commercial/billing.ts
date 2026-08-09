@@ -114,6 +114,16 @@ function formBody(input: Record<string, string>) {
   return params;
 }
 
+function stripeIdempotencyKey(value: string, userId: string) {
+  const cleaned = value
+    .trim()
+    .replace(/[^A-Za-z0-9:_-]/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 255);
+
+  return cleaned || `checkout-${userId}`.slice(0, 255);
+}
+
 export function getCommercialReadiness() {
   const webhook = getStripeWebhookReadiness();
   const core = getCoreServiceConfig();
@@ -256,9 +266,12 @@ export function requirePaidAccessForFallback(operation: string) {
 export async function createCommercialCheckoutSession(input: {
   cancelPath?: string;
   email?: string;
+  idempotencyKey: string;
   origin: string;
+  productReady?: boolean;
   requireAccessActivation?: boolean;
   requireCheckoutSession?: boolean;
+  requireProductReady?: boolean;
   successPath?: string;
   userId: string;
 }) {
@@ -313,6 +326,16 @@ export async function createCommercialCheckoutSession(input: {
     };
   }
 
+  if (input.requireProductReady && input.productReady !== true) {
+    return {
+      error: "Membership checkout is gated until PayShield account services are live.",
+      errorCode: "checkout_product_not_ready",
+      readiness,
+      status: 424,
+      url: "",
+    };
+  }
+
   if (
     readiness.paymentLinkUrl &&
     !(input.requireCheckoutSession && checkoutSessionConfigured)
@@ -354,6 +377,10 @@ export async function createCommercialCheckoutSession(input: {
     headers: {
       "authorization": `Bearer ${process.env.STRIPE_SECRET_KEY?.trim()}`,
       "content-type": "application/x-www-form-urlencoded",
+      "idempotency-key": stripeIdempotencyKey(
+        input.idempotencyKey,
+        input.userId,
+      ),
       "stripe-version": stripeApiVersion,
     },
     method: "POST",
@@ -366,7 +393,8 @@ export async function createCommercialCheckoutSession(input: {
 
   if (!response.ok || !payload.url) {
     return {
-      error: payload.error?.message || "Stripe Checkout session could not be created.",
+      error: "Membership checkout could not be started.",
+      errorCode: "checkout_provider_error",
       readiness,
       status: 502,
       url: "",

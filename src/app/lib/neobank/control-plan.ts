@@ -2,11 +2,20 @@ import { getCommercialReadiness } from "../commercial/billing.ts";
 import { friendlyGateLabel } from "../readiness-gates.ts";
 import { createNeobankSnapshot } from "./demo-state.ts";
 import { getMoneyRailReadiness } from "./money-rails.ts";
-import type { BucketBalance, BucketId, Payee } from "./types.ts";
+import type { AppSession } from "./auth.ts";
+import { householdForSession } from "./session-household.ts";
+import type {
+  BucketBalance,
+  BucketId,
+  BucketProtection,
+  Payee,
+} from "./types.ts";
 
 export type MoneyControlPlanInput = {
+  buckets: BucketBalance[];
   employerName: string;
   expectedFrequency: "weekly" | "biweekly" | "semimonthly" | "monthly" | "unknown";
+  payees: Payee[];
   paycheckAmountCents: number;
   preferredPayeeId: string | null;
   preferredTransferBucketId: BucketId | null;
@@ -33,6 +42,20 @@ const frequencyValues = new Set([
   "monthly",
   "unknown",
 ]);
+const controlPlanProtectionValues = new Set<BucketProtection>([
+  "bill_only",
+  "emergency",
+  "hard_lock",
+  "soft_lock",
+  "spendable",
+]);
+const controlPlanPayeeStatuses = new Set<Payee["status"]>([
+  "approved",
+  "modeled",
+  "provider_pending",
+]);
+const controlPlanBucketIdPattern =
+  /^(rent|vehicle|insurance|kids|vacation|emergency|safe_spending|custom_[a-z0-9_]{1,64})$/;
 
 function cleanText(value: unknown, maxLength: number) {
   return typeof value === "string"
@@ -52,6 +75,142 @@ function toCents(value: unknown, fallback: number, options = { max: 2_000_000, m
   }
 
   return amount;
+}
+
+function cleanBucketId(value: unknown): BucketId | null {
+  const id = cleanText(value, 80);
+
+  if (!controlPlanBucketIdPattern.test(id)) {
+    return null;
+  }
+
+  return id as BucketId;
+}
+
+function integerCents(value: unknown, fallback = 0) {
+  const amount = typeof value === "number" ? value : Number(value);
+
+  if (!Number.isInteger(amount)) {
+    return fallback;
+  }
+
+  return Math.max(0, Math.min(2_000_000, amount));
+}
+
+function normalizePlanBuckets(
+  value: unknown,
+  fallback: BucketBalance[],
+): BucketBalance[] {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const buckets = value
+    .map((item): BucketBalance | null => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+
+      const record = item as Record<string, unknown>;
+      const id = cleanBucketId(record.id);
+      const protection = cleanText(record.protection, 40) as BucketProtection;
+
+      if (!id || !controlPlanProtectionValues.has(protection)) {
+        return null;
+      }
+
+      const targetCents = integerCents(record.targetCents);
+      const availableCents = integerCents(record.availableCents, targetCents);
+      const fundedCents = integerCents(record.fundedCents, availableCents);
+
+      return {
+        availableCents,
+        due: cleanText(record.due, 48) || "Every check",
+        fundedCents,
+        id,
+        name: cleanText(record.name, 80) || "Protected bucket",
+        payeeId: cleanText(record.payeeId, 120) || undefined,
+        priority:
+          typeof record.priority === "number" && Number.isFinite(record.priority)
+            ? Math.max(1, Math.round(record.priority))
+            : 999,
+        protection,
+        shortCents: integerCents(
+          record.shortCents,
+          Math.max(0, targetCents - fundedCents),
+        ),
+        targetCents,
+      };
+    })
+    .filter((bucket): bucket is BucketBalance => Boolean(bucket))
+    .sort((left, right) => left.priority - right.priority);
+  const protectedCount = buckets.filter((bucket) => bucket.id !== "safe_spending")
+    .length;
+  const hasSafeSpend = buckets.some((bucket) => bucket.id === "safe_spending");
+
+  if (!protectedCount) {
+    return fallback;
+  }
+
+  if (hasSafeSpend) {
+    return buckets;
+  }
+
+  return [
+    ...buckets,
+    {
+      availableCents: 0,
+      due: "Remainder",
+      fundedCents: 0,
+      id: "safe_spending",
+      name: "Safe to Spend",
+      priority: 1000,
+      protection: "spendable",
+      shortCents: 0,
+      targetCents: 0,
+    },
+  ];
+}
+
+function normalizePlanPayees(
+  value: unknown,
+  fallback: Payee[],
+  buckets: BucketBalance[],
+): Payee[] {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const bucketIds = new Set(buckets.map((bucket) => bucket.id));
+  const payees = value
+    .map((item): Payee | null => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+
+      const record = item as Record<string, unknown>;
+      const allowedBucketId = cleanBucketId(record.allowedBucketId);
+      const status = cleanText(record.status, 40) as Payee["status"];
+
+      if (
+        !allowedBucketId ||
+        !bucketIds.has(allowedBucketId) ||
+        !controlPlanPayeeStatuses.has(status)
+      ) {
+        return null;
+      }
+
+      return {
+        allowedBucketId,
+        id: cleanText(record.id, 120) || `payee_${allowedBucketId}`,
+        maxCents: integerCents(record.maxCents, 0),
+        name: cleanText(record.name, 80) || "Approved payee",
+        status,
+      };
+    })
+    .filter((payee): payee is Payee => Boolean(payee));
+
+  return payees.length ? payees : fallback;
 }
 
 function uniqueFriendlyGates(gates: string[]) {
@@ -105,9 +264,11 @@ export function normalizeMoneyControlPlanInput(
     max: 500_000,
     min: 0,
   });
-  const preferredBucket = cleanText(record.preferredTransferBucketId, 80) as BucketId;
-  const bucketIds = new Set(buckets.map((bucket) => bucket.id));
-  const defaultBucket = defaultTransferBucket(buckets, payees);
+  const planBuckets = normalizePlanBuckets(record.buckets, buckets);
+  const planPayees = normalizePlanPayees(record.payees, payees, planBuckets);
+  const preferredBucket = cleanBucketId(record.preferredTransferBucketId);
+  const bucketIds = new Set(planBuckets.map((bucket) => bucket.id));
+  const defaultBucket = defaultTransferBucket(planBuckets, planPayees);
   const preferredTransferBucketId =
     preferredBucket && bucketIds.has(preferredBucket)
       ? preferredBucket
@@ -133,8 +294,10 @@ export function normalizeMoneyControlPlanInput(
   return {
     errors: [],
     input: {
+      buckets: planBuckets,
       employerName: cleanText(record.employerName, 80) || "Payroll deposit",
       expectedFrequency: normalizeFrequency(record.expectedFrequency),
+      payees: planPayees,
       paycheckAmountCents: paycheckAmountCents ?? 300_000,
       preferredPayeeId,
       preferredTransferBucketId,
@@ -172,7 +335,55 @@ function createBucketAllocationPlan(buckets: BucketBalance[], paycheckAmountCent
       0,
     ),
     projectedSafeToSpendCents: Math.max(0, remaining),
+    shortfallCents: protectedPlan.reduce(
+      (sum, bucket) => sum + bucket.shortCents,
+      0,
+    ),
   };
+}
+
+function createFundingSchedule(
+  allocation: ReturnType<typeof createBucketAllocationPlan>,
+) {
+  const protectedSchedule = allocation.buckets.map((bucket, index) => {
+    const status =
+      bucket.projectedFundingCents >= bucket.targetCents
+        ? "funded"
+        : bucket.projectedFundingCents > 0
+          ? "partial"
+          : "waiting";
+
+    return {
+      amountCents: bucket.projectedFundingCents,
+      bucketId: bucket.bucketId,
+      due: bucket.due,
+      key: `bucket:${bucket.bucketId}`,
+      label: bucket.name,
+      protection: bucket.protection,
+      sequence: index + 1,
+      shortCents: bucket.shortCents,
+      status,
+      targetCents: bucket.targetCents,
+      type: "protected_bucket",
+    };
+  });
+
+  return [
+    ...protectedSchedule,
+    {
+      amountCents: allocation.projectedSafeToSpendCents,
+      bucketId: "safe_spending",
+      due: "Remainder",
+      key: "safe_to_spend",
+      label: "Safe to Spend",
+      protection: "spendable",
+      sequence: protectedSchedule.length + 1,
+      shortCents: 0,
+      status: "safe_to_spend",
+      targetCents: 0,
+      type: "safe_to_spend",
+    },
+  ];
 }
 
 function createTransferPlan(input: {
@@ -224,10 +435,14 @@ function createTransferPlan(input: {
   };
 }
 
-export function createHouseholdMoneyControlPlan(payload: unknown = {}) {
+export function createHouseholdMoneyControlPlan(
+  payload: unknown = {},
+  session?: AppSession,
+) {
   const snapshot = createNeobankSnapshot();
   const commercial = getCommercialReadiness();
   const moneyRails = getMoneyRailReadiness();
+  const household = householdForSession(snapshot, session);
   const normalized = normalizeMoneyControlPlanInput(
     payload,
     snapshot.buckets,
@@ -242,10 +457,13 @@ export function createHouseholdMoneyControlPlan(payload: unknown = {}) {
   }
 
   const planInput = normalized.input;
+  const planBuckets = planInput.buckets;
+  const planPayees = planInput.payees;
   const allocation = createBucketAllocationPlan(
-    snapshot.buckets,
+    planBuckets,
     planInput.paycheckAmountCents,
   );
+  const fundingSchedule = createFundingSchedule(allocation);
   const liveMoneyGates = neobankMissing(snapshot);
   const bankLinkGates = moneyRails.missing.filter(
     (gate) => gate.includes("PLAID") || gate.includes("TOKEN_VAULT"),
@@ -267,9 +485,9 @@ export function createHouseholdMoneyControlPlan(payload: unknown = {}) {
     ...liveMoneyGates,
   ];
   const transferPlan = createTransferPlan({
-    buckets: snapshot.buckets,
+    buckets: planBuckets,
     moneyRails,
-    payees: snapshot.payees,
+    payees: planPayees,
     planInput,
   });
   const operatingSteps = [
@@ -323,7 +541,8 @@ export function createHouseholdMoneyControlPlan(payload: unknown = {}) {
       ownerAction:
         "Confirm bucket targets, priority order, due rules, approved payees, and unlock behavior.",
       ready: true,
-      status: "customizable_now",
+      status:
+        planBuckets === snapshot.buckets ? "customizable_now" : "workspace_profile",
       title: "Protected buckets",
       userAction: "Protect obligations before Safe to Spend is calculated.",
     },
@@ -382,6 +601,8 @@ export function createHouseholdMoneyControlPlan(payload: unknown = {}) {
       transactionNamePattern: planInput.employerName,
     },
     generatedAt: new Date().toISOString(),
+    fundingSchedule,
+    household,
     input: planInput,
     monetization: {
       endpoint: "POST /api/app/billing/checkout",
@@ -403,8 +624,15 @@ export function createHouseholdMoneyControlPlan(payload: unknown = {}) {
       planEndpoint: "/api/app/control-plan",
     },
     service: "payshield-household-control-plan",
+    source: {
+      bucketPersistence:
+        planBuckets === snapshot.buckets ? "memory" : "workspace_profile",
+      ledger: "control_model",
+      payeePersistence:
+        planPayees === snapshot.payees ? "memory" : "workspace_profile",
+    },
     summary: {
-      approvedPayeeCount: snapshot.payees.filter((payee) => payee.status === "approved").length,
+      approvedPayeeCount: planPayees.filter((payee) => payee.status === "approved").length,
       bucketCount: allocation.buckets.length,
       nextActionKey: nextAction.key,
       paycheckAmountCents: planInput.paycheckAmountCents,
@@ -415,6 +643,7 @@ export function createHouseholdMoneyControlPlan(payload: unknown = {}) {
         0,
       ),
       readyStepCount: operatingSteps.filter((step) => step.canRunNow).length,
+      shortfallCents: allocation.shortfallCents,
       totalStepCount: operatingSteps.length,
     },
     transferPlan,

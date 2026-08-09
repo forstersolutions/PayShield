@@ -1,24 +1,25 @@
 import type { Metadata } from "next";
 import { HouseholdCommandCenter } from "@/app/components/household-command-center";
-import { SiteFooter } from "@/app/components/site-footer";
+import { getAppSession } from "@/app/lib/neobank/auth.ts";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "PayShield App | Household Command Center",
+  title: "PayShield | Your Money",
   description:
-    "PayShield household command center for safe-spend visibility, protected buckets, bill routing, ledger evidence, and activation gates.",
+    "See what is safe to spend, protect household obligations, route bills, and manage every paycheck in one place.",
   robots: {
     follow: false,
     index: false,
   },
 };
 
-export default function AppPage() {
+export default async function AppPage() {
+  const session = await getAppSession();
+
   return (
-    <main className="bg-[#050607] text-[#f7f8fb]">
-      <HouseholdCommandCenter />
-      <SiteFooter />
+    <main>
+      <HouseholdCommandCenter session={session} />
     </main>
   );
 }

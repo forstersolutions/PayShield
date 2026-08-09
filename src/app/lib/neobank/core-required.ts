@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server.js";
+import type { AppSession } from "./auth.ts";
 import { getCoreServiceConfig } from "./core-config.ts";
 
 const noStoreHeaders = {
@@ -53,4 +54,13 @@ export function requireDurableCoreService(input: {
   }
 
   return null;
+}
+
+export function requireCoreForSession(
+  session: AppSession,
+  input: { operation: string; service: string },
+) {
+  return session.authMode === "demo"
+    ? null
+    : requireDurableCoreService(input);
 }

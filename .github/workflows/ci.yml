@@ -12,8 +12,22 @@ concurrency:
 
 jobs:
   validate:
-    name: Validate Next.js app
+    name: Validate release application
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: payshield_test
+          POSTGRES_PASSWORD: payshield_test
+          POSTGRES_USER: payshield_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U payshield_test -d payshield_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Check out repository
@@ -28,14 +42,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify market site
+      - name: Install release browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify release application
         run: npm run verify
+
+      - name: Verify migrations and ledger against PostgreSQL
+        env:
+          PAYSHIELD_LEDGER_DATABASE_URL: postgresql://payshield_test:payshield_test@127.0.0.1:5432/payshield_test
+          PAYSHIELD_TEST_DATABASE_URL: postgresql://payshield_test:payshield_test@127.0.0.1:5432/payshield_test
+        run: |
+          npm run core:migrations:apply
+          npm run core:migrations:verify
+          node --experimental-strip-types --test tests/core-postgres-integration.test.mts
 
       - name: Smoke core service image
         run: npm run core:docker:smoke
 
-      - name: Smoke waitlist receiver image
-        run: npm run receiver:docker:smoke
-
-      - name: Validate waitlist receiver compose manifest
-        run: npm run receiver:compose:config
+      - name: Validate core compose manifest
+        run: npm run core:compose:config

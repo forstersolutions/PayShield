@@ -3,6 +3,7 @@ import { getCommercialReadiness } from "../commercial/billing.ts";
 import type { AppSession } from "./auth.ts";
 import { createNeobankSnapshot } from "./demo-state.ts";
 import { getMoneyRailReadiness } from "./money-rails.ts";
+import { householdForSession } from "./session-household.ts";
 import type { NeobankReadiness } from "./types.ts";
 
 function cleanMissing(values: string[] | undefined) {
@@ -155,7 +156,8 @@ function buildActivationSetupGroups(input: {
       checks: [
         `curl -fsS ${input.siteUrl}/api/health`,
         "npm run verify",
-        `npm run market:status -- ${input.siteUrl} --expect-site-url ${input.siteUrl}`,
+        `npm run smoke:deploy -- ${input.siteUrl}`,
+        `npm run production:routes -- ${input.siteUrl}`,
       ],
       endpoint: "POST /api/card/authorize",
       env: [
@@ -1337,7 +1339,7 @@ export function buildActivationRunway(input: {
       revenueImpact:
         "Creates support, compliance, and household trust evidence for retention.",
       setupAction:
-        "Deploy the always-on core, verify Postgres schema 0013, and require durable storage.",
+        "Deploy the always-on core, verify Postgres schema 0019, and require durable storage.",
       title: "Prove the ledger evidence",
     },
     {
@@ -1415,7 +1417,7 @@ export function buildActivationRunway(input: {
       "Configure Stripe and core access activation",
       "Turn on Clerk household identity",
       "Configure Plaid and token custody",
-      "Verify Postgres ledger schema 0013",
+      "Verify Postgres ledger schema 0019",
       "Connect BaaS/card provider adapter",
       "Record counsel, sponsor, and runbook approvals before live money",
     ],
@@ -1425,7 +1427,7 @@ export function buildActivationRunway(input: {
       healthEndpoint: "/api/health",
       operationsEndpoint: "/api/app/operations",
       productionStatusCommand:
-        "npm run market:status -- https://payshield-lime.vercel.app --expect-site-url https://payshield-lime.vercel.app",
+        "npm run smoke:deploy -- https://payshield-lime.vercel.app && npm run production:routes -- https://payshield-lime.vercel.app",
       requiredBeforeLiveMoney: cleanMissing([
         ...coreGateMissing,
         ...input.moneyRails.providerAdapterMissing,
@@ -1458,6 +1460,7 @@ export function createHouseholdOperationsPacket(session?: AppSession) {
   const snapshot = createNeobankSnapshot();
   const commercial = getCommercialReadiness();
   const moneyRails = getMoneyRailReadiness();
+  const household = householdForSession(snapshot, session);
   const safeToSpendCents =
     snapshot.buckets.find((bucket) => bucket.id === "safe_spending")
       ?.availableCents ?? 0;
@@ -1563,12 +1566,7 @@ export function createHouseholdOperationsPacket(session?: AppSession) {
     },
     directDeposit: snapshot.directDeposit,
     generatedAt: new Date().toISOString(),
-    household: {
-      householdId: snapshot.householdId,
-      kycStatus: snapshot.user.kycStatus,
-      profileAccess: snapshot.user.profileAccess,
-      userId: session?.userId ?? snapshot.user.id,
-    },
+    household,
     commercialAccess: {
       cancelAtPeriodEnd: false,
       currentPeriodEnd: null,
@@ -1708,8 +1706,8 @@ function activationPacketFromOperations(
       smokeCommands: [
         `curl -fsS ${siteUrl}/api/health`,
         `curl -fsS ${siteUrl}/api/launch/activation`,
-        "npm run vercel:env:audit -- --profile commercial",
-        `npm run market:status -- ${siteUrl} --expect-site-url ${siteUrl}`,
+        `npm run smoke:deploy -- ${siteUrl}`,
+        `npm run production:routes -- ${siteUrl}`,
         'PAYSHIELD_LEDGER_DATABASE_URL="<postgres-url>" npm run core:migrations:verify',
       ],
     },

@@ -1,8 +1,7 @@
 "use client";
 
-import { ArrowRight, BadgeDollarSign, Loader2, ShieldCheck } from "lucide-react";
-import { FormEvent, useState } from "react";
-import { friendlyGateLabel } from "@/app/lib/readiness-gates.ts";
+import { ArrowRight, Loader2, ShieldCheck } from "lucide-react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 type CheckoutState =
   | { detail?: string; message: string; status: "idle" }
@@ -20,26 +19,91 @@ type PublicCheckoutResponse = {
   url?: string;
 };
 
+type MembershipStatusResponse = {
+  available?: boolean;
+  membership?: { priceLabel?: string };
+};
+
 function blockerDetail(payload: PublicCheckoutResponse) {
   const missing = payload.readiness?.missing ?? [];
 
   if (missing.length) {
-    return `Needs ${missing.map(friendlyGateLabel).join(", ")}.`;
+    return "Please try again shortly. You have not been charged.";
+  }
+
+  if (
+    payload.error &&
+    /STRIPE|PAYSHIELD_|CORE_|not configured/i.test(payload.error)
+  ) {
+    return "Please try again shortly. You have not been charged.";
   }
 
   return payload.error;
 }
 
-export function PublicCheckoutForm() {
+function checkoutErrorMessage(payload: PublicCheckoutResponse) {
+  return blockerDetail(payload)
+    ? "Membership signup is temporarily unavailable."
+    : "Membership signup could not be started.";
+}
+
+export function PublicCheckoutForm({
+  priceLabel = "$19/month",
+}: {
+  priceLabel?: string;
+}) {
   const [state, setState] = useState<CheckoutState>({
-    message: "Enter a household email to start protected access.",
+    message: "Secure monthly membership. Cancel anytime.",
     status: "idle",
   });
+  const [availability, setAvailability] = useState<
+    "checking" | "available" | "unavailable"
+  >("checking");
+  const checkoutAttempt = useRef<{ email: string; idempotencyKey: string } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetch("/api/public/billing/status", {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => ({}))) as MembershipStatusResponse;
+        setAvailability(response.ok && payload.available ? "available" : "unavailable");
+      })
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setAvailability("unavailable");
+        }
+      });
+
+    return () => controller.abort();
+  }, []);
 
   async function startCheckout(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (availability !== "available") {
+      setState({
+        message: "Membership signup is temporarily unavailable.",
+        status: "error",
+      });
+      return;
+    }
+
     const form = event.currentTarget;
     const formData = new FormData(form);
+    const email = String(formData.get("email") ?? "").trim().toLowerCase();
+
+    if (!checkoutAttempt.current || checkoutAttempt.current.email !== email) {
+      checkoutAttempt.current = {
+        email,
+        idempotencyKey: `public-checkout-${crypto.randomUUID()}`,
+      };
+    }
 
     setState({
       message: "Preparing secure checkout...",
@@ -49,7 +113,8 @@ export function PublicCheckoutForm() {
     try {
       const response = await fetch("/api/public/billing/checkout", {
         body: JSON.stringify({
-          email: formData.get("email"),
+          email,
+          idempotencyKey: checkoutAttempt.current.idempotencyKey,
           name: formData.get("name"),
         }),
         headers: {
@@ -62,7 +127,7 @@ export function PublicCheckoutForm() {
       if (!response.ok || !payload.url) {
         setState({
           detail: blockerDetail(payload),
-          message: payload.error ?? "Checkout is not ready yet.",
+          message: checkoutErrorMessage(payload),
           status: "error",
         });
         return;
@@ -70,7 +135,7 @@ export function PublicCheckoutForm() {
 
       setState({
         detail: payload.readiness?.priceLabel,
-        message: "Checkout ready. Redirecting to Stripe.",
+        message: "Opening secure checkout...",
         status: "ready",
       });
       window.location.assign(payload.url);
@@ -84,32 +149,24 @@ export function PublicCheckoutForm() {
 
   return (
     <form
-      className="brand-panel rounded-[8px] p-4 text-white"
+      className="public-checkout-card"
       onSubmit={startCheckout}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="brand-kicker">Paid household access</p>
-          <h3 className="mt-1 text-2xl font-black text-white">
-            Start with checkout.
-          </h3>
-        </div>
-        <span className="grid size-11 place-items-center rounded-[8px] border border-[#68f0c2]/25 bg-[#68f0c2]/10 text-[#68f0c2]">
-          <BadgeDollarSign className="size-5" aria-hidden="true" />
-        </span>
+      <div className="public-checkout-head">
+        <span><ShieldCheck className="size-5" aria-hidden="true" /></span>
+        <p>{priceLabel}</p>
       </div>
-
-      <p className="mt-3 text-sm leading-6 text-[#c9d0da]">
-        PayShield uses the household email to bind Stripe checkout, later app
-        sign-in, and the protected ledger to the same account.
+      <h3>Start your PayShield membership.</h3>
+      <p className="public-checkout-copy">
+        Use the same email when you sign in to keep billing and your household
+        protected under one account.
       </p>
 
-      <div className="mt-4 grid gap-3">
-        <label className="text-sm font-medium text-[#d9dde5]">
+      <div className="public-checkout-fields">
+        <label>
           Household email
           <input
             autoComplete="email"
-            className="mt-2 h-11 w-full rounded-[8px] border border-white/10 bg-black/40 px-3 text-white outline-none placeholder:text-[#687384] focus:border-[#68f0c2]"
             name="email"
             placeholder="you@example.com"
             required
@@ -117,11 +174,10 @@ export function PublicCheckoutForm() {
           />
         </label>
 
-        <label className="text-sm font-medium text-[#d9dde5]">
+        <label>
           Name
           <input
             autoComplete="name"
-            className="mt-2 h-11 w-full rounded-[8px] border border-white/10 bg-black/40 px-3 text-white outline-none placeholder:text-[#687384] focus:border-[#68f0c2]"
             name="name"
             placeholder="Optional"
             type="text"
@@ -129,33 +185,37 @@ export function PublicCheckoutForm() {
         </label>
 
         <button
-          className="brand-button-primary inline-flex min-h-11 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={state.status === "loading"}
+          disabled={state.status === "loading" || availability !== "available"}
           type="submit"
         >
-          {state.status === "loading" ? (
+          {state.status === "loading" || availability === "checking" ? (
             <Loader2 className="size-4 animate-spin" aria-hidden="true" />
           ) : (
             <ShieldCheck className="size-4" aria-hidden="true" />
           )}
-          Start protected access
+          {availability === "checking"
+            ? "Checking availability"
+            : availability === "unavailable"
+              ? "Membership unavailable"
+              : "Start membership"}
           <ArrowRight className="size-4" aria-hidden="true" />
         </button>
       </div>
 
-      {state.message ? (
+      {state.message || availability !== "available" ? (
         <div
-          className={`mt-4 rounded-[8px] border p-3 text-sm leading-6 ${
-            state.status === "error"
-              ? "border-[#ffb237]/30 bg-[#ffb237]/10 text-[#ffe4ad]"
-              : state.status === "ready"
-                ? "border-[#68f0c2]/25 bg-[#68f0c2]/10 text-[#cffff0]"
-                : "border-white/10 bg-black/35 text-[#aab3c2]"
-          }`}
+          className="public-checkout-status"
+          data-state={availability === "unavailable" ? "error" : state.status}
           role={state.status === "error" ? "alert" : "status"}
         >
-          <p className="font-black text-white">{state.message}</p>
-          {state.detail ? <p className="mt-1">{state.detail}</p> : null}
+          <p>
+            {availability === "checking"
+              ? "Checking membership availability..."
+              : availability === "unavailable" && state.status === "idle"
+                ? "Membership signup is temporarily unavailable."
+                : state.message}
+          </p>
+          {state.detail ? <small>{state.detail}</small> : null}
         </div>
       ) : null}
     </form>

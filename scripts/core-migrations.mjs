@@ -32,7 +32,7 @@ function usage() {
     "  --plan   Print redacted migration plan JSON (default)",
     "  --check  Validate migration ordering and safety only",
     "  --verify Verify applied migration checksums and required schema objects with psql",
-    "  --apply  Apply pending tracked migrations with psql using PAYSHIELD_LEDGER_DATABASE_URL",
+    "  --apply  Apply pending tracked migrations with psql using a URL or PG* fields",
     "  --json   Emit JSON output",
   ].join("\n");
 }
@@ -148,9 +148,28 @@ function redactDatabaseUrl(value, databaseUrl = process.env.PAYSHIELD_LEDGER_DAT
     redacted = redacted.split(databaseUrl).join("<postgres-url>");
   }
 
+  if (process.env.PGPASSWORD) {
+    redacted = redacted
+      .split(process.env.PGPASSWORD)
+      .join("<postgres-password>");
+  }
+
   return redacted.replace(
     /postgres(?:ql)?:\/\/[^\s"'<>]+/gi,
     "<postgres-url>",
+  );
+}
+
+function discreteDatabaseConfigured(env = process.env) {
+  return ["PGHOST", "PGDATABASE", "PGUSER", "PGPASSWORD"].every((name) =>
+    Boolean(env[name]?.trim()),
+  );
+}
+
+function migrationDatabaseConfigured(env = process.env) {
+  return (
+    Boolean(env.PAYSHIELD_LEDGER_DATABASE_URL?.trim()) ||
+    discreteDatabaseConfigured(env)
   );
 }
 
@@ -260,6 +279,7 @@ FROM (
     ('table:households', to_regclass('public.households') IS NOT NULL),
     ('table:app_users', to_regclass('public.app_users') IS NOT NULL),
     ('table:provider_customers', to_regclass('public.provider_customers') IS NOT NULL),
+    ('table:provider_kyc_applications', to_regclass('public.provider_kyc_applications') IS NOT NULL),
     ('table:ledger_accounts', to_regclass('public.ledger_accounts') IS NOT NULL),
     ('table:journal_entries', to_regclass('public.journal_entries') IS NOT NULL),
     ('table:journal_lines', to_regclass('public.journal_lines') IS NOT NULL),
@@ -282,7 +302,10 @@ FROM (
     ('table:provider_events', to_regclass('public.provider_events') IS NOT NULL),
     ('table:production_gate_evidence', to_regclass('public.production_gate_evidence') IS NOT NULL),
     ('table:reconciliation_exceptions', to_regclass('public.reconciliation_exceptions') IS NOT NULL),
+    ('table:plaid_sync_jobs', to_regclass('public.plaid_sync_jobs') IS NOT NULL),
     ('table:${migrationLedgerTable}', to_regclass('public.${migrationLedgerTable}') IS NOT NULL),
+    ('column:provider_kyc_applications.verification_url', EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'provider_kyc_applications' AND column_name = 'verification_url')),
+    ('column:provider_kyc_applications.expires_at', EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'provider_kyc_applications' AND column_name = 'expires_at')),
     ('function:assert_journal_entry_balanced_by_id', to_regprocedure('public.assert_journal_entry_balanced_by_id(text)') IS NOT NULL),
     ('function:assert_journal_line_household_scope', to_regprocedure('public.assert_journal_line_household_scope()') IS NOT NULL),
     ('trigger:journal_entries_balance_check', EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'journal_entries_balance_check' AND NOT tgisinternal)),
@@ -297,10 +320,14 @@ ORDER BY name;
 
 async function runPsql(databaseUrl, args) {
   try {
-    return await execFileAsync("psql", [databaseUrl, "--no-psqlrc", ...args], {
-      encoding: "utf8",
-      maxBuffer: 1024 * 1024,
-    });
+    return await execFileAsync(
+      "psql",
+      [...(databaseUrl ? [databaseUrl] : []), "--no-psqlrc", ...args],
+      {
+        encoding: "utf8",
+        maxBuffer: 1024 * 1024,
+      },
+    );
   } catch (error) {
     const stderr =
       error && typeof error === "object" && "stderr" in error
@@ -403,6 +430,7 @@ export async function buildMigrationPlan({ root = process.cwd() } = {}) {
   return {
     applyCommand:
       'PAYSHIELD_LEDGER_DATABASE_URL="<postgres-url>" npm run core:migrations:apply',
+    databaseConfigured: migrationDatabaseConfigured(),
     databaseUrlConfigured: Boolean(process.env.PAYSHIELD_LEDGER_DATABASE_URL),
     failures,
     latestVersion: latestVersion(migrations),
@@ -441,11 +469,13 @@ async function writeTrackedMigration(migration, root) {
 
 export async function verifyAppliedMigrations({ root = process.cwd() } = {}) {
   const plan = await buildMigrationPlan({ root });
-  const databaseUrl = process.env.PAYSHIELD_LEDGER_DATABASE_URL;
+  const databaseUrl = process.env.PAYSHIELD_LEDGER_DATABASE_URL || "";
 
-  if (!databaseUrl) {
+  if (!migrationDatabaseConfigured()) {
     return {
-      failures: ["PAYSHIELD_LEDGER_DATABASE_URL is required for --verify."],
+      failures: [
+        "A ledger database URL or complete PGHOST, PGDATABASE, PGUSER, and PGPASSWORD fields are required for --verify.",
+      ],
       latestVersion: plan.latestVersion,
       migrationLedgerTable,
       ok: false,
@@ -515,10 +545,12 @@ export async function applyMigrations({ root = process.cwd() } = {}) {
     throw new Error(`Migration plan is not safe: ${plan.failures.join("; ")}`);
   }
 
-  const databaseUrl = process.env.PAYSHIELD_LEDGER_DATABASE_URL;
+  const databaseUrl = process.env.PAYSHIELD_LEDGER_DATABASE_URL || "";
 
-  if (!databaseUrl) {
-    throw new Error("PAYSHIELD_LEDGER_DATABASE_URL is required for --apply.");
+  if (!migrationDatabaseConfigured()) {
+    throw new Error(
+      "A ledger database URL or complete PGHOST, PGDATABASE, PGUSER, and PGPASSWORD fields are required for --apply.",
+    );
   }
 
   await runPsqlCommand(databaseUrl, createMigrationLedgerSql());

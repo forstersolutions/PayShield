@@ -4,7 +4,7 @@ import { getCoreServiceConfig, joinCorePath } from "./core-config.ts";
 
 type ForwardCoreInput = {
   body?: unknown;
-  method: "GET" | "POST";
+  method: "DELETE" | "GET" | "PATCH" | "POST";
   path: string;
   request?: Request;
   session?: AppSession;
@@ -226,4 +226,21 @@ export async function forwardCoreRequest(input: ForwardCoreInput) {
       "Configured PayShield core service did not return a valid JSON response.",
     );
   }
+}
+
+export async function coreReportsLiveMoneyReady() {
+  const response = await forwardCoreRequest({
+    method: "GET",
+    path: "/ready",
+  });
+
+  if (!response) {
+    return false;
+  }
+
+  const payload = (await response.json().catch(() => ({}))) as {
+    readiness?: { liveMoneyReady?: boolean };
+  };
+
+  return response.ok && payload.readiness?.liveMoneyReady === true;
 }

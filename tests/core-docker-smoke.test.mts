@@ -53,6 +53,16 @@ test("summarizes Docker core smoke output without exposing service token", () =>
         status: 503,
       },
     },
+    ready: {
+      body: {
+        readiness: {
+          liveMoneyReady: false,
+        },
+      },
+      response: {
+        status: 503,
+      },
+    },
     unauthorizedBalances: {
       body: {
         error: "Unauthorized",
@@ -76,6 +86,8 @@ test("summarizes Docker core smoke output without exposing service token", () =>
   assert.equal(result.billPayment.accepted, false);
   assert.equal(result.billPayment.persistence, "postgres_required");
   assert.equal(result.onboarding.status, 503);
+  assert.equal(result.readiness.liveMoneyReady, false);
+  assert.equal(result.readiness.status, 503);
   assert.equal(serialized.includes("core-smoke-"), false);
   assert.equal(serialized.includes("PAYSHIELD_CORE_SERVICE_TOKEN"), false);
 });

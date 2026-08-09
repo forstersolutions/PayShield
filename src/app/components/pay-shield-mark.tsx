@@ -31,38 +31,28 @@ export function PayShieldLogo({
   priority = false,
 }: BrandImageProps) {
   return (
-    <Image
-      alt="PayShield"
-      className={`object-contain ${className}`}
-      height={306}
-      priority={priority}
-      src="/images/payshield-logo-clean.png"
-      width={855}
-    />
+    <span aria-label="PayShield" className={`payshield-logo-lockup ${className}`}>
+      <Image
+        alt=""
+        aria-hidden="true"
+        className="payshield-logo-lockup-mark"
+        height={512}
+        priority={priority}
+        src="/images/payshield-mark.png"
+        width={512}
+      />
+      <span aria-hidden="true" className="payshield-wordmark">
+        <span>Pay</span><span>Shield</span>
+      </span>
+    </span>
   );
 }
 
 export function PayShieldHeaderLogo({
-  className = "",
+  className = "h-10 w-auto sm:h-11",
   priority = false,
 }: BrandImageProps) {
-  return (
-    <span
-      className={`pay-header-logo ${className}`}
-      style={{
-        alignItems: "center",
-        display: "inline-flex",
-        gap: "0.55rem",
-        lineHeight: 1,
-      }}
-    >
-      <PayShieldMark className="size-8 sm:size-9" priority={priority} />
-      <span className="grid min-w-0 gap-0.5">
-        <span className="pay-header-logo-word">PayShield</span>
-        <span className="pay-header-logo-subline">by Grayston</span>
-      </span>
-    </span>
-  );
+  return <PayShieldLogo className={className} priority={priority} />;
 }
 
 export function GraystonMark({

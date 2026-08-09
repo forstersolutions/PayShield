@@ -11,10 +11,11 @@ import {
   Settings2,
   Trash2,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { BucketBalance, BucketProtection } from "@/app/lib/neobank/types.ts";
 
 type BucketControl = {
+  availableCents: number;
   due: string;
   id: string;
   name: string;
@@ -31,7 +32,11 @@ type SaveState =
   | { status: "saved"; message: string }
   | { status: "error"; message: string };
 
-type ProfilePersistence = "core_service_model" | "durable_core" | "stateless_model";
+type ProfilePersistence =
+  | "app_session_model"
+  | "core_service_model"
+  | "durable_core"
+  | "stateless_model";
 
 type BucketProfileResponse = {
   buckets?: BucketBalance[] | BucketControl[];
@@ -39,12 +44,9 @@ type BucketProfileResponse = {
   message?: string;
   persisted?: boolean;
   profilePersistence?: ProfilePersistence;
-  profileSource?: "app_template_model" | "core_control_model";
+  profileSource?: "app_session_model" | "app_template_model" | "core_control_model";
 };
 
-const draftStorageKey = "payshield.bucket-controls.draft.v3";
-const paycheckCents = 300_000;
-const coreBucketIds = new Set(["rent", "vehicle", "insurance", "safe_spending"]);
 const protectionOptions: Array<{
   label: string;
   value: BucketProtection;
@@ -73,22 +75,12 @@ function formatMoney(cents: number) {
   }).format(cents / 100);
 }
 
-function slugify(value: string) {
-  return (
-    value
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "")
-      .slice(0, 32) || "custom_bucket"
-  );
-}
-
 function controlsFromBuckets(buckets: BucketBalance[]): BucketControl[] {
   return buckets
     .filter((bucket) => bucket.id !== "safe_spending")
     .sort((a, b) => a.priority - b.priority)
     .map((bucket) => ({
+      availableCents: bucket.availableCents ?? 0,
       due: bucket.due,
       id: bucket.id,
       name: bucket.name,
@@ -96,87 +88,6 @@ function controlsFromBuckets(buckets: BucketBalance[]): BucketControl[] {
       protection: bucket.protection,
       targetCents: bucket.targetCents,
     }));
-}
-
-function readDraftControls(defaults: BucketControl[]) {
-  if (typeof window === "undefined") {
-    return {
-      controls: defaults,
-      found: false,
-    };
-  }
-
-  try {
-    const stored = window.localStorage.getItem(draftStorageKey);
-
-    if (!stored) {
-      return {
-        controls: defaults,
-        found: false,
-      };
-    }
-
-    const parsed = JSON.parse(stored);
-
-    if (!Array.isArray(parsed)) {
-      return {
-        controls: defaults,
-        found: false,
-      };
-    }
-
-    const storedControls = parsed
-      .map((item): BucketControl | null => {
-        if (!item || typeof item !== "object") {
-          return null;
-        }
-
-        const record = item as Record<string, unknown>;
-        const name = typeof record.name === "string" ? record.name.trim() : "";
-        const id =
-          typeof record.id === "string" && record.id.trim()
-            ? record.id.trim()
-            : `custom_${slugify(name)}`;
-        const due = typeof record.due === "string" ? record.due.trim() : "";
-        const protection = protectionOptions.some(
-          (option) => option.value === record.protection,
-        )
-          ? (record.protection as BucketProtection)
-          : "hard_lock";
-        const targetCents =
-          typeof record.targetCents === "number" && Number.isFinite(record.targetCents)
-            ? Math.max(0, Math.round(record.targetCents))
-            : 0;
-        const priority =
-          typeof record.priority === "number" && Number.isFinite(record.priority)
-            ? Math.max(1, Math.round(record.priority))
-            : 99;
-
-        if (!name) {
-          return null;
-        }
-
-        return {
-          due: due || "Every check",
-          id,
-          name,
-          priority,
-          protection,
-          targetCents,
-        };
-      })
-      .filter((item): item is BucketControl => Boolean(item));
-
-    return {
-      controls: storedControls.length ? storedControls : defaults,
-      found: storedControls.length > 0,
-    };
-  } catch {
-    return {
-      controls: defaults,
-      found: false,
-    };
-  }
 }
 
 function normalizePriorities(controls: BucketControl[]) {
@@ -188,16 +99,15 @@ function normalizePriorities(controls: BucketControl[]) {
 
 export function BucketControlPanel({
   buckets,
+  onSaved,
 }: {
   buckets: BucketBalance[];
+  onSaved?: () => Promise<void> | void;
 }) {
-  const defaults = useMemo(() => controlsFromBuckets(buckets), [buckets]);
+  const [defaults] = useState(() => controlsFromBuckets(buckets));
   const [controls, setControls] = useState<BucketControl[]>(defaults);
+  const [activeBucketId, setActiveBucketId] = useState(defaults[0]?.id ?? "");
   const [draftDirty, setDraftDirty] = useState(false);
-  const [profileSource, setProfileSource] =
-    useState<BucketProfileResponse["profileSource"]>("app_template_model");
-  const [profilePersistence, setProfilePersistence] =
-    useState<ProfilePersistence>("stateless_model");
   const [profilePersisted, setProfilePersisted] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>({
     message: "Loading household profile...",
@@ -220,41 +130,27 @@ export function BucketControlPanel({
         }
 
         if (!response.ok || !Array.isArray(result.buckets)) {
-          const draft = readDraftControls(defaults);
-
-          setControls(draft.controls);
           setSaveState({
             message:
               result.error ??
-              "Could not load the household profile. A device draft is open for recovery.",
+              "Your saved buckets could not be loaded. Try again before making changes.",
             status: "error",
           });
-          setDraftDirty(draft.found);
           return;
         }
 
         const loadedControls = controlsFromBuckets(result.buckets as BucketBalance[]);
-        const draft =
-          result.persisted === true
-            ? { controls: loadedControls, found: false }
-            : readDraftControls(loadedControls);
-
-        setControls(draft.controls);
-        setProfileSource(result.profileSource ?? "app_template_model");
-        setProfilePersistence(result.profilePersistence ?? "stateless_model");
+        setControls(loadedControls);
+        setActiveBucketId((current) =>
+          loadedControls.some((control) => control.id === current)
+            ? current
+            : loadedControls[0]?.id ?? "",
+        );
         setProfilePersisted(result.persisted === true);
-
-        if (result.persisted === true) {
-          setDraftDirty(false);
-          window.localStorage.removeItem(draftStorageKey);
-        } else {
-          setDraftDirty(draft.found);
-        }
+        setDraftDirty(false);
 
         setSaveState({
-          message: draft.found
-            ? "Recovered your device draft for bucket rules."
-            : result.message ?? "Household profile loaded for rule validation.",
+          message: "Your bucket rules are ready.",
           status: result.persisted === true ? "saved" : "drafted",
         });
       } catch {
@@ -262,15 +158,11 @@ export function BucketControlPanel({
           return;
         }
 
-        const draft = readDraftControls(defaults);
-
-        setControls(draft.controls);
         setSaveState({
           message:
-            "Network error while loading the household profile. A device draft is open for recovery.",
+            "Your saved buckets could not be loaded. Try again before making changes.",
           status: "error",
         });
-        setDraftDirty(draft.found);
       }
     }
 
@@ -281,26 +173,16 @@ export function BucketControlPanel({
     };
   }, [defaults]);
 
-  useEffect(() => {
-    if (!draftDirty) {
-      return;
-    }
-
-    window.localStorage.setItem(draftStorageKey, JSON.stringify(controls));
-  }, [controls, draftDirty]);
-
   const protectedCents = controls.reduce(
     (total, control) => total + control.targetCents,
     0,
   );
-  const safePreviewCents = Math.max(0, paycheckCents - protectedCents);
-  const overTargetCents = Math.max(0, protectedCents - paycheckCents);
-  const protectedPercent = Math.min(
-    100,
-    Math.round((protectedCents / paycheckCents) * 100),
-  );
-  const safePercent = Math.max(0, 100 - protectedPercent);
+  const activeRuleCount = controls.filter((control) => control.targetCents > 0).length;
   const nextProtected = controls.find((control) => control.targetCents > 0);
+  const activeControl = controls.find((control) => control.id === activeBucketId) ?? controls[0];
+  const activeIndex = activeControl
+    ? controls.findIndex((control) => control.id === activeControl.id)
+    : -1;
 
   function updateControl(id: string, patch: Partial<BucketControl>) {
     setControls((current) =>
@@ -336,6 +218,7 @@ export function BucketControlPanel({
       normalizePriorities([
         ...current,
         {
+          availableCents: 0,
           due: "Every check",
           id,
           name: "New protected bucket",
@@ -345,13 +228,20 @@ export function BucketControlPanel({
         },
       ]),
     );
+    setActiveBucketId(id);
     setDraftDirty(true);
     setSaveState({ message: "", status: "idle" });
   }
 
   function removeBucket(id: string) {
-    if (coreBucketIds.has(id)) {
+    const bucket = controls.find((control) => control.id === id);
+
+    if (controls.length <= 1 || (bucket?.availableCents ?? 0) > 0) {
       return;
+    }
+
+    if (activeBucketId === id) {
+      setActiveBucketId(controls.find((control) => control.id !== id)?.id ?? "");
     }
 
     setControls((current) =>
@@ -398,13 +288,10 @@ export function BucketControlPanel({
         : normalizePriorities(controls);
 
       setControls(savedControls);
-      setProfileSource(result.profileSource ?? profileSource);
-      setProfilePersistence(result.profilePersistence ?? profilePersistence);
       setProfilePersisted(result.persisted === true);
 
       if (result.persisted === true) {
         setDraftDirty(false);
-        window.localStorage.removeItem(draftStorageKey);
       } else {
         setDraftDirty(true);
       }
@@ -414,13 +301,17 @@ export function BucketControlPanel({
           result.message ??
           (result.persisted === true
             ? "Bucket rules saved."
-            : "Bucket rules validated and preserved as a device draft."),
+            : "Bucket changes remain open in this tab but were not saved."),
         status: result.persisted === true ? "saved" : "drafted",
       });
+
+      if (result.persisted === true) {
+        await onSaved?.();
+      }
     } catch {
       setSaveState({
         message:
-          "Network error. Your changes are preserved as a device draft; retry to sync them.",
+          "We could not save right now. Your changes remain open in this tab.",
         status: "error",
       });
       setDraftDirty(true);
@@ -428,262 +319,153 @@ export function BucketControlPanel({
   }
 
   return (
-    <section
-      className="relative z-10 border-y border-white/10 bg-[#050607]"
-      id="bucket-studio"
-    >
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[0.78fr_1.22fr] lg:px-8">
-        <div>
-          <p className="inline-flex items-center gap-2 rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 px-3 py-2 text-sm font-semibold uppercase tracking-[0.14em] text-[#dffaff]">
-            <Settings2 className="size-4" aria-hidden="true" />
-            Bucket control studio
-          </p>
-          <h2 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl">
-            Build the household rules before the money arrives.
-          </h2>
-          <p className="mt-4 text-lg leading-8 text-[#c9d0da]">
-            Every protected bucket has a name, funding target, due rule,
-            protection mode, and priority. The app validates those rules through
-            the control API and keeps device draft recovery active until durable
-            account sync is active.
-          </p>
+    <section className="money-control-panel" id="bucket-studio">
+      <div className="money-allocation-strip">
+        <div><small>Protected each paycheck</small><strong>{formatMoney(protectedCents)}</strong></div>
+        <div><small>Active rules</small><strong>{activeRuleCount}</strong></div>
+        <div><small>Funds first</small><strong>{nextProtected?.name ?? "Not set"}</strong></div>
+      </div>
 
-          <div className="mt-6 grid gap-3">
-            <div className="rounded-[8px] border border-white/10 bg-[#101214] p-4">
-              <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#ffb237]">
-                Current check
-              </p>
-              <p className="mt-2 text-3xl font-semibold text-white">
-                {formatMoney(paycheckCents)}
-              </p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[8px] border border-white/10 bg-[#101214] p-4">
-                <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#39e8ff]">
-                  Protected first
-                </p>
-                <p className="mt-2 text-2xl font-semibold text-white">
-                  {formatMoney(protectedCents)}
-                </p>
-              </div>
-              <div className="rounded-[8px] border border-white/10 bg-[#101214] p-4">
-                <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#1588ff]">
-                  Safe after rules
-                </p>
-                <p className="mt-2 text-2xl font-semibold text-white">
-                  {formatMoney(safePreviewCents)}
-                </p>
-              </div>
-            </div>
-            <div className="rounded-[8px] border border-white/10 bg-black/40 p-3">
-              <div className="flex items-center justify-between gap-3 text-xs font-black uppercase tracking-[0.12em] text-[#8f99aa]">
-                <span>Protected</span>
-                <span>Safe</span>
-              </div>
-              <div className="mt-3 flex h-3 overflow-hidden rounded-full bg-[#121821]">
-                <span
-                  className="bg-gradient-to-r from-[#ffb237] to-[#ff6b35]"
-                  style={{ width: `${protectedPercent}%` }}
-                />
-                <span
-                  className="bg-gradient-to-r from-[#1588ff] to-[#39e8ff]"
-                  style={{ width: `${safePercent}%` }}
-                />
-              </div>
-            </div>
+      <p className="money-inline-alert" data-tone={activeRuleCount ? "ready" : "warning"}>
+        <CheckCircle2 className="size-4" aria-hidden="true" />
+        {activeRuleCount
+          ? `${nextProtected?.name ?? "Protected buckets"} funds first. Safe to Spend gets whatever remains.`
+          : "Add an amount to at least one bucket before saving your protection rules."}
+      </p>
 
-            {overTargetCents ? (
-              <p className="rounded-[8px] border border-[#ffb237]/35 bg-[#ffb237]/10 p-3 text-sm leading-6 text-[#ffe2bd]">
-                This profile over-allocates the paycheck by{" "}
-                {formatMoney(overTargetCents)}. PayShield would fund in priority
-                order and leave lower-priority buckets short.
-              </p>
-            ) : (
-              <p className="rounded-[8px] border border-[#39e8ff]/25 bg-[#39e8ff]/10 p-3 text-sm leading-6 text-[#dffaff]">
-                {nextProtected?.name ?? "Protected buckets"} fund before
-                ordinary card spending. Safe to Spend is the remainder.
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="brand-panel rounded-[8px] p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="money-bucket-workspace">
+        <aside className="money-bucket-list">
+          <div className="money-panel-heading">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[#39e8ff]">
-                Household profile
-              </p>
-              <h3 className="mt-1 text-2xl font-semibold text-white">
-                Secure bucket rules
-              </h3>
-              <p className="mt-1 text-xs font-bold text-[#8f99aa]">
-                {profilePersisted
-                  ? "Durable account sync active"
-                  : profileSource === "core_control_model"
-                    ? "Core model validated"
-                    : "App model validated"}
-                {!profilePersisted
-                  ? profilePersistence === "core_service_model"
-                    ? " - account sync pending"
-                    : draftDirty
-                      ? " - device draft kept"
-                      : " - draft recovery ready"
-                  : ""}
-              </p>
+              <p className="pay-eyebrow">Funding order</p>
+              <h2>Your protection rules</h2>
             </div>
-            <button
-              className="brand-button-blue inline-flex h-10 items-center gap-2 rounded-[8px] px-3 text-sm font-black"
-              onClick={addBucket}
-              type="button"
-            >
-              <Plus className="size-4" aria-hidden="true" />
-              Add bucket
+            <button className="money-add-button" onClick={addBucket} type="button">
+              <Plus className="size-4" aria-hidden="true" /> Add bucket
             </button>
           </div>
 
-          <div className="mt-4 grid gap-3">
-            {controls.map((control, index) => (
-              <div
-                className="rounded-[8px] border border-white/10 bg-black/40 p-3 transition hover:border-[#39e8ff]/35"
-                key={control.id}
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-3">
-                    <span className="grid size-10 place-items-center rounded-[8px] border border-[#1588ff]/25 bg-[#1588ff]/12 text-[#39e8ff]">
-                      {control.protection === "bill_only" ? (
-                        <CircleDollarSign className="size-5" aria-hidden="true" />
-                      ) : (
-                        <LockKeyhole className="size-5" aria-hidden="true" />
-                      )}
-                    </span>
-                    <div>
-                      <p className="text-sm font-semibold text-white">
-                        Priority {index + 1}
-                      </p>
-                      <p className="text-xs leading-5 text-[#8f99aa]">
-                        {protectionOptions.find(
-                          (option) => option.value === control.protection,
-                        )?.label ?? "Protected"}{" "}
-                        until {control.due}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      aria-label={`Move ${control.name} earlier`}
-                      className="grid size-10 place-items-center rounded-[8px] border border-white/10 text-[#c9d0da] hover:bg-[#1588ff]/12"
-                      disabled={index === 0}
-                      onClick={() => moveControl(control.id, -1)}
-                      type="button"
-                    >
-                      <ChevronUp className="size-4" aria-hidden="true" />
-                    </button>
-                    <button
-                      aria-label={`Move ${control.name} later`}
-                      className="grid size-10 place-items-center rounded-[8px] border border-white/10 text-[#c9d0da] hover:bg-[#1588ff]/12"
-                      disabled={index === controls.length - 1}
-                      onClick={() => moveControl(control.id, 1)}
-                      type="button"
-                    >
-                      <ChevronDown className="size-4" aria-hidden="true" />
-                    </button>
-                    <button
-                      aria-label={`Remove ${control.name}`}
-                      className="grid size-10 place-items-center rounded-[8px] border border-white/10 text-[#ff8a7a] hover:bg-[#ff6b35]/10 disabled:cursor-not-allowed disabled:text-[#555d69]"
-                      disabled={coreBucketIds.has(control.id)}
-                      onClick={() => removeBucket(control.id)}
-                      type="button"
-                    >
-                      <Trash2 className="size-4" aria-hidden="true" />
-                    </button>
-                  </div>
-                </div>
+          <div className="money-priority-list" aria-label="Bucket priority list">
+            {controls.map((control, index) => {
+              const selected = activeControl?.id === control.id;
+              const protectionLabel = protectionOptions.find(
+                (option) => option.value === control.protection,
+              )?.label ?? "Protected";
 
-                <div className="mt-3 grid gap-3 md:grid-cols-[1.1fr_0.7fr_0.85fr_0.8fr]">
-                  <label className="text-xs font-semibold uppercase tracking-[0.1em] text-[#8f99aa]">
-                    Bucket name
-                    <input
-                      className="mt-2 h-10 w-full rounded-[8px] border border-white/10 bg-[#101214] px-3 text-sm normal-case tracking-normal text-white outline-none focus:border-[#39e8ff]"
-                      onChange={(event) =>
-                        updateControl(control.id, { name: event.target.value })
-                      }
-                      value={control.name}
-                    />
-                  </label>
-                  <label className="text-xs font-semibold uppercase tracking-[0.1em] text-[#8f99aa]">
-                    Target
-                    <input
-                      className="mt-2 h-10 w-full rounded-[8px] border border-white/10 bg-[#101214] px-3 text-sm normal-case tracking-normal text-white outline-none focus:border-[#39e8ff]"
-                      min={0}
-                      onChange={(event) =>
-                        updateControl(control.id, {
-                          targetCents: dollarsToCents(event.target.value),
-                        })
-                      }
-                      step={25}
-                      type="number"
-                      value={control.targetCents / 100}
-                    />
-                  </label>
-                  <label className="text-xs font-semibold uppercase tracking-[0.1em] text-[#8f99aa]">
-                    Protection
-                    <select
-                      className="mt-2 h-10 w-full rounded-[8px] border border-white/10 bg-[#101214] px-3 text-sm normal-case tracking-normal text-white outline-none focus:border-[#39e8ff]"
-                      onChange={(event) =>
-                        updateControl(control.id, {
-                          protection: event.target.value as BucketProtection,
-                        })
-                      }
-                      value={control.protection}
-                    >
-                      {protectionOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="text-xs font-semibold uppercase tracking-[0.1em] text-[#8f99aa]">
-                    Due rule
-                    <input
-                      className="mt-2 h-10 w-full rounded-[8px] border border-white/10 bg-[#101214] px-3 text-sm normal-case tracking-normal text-white outline-none focus:border-[#39e8ff]"
-                      onChange={(event) =>
-                        updateControl(control.id, { due: event.target.value })
-                      }
-                      value={control.due}
-                    />
-                  </label>
+              return (
+                <button
+                  aria-pressed={selected}
+                  className="money-priority-row"
+                  data-selected={selected}
+                  key={control.id}
+                  onClick={() => setActiveBucketId(control.id)}
+                  type="button"
+                >
+                  <span className="money-priority-number">{index + 1}</span>
+                  <span className="money-priority-icon">
+                    {control.protection === "bill_only" ? (
+                      <CircleDollarSign className="size-4" aria-hidden="true" />
+                    ) : (
+                      <LockKeyhole className="size-4" aria-hidden="true" />
+                    )}
+                  </span>
+                  <span className="money-priority-copy">
+                    <strong>{control.name}</strong>
+                    <small>{protectionLabel} - {control.due}</small>
+                  </span>
+                  <strong className="money-priority-amount">{formatMoney(control.targetCents)}</strong>
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+
+        <div className="money-bucket-editor">
+          {activeControl ? (
+            <>
+              <div className="money-panel-heading">
+                <div>
+                  <p className="pay-eyebrow">Editing bucket</p>
+                  <h2>{activeControl.name}</h2>
+                  <p>Changes update your funding order immediately.</p>
+                </div>
+                <div className="money-editor-actions">
+                  <button aria-label={`Move ${activeControl.name} earlier`} disabled={activeIndex <= 0} onClick={() => moveControl(activeControl.id, -1)} title="Move earlier" type="button">
+                    <ChevronUp className="size-4" aria-hidden="true" />
+                  </button>
+                  <button aria-label={`Move ${activeControl.name} later`} disabled={activeIndex === controls.length - 1} onClick={() => moveControl(activeControl.id, 1)} title="Move later" type="button">
+                    <ChevronDown className="size-4" aria-hidden="true" />
+                  </button>
+                  <button
+                    aria-label={`Remove ${activeControl.name}`}
+                    data-danger="true"
+                    disabled={
+                      controls.length <= 1 || activeControl.availableCents > 0
+                    }
+                    onClick={() => removeBucket(activeControl.id)}
+                    title={
+                      activeControl.availableCents > 0
+                        ? "Move this bucket's money before removing it"
+                        : controls.length <= 1
+                          ? "Keep at least one protected bucket"
+                          : "Remove bucket"
+                    }
+                    type="button"
+                  >
+                    <Trash2 className="size-4" aria-hidden="true" />
+                  </button>
                 </div>
               </div>
-            ))}
+
+              <div className="money-editor-form">
+                <label>
+                  Bucket name
+                  <input maxLength={60} onChange={(event) => updateControl(activeControl.id, { name: event.target.value })} value={activeControl.name} />
+                </label>
+                <label>
+                  Amount from each paycheck
+                  <span className="money-input-prefix"><CircleDollarSign className="size-4" /><input min={0} onChange={(event) => updateControl(activeControl.id, { targetCents: dollarsToCents(event.target.value) })} step={25} type="number" value={activeControl.targetCents / 100} /></span>
+                </label>
+                <label>
+                  Protection
+                  <select onChange={(event) => updateControl(activeControl.id, { protection: event.target.value as BucketProtection })} value={activeControl.protection}>
+                    {protectionOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </label>
+                <label>
+                  Due
+                  <input maxLength={40} onChange={(event) => updateControl(activeControl.id, { due: event.target.value })} value={activeControl.due} />
+                </label>
+              </div>
+
+              <div className="money-protection-help">
+                <Settings2 className="size-5" aria-hidden="true" />
+                <div>
+                  <strong>{protectionOptions.find((option) => option.value === activeControl.protection)?.label}</strong>
+                  <p>
+                    {activeControl.protection === "bill_only"
+                      ? "Only approved billers assigned to this bucket can use the money."
+                      : activeControl.protection === "emergency"
+                        ? "The money stays protected until you start an emergency unlock."
+                        : activeControl.protection === "soft_lock"
+                          ? "The money stays protected but can be released with a recovery plan."
+                          : "The money stays protected from everyday spending."}
+                  </p>
+                </div>
+              </div>
+            </>
+          ) : null}
+
+          <div className="money-save-row">
+            <span>{profilePersisted && !draftDirty ? "Saved to your account" : draftDirty ? "Unsaved changes" : "Ready"}</span>
+            <button disabled={saveState.status === "saving" || saveState.status === "loading"} onClick={saveProfile} type="button">
+              {saveState.status === "saved" ? <CheckCircle2 className="size-4" /> : <Save className="size-4" />}
+              Save changes
+            </button>
           </div>
 
-          <button
-            className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] bg-[#ffb237] px-4 text-sm font-black text-[#050607] hover:bg-[#ffd06f] disabled:cursor-not-allowed disabled:bg-[#252a31] disabled:text-[#8f99aa]"
-            disabled={
-              saveState.status === "saving" || saveState.status === "loading"
-            }
-            onClick={saveProfile}
-            type="button"
-          >
-            {saveState.status === "saved" ? (
-              <CheckCircle2 className="size-4" aria-hidden="true" />
-            ) : (
-              <Save className="size-4" aria-hidden="true" />
-            )}
-            Save bucket profile
-          </button>
-
           {saveState.message ? (
-            <p
-              aria-live={saveState.status === "error" ? "assertive" : "polite"}
-              className={`mt-3 rounded-[8px] border p-3 text-sm leading-6 ${
-                saveState.status === "error"
-                  ? "border-[#ff8a7a]/35 bg-[#ff8a7a]/10 text-[#ffd7d1]"
-                  : "border-[#39e8ff]/25 bg-[#39e8ff]/10 text-[#dffaff]"
-              }`}
-              role={saveState.status === "error" ? "alert" : "status"}
-            >
+            <p className="money-save-message" data-state={saveState.status} role={saveState.status === "error" ? "alert" : "status"}>
               {saveState.message}
             </p>
           ) : null}
