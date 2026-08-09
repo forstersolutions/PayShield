@@ -3096,11 +3096,13 @@ button.pay-empty-command {
 
 .public-hero {
   position: relative;
-  display: flex;
+  display: grid;
   width: min(100% - 2.5rem, 1360px);
   min-height: min(770px, calc(100svh - 112px));
   margin: 0 auto;
   align-items: center;
+  gap: clamp(1.5rem, 3vw, 3.5rem);
+  grid-template-columns: minmax(390px, 0.82fr) minmax(560px, 1.18fr);
   padding: 3rem 0 4.5rem;
 }
 
@@ -3116,7 +3118,7 @@ button.pay-empty-command {
 .public-hero-copy {
   position: relative;
   z-index: 3;
-  width: min(49%, 620px);
+  width: 100%;
   max-width: 620px;
 }
 
@@ -3226,14 +3228,13 @@ button.pay-empty-command {
 }
 
 .public-product-scene {
-  position: absolute;
-  top: 50%;
-  right: -4rem;
-  z-index: 1;
-  width: min(66%, 880px);
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  max-width: 850px;
   min-width: 0;
+  justify-self: end;
   perspective: 1200px;
-  transform: translateY(-50%);
 }
 
 .public-product-scene::before,
@@ -3991,6 +3992,8 @@ button.pay-empty-command {
 
 @media (max-width: 1040px) {
   .public-hero {
+    gap: 1rem;
+    grid-template-columns: minmax(330px, 0.78fr) minmax(0, 1.22fr);
     min-height: 720px;
   }
 
@@ -4003,8 +4006,7 @@ button.pay-empty-command {
   }
 
   .public-product-scene {
-    right: -7rem;
-    width: 68%;
+    width: 100%;
   }
 
   .public-scene-card-row {
@@ -4033,19 +4035,15 @@ button.pay-empty-command {
 
   .public-hero {
     width: 100%;
-    height: calc(100svh - 106px);
-    min-height: 600px;
-    max-height: 740px;
-    overflow: hidden;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2.75rem;
     align-items: flex-start;
-    padding: 3.5rem 1.25rem 2rem;
+    padding: 3.5rem 1.25rem 4rem;
   }
 
   .public-hero::before {
-    inset: 0;
-    width: auto;
-    height: auto;
-    background: linear-gradient(180deg, var(--background) 0%, rgba(12, 16, 15, 0.98) 49%, rgba(12, 16, 15, 0.24) 78%, transparent 100%);
+    display: none;
   }
 
   .public-hero-copy {
@@ -4068,14 +4066,12 @@ button.pay-empty-command {
   }
 
   .public-product-scene {
-    position: absolute;
-    top: 55%;
-    right: 1rem;
-    bottom: auto;
-    width: calc(100% - 2rem);
-    opacity: 0.74;
+    position: relative;
+    width: 100%;
+    max-width: 700px;
+    justify-self: center;
+    opacity: 1;
     pointer-events: none;
-    transform: none;
   }
 
   .public-product-scene::before,
@@ -4159,10 +4155,9 @@ button.pay-empty-command {
   }
 
   .public-hero {
-    height: calc(100svh - 170px);
-    min-height: 620px;
-    max-height: 680px;
+    gap: 2rem;
     padding-top: 2.7rem;
+    padding-bottom: 3rem;
   }
 
   .public-hero h1 {
@@ -4195,10 +4190,40 @@ button.pay-empty-command {
   }
 
   .public-product-scene {
-    top: 58%;
-    right: 0.85rem;
-    width: calc(100% - 2rem);
-    opacity: 0.76;
+    height: 305px;
+    width: 100%;
+  }
+
+  .public-scene-window {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 181.818%;
+    padding: 0.65rem;
+    transform: scale(0.55);
+    transform-origin: top left;
+  }
+
+  .public-scene-balance {
+    min-height: 190px;
+    padding: 1rem;
+  }
+
+  .public-scene-balance > strong {
+    font-size: 3.4rem;
+  }
+
+  .public-scene-buckets {
+    gap: 0.35rem;
+  }
+
+  .public-scene-buckets article {
+    padding: 0.5rem;
+  }
+
+  .public-scene-card-row {
+    gap: 0.7rem;
+    grid-template-columns: minmax(125px, 0.8fr) minmax(0, 1.2fr);
   }
 
   .public-section-intro h2,
@@ -4231,10 +4256,6 @@ button.pay-empty-command {
 }
 
 @media (max-width: 560px) and (max-height: 700px) {
-  .public-hero {
-    min-height: 560px;
-  }
-
   .public-difference {
     padding-top: 2rem;
   }
