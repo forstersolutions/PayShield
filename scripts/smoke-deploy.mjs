@@ -91,6 +91,53 @@ export async function runDeploySmoke({ targetUrl, timeoutMs = 10_000 }) {
   await textPage("/", ["PayShield", "Safe to Spend", "support@graystontechnologies.com"]);
   await textPage("/privacy", ["Privacy", "Grayston Technologies", "support@graystontechnologies.com"]);
   await textPage("/terms", ["Terms", "Grayston Technologies", "support@graystontechnologies.com"]);
+  await textPage("/support", ["Support", "Delete account", "support@graystontechnologies.com"]);
+
+  for (const [platform, userAgent, expectedHost] of [
+    ["iOS", "PayShield release smoke iPhone", "apps.apple.com"],
+    ["Android", "PayShield release smoke Android", "play.google.com"],
+  ]) {
+    const response = await request("/download", {
+      headers: { "user-agent": userAgent },
+    });
+    const location = response?.headers.get("location") || "";
+    let locationHost = "";
+
+    try {
+      locationHost = new URL(location).hostname;
+    } catch {
+      // The failure below reports the invalid or missing redirect.
+    }
+
+    if (response?.status !== 307 || locationHost !== expectedHost) {
+      failures.push(`/download did not send ${platform} to ${expectedHost}.`);
+    }
+    checks.push(`/download routes ${platform} to its store`);
+  }
+
+  const appleAssociation = await request("/.well-known/apple-app-site-association");
+  if (appleAssociation) {
+    const body = await appleAssociation.json().catch(() => ({}));
+    const appIds = body?.applinks?.details?.flatMap((detail) => detail.appIDs || []) || [];
+
+    if (
+      appleAssociation.status !== 200 ||
+      !appIds.includes("PT89VGZ28C.com.graystontechnologies.payshield")
+    ) {
+      failures.push("Apple associated-domain manifest is invalid.");
+    }
+    checks.push("Apple associated-domain manifest is available");
+  }
+
+  const androidAssociation = await request("/.well-known/assetlinks.json");
+  if (androidAssociation) {
+    const body = await androidAssociation.json().catch(() => null);
+
+    if (androidAssociation.status !== 200 || !Array.isArray(body)) {
+      failures.push("Android app-links manifest is invalid.");
+    }
+    checks.push("Android app-links manifest is available");
+  }
 
   const healthResponse = await request("/api/health");
   if (healthResponse) {
@@ -123,6 +170,26 @@ export async function runDeploySmoke({ targetUrl, timeoutMs = 10_000 }) {
     failures.push(`/api/app/me returned unexpected HTTP ${accountResponse.status}.`);
   }
   checks.push("protected account route responds predictably");
+
+  const revenueCatResponse = await request(
+    "/api/app/billing/revenuecat/webhook",
+    {
+      body: "{}",
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  if (revenueCatResponse) {
+    const body = await revenueCatResponse.json().catch(() => ({}));
+
+    if (
+      revenueCatResponse.status !== 401 ||
+      body.service !== "payshield-revenuecat-webhook"
+    ) {
+      failures.push("RevenueCat webhook is not reachable behind its own authentication boundary.");
+    }
+  }
+  checks.push("RevenueCat webhook owns its authentication boundary");
 
   const removedWaitlist = await request("/api/waitlist", { method: "POST" });
   if (removedWaitlist && ![404, 405].includes(removedWaitlist.status)) {

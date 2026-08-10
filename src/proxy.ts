@@ -10,7 +10,10 @@ import {
 function isProtectedRoute(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname === "/api/app/billing/webhook") {
+  if (
+    pathname === "/api/app/billing/webhook" ||
+    pathname === "/api/app/billing/revenuecat/webhook"
+  ) {
     return false;
   }
 

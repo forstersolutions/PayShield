@@ -28,9 +28,23 @@ async function target() {
     if (path === "/") return send(response, 200, "PayShield Safe to Spend support@graystontechnologies.com");
     if (path === "/privacy") return send(response, 200, "Privacy Grayston Technologies support@graystontechnologies.com");
     if (path === "/terms") return send(response, 200, "Terms Grayston Technologies support@graystontechnologies.com");
+    if (path === "/support") return send(response, 200, "Support Delete account support@graystontechnologies.com");
+    if (path === "/download") {
+      const userAgent = request.headers["user-agent"] || "";
+      const location = /android/i.test(userAgent)
+        ? "https://play.google.com/store/search?q=PayShield&c=apps"
+        : "https://apps.apple.com/us/search?term=PayShield";
+      response.writeHead(307, { ...headers, location });
+      return response.end();
+    }
+    if (path === "/.well-known/apple-app-site-association") {
+      return send(response, 200, JSON.stringify({ applinks: { details: [{ appIDs: ["PT89VGZ28C.com.graystontechnologies.payshield"] }] } }), "application/json");
+    }
+    if (path === "/.well-known/assetlinks.json") return send(response, 200, "[]", "application/json");
     if (path === "/api/health") return send(response, 200, JSON.stringify({ ok: true, service: "payshield-web-app", status: "healthy" }), "application/json");
     if (path === "/api/public/billing/status") return send(response, 200, JSON.stringify({ available: true, membership: { priceLabel: "$19/month" }, service: "payshield-membership-status", status: "available" }), "application/json");
     if (path === "/api/app/me") return send(response, 401, "{}", "application/json");
+    if (path === "/api/app/billing/revenuecat/webhook") return send(response, 401, JSON.stringify({ service: "payshield-revenuecat-webhook" }), "application/json");
     if (path === "/api/waitlist") return send(response, 404, "not found", "text/plain");
     if (path === "/favicon.ico") return send(response, 200, "icon", "image/png");
     if (path === "/icon.svg") return send(response, 200, "<svg/>", "image/svg+xml");
