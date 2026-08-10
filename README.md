@@ -6,10 +6,11 @@ the remaining balance as Safe to Spend.
 
 ## Product
 
-The customer application includes:
+The native iOS and Android application includes:
 
 - Clerk-authenticated household accounts.
-- Stripe membership checkout, activation webhooks, and billing portal access.
+- App Store and Google Play membership through RevenueCat, including purchase,
+  restore, entitlement activation, and subscription management.
 - Hosted identity verification and provider onboarding.
 - Plaid Link, encrypted server-side token custody, transaction sync, and signed
   webhook verification.
@@ -24,7 +25,8 @@ The customer application includes:
 
 ## Architecture
 
-- `src/app`: Next.js frontend and authenticated API facade on Vercel.
+- `apps/mobile`: Expo native iOS and Android customer application.
+- `src/app`: store-download website and authenticated API facade on Vercel.
 - `services/core`: always-on Node.js money-control service.
 - `services/core/migrations`: PostgreSQL schema `0001` through `0019`.
 - `infra/aws/payshield-core.yaml`: two-AZ ECS/Fargate, RDS PostgreSQL, ALB,
@@ -33,24 +35,26 @@ The customer application includes:
   forward-only migration task, ECS rollout, and health verification.
 
 Vercel never owns provider credentials, ledger credentials, or token-custody
-keys. Authenticated browser requests terminate at the Vercel facade and are
+keys. Authenticated native requests terminate at the Vercel facade and are
 forwarded to the core with a service token and the verified Clerk identity.
 Provider card and webhook ingress terminates at the core and is independently
 signature verified.
 
 ## Local Development
 
-Requirements: Node.js 22, npm 10, and PostgreSQL 16.
+Requirements: Node.js 22, npm 10, PostgreSQL 16, Xcode 26 for iOS, and Android
+Studio for Android.
 
 ```bash
 npm ci
+npm ci --prefix apps/mobile
 cp .env.example .env.local
 npm run dev
 ```
 
-The local app opens at `http://localhost:3000`. Set
-`PAYSHIELD_ALLOW_REVIEW_APP_ACCESS=true` only for local product review. Real
-accounts require Clerk plus the dedicated core.
+The download website opens at `http://localhost:3000`. Native setup and build
+commands are documented in `apps/mobile/README.md`. Real accounts require Clerk
+plus the dedicated core.
 
 Run the core against local PostgreSQL:
 
@@ -68,9 +72,10 @@ npm run core:server
 npm run verify
 ```
 
-The release gate runs lint, TypeScript, all unit/API tests, product preflight,
-route parity, AWS infrastructure controls, migration checks, a production build,
-and the production dependency audit.
+The release gate runs website and mobile linting, TypeScript, Expo Doctor, a
+mobile export, all unit/API tests, product preflight, route parity, AWS
+infrastructure controls, migration checks, a production website build, browser
+tests, and the production dependency audit.
 
 Real PostgreSQL integration:
 
@@ -123,7 +128,12 @@ provider, sponsor, counsel, and operations approval is recorded.
 Code cannot supply these items:
 
 - Clerk production application and approved sign-in configuration.
-- Stripe live account, product, price, webhook endpoint, and billing portal.
+- Apple Developer and App Store Connect enrollment, signed agreements, product
+  record, in-app subscription, review approval, and release selection.
+- Google Play Console enrollment, product record, payments profile, in-app
+  subscription, testing track, review approval, and production release access.
+- RevenueCat project, Apple/Google store credentials, products, `payshield_pro`
+  entitlement, offering, and authenticated webhook.
 - Plaid production access and webhook registration.
 - Contracted BaaS/card provider, sponsor setup, API credentials, webhook
   registration, and supported authorization contract.

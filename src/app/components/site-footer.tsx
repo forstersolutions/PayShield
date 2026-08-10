@@ -39,9 +39,9 @@ export function SiteFooter({
             Terms
           </Link>
           <Link
-            href="/app"
+            href="/download"
           >
-            App
+            Download
           </Link>
           {showLaunchLink ? (
             <Link

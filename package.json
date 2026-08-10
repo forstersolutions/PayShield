@@ -23,13 +23,14 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "market-preflight": "node scripts/market-preflight.mjs",
+    "mobile:verify": "npm --prefix apps/mobile run verify",
     "readiness:commercial": "node scripts/commercial-readiness.mjs",
     "route:audit": "node scripts/route-parity-audit.mjs",
     "production:routes": "node scripts/production-route-smoke.mjs",
     "smoke:deploy": "node scripts/smoke-deploy.mjs",
     "test": "NODE_ENV=test VERCEL_WEB_ANALYTICS_DISABLE_LOGS=1 node --experimental-strip-types --test tests/*.test.mts",
     "test:e2e": "playwright test",
-    "verify": "npm run lint && npm run typecheck && npm test && npm run market-preflight && npm run route:audit && npm run infra:audit && npm run core:migrations:check && npm run build && npm run test:e2e && npm audit --omit=dev"
+    "verify": "npm run lint && npm run typecheck && npm run mobile:verify && npm test && npm run market-preflight && npm run route:audit && npm run infra:audit && npm run core:migrations:check && npm run build && npm run test:e2e && npm audit --omit=dev"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.5.2",

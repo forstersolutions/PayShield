@@ -21,27 +21,26 @@ export default function NotFound() {
           <div className="brand-panel accent-rule max-w-3xl rounded-[8px] p-6 sm:p-8">
             <p className="brand-kicker">Route unavailable</p>
             <h1 className="mt-4 text-4xl font-black leading-tight text-white sm:text-5xl">
-              This screen is not in the PayShield control surface.
+              This PayShield page could not be found.
             </h1>
             <p className="mt-4 text-base leading-7 text-[#c9d0da]">
-              Use the command center for household controls, the product profile
-              for public details, or Grayston support for account and operations
-              questions.
+              Download the mobile app, return to the PayShield website, or
+              contact Grayston support for account help.
             </p>
 
             <div className="mt-7 grid gap-3 sm:grid-cols-3">
               <Link
                 className="brand-button-primary inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black"
-                href="/app"
+                href="/download"
               >
-                Open app
+                Get PayShield
                 <ArrowRight className="size-4" aria-hidden="true" />
               </Link>
               <Link
                 className="brand-button-blue inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-black"
                 href="/"
               >
-                Product profile
+                PayShield home
                 <Home className="size-4" aria-hidden="true" />
               </Link>
               <a

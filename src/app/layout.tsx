@@ -25,9 +25,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   applicationName: "PayShield",
   metadataBase: new URL(siteUrl),
-  title: "PayShield by Grayston | Paycheck Control App",
+  title: "PayShield | Download for iPhone and Android",
   description:
-    "PayShield protects the money your household needs first, then gives you one honest Safe to Spend balance.",
+    "Download PayShield to protect each paycheck, customize household money buckets, route bills, and spend from one honest Safe to Spend balance.",
   alternates: {
     canonical: "/",
   },
@@ -44,13 +44,13 @@ export const metadata: Metadata = {
   openGraph: {
     title: `PayShield by ${GRAYSTON_COMPANY_NAME}`,
     description:
-      "Spend what's free. Protect what's spoken for. PayShield gives every paycheck a plan.",
+      "Spend what's free. Protect what's spoken for. Download PayShield for iPhone and Android.",
     images: [
       {
         url: socialImageUrl,
         width: 1536,
         height: 1024,
-        alt: "PayShield logo and Grayston-branded paycheck control dashboard",
+        alt: "PayShield download page and Safe to Spend mobile app",
       },
     ],
     type: "website",
@@ -59,7 +59,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: `PayShield by ${GRAYSTON_COMPANY_NAME}`,
     description:
-      "Spend what's free. Protect what's spoken for. PayShield gives every paycheck a plan.",
+      "Spend what's free. Protect what's spoken for. Download PayShield for iPhone and Android.",
     images: [socialImageUrl],
   },
 };

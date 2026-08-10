@@ -31,9 +31,9 @@ test("route fallbacks provide branded recovery paths", async () => {
   }
 
   const notFound = await readFile("src/app/not-found.tsx", "utf8");
-  assert.match(notFound, /This screen is not in the PayShield control surface/);
-  assert.equal(notFound.includes('href="/app"'), true);
-  assert.match(notFound, /Product profile/);
+  assert.match(notFound, /This PayShield page could not be found/);
+  assert.equal(notFound.includes('href="/download"'), true);
+  assert.match(notFound, /PayShield home/);
   assert.match(notFound, /GRAYSTON_SUPPORT_EMAIL/);
 
   const routeError = await readFile("src/app/error.tsx", "utf8");
@@ -45,11 +45,11 @@ test("route fallbacks provide branded recovery paths", async () => {
   assert.match(globalError, /unstable_retry/);
 });
 
-test("app route serves the operating screen instead of the root loading shell", async () => {
+test("app route sends customers to native distribution while operator launch stays dynamic", async () => {
   const appPage = await readFile("src/app/app/page.tsx", "utf8");
   const launchPage = await readFile("src/app/launch/page.tsx", "utf8");
 
-  assert.match(appPage, /dynamic = "force-dynamic"/);
+  assert.match(appPage, /redirect\("\/download"\)/);
   assert.match(launchPage, /dynamic = "force-dynamic"/);
   await assert.rejects(access("src/app/loading.tsx"));
   await assert.rejects(access("src/app/app/loading.tsx"));

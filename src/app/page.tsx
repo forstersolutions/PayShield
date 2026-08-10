@@ -1,11 +1,5 @@
-import { NeobankDashboard } from "@/app/components/neobank-dashboard";
-import { SiteFooter } from "@/app/components/site-footer";
+import { DownloadGateway } from "@/app/components/download-gateway";
 
 export default function HomePage() {
-  return (
-    <main className="bg-[#0b0d12] text-[#f7f8fb]">
-      <NeobankDashboard />
-      <SiteFooter showLaunchLink={false} />
-    </main>
-  );
+  return <DownloadGateway />;
 }

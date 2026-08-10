@@ -44,11 +44,28 @@ const requiredFiles = [
   "services/core/server.mjs",
   "src/app/api/health/route.ts",
   "src/app/api/public/billing/status/route.ts",
-  "src/app/components/household-money-workspace.tsx",
-  "src/app/components/neobank-dashboard.tsx",
+  "src/app/api/app/billing/revenuecat/webhook/route.ts",
+  "src/app/components/download-gateway.tsx",
   "src/app/components/pay-shield-mark.tsx",
+  "src/app/lib/store-links.ts",
   "src/app/privacy/page.tsx",
+  "src/app/support/page.tsx",
   "src/app/terms/page.tsx",
+  "apps/mobile/app.config.ts",
+  "apps/mobile/eas.json",
+  "apps/mobile/package-lock.json",
+  "apps/mobile/assets/brand/app-icon.png",
+  "apps/mobile/fastlane/Fastfile",
+  "apps/mobile/src/app/(tabs)/account.tsx",
+  "apps/mobile/src/app/(tabs)/activity.tsx",
+  "apps/mobile/src/app/(tabs)/bills.tsx",
+  "apps/mobile/src/app/(tabs)/index.tsx",
+  "apps/mobile/src/app/(tabs)/plan.tsx",
+  "apps/mobile/src/providers/membership-provider.tsx",
+  "apps/mobile/store/app-store/screenshots/en-US/01-safe-to-spend.png",
+  "apps/mobile/store/google-play/metadata/en-US/images/phoneScreenshots/01-safe-to-spend.png",
+  "apps/mobile/store/privacy-data-map.md",
+  "apps/mobile/store/release-config.json",
 ];
 
 for (const file of requiredFiles) {
@@ -63,13 +80,12 @@ for (const file of requiredFiles) {
 const consumerFiles = [
   "src/app/page.tsx",
   "src/app/app/page.tsx",
-  "src/app/components/neobank-dashboard.tsx",
-  "src/app/components/household-money-workspace.tsx",
-  "src/app/components/household-money-profile-panel.tsx",
-  "src/app/components/bucket-control-panel.tsx",
-  "src/app/components/payee-control-panel.tsx",
-  "src/app/components/bill-payment-panel.tsx",
-  "src/app/components/unlock-control-panel.tsx",
+  "src/app/components/download-gateway.tsx",
+  "apps/mobile/src/app/(tabs)/account.tsx",
+  "apps/mobile/src/app/(tabs)/activity.tsx",
+  "apps/mobile/src/app/(tabs)/bills.tsx",
+  "apps/mobile/src/app/(tabs)/index.tsx",
+  "apps/mobile/src/app/(tabs)/plan.tsx",
 ];
 const rejectedCopy = [
   /\bearly access\b/i,
@@ -92,19 +108,33 @@ const srcFiles = readdirSync(join(root, "src"), { recursive: true })
   .filter((path) => typeof path === "string" && /\.(ts|tsx)$/.test(path))
   .map((path) => join("src", path));
 const runtimeText = srcFiles.map((file) => source(file)).join("\n");
+const mobileFiles = readdirSync(join(root, "apps/mobile/src"), { recursive: true })
+  .filter((path) => typeof path === "string" && /\.(ts|tsx)$/.test(path))
+  .map((path) => join("apps/mobile/src", path));
+const mobileRuntimeText = mobileFiles.map((file) => source(file)).join("\n");
 
 check(!/\blocalStorage\b|\bsessionStorage\b/.test(runtimeText), "Runtime code must not persist financial state in browser storage.");
+check(!/\blocalStorage\b|\bsessionStorage\b|\bAsyncStorage\b/.test(mobileRuntimeText), "Mobile runtime must not persist financial state in unprotected device storage.");
 check(!existsSync(join(root, "src/app/api/waitlist/route.ts")), "Obsolete waitlist endpoint must not be deployed.");
 check(!runtimeText.includes("/api/waitlist"), "Runtime code still references the obsolete waitlist endpoint.");
 
-includes("src/app/components/neobank-dashboard.tsx", "Safe to Spend");
-includes("src/app/components/neobank-dashboard.tsx", "Spend what&apos;s free. Protect what&apos;s spoken for.");
-includes("src/app/components/household-money-workspace.tsx", "/api/app/bank-link/token");
-includes("src/app/components/household-money-workspace.tsx", "/api/app/paychecks/sync");
-includes("src/app/components/household-money-workspace.tsx", "/api/app/transfers");
-includes("src/app/components/household-money-workspace.tsx", "/api/app/card/status");
-includes("src/app/components/household-money-workspace.tsx", "/api/app/audit/export");
-includes("src/app/components/bucket-control-panel.tsx", "custom_");
+includes("src/app/components/download-gateway.tsx", "Safe to Spend");
+includes("src/app/components/download-gateway.tsx", "Spend what&apos;s free. Protect what&apos;s spoken for.");
+includes("src/app/lib/store-links.ts", "apps.apple.com");
+includes("src/app/lib/store-links.ts", "play.google.com");
+includes("apps/mobile/app.config.ts", "com.graystontechnologies.payshield");
+includes("apps/mobile/src/app/(tabs)/account.tsx", "/api/app/bank-link/token");
+includes("apps/mobile/src/app/(tabs)/account.tsx", "/api/app/card/status");
+includes("apps/mobile/src/app/(tabs)/account.tsx", "/api/app/onboarding/start");
+includes("apps/mobile/src/app/(tabs)/activity.tsx", "/api/app/audit/export");
+includes("apps/mobile/src/app/(tabs)/plan.tsx", "custom_");
+includes("apps/mobile/src/app/(tabs)/bills.tsx", "/api/app/bill-payments");
+includes("apps/mobile/src/components/money-actions.tsx", "/api/app/transfers");
+includes("apps/mobile/src/components/money-actions.tsx", "/api/app/unlocks");
+includes("apps/mobile/src/lib/bank-link.native.ts", "createPlaidLinkSession");
+includes("apps/mobile/src/providers/membership-provider.tsx", "Purchases.purchasePackage");
+includes("apps/mobile/src/providers/membership-provider.tsx", "Purchases.restorePurchases");
+includes("src/app/lib/commercial/revenuecat-webhook.ts", "PAYSHIELD_REVENUECAT_WEBHOOK_SECRET");
 includes("src/app/lib/client-action-idempotency.ts", "idempotencyKeyForAction");
 includes("src/app/lib/neobank/core-required.ts", "requireDurableCoreService");
 includes("src/app/lib/neobank/auth.ts", "clerkSubject: session.userId");

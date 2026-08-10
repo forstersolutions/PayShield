@@ -14,7 +14,7 @@ const coreOnlyRoutes = new Map([
   ],
   [
     "POST /commercial/billing-events",
-    "Stripe webhooks are verified by the frontend and then recorded through the authenticated core service.",
+    "Verified store-billing webhooks are normalized by the frontend and then recorded through the authenticated core service.",
   ],
 ]);
 const serviceName = "payshield-route-parity";

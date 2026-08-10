@@ -1,0 +1,26 @@
+{
+  "application": {
+    "androidPackage": "com.graystontechnologies.payshield",
+    "appleBundleId": "com.graystontechnologies.payshield",
+    "appleTeamId": "PT89VGZ28C",
+    "name": "PayShield",
+    "supportEmail": "support@graystontechnologies.com"
+  },
+  "commerce": {
+    "entitlement": "payshield_pro",
+    "offering": "default",
+    "package": "$rc_monthly",
+    "priceUsd": 19,
+    "productIds": {
+      "android": "payshield_monthly",
+      "ios": "com.graystontechnologies.payshield.monthly"
+    }
+  },
+  "links": {
+    "marketing": "https://payshield-lime.vercel.app",
+    "privacy": "https://payshield-lime.vercel.app/privacy",
+    "support": "https://payshield-lime.vercel.app/support",
+    "terms": "https://payshield-lime.vercel.app/terms"
+  },
+  "version": "1.0.0"
+}

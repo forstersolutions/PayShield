@@ -681,7 +681,12 @@ test("bank link token API delegates Plaid Link setup to configured core service"
       process.env.PAYSHIELD_CORE_API_URL = baseUrl;
       process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-bank-link-secret";
 
-      const response = await createBankLinkToken(makeRequest("/api/app/bank-link/token", {}));
+      const response = await createBankLinkToken(
+        makeRequest("/api/app/bank-link/token", {
+          androidPackageName: "com.graystontechnologies.payshield",
+          platform: "android",
+        }),
+      );
       const body = await parseJson(response);
       const forwardedBody = JSON.parse(String(captured.body || "{}")) as Record<
         string,
@@ -696,7 +701,12 @@ test("bank link token API delegates Plaid Link setup to configured core service"
       assert.equal(captured.authMode, "demo");
       assert.equal(captured.method, "POST");
       assert.equal(captured.url, "/api/app/bank-link/token");
+      assert.equal(
+        forwardedBody.androidPackageName,
+        "com.graystontechnologies.payshield",
+      );
       assert.equal(forwardedBody.origin, endpoint);
+      assert.equal(forwardedBody.platform, "android");
     },
   );
 });

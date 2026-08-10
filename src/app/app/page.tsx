@@ -1,25 +1,15 @@
 import type { Metadata } from "next";
-import { HouseholdCommandCenter } from "@/app/components/household-command-center";
-import { getAppSession } from "@/app/lib/neobank/auth.ts";
-
-export const dynamic = "force-dynamic";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
-  title: "PayShield | Your Money",
-  description:
-    "See what is safe to spend, protect household obligations, route bills, and manage every paycheck in one place.",
+  title: "Get PayShield",
+  description: "Download PayShield for iPhone or Android.",
   robots: {
     follow: false,
     index: false,
   },
 };
 
-export default async function AppPage() {
-  const session = await getAppSession();
-
-  return (
-    <main>
-      <HouseholdCommandCenter session={session} />
-    </main>
-  );
+export default function AppPage() {
+  redirect("/download");
 }

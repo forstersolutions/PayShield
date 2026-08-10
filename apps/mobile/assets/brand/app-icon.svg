@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="shield" x1="255" x2="782" y1="180" y2="850" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#13b8ff"/>
+      <stop offset=".46" stop-color="#156dff"/>
+      <stop offset="1" stop-color="#061943"/>
+    </linearGradient>
+    <linearGradient id="speed" x1="180" x2="510" y1="500" y2="500" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2bdcff"/>
+      <stop offset="1" stop-color="#156dff"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="#f8fbff"/>
+  <path fill="url(#shield)" d="M512 148c100 68 206 108 324 120v264c0 190-100 338-324 424C288 870 188 722 188 532V268c118-12 224-52 324-120Zm0 86c-76 50-160 84-254 102v196c0 148 70 264 254 340 184-76 254-192 254-340V336c-94-18-178-52-254-102Z"/>
+  <path fill="url(#shield)" d="M308 472h238c98 0 168 62 168 152 0 92-70 154-168 154H414v-82h132c52 0 84-28 84-72s-32-72-84-72H308v-80Z"/>
+  <path fill="url(#speed)" d="M124 560c0-22 16-38 38-38h208c22 0 38 16 38 38s-16 38-38 38H162c-22 0-38-16-38-38Zm48 124c0-22 16-38 38-38h148c22 0 38 16 38 38s-16 38-38 38H210c-22 0-38-16-38-38Z"/>
+</svg>

@@ -1,0 +1,1 @@
+PayShield 1.0 includes Safe to Spend, customizable protected buckets, paycheck rules, connected-account setup, approved bill routing, card controls, recovery plans, activity export, and household subscription management.

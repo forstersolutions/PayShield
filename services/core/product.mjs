@@ -2272,6 +2272,7 @@ function commercialAccessStatus(env, audit) {
   const subscription = latestCommercialSubscription(audit);
   const checkoutIntent = latestCheckoutIntent(audit);
   const configured = commercialBillingConfigured(env);
+  const storeBilling = mobileStoreBillingConfigured(env);
   const checkoutStarted =
     checkoutIntent &&
     ["created", "payment_link", "requested"].includes(checkoutIntent.status);
@@ -2281,15 +2282,17 @@ function commercialAccessStatus(env, audit) {
     checkoutIntentId: checkoutIntent?.idempotencyKey ?? null,
     checkoutIntentStatus: checkoutIntent?.status ?? null,
     currentPeriodEnd: subscription?.currentPeriodEnd ?? null,
-    mode: env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL?.trim()
-      ? "payment_link"
-      : env.STRIPE_SECRET_KEY?.trim()
-        ? "checkout"
-        : "not_configured",
+    mode: storeBilling
+      ? "app_store"
+      : env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL?.trim()
+        ? "payment_link"
+        : env.STRIPE_SECRET_KEY?.trim()
+          ? "checkout"
+          : "not_configured",
     priceLabel: env.PAYSHIELD_COMMERCIAL_PRICE_LABEL?.trim() || "$19/month",
     providerCustomerId: subscription?.providerCustomerId ?? null,
     providerCheckoutId: checkoutIntent?.providerCheckoutId ?? null,
-    providerName: subscription?.providerName ?? "stripe",
+    providerName: subscription?.providerName ?? (storeBilling ? "revenuecat" : "stripe"),
     providerSubscriptionId: subscription?.providerSubscriptionId ?? null,
     readyForCheckout: configured,
     state:
@@ -2299,9 +2302,17 @@ function commercialAccessStatus(env, audit) {
   };
 }
 
+function mobileStoreBillingConfigured(env) {
+  return Boolean(
+    envTrue(env, "PAYSHIELD_MOBILE_STORE_BILLING_ENABLED") &&
+      (env.PAYSHIELD_REVENUECAT_ENTITLEMENT_ID?.trim() || "payshield_pro"),
+  );
+}
+
 function commercialBillingConfigured(env) {
   return Boolean(
-    env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL?.trim() ||
+    mobileStoreBillingConfigured(env) ||
+      env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL?.trim() ||
       (env.STRIPE_SECRET_KEY?.trim() && env.PAYSHIELD_COMMERCIAL_PRICE_ID?.trim()),
   );
 }
@@ -8623,6 +8634,12 @@ export async function receiveTokenVaultHandoff(payload = {}, env = process.env) 
 export async function createBankLinkToken(payload = {}, env = process.env) {
   const readiness = getMoneyRailReadiness(env);
   let actor = actorFromPayload(payload);
+  const platform = safeString(payload.platform, 20).toLowerCase();
+  const isAndroid = platform === "android";
+  const androidPackageName =
+    safeString(env.PAYSHIELD_ANDROID_PACKAGE_NAME, 180) ||
+    "com.graystontechnologies.payshield";
+  const requestedAndroidPackageName = safeString(payload.androidPackageName, 180);
   const paidAccess = await requireActivePaidAccess(env, actor, "bank linking");
 
   if (!paidAccess.ok) {
@@ -8643,12 +8660,32 @@ export async function createBankLinkToken(payload = {}, env = process.env) {
     };
   }
 
+  if (
+    isAndroid &&
+    (!/^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/.test(
+      androidPackageName,
+    ) ||
+      (requestedAndroidPackageName &&
+        requestedAndroidPackageName !== androidPackageName))
+  ) {
+    return {
+      body: {
+        error: "Android package identity is not configured for PayShield Plaid Link.",
+        service: "payshield-bank-link-token",
+      },
+      status: 400,
+    };
+  }
+
   const plaidPayload = await plaidRequest(env, "/link/token/create", {
+    android_package_name: isAndroid ? androidPackageName : undefined,
     client_name: "PayShield",
     country_codes: cleanList(env.PLAID_COUNTRY_CODES, ["US"]),
     language: "en",
     products: cleanList(env.PLAID_PRODUCTS, ["auth", "transactions"]),
-    redirect_uri: env.PLAID_REDIRECT_URI?.trim() || undefined,
+    redirect_uri: isAndroid
+      ? undefined
+      : env.PLAID_REDIRECT_URI?.trim() || undefined,
     transactions: cleanList(env.PLAID_PRODUCTS, ["auth", "transactions"]).includes("transactions")
       ? { days_requested: 180 }
       : undefined,

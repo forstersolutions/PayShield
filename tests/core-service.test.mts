@@ -8,6 +8,7 @@ import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { shouldUpdateCommercialSubscription } from "../services/core/database.mjs";
 import { createCoreServer } from "../services/core/server.mjs";
 import {
+  createBankLinkToken,
   getCoreHealth,
   persistTransactionSyncException,
   recordMoneyRailProviderException,
@@ -22,6 +23,7 @@ const coreEnvKeys = [
   "PAYSHIELD_BAAS_API_KEY",
   "PAYSHIELD_BAAS_CONTRACT_APPROVED",
   "PAYSHIELD_BAAS_PROVIDER",
+  "PAYSHIELD_ANDROID_PACKAGE_NAME",
   "PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL",
   "PAYSHIELD_COMMERCIAL_PRICE_ID",
   "PAYSHIELD_CORE_API_URL",
@@ -2100,6 +2102,62 @@ test("core readiness can use the core service URL as the token-vault receiver", 
       false,
     );
   });
+});
+
+test("core creates Android Plaid Link tokens only for the PayShield package", async () => {
+  process.env.PLAID_CLIENT_ID = "plaid-client";
+  process.env.PLAID_SECRET = "plaid-secret";
+  process.env.PLAID_WEBHOOK_URL = "https://core.payshield.test/plaid/webhooks";
+  process.env.PAYSHIELD_ANDROID_PACKAGE_NAME =
+    "com.graystontechnologies.payshield";
+  process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL =
+    "https://core.payshield.test/token-vault/plaid";
+  process.env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET = "vault-secret";
+  process.env.PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY =
+    "0123456789abcdef0123456789abcdef";
+  const originalFetch = globalThis.fetch;
+  let plaidRequestBody: Record<string, unknown> = {};
+
+  globalThis.fetch = async (input, init) => {
+    assert.equal(String(input), "https://sandbox.plaid.com/link/token/create");
+    plaidRequestBody = JSON.parse(String(init?.body || "{}")) as Record<
+      string,
+      unknown
+    >;
+
+    return Response.json({
+      expiration: "2026-08-10T12:00:00Z",
+      link_token: "link-sandbox-native",
+      request_id: "plaid-request-native",
+    });
+  };
+
+  try {
+    const result = (await createBankLinkToken({
+      __payshieldActor: { userId: "user_android_link" },
+      androidPackageName: "com.graystontechnologies.payshield",
+      platform: "android",
+    })) as unknown as { body: Record<string, unknown>; status: number };
+
+    assert.equal(result.status, 200);
+    assert.equal(result.body.linkToken, "link-sandbox-native");
+    assert.equal(
+      plaidRequestBody.android_package_name,
+      "com.graystontechnologies.payshield",
+    );
+    assert.equal(plaidRequestBody.redirect_uri, undefined);
+
+    const mismatch = (await createBankLinkToken({
+      __payshieldActor: { userId: "user_android_link" },
+      androidPackageName: "com.example.imposter",
+      platform: "android",
+    })) as unknown as { body: Record<string, unknown>; status: number };
+
+    assert.equal(mismatch.status, 400);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("core token vault receiver rejects unsigned Plaid token handoffs", async () => {

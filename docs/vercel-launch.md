@@ -4,13 +4,19 @@
 
 ```text
 NEXT_PUBLIC_SITE_URL
+NEXT_PUBLIC_APP_STORE_URL
+NEXT_PUBLIC_PLAY_STORE_URL
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 CLERK_SECRET_KEY
 PAYSHIELD_CORE_API_URL
 PAYSHIELD_CORE_SERVICE_TOKEN
-STRIPE_SECRET_KEY
-STRIPE_WEBHOOK_SECRET
-PAYSHIELD_COMMERCIAL_PRICE_ID
+PAYSHIELD_APPLE_TEAM_ID
+PAYSHIELD_ANDROID_PACKAGE_NAME
+PAYSHIELD_ANDROID_SHA256_CERT_FINGERPRINTS
+PAYSHIELD_MOBILE_STORE_BILLING_ENABLED=true
+PAYSHIELD_REVENUECAT_STORES_CONFIGURED=true
+PAYSHIELD_REVENUECAT_ENTITLEMENT_ID=payshield_pro
+PAYSHIELD_REVENUECAT_WEBHOOK_SECRET
 PAYSHIELD_COMMERCIAL_PRICE_LABEL
 PAYSHIELD_REQUIRE_PAID_ACCESS=true
 PAYSHIELD_OPERATOR_USER_IDS
@@ -28,18 +34,32 @@ PAYSHIELD_ALLOW_OPERATOR_REVIEW_ACCESS=false
 Do not add PostgreSQL, Plaid, banking-provider, token-vault, or provider webhook
 secrets to Vercel. Those belong to the AWS core task.
 
-## Stripe
+## Store distribution
 
-Create a recurring Stripe Price matching the displayed membership amount. Set
-the production webhook endpoint to:
+`NEXT_PUBLIC_APP_STORE_URL` and `NEXT_PUBLIC_PLAY_STORE_URL` must be the direct
+published listing URLs. Until each listing exists, leave its variable empty;
+the website intentionally uses that store's PayShield search instead of
+claiming an unavailable download.
+
+Set the App Store associated-domain team ID and the Android release-certificate
+SHA-256 fingerprints before enabling production universal links. The Android
+asset-links route intentionally returns an empty statement list while no
+fingerprints are configured.
+
+## RevenueCat
+
+Attach the App Store and Google Play monthly products to the `payshield_pro`
+entitlement and the `$rc_monthly` package in the `default` offering. Configure
+the RevenueCat production webhook endpoint as:
 
 ```text
-https://your-payshield-domain.example/api/app/billing/webhook
+https://your-payshield-domain.example/api/app/billing/revenuecat/webhook
 ```
 
-Subscribe to the checkout completion and subscription lifecycle events used by
-the route. Configure the Stripe Billing Portal before exposing membership
-management.
+Set its authorization header to `Bearer <PAYSHIELD_REVENUECAT_WEBHOOK_SECRET>`.
+The Vercel route verifies the credential and forwards the normalized event to
+the durable core. The core must return success before RevenueCat delivery is
+acknowledged; failures return `503` so RevenueCat retries.
 
 ## Clerk
 
@@ -69,9 +89,10 @@ npm run smoke:deploy -- https://your-payshield-domain.example
 npm run readiness:commercial -- https://your-payshield-domain.example
 ```
 
-Verify the canonical domain, Clerk sign-in and sign-out, checkout redirect,
-signed Stripe activation, billing portal, authenticated core proxy headers,
-mobile layout, legal pages, favicon, social image, and support email.
+Verify the canonical domain, App Store and Google Play links, universal-link
+manifests, signed RevenueCat entitlement events, authenticated core proxy
+headers, compact phone layout, legal and support pages, favicon, social image,
+and Grayston support email.
 
 Rollback by promoting the previous known-good Vercel deployment. Do not change
 the core schema backward during a frontend rollback.

@@ -1,4 +1,5 @@
 import { getStripeWebhookReadiness } from "./stripe-webhook.ts";
+import { getRevenueCatWebhookReadiness } from "./revenuecat-webhook.ts";
 import { getCoreServiceConfig } from "../neobank/core-config.ts";
 
 const stripeApiVersion = "2026-02-25.clover";
@@ -126,6 +127,7 @@ function stripeIdempotencyKey(value: string, userId: string) {
 
 export function getCommercialReadiness() {
   const webhook = getStripeWebhookReadiness();
+  const revenueCat = getRevenueCatWebhookReadiness();
   const core = getCoreServiceConfig();
   const paymentLink = cleanPaymentLinkUrl(
     process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL,
@@ -133,45 +135,66 @@ export function getCommercialReadiness() {
   const stripeSecretConfigured = envPresent("STRIPE_SECRET_KEY");
   const stripeMode = stripeSecretMode(process.env.STRIPE_SECRET_KEY);
   const stripePriceConfigured = envPresent("PAYSHIELD_COMMERCIAL_PRICE_ID");
-  const checkoutConfigured =
+  const stripeCheckoutConfigured =
     paymentLink.ok || (stripeSecretConfigured && stripePriceConfigured);
-  const productionLiveStripeReady =
-    !productionRequiresLiveStripe() ||
-    (paymentLink.ok
-      ? paymentLink.mode === "live"
-      : stripeMode === "live" && stripePriceConfigured);
+  const mobileStoreProductsConfigured = envTrue(
+    "PAYSHIELD_REVENUECAT_STORES_CONFIGURED",
+  );
+  const mobileStoreBillingEnabled = revenueCat.enabled;
+  const checkoutConfigured = mobileStoreBillingEnabled
+    ? mobileStoreProductsConfigured
+    : stripeCheckoutConfigured;
+  const productionLiveStripeReady = mobileStoreBillingEnabled
+    ? true
+    : !productionRequiresLiveStripe() ||
+      (paymentLink.ok
+        ? paymentLink.mode === "live"
+        : stripeMode === "live" && stripePriceConfigured);
+  const webhookConfigured = mobileStoreBillingEnabled
+    ? revenueCat.authorizationConfigured
+    : webhook.signingSecretConfigured;
   const activationCoreServiceAuthConfigured = Boolean(core.serviceToken);
   const activationCoreReady = core.ok && activationCoreServiceAuthConfigured;
   const missing: string[] = [];
 
-  if (
-    process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL?.trim() &&
-    !paymentLink.ok
-  ) {
-    missing.push("PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL valid HTTPS URL");
-  }
-
-  if (!checkoutConfigured) {
-    if (!stripeSecretConfigured) {
-      missing.push("STRIPE_SECRET_KEY");
+  if (mobileStoreBillingEnabled) {
+    if (!mobileStoreProductsConfigured) {
+      missing.push("PAYSHIELD_REVENUECAT_STORES_CONFIGURED");
     }
 
-    if (!stripePriceConfigured && !paymentLink.ok) {
-      missing.push(
-        "PAYSHIELD_COMMERCIAL_PRICE_ID or PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL",
-      );
+    if (!revenueCat.authorizationConfigured) {
+      missing.push("PAYSHIELD_REVENUECAT_WEBHOOK_SECRET");
+    }
+  } else {
+    if (
+      process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL?.trim() &&
+      !paymentLink.ok
+    ) {
+      missing.push("PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL valid HTTPS URL");
+    }
+
+    if (!checkoutConfigured) {
+      if (!stripeSecretConfigured) {
+        missing.push("STRIPE_SECRET_KEY");
+      }
+
+      if (!stripePriceConfigured && !paymentLink.ok) {
+        missing.push(
+          "PAYSHIELD_COMMERCIAL_PRICE_ID or PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL",
+        );
+      }
+    }
+
+    if (checkoutConfigured && !productionLiveStripeReady) {
+      missing.push("Stripe live-mode checkout asset");
+    }
+
+    if (!webhook.signingSecretConfigured) {
+      missing.push("STRIPE_WEBHOOK_SECRET");
     }
   }
 
-  if (checkoutConfigured && !productionLiveStripeReady) {
-    missing.push("Stripe live-mode checkout asset");
-  }
-
-  if (!webhook.signingSecretConfigured) {
-    missing.push("STRIPE_WEBHOOK_SECRET");
-  }
-
-  if (checkoutConfigured && webhook.signingSecretConfigured && !activationCoreReady) {
+  if (checkoutConfigured && webhookConfigured && !activationCoreReady) {
     if (!core.ok) {
       missing.push("PAYSHIELD_CORE_API_URL");
     }
@@ -193,15 +216,19 @@ export function getCommercialReadiness() {
     paymentCollectionReady: checkoutConfigured && productionLiveStripeReady,
     checkoutOperationalReady:
       checkoutConfigured &&
-      webhook.signingSecretConfigured &&
+      webhookConfigured &&
       activationCoreReady &&
       productionLiveStripeReady,
     missing: [...new Set(missing)],
-    mode: paymentLink.ok
-      ? "payment_link"
-      : stripeSecretConfigured
-        ? "checkout"
-        : "not_configured",
+    mode: mobileStoreBillingEnabled
+      ? "app_store"
+      : paymentLink.ok
+        ? "payment_link"
+        : stripeSecretConfigured
+          ? "checkout"
+          : "not_configured",
+    mobileStoreBillingEnabled,
+    mobileStoreProductsConfigured,
     paymentLinkMode: paymentLink.mode,
     paymentLinkUrl: paymentLink.url,
     priceLabel:
@@ -209,15 +236,17 @@ export function getCommercialReadiness() {
       "$19/month",
     paidAccessReady:
       checkoutConfigured &&
-      webhook.signingSecretConfigured &&
+      webhookConfigured &&
       activationCoreReady &&
       productionLiveStripeReady,
     productionLiveStripeReady,
     stripePriceConfigured,
     stripeSecretConfigured,
     stripeSecretMode: stripeMode,
-    webhookEndpointPath: webhook.endpointPath,
-    webhookSigningSecretConfigured: webhook.signingSecretConfigured,
+    webhookEndpointPath: mobileStoreBillingEnabled
+      ? revenueCat.endpointPath
+      : webhook.endpointPath,
+    webhookSigningSecretConfigured: webhookConfigured,
   };
 }
 
@@ -230,6 +259,7 @@ export function paidAccessRequired() {
     required:
       productionRuntime ||
       envTrue("PAYSHIELD_REQUIRE_PAID_ACCESS") ||
+      readiness.mobileStoreBillingEnabled ||
       readiness.checkoutConfigured,
   };
 }
@@ -250,7 +280,7 @@ export function requirePaidAccessForFallback(operation: string) {
         ? "paid_access_state_unverified"
         : "paid_access_not_configured",
       error: readiness.paidAccessReady
-        ? `Paid access must be active before ${operation}. Configure PAYSHIELD_CORE_API_URL so Stripe webhooks can activate household access before this workflow runs.`
+        ? `Paid access must be active before ${operation}. Configure PAYSHIELD_CORE_API_URL so verified billing webhooks can activate household access before this workflow runs.`
         : readiness.activationCoreConfigured &&
             !readiness.activationCoreServiceAuthConfigured
           ? `Paid access must be fully configured before ${operation}. Add PAYSHIELD_CORE_SERVICE_TOKEN so Stripe webhooks can authenticate to core activation storage.`
@@ -278,6 +308,16 @@ export async function createCommercialCheckoutSession(input: {
   const readiness = getCommercialReadiness();
   const checkoutSessionConfigured =
     readiness.stripeSecretConfigured && readiness.stripePriceConfigured;
+
+  if (readiness.mode === "app_store") {
+    return {
+      error: "PayShield membership is purchased and managed in the mobile app.",
+      errorCode: "mobile_store_purchase_required",
+      readiness,
+      status: 409,
+      url: "",
+    };
+  }
 
   if (!readiness.checkoutConfigured) {
     return {

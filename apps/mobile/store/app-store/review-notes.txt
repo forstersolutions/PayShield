@@ -1,0 +1,9 @@
+PayShield requires an authenticated household account. Use the credentials entered in App Review Information.
+
+Suggested review path:
+1. Complete sign-in and identity onboarding.
+2. Open Plan and edit a protected bucket.
+3. Open Account and connect the designated sandbox institution through Plaid Link.
+4. Review Safe to Spend, Bills, Activity, card lock, export, and subscription restore.
+
+No reviewer should enter personal financial credentials. The review account and connected institution must use the configured provider sandbox. Contact support@graystontechnologies.com for immediate review assistance.

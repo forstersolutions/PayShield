@@ -1,0 +1,6 @@
+app_identifier("com.graystontechnologies.payshield")
+package_name("com.graystontechnologies.payshield")
+team_id("PT89VGZ28C")
+
+apple_id(ENV["PAYSHIELD_APPLE_ID"]) if ENV["PAYSHIELD_APPLE_ID"]
+itc_team_id(ENV["PAYSHIELD_ASC_TEAM_ID"]) if ENV["PAYSHIELD_ASC_TEAM_ID"]

@@ -32,53 +32,43 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 1);
 }
 
-test("public product experience is complete and responsive", async ({ page }) => {
+test("download experience is complete and responsive", async ({ page }) => {
   const runtimeErrors = captureRuntimeErrors(page);
 
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { level: 1, name: "PayShield" })).toBeVisible();
-  await expect(page.getByLabel("PayShield product preview")).toBeVisible();
-  await expect(page.getByRole("link", { name: "PayShield home" })).toBeVisible();
   await expect(
     page.getByRole("heading", {
-      name: "Your balance lies. Safe to Spend doesn't.",
+      level: 1,
+      name: "Spend what's free. Protect what's spoken for.",
     }),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Membership unavailable" })).toBeDisabled();
+  await expect(
+    page.getByLabel("PayShield mobile app showing Safe to Spend and protected buckets"),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "PayShield home" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Download PayShield on the App Store" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Get PayShield on Google Play" })).toBeVisible();
+  await expect(page.getByText("One household membership")).toBeVisible();
 
-  const differenceTop = await page.locator("#difference").evaluate((element) =>
+  const proofTop = await page.getByLabel("PayShield benefits").evaluate((element) =>
     element.getBoundingClientRect().top,
   );
   const viewportHeight = await page.evaluate(() => window.innerHeight);
-  expect(differenceTop).toBeLessThanOrEqual(viewportHeight);
+  expect(proofTop).toBeLessThanOrEqual(viewportHeight + 1);
 
   await expectNoHorizontalOverflow(page);
   expect(runtimeErrors).toEqual([]);
 });
 
-test("household app navigation exposes every money-control workspace", async ({ page }) => {
-  const runtimeErrors = captureRuntimeErrors(page);
+test("download router sends each platform to its store", async ({ request }) => {
+  const ios = await request.get("/download?store=ios", { maxRedirects: 0 });
+  const android = await request.get("/download?store=android", { maxRedirects: 0 });
 
-  await page.goto("/app");
-
-  await expect(page.getByText("Safe to Spend", { exact: true }).first()).toBeVisible();
-
-  const workspaces = [
-    ["Paycheck", "Make every deposit arrive with a plan."],
-    ["Buckets", "Give every dollar one clear job."],
-    ["Bills", "Protected money goes only where you approved."],
-    ["Card", "Spend what is free. Keep obligations protected."],
-    ["Activity", "A clear record of what happened to your money."],
-  ] as const;
-
-  for (const [navigationLabel, heading] of workspaces) {
-    await page.getByRole("button", { name: navigationLabel, exact: true }).click();
-    await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
-  }
-
-  await expectNoHorizontalOverflow(page);
-  expect(runtimeErrors).toEqual([]);
+  expect(ios.status()).toBe(307);
+  expect(ios.headers().location).toMatch(/^https:\/\/apps\.apple\.com\//);
+  expect(android.status()).toBe(307);
+  expect(android.headers().location).toMatch(/^https:\/\/play\.google\.com\//);
 });
 
 test("privacy and terms are reachable and branded", async ({ page }) => {
@@ -94,4 +84,16 @@ test("privacy and terms are reachable and branded", async ({ page }) => {
 
   await expectNoHorizontalOverflow(page);
   expect(runtimeErrors).toEqual([]);
+});
+
+test("support publishes contact and account deletion paths", async ({ page }) => {
+  await page.goto("/support");
+
+  await expect(page.getByRole("heading", { name: "PayShield Support" })).toBeVisible();
+  await expect(page.getByText("support@graystontechnologies.com").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Delete your account" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Request deletion" })).toHaveAttribute(
+    "href",
+    /mailto:support@graystontechnologies\.com/,
+  );
 });

@@ -1,0 +1,40 @@
+default_platform(:ios)
+
+def app_store_api_key
+  app_store_connect_api_key(
+    key_id: ENV.fetch("APP_STORE_CONNECT_API_KEY_ID"),
+    issuer_id: ENV.fetch("APP_STORE_CONNECT_ISSUER_ID"),
+    key_filepath: ENV.fetch("APP_STORE_CONNECT_API_KEY_PATH"),
+  )
+end
+
+platform :ios do
+  desc "Upload PayShield App Store copy and screenshots"
+  lane :metadata do
+    deliver(
+      api_key: app_store_api_key,
+      app_identifier: "com.graystontechnologies.payshield",
+      app_version: ENV.fetch("PAYSHIELD_APP_VERSION", "1.0.0"),
+      automatic_release: false,
+      force: true,
+      metadata_path: File.expand_path("../store/app-store/metadata", __dir__),
+      screenshots_path: File.expand_path("../store/app-store/screenshots", __dir__),
+      skip_binary_upload: true,
+      submit_for_review: false,
+    )
+  end
+end
+
+platform :android do
+  desc "Upload PayShield Play listing copy and screenshots"
+  lane :metadata do
+    supply(
+      json_key: ENV.fetch("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"),
+      package_name: "com.graystontechnologies.payshield",
+      metadata_path: File.expand_path("../store/google-play/metadata", __dir__),
+      skip_upload_aab: true,
+      skip_upload_apk: true,
+      track: ENV.fetch("GOOGLE_PLAY_TRACK", "internal"),
+    )
+  end
+end

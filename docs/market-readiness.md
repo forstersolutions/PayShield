@@ -46,23 +46,39 @@ the schema fingerprint, and runs the real database lifecycle suite.
 
 ## Frontend
 
-- Vercel Production has Clerk, Stripe, site URL, core URL, and core service token.
+- Vercel Production has Clerk, direct store URLs, site URL, core URL, core
+  service token, and the RevenueCat webhook secret.
 - Review access flags are false in production.
 - Authenticated users cannot fall back to local/demo money state.
 - Public health returns only service identity and healthy status.
 - `/api/waitlist` is absent.
 - Privacy, terms, security policy, `security.txt`, sitemap, manifest, icons,
   social image, canonical URL, and support contact are correct.
-- Desktop and mobile browser checks cover root, sign-in gate, app navigation,
-  bucket editing, bank connection, paycheck rules, bills, card controls,
-  transfers, unlocks, activity, and account failure states.
+- Desktop and mobile browser checks cover the download gateway, direct store
+  actions, support, legal pages, favicon, social image, and compact viewports.
+
+## Native Applications
+
+- Expo Doctor, lint, TypeScript, and production exports pass from a clean install.
+- iOS and Android release builds use `com.graystontechnologies.payshield` and
+  production signing identities owned by Grayston Technologies.
+- Native QA covers Clerk authentication, onboarding/KYC handoff, Plaid Link,
+  deposit instructions, custom buckets, paycheck rules, bills, card controls,
+  transfers, unlocks, activity export, purchase, restore, and account deletion.
+- The App Store and Google Play screenshots, descriptions, support URL, privacy
+  URL, review notes, release notes, and age/data-safety answers match the build.
+- Universal links and Android app links resolve only after the matching signed
+  production app is available.
 
 ## Commercial Services
 
-- Stripe live checkout creates the correct recurring membership.
-- Signed Stripe webhooks activate, renew, past-due, cancel, and restore the
-  correct household idempotently.
-- Billing portal opens only from the household's durable provider customer ID.
+- App Store and Google Play products are attached to the RevenueCat
+  `payshield_pro` entitlement and `default` offering.
+- Native purchase, restore, expiration, billing issue, cancellation, and refund
+  paths update the correct household idempotently through signed RevenueCat
+  webhook delivery.
+- Membership management opens the operating system's subscription-management
+  destination and never asks for card details on the website.
 - Clerk production sign-in maps the stable Clerk subject to one PayShield user
   and household.
 - Plaid production Link and transaction sync complete with a real test account.
@@ -86,7 +102,7 @@ The following must be approved outside the repository before enabling
 
 ## Release Proof
 
-After both deployments:
+After the website, core, and store builds are deployed:
 
 ```bash
 npm run smoke:deploy -- https://your-payshield-domain.example
@@ -95,4 +111,5 @@ npm run readiness:commercial -- https://your-payshield-domain.example
 
 Record the frontend commit, Vercel deployment URL, core image digest, ECS task
 definition, running task count, database migration fingerprint, smoke output,
-provider sandbox evidence, approval references, and rollback owner.
+provider sandbox evidence, iOS and Android build/version identifiers, store
+review submissions, approval references, and rollback owner.

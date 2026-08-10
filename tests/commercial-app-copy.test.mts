@@ -3,16 +3,14 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 const consumerFiles = [
-  "src/app/components/household-command-center.tsx",
-  "src/app/components/household-money-workspace.tsx",
-  "src/app/components/household-money-profile-panel.tsx",
-  "src/app/components/bucket-control-panel.tsx",
-  "src/app/components/payee-control-panel.tsx",
-  "src/app/components/bill-payment-panel.tsx",
-  "src/app/components/unlock-control-panel.tsx",
-  "src/app/components/neobank-dashboard.tsx",
-  "src/app/components/public-checkout-form.tsx",
+  "src/app/components/download-gateway.tsx",
   "src/app/components/site-footer.tsx",
+  "apps/mobile/src/app/(tabs)/index.tsx",
+  "apps/mobile/src/app/(tabs)/plan.tsx",
+  "apps/mobile/src/app/(tabs)/bills.tsx",
+  "apps/mobile/src/app/(tabs)/activity.tsx",
+  "apps/mobile/src/app/(tabs)/account.tsx",
+  "apps/mobile/src/components/money-actions.tsx",
 ];
 
 const prohibitedConsumerPhrases = [
@@ -28,131 +26,97 @@ const prohibitedConsumerPhrases = [
   /setup console/i,
 ];
 
-test("commercial app copy avoids non-production positioning", async () => {
+test("commercial mobile and download copy avoids non-production positioning", async () => {
   const findings: string[] = [];
 
   for (const file of consumerFiles) {
     const source = await readFile(file, "utf8");
 
     for (const phrase of prohibitedConsumerPhrases) {
-      if (phrase.test(source)) {
-        findings.push(`${file} contains ${phrase}`);
-      }
+      if (phrase.test(source)) findings.push(`${file} contains ${phrase}`);
     }
   }
 
   assert.deepEqual(findings, []);
 });
 
-test("authenticated app identity uses stable Clerk subject instead of email", async () => {
-  const auth = await readFile("src/app/lib/neobank/auth.ts", "utf8");
-
-  assert.match(auth, /clerkSubject: session\.userId/);
-  assert.match(auth, /userId: session\.userId/);
-  assert.doesNotMatch(auth, /payShieldUserIdForEmail\(email\) \|\| session\.userId/);
-});
-
-test("app command center exposes the complete household money workspace", async () => {
+test("website is a store-download gateway and the legacy web app cannot open", async () => {
+  const homePage = await readFile("src/app/page.tsx", "utf8");
   const appPage = await readFile("src/app/app/page.tsx", "utf8");
-  const commandCenter = await readFile(
-    "src/app/components/household-command-center.tsx",
+  const gateway = await readFile(
+    "src/app/components/download-gateway.tsx",
     "utf8",
   );
-  const workspace = await readFile(
-    "src/app/components/household-money-workspace.tsx",
-    "utf8",
-  );
+  const downloadRoute = await readFile("src/app/download/route.ts", "utf8");
 
-  assert.match(appPage, /getAppSession/);
-  assert.match(appPage, /<HouseholdCommandCenter session=\{session\} \/>/);
-  assert.doesNotMatch(appPage, /SiteFooter/);
-  assert.match(commandCenter, /HouseholdMoneyWorkspace/);
-  assert.doesNotMatch(commandCenter, /MoneyEngineConsole|MoneySetupConsole/);
-
-  for (const label of ["Today", "Paycheck", "Buckets", "Bills", "Card", "Activity"]) {
-    assert.match(workspace, new RegExp(`label: "${label}"`));
-  }
-
-  assert.match(workspace, /Safe to Spend/);
-  assert.match(workspace, /HouseholdMoneyProfilePanel/);
-  assert.match(workspace, /BucketControlPanel/);
-  assert.match(workspace, /BillRoutingWorkspace/);
-  assert.match(workspace, /UnlockControlPanel/);
-  assert.match(workspace, /PAYSHIELD_OWNERSHIP_LINE/);
-  assert.match(workspace, /GRAYSTON_SUPPORT_EMAIL/);
-  assert.equal(workspace.match(/<PayShieldHeaderLogo/g)?.length, 1);
-  assert.doesNotMatch(workspace, /href="\/launch"/);
+  assert.match(homePage, /<DownloadGateway \/>/);
+  assert.match(appPage, /redirect\("\/download"\)/);
+  assert.match(gateway, /Download on the/);
+  assert.match(gateway, /Google Play/);
+  assert.match(gateway, /payshield-mobile-home\.png/);
+  assert.match(gateway, /PAYSHIELD_OWNERSHIP_LINE/);
+  assert.equal(gateway.match(/<PayShieldHeaderLogo/g)?.length, 1);
+  assert.match(downloadRoute, /iphone\|ipad\|ipod/);
+  assert.match(downloadRoute, /android/);
 });
 
-test("consumer workspace wires revenue, bank, paycheck, card, transfer, and export actions", async () => {
-  const workspace = await readFile(
-    "src/app/components/household-money-workspace.tsx",
+test("native identity and subscription access use stable authenticated user IDs", async () => {
+  const webAuth = await readFile("src/app/lib/neobank/auth.ts", "utf8");
+  const nativeSession = await readFile(
+    "apps/mobile/src/providers/session-provider.tsx",
     "utf8",
   );
-  const checkout = await readFile(
-    "src/app/api/app/billing/checkout/route.ts",
+  const membership = await readFile(
+    "apps/mobile/src/providers/membership-provider.tsx",
     "utf8",
   );
 
-  for (const path of [
-    "/api/app/billing/checkout",
-    "/api/app/billing/portal",
-    "/api/app/bank-link/token",
-    "/api/app/bank-link/exchange",
-    "/api/app/paychecks/rules",
-    "/api/app/paychecks/sync",
-    "/api/app/onboarding/start",
-    "/api/app/card/status",
-    "/api/app/transfers",
-    "/api/app/audit/export",
-  ]) {
-    assert.match(workspace, new RegExp(path.replaceAll("/", "\\/")));
-  }
-
-  assert.match(workspace, /Freeze card/);
-  assert.match(workspace, /Unfreeze card/);
-  assert.match(checkout, /requireCheckoutSession: true/);
-  assert.match(checkout, /mode: "automatic"/);
-  assert.match(checkout, /autoActivationReady/);
+  assert.match(webAuth, /clerkSubject: session\.userId/);
+  assert.match(webAuth, /userId: session\.userId/);
+  assert.match(nativeSession, /userId: auth\.userId/);
+  assert.match(membership, /appUserID: session\.userId/);
+  assert.match(membership, /purchasePackage/);
+  assert.match(membership, /restorePurchases/);
 });
 
-test("bill routing supports destination lifecycle and scheduled payment cancellation", async () => {
-  const routing = await readFile(
-    "src/app/components/bill-routing-workspace.tsx",
+test("native app wires every customer money workflow", async () => {
+  const home = await readFile("apps/mobile/src/app/(tabs)/index.tsx", "utf8");
+  const plan = await readFile("apps/mobile/src/app/(tabs)/plan.tsx", "utf8");
+  const bills = await readFile("apps/mobile/src/app/(tabs)/bills.tsx", "utf8");
+  const activity = await readFile("apps/mobile/src/app/(tabs)/activity.tsx", "utf8");
+  const account = await readFile("apps/mobile/src/app/(tabs)/account.tsx", "utf8");
+
+  assert.match(home, /Safe to Spend/);
+  assert.match(home, /TransferSheet/);
+  assert.match(home, /UnlockSheet/);
+  assert.match(plan, /replace_profile/);
+  assert.match(plan, /New protected bucket/);
+  assert.match(bills, /\/api\/app\/payees/);
+  assert.match(bills, /\/api\/app\/bill-payments/);
+  assert.match(activity, /\/api\/app\/audit\/export/);
+  assert.match(account, /\/api\/app\/bank-link\/token/);
+  assert.match(account, /\/api\/app\/bank-link\/exchange/);
+  assert.match(account, /\/api\/app\/onboarding\/start/);
+  assert.match(account, /\/api\/app\/card\/status/);
+});
+
+test("RevenueCat webhooks persist native store access through the core", async () => {
+  const route = await readFile(
+    "src/app/api/app/billing/revenuecat/webhook/route.ts",
     "utf8",
   );
-  const payees = await readFile(
-    "src/app/components/payee-control-panel.tsx",
-    "utf8",
-  );
-  const bills = await readFile(
-    "src/app/components/bill-payment-panel.tsx",
-    "utf8",
-  );
-  const payeeRoute = await readFile("src/app/api/app/payees/route.ts", "utf8");
-  const cancelRoute = await readFile(
-    "src/app/api/app/bill-payments/cancel/route.ts",
+  const parser = await readFile(
+    "src/app/lib/commercial/revenuecat-webhook.ts",
     "utf8",
   );
 
-  assert.match(routing, /PayeeControlPanel/);
-  assert.match(routing, /BillPaymentPanel/);
-  assert.match(routing, /billPayments/);
-  assert.match(routing, /onOperationsRefresh/);
-  assert.match(payees, /Payment destinations/);
-  assert.match(payees, /Verification pending/);
-  assert.match(payees, /method: updatingServerRecord \? "PATCH" : "POST"/);
-  assert.match(payees, /method: "DELETE"/);
-  assert.match(payees, /Nothing was changed/);
-  assert.doesNotMatch(payees, /localStorage/);
-  assert.match(bills, /Schedule a bill/);
-  assert.match(bills, /Upcoming/);
-  assert.match(bills, /\/api\/app\/bill-payments\/cancel/);
-  assert.match(bills, /Confirm/);
-  assert.match(payeeRoute, /export async function POST/);
-  assert.match(payeeRoute, /export async function PATCH/);
-  assert.match(payeeRoute, /export async function DELETE/);
-  assert.match(cancelRoute, /\/api\/app\/bill-payments\/cancel/);
+  assert.match(route, /verifyRevenueCatAuthorization/);
+  assert.match(route, /\/api\/commercial\/billing-events/);
+  assert.match(parser, /INITIAL_PURCHASE/);
+  assert.match(parser, /CANCELLATION/);
+  assert.match(parser, /EXPIRATION/);
+  assert.match(parser, /BILLING_ISSUE/);
+  assert.match(parser, /payshield_pro/);
 });
 
 test("launch controls stay operator-only and outside the consumer flow", async () => {
@@ -165,8 +129,8 @@ test("launch controls stay operator-only and outside the consumer flow", async (
     "src/app/lib/neobank/operator-auth.ts",
     "utf8",
   );
-  const dashboard = await readFile(
-    "src/app/components/neobank-dashboard.tsx",
+  const gateway = await readFile(
+    "src/app/components/download-gateway.tsx",
     "utf8",
   );
 
@@ -175,7 +139,5 @@ test("launch controls stay operator-only and outside the consumer flow", async (
   assert.match(launchRoute, /operatorAccessDeniedResponse/);
   assert.match(operatorAuth, /PAYSHIELD_OPERATOR_EMAILS/);
   assert.match(operatorAuth, /PAYSHIELD_OPERATOR_USER_IDS/);
-  assert.doesNotMatch(dashboard, /href="\/launch"/);
-  assert.match(dashboard, /Spend what&apos;s free\. Protect what&apos;s spoken for\./);
-  assert.match(dashboard, /Your balance lies/);
+  assert.doesNotMatch(gateway, /href="\/launch"/);
 });
