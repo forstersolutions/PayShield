@@ -1,0 +1,10 @@
+# The Vercel project builds only the Next.js download site and API facade.
+apps/mobile/
+
+# Local dependency and build output must never be uploaded by the CLI archive path.
+node_modules/
+.next/
+.vercel/
+coverage/
+playwright-report/
+test-results/
