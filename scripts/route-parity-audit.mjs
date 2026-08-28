@@ -6,11 +6,7 @@ import { getCoreHealth } from "../services/core/product.mjs";
 const coreOnlyRoutes = new Map([
   [
     "POST /token-vault/plaid",
-    "Signed token-vault receiver lives on the dedicated core service so access tokens never terminate in the Vercel frontend.",
-  ],
-  [
-    "POST /plaid/webhooks",
-    "Plaid verification and durable sync queueing terminate on the dedicated core service.",
+    "The Vercel core stores exchanged Plaid tokens in-process, so no public token receiver is exposed.",
   ],
   [
     "POST /commercial/billing-events",
@@ -99,7 +95,7 @@ function evaluateFacade(rootDir, facade) {
 
   if (routeNeedsCoreForwarding(facade)) {
     if (!content.includes("forwardCoreRequest")) {
-      failures.push(`${facade.file} does not forward to the dedicated core service.`);
+      failures.push(`${facade.file} does not forward to the PayShield core runtime.`);
     } else if (!coreForwardPathPattern(facade).test(content)) {
       failures.push(
         `${facade.file} does not forward ${facade.coreRoute} to its matching core path.`,

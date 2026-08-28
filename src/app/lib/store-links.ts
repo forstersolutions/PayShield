@@ -3,7 +3,22 @@ const defaultAppStoreSearch =
 const defaultPlayStoreSearch =
   "https://play.google.com/store/search?q=PayShield%20Grayston%20Technologies&c=apps";
 
-function safeStoreUrl(value: string | undefined, hostname: string) {
+function isDirectAppStoreListing(url: URL) {
+  return /(?:^|\/)app\/(?:[^/]+\/)?id\d+\/?$/.test(url.pathname);
+}
+
+function isDirectPlayStoreListing(url: URL) {
+  return (
+    url.pathname === "/store/apps/details" &&
+    url.searchParams.get("id") === "com.graystontechnologies.payshield"
+  );
+}
+
+function safeStoreUrl(
+  value: string | undefined,
+  hostname: string,
+  isDirectListing: (url: URL) => boolean,
+) {
   if (!value?.trim()) return "";
 
   try {
@@ -13,7 +28,8 @@ function safeStoreUrl(value: string | undefined, hostname: string) {
       url.protocol !== "https:" ||
       url.hostname !== hostname ||
       url.username ||
-      url.password
+      url.password ||
+      !isDirectListing(url)
     ) {
       return "";
     }
@@ -28,10 +44,12 @@ export function getStoreLinks() {
   const configuredAppStoreUrl = safeStoreUrl(
     process.env.NEXT_PUBLIC_APP_STORE_URL,
     "apps.apple.com",
+    isDirectAppStoreListing,
   );
   const configuredPlayStoreUrl = safeStoreUrl(
     process.env.NEXT_PUBLIC_PLAY_STORE_URL,
     "play.google.com",
+    isDirectPlayStoreListing,
   );
 
   return {

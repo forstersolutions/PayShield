@@ -32,7 +32,7 @@ export function requireDurableCoreService(input: {
 
   if (!core.configured) {
     return requiredCoreUnavailable({
-      message: `${input.operation} requires PAYSHIELD_CORE_API_URL so the operation is handled by the dedicated PayShield core service and recorded durably.`,
+      message: `${input.operation} requires the PayShield Vercel core runtime and a verified Supabase ledger.`,
       service: input.service,
     });
   }
@@ -45,10 +45,14 @@ export function requireDurableCoreService(input: {
     });
   }
 
+  if (core.mode === "in_process") {
+    return null;
+  }
+
   if (!core.serviceToken) {
     return requiredCoreUnavailable({
       code: "core_service_token_required",
-      message: `${input.operation} requires PAYSHIELD_CORE_SERVICE_TOKEN so regulated operation writes are authenticated to the dedicated core service.`,
+      message: `${input.operation} requires PAYSHIELD_CORE_SERVICE_TOKEN for the configured remote core service.`,
       service: input.service,
     });
   }

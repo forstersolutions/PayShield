@@ -69,7 +69,9 @@ export function MembershipProvider({ children }: PropsWithChildren) {
       !session.userId ||
       !appConfig.revenueCatApiKey
     ) {
+      setActive(false);
       setAvailable(false);
+      setCurrentPackage(null);
       return;
     }
 
@@ -102,7 +104,9 @@ export function MembershipProvider({ children }: PropsWithChildren) {
       setActive(hasEntitlement(customerInfo));
       setAvailable(Boolean(purchasePackage));
     } catch {
+      setActive(false);
       setAvailable(false);
+      setCurrentPackage(null);
       setError("Membership details could not be loaded.");
     } finally {
       setLoading(false);
@@ -116,7 +120,13 @@ export function MembershipProvider({ children }: PropsWithChildren) {
       Platform.OS === "web" ||
       !appConfig.revenueCatApiKey
     ) {
-      return;
+      const resetTimer = setTimeout(() => {
+        setActive(session.isDemo);
+        setAvailable(session.isDemo);
+        setCurrentPackage(null);
+        setError("");
+      }, 0);
+      return () => clearTimeout(resetTimer);
     }
 
     let listening = false;
@@ -124,6 +134,9 @@ export function MembershipProvider({ children }: PropsWithChildren) {
       setActive(hasEntitlement(customerInfo));
     };
     const refreshTimer = setTimeout(() => {
+      setActive(false);
+      setAvailable(false);
+      setCurrentPackage(null);
       void refresh().then(() => {
         if (!configured) return;
         Purchases.addCustomerInfoUpdateListener(listener);
@@ -142,7 +155,10 @@ export function MembershipProvider({ children }: PropsWithChildren) {
       setActive(true);
       return true;
     }
-    if (!currentPackage) return false;
+    if (!currentPackage) {
+      setError("Membership purchase is not available for this store account. Contact PayShield support.");
+      return false;
+    }
     setLoading(true);
     setError("");
     try {
@@ -165,7 +181,10 @@ export function MembershipProvider({ children }: PropsWithChildren) {
 
   const restore = useCallback(async () => {
     if (session.isDemo) return true;
-    if (!configured) return false;
+    if (!configured) {
+      setError("Membership restore is not available for this store account. Contact PayShield support.");
+      return false;
+    }
     setLoading(true);
     setError("");
     try {
@@ -183,7 +202,12 @@ export function MembershipProvider({ children }: PropsWithChildren) {
   }, [session.isDemo]);
 
   const manage = useCallback(async () => {
-    if (!session.isDemo && configured) await Purchases.showManageSubscriptions();
+    if (session.isDemo) return;
+    if (!configured) {
+      setError("Subscription management is not available for this store account. Contact PayShield support.");
+      return;
+    }
+    await Purchases.showManageSubscriptions();
   }, [session.isDemo]);
 
   const value = useMemo(

@@ -11,18 +11,18 @@ export async function openBankLink({
   linkToken: string;
   onSuccess: (result: LinkSuccess) => Promise<void>;
 }) {
-  return new Promise<void>((resolve, reject) => {
+  return new Promise<{ connected: boolean }>((resolve, reject) => {
     void createPlaidLinkSession({
       onEvent: () => undefined,
       onExit: (result: LinkExit) => {
         if (result.error) {
           reject(new Error(result.error.displayMessage || "Bank connection could not be completed."));
         } else {
-          resolve();
+          resolve({ connected: false });
         }
       },
       onSuccess: (result: LinkSuccess) => {
-        void onSuccess(result).then(resolve).catch(reject);
+        void onSuccess(result).then(() => resolve({ connected: true })).catch(reject);
       },
       token: linkToken,
     })
@@ -30,4 +30,3 @@ export async function openBankLink({
       .catch(reject);
   });
 }
-

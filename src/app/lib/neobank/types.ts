@@ -103,6 +103,8 @@ export type Payee = {
 export type DirectDepositInstructions = {
   accountLast4: string;
   accountName: string;
+  instructionsExpiresAt?: string | null;
+  instructionsUrl?: string;
   providerStatus: MoneyRailStatus;
   routingLast4: string;
 };

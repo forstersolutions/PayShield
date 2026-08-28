@@ -20,7 +20,7 @@ product, transaction, and entitlement data required for subscription access.
 
 Required submission checks:
 
-- Confirm Clerk, RevenueCat, Plaid, banking/card provider, Vercel, and AWS data
+- Confirm Clerk, RevenueCat, Plaid, banking/card provider, Vercel, and Supabase data
   practices against the live configuration.
 - Publish the exact production privacy policy before review.
 - Complete Apple privacy nutrition labels and Google Data safety answers in the

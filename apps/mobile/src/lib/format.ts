@@ -54,3 +54,20 @@ export function initials(value?: string | null) {
   );
 }
 
+export function isValidCalendarDate(value: string, { allowToday = true } = {}) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+
+  const parsed = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
+    return false;
+  }
+
+  const today = new Date();
+  const localToday = [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(today.getDate()).padStart(2, "0"),
+  ].join("-");
+
+  return allowToday ? value >= localToday : value > localToday;
+}

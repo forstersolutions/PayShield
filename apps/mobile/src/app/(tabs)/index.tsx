@@ -1,9 +1,10 @@
 import { useRouter } from "expo-router";
 import {
   ArrowDownToLine,
+  CheckCircle2,
   ChevronRight,
+  Circle,
   CreditCard,
-  Landmark,
   LockOpen,
   ReceiptText,
   ShieldCheck,
@@ -19,6 +20,7 @@ import {
   ErrorState,
   LoadingState,
   Panel,
+  ProgressBar,
   QuickAction,
   Screen,
   SectionHeading,
@@ -28,10 +30,41 @@ import { Colors, Fonts, Radius, Spacing } from "@/constants/theme";
 import { formatMoney, initials } from "@/lib/format";
 import { useOperations } from "@/hooks/use-pay-shield";
 import { useSession } from "@/providers/session-provider";
+import { useMembership } from "@/providers/membership-provider";
+
+function SetupStep({
+  complete,
+  detail,
+  onPress,
+  title,
+}: {
+  complete: boolean;
+  detail: string;
+  onPress: () => void;
+  title: string;
+}) {
+  const Icon = complete ? CheckCircle2 : Circle;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.setupStep, pressed && styles.pressed]}
+    >
+      <Icon color={complete ? Colors.mint : Colors.gold} size={21} />
+      <View style={styles.setupStepCopy}>
+        <Text style={styles.setupStepTitle}>{title}</Text>
+        <Text style={styles.setupStepDetail}>{detail}</Text>
+      </View>
+      <ChevronRight color={Colors.inkFaint} size={18} />
+    </Pressable>
+  );
+}
 
 export default function HomeScreen() {
   const router = useRouter();
   const session = useSession();
+  const membership = useMembership();
   const operations = useOperations();
   const [transferOpen, setTransferOpen] = useState(false);
   const [unlockOpen, setUnlockOpen] = useState(false);
@@ -58,6 +91,15 @@ export default function HomeScreen() {
   const timeline = (data?.timeline ?? []).slice(0, 3);
   const bankConnected = Boolean(data?.operations?.bankConnections?.length);
   const cardActive = ["active", "live"].includes(data?.card?.status ?? "");
+  const cardAvailable = cardActive || ["frozen", "locked"].includes(data?.card?.status ?? "") || data?.readiness?.liveMoneyReady === true;
+  const transferAvailable = payees.some((payee) => payee.status === "approved");
+  const protectedFundsAvailable = protectedBuckets.some((bucket) => bucket.availableCents > 0);
+  const planReady = Boolean(
+    protectedBuckets.length &&
+      data?.operations?.paycheckDetectionRules?.some((rule) => rule.status === "active"),
+  );
+  const billReady = payees.some((payee) => payee.status === "approved");
+  const setupCompleteCount = [membership.active, bankConnected, planReady, billReady].filter(Boolean).length;
 
   return (
     <Screen onRefresh={() => void operations.refetch()} refreshing={operations.isRefetching}>
@@ -68,6 +110,25 @@ export default function HomeScreen() {
 
       {data ? (
         <>
+          {setupCompleteCount < 4 ? (
+            <Panel style={styles.setupPanel} tone="warning">
+              <View style={styles.setupHeader}>
+                <View style={styles.setupHeaderCopy}>
+                  <Text style={styles.setupEyebrow}>GET PAYSHIELD WORKING</Text>
+                  <Text style={styles.setupHeading}>Finish your money setup</Text>
+                </View>
+                <Text style={styles.setupCount}>{setupCompleteCount}/4</Text>
+              </View>
+              <ProgressBar color={Colors.gold} progress={(setupCompleteCount / 4) * 100} />
+              <View style={styles.setupSteps}>
+                <SetupStep complete={membership.active} detail={membership.active ? "Household access is active" : "Activate your household membership"} onPress={() => router.push("/account")} title="Membership" />
+                <SetupStep complete={bankConnected} detail={bankConnected ? "Income account connected" : "Connect where your paycheck arrives"} onPress={() => router.push("/account")} title="Paycheck account" />
+                <SetupStep complete={planReady} detail={planReady ? "Automatic priorities are saved" : "Set pay, schedule, and funding order"} onPress={() => router.push("/plan")} title="Protection plan" />
+                <SetupStep complete={billReady} detail={billReady ? "At least one destination is verified" : "Choose who can receive protected money"} onPress={() => router.push("/bills")} title="Bill destination" />
+              </View>
+            </Panel>
+          ) : null}
+
           <Animated.View
             style={{
               opacity: entrance,
@@ -100,21 +161,10 @@ export default function HomeScreen() {
           </Animated.View>
 
           <View style={styles.quickActions}>
-            <QuickAction color={Colors.blue} icon={ArrowDownToLine} label="Move money" onPress={() => setTransferOpen(true)} />
+            <QuickAction color={Colors.blue} icon={ArrowDownToLine} label="Move money" onPress={() => transferAvailable ? setTransferOpen(true) : router.push("/bills")} />
             <QuickAction color={Colors.gold} icon={ReceiptText} label="Pay a bill" onPress={() => router.push("/bills")} />
-            <QuickAction color={Colors.coral} icon={LockOpen} label="Emergency" onPress={() => setUnlockOpen(true)} />
+            <QuickAction color={Colors.coral} icon={LockOpen} label="Emergency" onPress={() => protectedFundsAvailable ? setUnlockOpen(true) : router.push("/plan")} />
           </View>
-
-          {!bankConnected ? (
-            <Pressable onPress={() => router.push("/account")} style={({ pressed }) => [styles.setupBand, pressed && styles.pressed]}>
-              <View style={styles.setupIcon}><Landmark color={Colors.gold} size={21} /></View>
-              <View style={styles.setupCopy}>
-                <Text style={styles.setupTitle}>Connect your paycheck account</Text>
-                <Text style={styles.setupBody}>Turn on deposit detection and automatic protection.</Text>
-              </View>
-              <ChevronRight color={Colors.inkMuted} size={19} />
-            </Pressable>
-          ) : null}
 
           <View style={styles.section}>
             <SectionHeading
@@ -132,7 +182,7 @@ export default function HomeScreen() {
             </Panel>
           </View>
 
-          <Panel style={styles.cardPanel} tone={cardActive ? "blue" : "warning"}>
+          {cardAvailable ? <Panel style={styles.cardPanel} tone={cardActive ? "blue" : "warning"}>
             <View style={styles.cardVisual}>
               <View style={styles.cardBrand}>
                 <ShieldCheck color={Colors.blue} size={19} />
@@ -145,7 +195,7 @@ export default function HomeScreen() {
               <Text style={styles.cardBody}>Every purchase checks the Safe to Spend balance before protected money.</Text>
             </View>
             <CreditCard color={Colors.inkFaint} size={22} />
-          </Panel>
+          </Panel> : null}
 
           <View style={styles.section}>
             <SectionHeading
@@ -169,12 +219,12 @@ export default function HomeScreen() {
               title="Latest activity"
             />
             <Panel style={styles.rowsPanel}>
-              {timeline.map((item, index) => (
+              {timeline.length ? timeline.map((item, index) => (
                 <View key={item.id}>
                   {index ? <View style={styles.divider} /> : null}
                   <TimelineRow item={item} />
                 </View>
-              ))}
+              )) : <EmptyState body="Deposits, bills, card decisions, transfers, and unlocks will appear here." icon={ShieldCheck} title="No activity yet" />}
             </Panel>
           </View>
 
@@ -192,17 +242,12 @@ const styles = StyleSheet.create({
   balanceLabel: { alignItems: "center", flexDirection: "row", gap: 7 },
   balanceLabelText: { color: Colors.inkMuted, fontSize: 11, fontWeight: "800" },
   balance: { color: Colors.ink, fontFamily: Fonts.rounded, fontSize: 52, fontVariant: ["tabular-nums"], fontWeight: "800", lineHeight: 58 },
-  protectedLine: { alignItems: "center", borderTopColor: Colors.line, borderTopWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingTop: Spacing.lg },
-  protectedCopy: { flexDirection: "row", flexWrap: "wrap", gap: 5 },
+  protectedLine: { alignItems: "center", borderTopColor: Colors.line, borderTopWidth: 1, flexDirection: "row", gap: Spacing.md, justifyContent: "space-between", paddingTop: Spacing.lg },
+  protectedCopy: { flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 5, minWidth: 0 },
   protectedAmount: { color: Colors.blue, fontSize: 15, fontWeight: "800" },
-  protectedText: { color: Colors.inkMuted, fontSize: 14 },
-  miniShield: { alignItems: "center", backgroundColor: "rgba(110,145,255,0.12)", borderRadius: Radius.round, height: 38, justifyContent: "center", width: 38 },
+  protectedText: { color: Colors.inkMuted, flexShrink: 1, fontSize: 14, lineHeight: 19 },
+  miniShield: { alignItems: "center", backgroundColor: "rgba(110,145,255,0.12)", borderRadius: Radius.round, flexShrink: 0, height: 38, justifyContent: "center", width: 38 },
   quickActions: { flexDirection: "row", gap: Spacing.md, justifyContent: "space-around" },
-  setupBand: { alignItems: "center", backgroundColor: "#252115", borderColor: "rgba(241,198,111,0.22)", borderRadius: Radius.lg, borderWidth: 1, flexDirection: "row", gap: Spacing.md, padding: Spacing.lg },
-  setupIcon: { alignItems: "center", backgroundColor: "rgba(241,198,111,0.10)", borderRadius: Radius.round, height: 44, justifyContent: "center", width: 44 },
-  setupCopy: { flex: 1, gap: 3 },
-  setupTitle: { color: Colors.ink, fontSize: 14, fontWeight: "700" },
-  setupBody: { color: Colors.inkMuted, fontSize: 12, lineHeight: 17 },
   section: { gap: Spacing.md },
   link: { color: Colors.mint, fontSize: 13, fontWeight: "700" },
   rowsPanel: { gap: 0, paddingHorizontal: Spacing.lg, paddingVertical: 6 },
@@ -215,4 +260,15 @@ const styles = StyleSheet.create({
   cardCopy: { flex: 1, gap: 8 },
   cardBody: { color: Colors.inkMuted, fontSize: 12, lineHeight: 17 },
   pressed: { opacity: 0.72 },
+  setupPanel: { gap: Spacing.md },
+  setupHeader: { alignItems: "center", flexDirection: "row", gap: Spacing.md, justifyContent: "space-between" },
+  setupHeaderCopy: { flex: 1, gap: 3 },
+  setupEyebrow: { color: Colors.gold, fontSize: 10, fontWeight: "800" },
+  setupHeading: { color: Colors.ink, fontSize: 18, fontWeight: "800" },
+  setupCount: { color: Colors.gold, fontSize: 14, fontVariant: ["tabular-nums"], fontWeight: "800" },
+  setupSteps: { gap: 2 },
+  setupStep: { alignItems: "center", borderTopColor: Colors.line, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", gap: Spacing.sm, minHeight: 56, paddingVertical: 8 },
+  setupStepCopy: { flex: 1, gap: 2 },
+  setupStepTitle: { color: Colors.ink, fontSize: 14, fontWeight: "700" },
+  setupStepDetail: { color: Colors.inkMuted, fontSize: 11, lineHeight: 16 },
 });

@@ -59,11 +59,11 @@ export type BankConnection = {
 };
 
 export type DirectDeposit = {
-  accountNumber?: string;
   accountLast4?: string;
   accountName?: string;
+  instructionsExpiresAt?: string | null;
+  instructionsUrl?: string;
   providerStatus?: string;
-  routingNumber?: string;
   routingLast4?: string;
   status?: string;
 };
@@ -104,6 +104,13 @@ export type OperationsPacket = {
   };
   directDeposit?: DirectDeposit;
   generatedAt?: string;
+  moneyRails?: {
+    bankLinkReady?: boolean;
+    paycheckDetectionReady?: boolean;
+    providerAdapterConfigured?: boolean;
+    transactionSyncReady?: boolean;
+    transferReady?: boolean;
+  };
   household?: {
     email?: string;
     householdId?: string;
@@ -120,6 +127,9 @@ export type OperationsPacket = {
     paycheckDetections?: Record<string, unknown>[];
     transferIntents?: Record<string, unknown>[];
     unlockRequests?: Record<string, unknown>[];
+  };
+  readiness?: {
+    liveMoneyReady?: boolean;
   };
   timeline?: TimelineItem[];
 };

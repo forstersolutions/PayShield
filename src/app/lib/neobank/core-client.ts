@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server.js";
+import { after, NextResponse } from "next/server.js";
 import type { AppSession } from "./auth.ts";
 import { getCoreServiceConfig, joinCorePath } from "./core-config.ts";
 
 type ForwardCoreInput = {
   body?: unknown;
   method: "DELETE" | "GET" | "PATCH" | "POST";
+  operator?: boolean;
   path: string;
   request?: Request;
   session?: AppSession;
@@ -114,6 +115,80 @@ function isCoreResponseTooLarge(error: unknown) {
   return error instanceof Error && error.message === "core_response_too_large";
 }
 
+function inProcessRequestError(error: unknown) {
+  if (error instanceof SyntaxError || error instanceof TypeError) {
+    return jsonResponse(
+      {
+        error: "Request body must be a valid JSON object.",
+        service: "payshield-core",
+      },
+      400,
+    );
+  }
+
+  console.error("PayShield Vercel core request failed", {
+    errorName: error instanceof Error ? error.name : "UnknownError",
+  });
+
+  return safeCoreError("PayShield could not complete this request.", 500);
+}
+
+async function forwardInProcessCoreRequest(
+  input: ForwardCoreInput,
+  body: string | undefined,
+) {
+  try {
+    // The dispatcher stays framework-neutral so the same money logic can run in
+    // Vercel Functions and the standalone local service.
+    const core = await import("../../../../services/core/dispatcher.mjs");
+    const result = (await core.dispatchCoreRequest(
+      {
+        body,
+        headers: input.request?.headers,
+        method: input.method,
+        operator: input.operator,
+        path: input.path,
+        rawBody: body ?? "",
+        session: input.session,
+      },
+      process.env,
+    )) as {
+      body: unknown;
+      followup?: string | null;
+      status: number;
+    };
+
+    if (result.followup) {
+      const followup = result.followup;
+      const work = async () => {
+        try {
+          await core.runCoreFollowup(followup, process.env);
+        } catch (error) {
+          console.error("PayShield background processing failed", {
+            errorName: error instanceof Error ? error.name : "UnknownError",
+            followup,
+          });
+        }
+      };
+
+      try {
+        after(work);
+      } catch (error) {
+        // A scheduled maintenance run will retry durable jobs if the framework
+        // request context cannot register post-response work.
+        console.error("PayShield follow-up scheduling failed", {
+          errorName: error instanceof Error ? error.name : "UnknownError",
+          followup,
+        });
+      }
+    }
+
+    return jsonResponse(result.body, result.status, true);
+  } catch (error) {
+    return inProcessRequestError(error);
+  }
+}
+
 function cleanHeaderValue(value: string | undefined, maxLength: number) {
   return value
     ?.replace(/[\r\n]+/g, " ")
@@ -144,6 +219,10 @@ export async function forwardCoreRequest(input: ForwardCoreInput) {
 
   if (bodyResult.error) {
     return bodyResult.error;
+  }
+
+  if (config.mode === "in_process") {
+    return forwardInProcessCoreRequest(input, bodyResult.body);
   }
 
   const headers = new Headers({
@@ -185,6 +264,10 @@ export async function forwardCoreRequest(input: ForwardCoreInput) {
     if (name) {
       headers.set("x-payshield-user-name", name);
     }
+  }
+
+  if (input.operator === true) {
+    headers.set("x-payshield-operator", "true");
   }
 
   let response: Response;

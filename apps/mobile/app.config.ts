@@ -2,6 +2,8 @@ import type { ConfigContext, ExpoConfig } from "expo/config";
 
 const bundleIdentifier = "com.graystontechnologies.payshield";
 const productionHost = "payshield-lime.vercel.app";
+const easProjectId =
+  process.env.EAS_PROJECT_ID ?? process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -10,6 +12,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   description:
     "Paycheck protection, customizable money buckets, bill routing, and one honest Safe to Spend balance.",
   version: "1.0.0",
+  runtimeVersion: {
+    policy: "appVersion",
+  },
   orientation: "portrait",
   scheme: "payshield",
   userInterfaceStyle: "dark",
@@ -20,6 +25,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "@clerk/expo",
     "expo-secure-store",
     "expo-sharing",
+    "@react-native-community/datetimepicker",
     [
       "expo-local-authentication",
       {
@@ -83,5 +89,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       process.env.EXPO_PUBLIC_API_BASE_URL ??
       `https://${productionHost}`,
     supportEmail: "support@graystontechnologies.com",
+    ...(easProjectId ? { eas: { projectId: easProjectId } } : {}),
   },
 });

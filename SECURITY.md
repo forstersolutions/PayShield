@@ -16,14 +16,15 @@ tokens, signing secrets, or production customer records in the initial message.
 ## Security Baseline
 
 - Clerk protects account access and stable subjects map to isolated households.
-- Vercel is a stateless facade; the dedicated core owns regulated operations.
-- RDS PostgreSQL stores an immutable, household-scoped double-entry ledger.
+- Vercel Functions execute authenticated money-control operations server-side.
+- Supabase PostgreSQL stores an immutable, household-scoped double-entry ledger.
+- Ledger tables use forced row-level security and are unavailable to Supabase
+  `anon` and `authenticated` Data API roles.
 - Provider and Plaid callbacks are signature verified against exact raw bodies.
 - Money writes and provider events are idempotent and reconciled.
 - Provider access tokens are encrypted in server-side custody.
-- AWS workloads use private subnets, KMS, Secrets Manager, WAF, least-purpose
-  security groups, non-root read-only containers, immutable images, backups,
-  alarms, and automatic deployment rollback.
+- Database credentials and provider secrets remain server-only Vercel
+  environment variables and never ship in the website or mobile bundle.
 - Public health exposes no configuration or readiness detail.
 - `npm run verify` includes tests, route parity, infrastructure controls,
   migration checks, production build, and dependency audit.

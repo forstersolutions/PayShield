@@ -225,6 +225,46 @@ function textField(value: unknown, maxLength = 240) {
     : "";
 }
 
+function hostedProviderUrl(value: unknown) {
+  const raw = textField(value, 2000);
+
+  if (!raw) {
+    return "";
+  }
+
+  try {
+    const url = new URL(raw);
+    const localHttp =
+      url.protocol === "http:" &&
+      ["127.0.0.1", "::1", "localhost"].includes(url.hostname) &&
+      process.env.VERCEL_ENV !== "production";
+
+    if (
+      url.username ||
+      url.password ||
+      (url.protocol !== "https:" && !localHttp)
+    ) {
+      return "";
+    }
+
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+function hostedProviderExpiry(value: unknown) {
+  const raw = textField(value, 80);
+
+  if (!raw) {
+    return null;
+  }
+
+  const timestamp = Date.parse(raw);
+
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null;
+}
+
 function providerRequestId(payload: Record<string, unknown>) {
   return (
     textField(payload.providerRequestId) ||
@@ -458,10 +498,43 @@ class HttpJsonBankingProvider implements BankingProvider {
     );
     const accountLast4 = textField(payload.accountLast4, 4);
     const routingLast4 = textField(payload.routingLast4, 4);
+    const hostedInstructions =
+      payload.hostedInstructions &&
+      typeof payload.hostedInstructions === "object" &&
+      !Array.isArray(payload.hostedInstructions)
+        ? (payload.hostedInstructions as Record<string, unknown>)
+        : {};
+    const instructionsUrl = hostedProviderUrl(
+      payload.instructionsUrl ||
+        payload.payrollSwitchUrl ||
+        payload.setupUrl ||
+        payload.url ||
+        hostedInstructions.url,
+    );
+    const instructionsExpiresAt = hostedProviderExpiry(
+      payload.instructionsExpiresAt ||
+        payload.expiresAt ||
+        hostedInstructions.expiresAt,
+    );
 
     if (!/^\d{4}$/.test(accountLast4) || !/^\d{4}$/.test(routingLast4)) {
       throw new ProviderAdapterError(
         "Provider direct-deposit response did not include masked routing details.",
+      );
+    }
+
+    if (!instructionsUrl) {
+      throw new ProviderAdapterError(
+        "Provider direct-deposit response did not include a secure hosted instructions URL.",
+      );
+    }
+
+    if (
+      instructionsExpiresAt &&
+      Date.parse(instructionsExpiresAt) <= Date.now()
+    ) {
+      throw new ProviderAdapterError(
+        "Provider direct-deposit instructions were already expired.",
       );
     }
 
@@ -470,6 +543,8 @@ class HttpJsonBankingProvider implements BankingProvider {
       accountName:
         textField(payload.accountName, 80) ||
         "PayShield protected paycheck account",
+      instructionsExpiresAt,
+      instructionsUrl,
       providerStatus: "live" as const,
       routingLast4,
     };

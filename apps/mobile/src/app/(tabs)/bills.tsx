@@ -3,8 +3,10 @@ import {
   CalendarPlus,
   CheckCircle2,
   ExternalLink,
+  Pencil,
   Plus,
   ReceiptText,
+  Save,
   ShieldCheck,
   Trash2,
 } from "lucide-react-native";
@@ -12,11 +14,14 @@ import { useMemo, useState } from "react";
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { BillRow } from "@/components/money-rows";
+import { DateField } from "@/components/date-field";
 import {
   ActionButton,
   AppHeader,
   EmptyState,
+  ErrorState,
   FormField,
+  IconButton,
   InlineMessage,
   LoadingState,
   ModalSheet,
@@ -27,8 +32,8 @@ import {
   StatusPill,
 } from "@/components/ui";
 import { Colors, Radius, Spacing } from "@/constants/theme";
-import { dollarsToCents, formatMoney, initials, titleCase } from "@/lib/format";
-import { idempotencyKey } from "@/lib/idempotency";
+import { centsToInput, dollarsToCents, formatMoney, initials, isValidCalendarDate, titleCase } from "@/lib/format";
+import { useIdempotencyAttempt } from "@/lib/idempotency";
 import type { BillPayment, BucketBalance, Payee } from "@/lib/types";
 import { useOperations, usePayShieldMutation } from "@/hooks/use-pay-shield";
 import { useSession } from "@/providers/session-provider";
@@ -58,6 +63,7 @@ export default function BillsScreen() {
   const operations = useOperations();
   const [billOpen, setBillOpen] = useState(false);
   const [payeeOpen, setPayeeOpen] = useState(false);
+  const [editingPayeeId, setEditingPayeeId] = useState("");
   const [payeeId, setPayeeId] = useState("");
   const [amount, setAmount] = useState("");
   const [memo, setMemo] = useState("");
@@ -71,7 +77,13 @@ export default function BillsScreen() {
   const schedule = usePayShieldMutation<{ message?: string }, Record<string, unknown>>("/api/app/bill-payments");
   const cancel = usePayShieldMutation<{ message?: string }, Record<string, unknown>>("/api/app/bill-payments/cancel");
   const addPayee = usePayShieldMutation<{ enrollmentUrl?: string; message?: string; payee?: Payee }, Record<string, unknown>>("/api/app/payees");
+  const updatePayee = usePayShieldMutation<{ enrollmentUrl?: string; message?: string; payee?: Payee }, Record<string, unknown>>("/api/app/payees", "PATCH");
+  const archivePayee = usePayShieldMutation<{ message?: string }, Record<string, unknown>>("/api/app/payees", "DELETE");
   const verifyPayee = usePayShieldMutation<{ enrollmentUrl?: string; message?: string; payee?: Payee }, Record<string, unknown>>("/api/app/payees/verify");
+  const billAttempt = useIdempotencyAttempt("mobile-bill");
+  const cancelAttempt = useIdempotencyAttempt("mobile-bill-cancel");
+  const payeeAttempt = useIdempotencyAttempt("mobile-payee");
+  const verificationAttempt = useIdempotencyAttempt("mobile-payee-verify");
 
   const data = operations.data;
   const buckets = data?.buckets.filter((bucket) => bucket.id !== "safe_spending") ?? [];
@@ -84,7 +96,8 @@ export default function BillsScreen() {
   const selectedPayee = approved.find((payee) => payee.id === payeeId) ?? approved[0];
   const selectedBucket = buckets.find((bucket) => bucket.id === selectedPayee?.allowedBucketId);
   const amountCents = dollarsToCents(amount);
-  const billValid = Boolean(selectedPayee && selectedBucket && scheduledFor && amountCents > 0 && amountCents <= selectedPayee.maxCents && amountCents <= selectedBucket.availableCents);
+  const scheduleDateValid = isValidCalendarDate(scheduledFor);
+  const billValid = Boolean(selectedPayee && selectedBucket && scheduleDateValid && amountCents > 0 && amountCents <= selectedPayee.maxCents && amountCents <= selectedBucket.availableCents);
   const destinationValid = Boolean(destinationName.trim() && destinationBucketId && dollarsToCents(destinationLimit) > 0);
 
   function resetMessages() {
@@ -96,7 +109,9 @@ export default function BillsScreen() {
     if (!billValid || !selectedPayee) return;
     resetMessages();
     try {
-      const response = await schedule.mutateAsync({ amountCents, idempotencyKey: idempotencyKey("mobile-bill"), memo: memo.trim() || undefined, payeeId: selectedPayee.id, scheduledFor });
+      const input = { amountCents, memo: memo.trim() || undefined, payeeId: selectedPayee.id, scheduledFor };
+      const response = await schedule.mutateAsync({ ...input, idempotencyKey: billAttempt.keyFor(input) });
+      billAttempt.complete();
       setMessage(response.message ?? "Bill scheduled.");
       setBillOpen(false);
       setAmount("");
@@ -106,13 +121,24 @@ export default function BillsScreen() {
     }
   }
 
-  async function createDestination() {
+  async function saveDestination() {
     if (!destinationValid) return;
     resetMessages();
     try {
-      const response = await addPayee.mutateAsync({ allowedBucketId: destinationBucketId, idempotencyKey: idempotencyKey("mobile-payee"), maxCents: dollarsToCents(destinationLimit), name: destinationName.trim() });
-      setMessage(response.message ?? "Destination added.");
+      const input = {
+        allowedBucketId: destinationBucketId,
+        maxCents: dollarsToCents(destinationLimit),
+        name: destinationName.trim(),
+        ...(editingPayeeId ? { payeeId: editingPayeeId } : {}),
+      };
+      const idempotencyKey = payeeAttempt.keyFor(input);
+      const response = editingPayeeId
+        ? await updatePayee.mutateAsync({ ...input, idempotencyKey })
+        : await addPayee.mutateAsync({ ...input, idempotencyKey });
+      payeeAttempt.complete();
+      setMessage(response.message ?? (editingPayeeId ? "Destination updated." : "Destination added."));
       setPayeeOpen(false);
+      setEditingPayeeId("");
       setDestinationName("");
       setDestinationLimit("");
       if (response.enrollmentUrl) await Linking.openURL(response.enrollmentUrl);
@@ -124,7 +150,9 @@ export default function BillsScreen() {
   async function startVerification(payee: Payee) {
     resetMessages();
     try {
-      const response = await verifyPayee.mutateAsync({ idempotencyKey: idempotencyKey("mobile-payee-verify"), payeeId: payee.id });
+      const input = { payeeId: payee.id };
+      const response = await verifyPayee.mutateAsync({ ...input, idempotencyKey: verificationAttempt.keyFor(input) });
+      verificationAttempt.complete();
       setMessage(response.message ?? "Destination verified.");
       if (response.enrollmentUrl) await Linking.openURL(response.enrollmentUrl);
     } catch (requestError) {
@@ -139,7 +167,40 @@ export default function BillsScreen() {
         style: "destructive",
         text: "Cancel bill",
         onPress: () => {
-          void cancel.mutateAsync({ idempotencyKey: idempotencyKey("mobile-bill-cancel"), reason: "Canceled from PayShield mobile", scheduleId: bill.id }).then((response) => setMessage(response.message ?? "Bill canceled.")).catch((requestError) => setError(requestError instanceof Error ? requestError.message : "The bill could not be canceled."));
+          const input = { reason: "Canceled from PayShield mobile", scheduleId: bill.id };
+          void cancel.mutateAsync({ ...input, idempotencyKey: cancelAttempt.keyFor(input) }).then((response) => {
+            cancelAttempt.complete();
+            setMessage(response.message ?? "Bill canceled.");
+          }).catch((requestError) => setError(requestError instanceof Error ? requestError.message : "The bill could not be canceled."));
+        },
+      },
+    ]);
+  }
+
+  function openDestination(payee?: Payee) {
+    resetMessages();
+    setEditingPayeeId(payee?.id ?? "");
+    setDestinationName(payee?.name ?? "");
+    setDestinationBucketId(payee?.allowedBucketId ?? buckets[0]?.id ?? "");
+    setDestinationLimit(payee ? centsToInput(payee.maxCents) : "");
+    setPayeeOpen(true);
+  }
+
+  function confirmArchive(payee: Payee) {
+    Alert.alert("Remove this destination?", "Scheduled payments and preferred transfer settings must be reassigned first.", [
+      { style: "cancel", text: "Keep destination" },
+      {
+        style: "destructive",
+        text: "Remove",
+        onPress: () => {
+          resetMessages();
+          const input = { payeeId: payee.id };
+          void archivePayee.mutateAsync({ ...input, idempotencyKey: payeeAttempt.keyFor({ action: "archive", ...input }) }).then((response) => {
+            payeeAttempt.complete();
+            setPayeeOpen(false);
+            setEditingPayeeId("");
+            setMessage(response.message ?? "Destination removed.");
+          }).catch((requestError) => setError(requestError instanceof Error ? requestError.message : "The destination could not be removed."));
         },
       },
     ]);
@@ -151,11 +212,12 @@ export default function BillsScreen() {
       <PageHeading body="Approved destinations can reach only the bucket you assign." eyebrow="Bill routing" title="Bills use their money. Nothing else does." />
 
       {operations.isLoading ? <LoadingState label="Loading bills..." /> : null}
+      {operations.error && !data ? <ErrorState message={operations.error.message} onRetry={() => void operations.refetch()} /> : null}
       {data ? (
         <>
           <View style={styles.actions}>
             <ActionButton disabled={!approved.length} icon={CalendarPlus} label="Schedule bill" onPress={() => { resetMessages(); setPayeeId(approved[0]?.id ?? ""); setBillOpen(true); }} style={styles.action} />
-            <ActionButton icon={Plus} label="Add destination" onPress={() => { resetMessages(); setDestinationBucketId(buckets[0]?.id ?? ""); setPayeeOpen(true); }} style={styles.action} variant="secondary" />
+            <ActionButton icon={Plus} label="Add destination" onPress={() => openDestination()} style={styles.action} variant="secondary" />
           </View>
           <InlineMessage message={message} />
           <InlineMessage message={error} tone="error" />
@@ -191,6 +253,7 @@ export default function BillsScreen() {
                         <Text style={styles.destinationMeta}>{bucket?.name ?? "Bucket"} · limit {formatMoney(payee.maxCents)}</Text>
                       </View>
                       {ready ? <StatusPill label="Verified" tone="good" /> : <Pressable onPress={() => void startVerification(payee)} style={styles.verify}><ExternalLink color={Colors.gold} size={15} /><Text style={styles.verifyText}>Verify</Text></Pressable>}
+                      <IconButton icon={Pencil} label={`Edit ${payee.name}`} onPress={() => openDestination(payee)} />
                     </View>
                   </View>
                 );
@@ -207,21 +270,23 @@ export default function BillsScreen() {
               })}
             </View>
             <FormField keyboardType="decimal-pad" label="Amount" onChangeText={setAmount} prefix="$" placeholder="0.00" value={amount} />
-            <FormField hint="YYYY-MM-DD" label="Pay on" maxLength={10} onChangeText={setScheduledFor} placeholder="2026-08-21" value={scheduledFor} />
+            <DateField label="Pay on" minimumDate={new Date(new Date().setHours(0, 0, 0, 0))} onChange={setScheduledFor} value={scheduledFor} />
+            {scheduledFor && !scheduleDateValid ? <InlineMessage message="Choose a valid date of today or later." tone="error" /> : null}
             <FormField hint="Optional" label="Note" maxLength={120} onChangeText={setMemo} placeholder="September rent" value={memo} />
             {selectedPayee ? <Text style={styles.limitCopy}>{titleCase(selectedPayee.status)} · {formatMoney(selectedPayee.maxCents)} destination limit</Text> : null}
             <ActionButton disabled={!billValid} icon={CalendarPlus} label={amountCents ? `Schedule ${formatMoney(amountCents, 2)}` : "Schedule bill"} loading={schedule.isPending} onPress={() => void scheduleBill()} />
           </ModalSheet>
 
-          <ModalSheet onClose={() => setPayeeOpen(false)} title="Add destination" visible={payeeOpen}>
-            <Text style={styles.modalIntro}>Add a biller, landlord, lender, or other destination. Verification happens before money can move.</Text>
+          <ModalSheet onClose={() => setPayeeOpen(false)} title={editingPayeeId ? "Edit destination" : "Add destination"} visible={payeeOpen}>
+            <Text style={styles.modalIntro}>{editingPayeeId ? "Changing a destination or limit requires verification again before money can move." : "Add a biller, landlord, lender, or other destination. Verification happens before money can move."}</Text>
             <FormField label="Destination name" maxLength={80} onChangeText={setDestinationName} placeholder="Utility company" value={destinationName} />
             <Text style={styles.fieldLabel}>Allowed bucket</Text>
             <View style={styles.choices}>
               {buckets.map((bucket) => <BucketChoice bucket={bucket} key={bucket.id} onPress={() => setDestinationBucketId(bucket.id)} selected={bucket.id === destinationBucketId} />)}
             </View>
             <FormField keyboardType="decimal-pad" label="Maximum payment" onChangeText={setDestinationLimit} prefix="$" placeholder="0.00" value={destinationLimit} />
-            <ActionButton disabled={!destinationValid} icon={Plus} label="Add destination" loading={addPayee.isPending} onPress={() => void createDestination()} />
+            <ActionButton disabled={!destinationValid} icon={editingPayeeId ? Save : Plus} label={editingPayeeId ? "Save destination" : "Add destination"} loading={addPayee.isPending || updatePayee.isPending} onPress={() => void saveDestination()} />
+            {editingPayeeId ? <ActionButton icon={Trash2} label="Remove destination" loading={archivePayee.isPending} onPress={() => { const payee = payees.find((item) => item.id === editingPayeeId); if (payee) confirmArchive(payee); }} variant="danger" /> : null}
           </ModalSheet>
         </>
       ) : null}
@@ -256,4 +321,3 @@ const styles = StyleSheet.create({
   limitCopy: { color: Colors.gold, fontSize: 12 },
   fieldLabel: { color: Colors.ink, fontSize: 13, fontWeight: "700" },
 });
-

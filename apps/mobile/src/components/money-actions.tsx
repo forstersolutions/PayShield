@@ -11,7 +11,7 @@ import {
 } from "@/components/ui";
 import { Colors, Radius, Spacing } from "@/constants/theme";
 import { dollarsToCents, formatMoney } from "@/lib/format";
-import { idempotencyKey } from "@/lib/idempotency";
+import { useIdempotencyAttempt } from "@/lib/idempotency";
 import type { BucketBalance, Payee } from "@/lib/types";
 import { usePayShieldMutation } from "@/hooks/use-pay-shield";
 
@@ -55,6 +55,7 @@ export function TransferSheet({
   const [bucketId, setBucketId] = useState(eligible[0]?.id ?? "");
   const [amount, setAmount] = useState("");
   const mutation = usePayShieldMutation<{ message?: string }, Record<string, unknown>>("/api/app/transfers");
+  const attempt = useIdempotencyAttempt("mobile-transfer");
   const bucket = eligible.find((item) => item.id === bucketId) ?? eligible[0];
   const payee = payees.find((item) => item.allowedBucketId === bucket?.id && item.status === "approved");
   const amountCents = dollarsToCents(amount);
@@ -83,9 +84,10 @@ export function TransferSheet({
         loading={mutation.isPending}
         onPress={() => {
           if (!bucket || !payee || !valid) return;
+          const input = { amountCents, destinationPayeeId: payee.id, sourceBucketId: bucket.id };
           mutation.mutate(
-            { amountCents, destinationPayeeId: payee.id, idempotencyKey: idempotencyKey("mobile-transfer"), sourceBucketId: bucket.id },
-            { onSuccess: () => setTimeout(close, 650) },
+            { ...input, idempotencyKey: attempt.keyFor(input) },
+            { onSuccess: () => { attempt.complete(); setTimeout(close, 650); } },
           );
         }}
       />
@@ -110,6 +112,7 @@ export function UnlockSheet({
   const [reason, setReason] = useState("");
   const [mode, setMode] = useState<"slow_free" | "instant_fixed_fee">("slow_free");
   const mutation = usePayShieldMutation<{ message?: string; result?: { recoveryChecks?: number; recoveryPerCheckCents?: number } }, Record<string, unknown>>("/api/app/unlocks");
+  const attempt = useIdempotencyAttempt("mobile-unlock");
   const bucket = eligible.find((item) => item.id === bucketId) ?? eligible[0];
   const amountCents = dollarsToCents(amount);
   const valid = Boolean(bucket && reason.trim().length >= 3 && amountCents > 0 && amountCents <= bucket.availableCents);
@@ -143,9 +146,10 @@ export function UnlockSheet({
         loading={mutation.isPending}
         onPress={() => {
           if (!bucket || !valid) return;
+          const input = { amountCents, bucketId: bucket.id, mode, reason: reason.trim() };
           mutation.mutate(
-            { amountCents, bucketId: bucket.id, idempotencyKey: idempotencyKey("mobile-unlock"), mode, reason: reason.trim() },
-            { onSuccess: () => setTimeout(close, 650) },
+            { ...input, idempotencyKey: attempt.keyFor(input) },
+            { onSuccess: () => { attempt.complete(); setTimeout(close, 650); } },
           );
         }}
       />

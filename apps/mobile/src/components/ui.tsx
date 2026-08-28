@@ -211,8 +211,10 @@ export function IconButton({
   label,
   onPress,
   danger = false,
+  disabled = false,
 }: {
   danger?: boolean;
+  disabled?: boolean;
   icon: LucideIcon;
   label: string;
   onPress: () => void;
@@ -221,12 +223,14 @@ export function IconButton({
     <Pressable
       accessibilityLabel={label}
       accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       hitSlop={6}
       onPress={() => {
         haptic();
         onPress();
       }}
-      style={({ pressed }) => [styles.iconButton, danger && styles.iconButtonDanger, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.iconButton, danger && styles.iconButtonDanger, disabled && styles.disabled, pressed && !disabled && styles.pressed]}
     >
       <Icon color={danger ? Colors.red : Colors.inkMuted} size={19} />
     </Pressable>

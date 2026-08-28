@@ -4,16 +4,21 @@ import {
   applyBillPaymentLifecycle,
   applyCardAuthorizationLifecycle,
   applyTransferLifecycle,
+  claimAccountClosureRequests,
   claimPlaidSyncJobs,
+  completeAccountClosureRequest,
   completePlaidSyncJob,
   databaseConfigured,
   enqueuePlaidSyncJob,
+  failAccountClosureRequest,
   failPlaidSyncJob,
   cancelBillPaymentSchedule,
   loadCardAuthorizationDecision,
   loadBillPaymentSchedule,
   loadActiveBankConnectionForHousehold,
+  loadBankConnectionForHousehold,
   loadActivePaycheckDetectionRules,
+  loadAccountClosureRequest,
   loadOperationalAudit,
   loadBankConnectionForProvider,
   loadBucketProfile,
@@ -26,12 +31,14 @@ import {
   loadProviderTokenSecret,
   persistBucketProfile,
   persistBankConnection,
+  persistAccountClosureRequest,
   persistBankConnectionSyncState,
   persistBillPaymentSchedule,
   persistCardAuthorizationDecision,
   persistCommercialBillingEvent,
   persistCommercialCheckoutIntent,
   persistDirectDepositSetup,
+  persistHouseholdProtectionPlan,
   persistHouseholdMoneyProfile,
   persistHouseholdIdentity,
   persistMoneyRailEvent,
@@ -45,6 +52,7 @@ import {
   persistTransferIntent,
   persistUnlockRequest,
   resolveReconciliationExceptionRecord,
+  revokeBankConnection,
   updateBillPaymentProviderStatus,
   updateDirectDepositSetupProviderStatus,
   updateProviderKycApplicationStatus,
@@ -55,7 +63,7 @@ import {
 } from "./database.mjs";
 
 const serviceName = "payshield-core";
-export const coreLedgerSchemaVersion = "0019";
+export const coreLedgerSchemaVersion = "0022";
 const trustedPaycheckDetection = Symbol("trustedPaycheckDetection");
 const trustedPlaidWebhookSync = Symbol("trustedPlaidWebhookSync");
 const plaidVerificationKeyCache = new Map();
@@ -129,21 +137,19 @@ const gateDefinitions = [
     kind: "true",
   },
   {
-    description: "Durable Postgres ledger schema is configured and verified.",
+    description: "Supabase ledger schema and Data API isolation are verified.",
     id: "postgres_ledger",
     kind: "postgres_ledger_verified",
   },
   {
-    description: "Always-on regulated core backend is configured.",
-    env: "PAYSHIELD_CORE_API_URL",
+    description: "The Vercel money-control runtime is configured.",
     id: "dedicated_backend",
     kind: "core_online_or_present",
   },
   {
-    description: "Core service token is configured for protected internal operation routes.",
-    env: "PAYSHIELD_CORE_SERVICE_TOKEN",
+    description: "Money-control operations stay behind an authenticated server boundary.",
     id: "core_service_auth",
-    kind: "present",
+    kind: "core_auth_boundary",
   },
   {
     description: "Frontend authentication has been verified for account access.",
@@ -271,11 +277,15 @@ const providerEndpointDefaults = {
   billPayment: "/bill-payments",
   billPaymentCancel: "/bill-payments/cancel",
   cardAuthorization: "/card-authorizations",
+  cardClose: "/cards/close",
   cardIssue: "/cards",
+  cardManagement: "/cards/manage",
   cardStatus: "/cards/status",
   customer: "/customers",
+  customerClose: "/customers/close",
   directDeposit: "/direct-deposit-instructions",
   financialAccount: "/financial-accounts",
+  financialAccountClose: "/financial-accounts/close",
   kyc: "/kyc/applications",
   payeeEnrollment: "/payees/enroll",
   transfer: "/ach-transfers",
@@ -349,11 +359,15 @@ function getProviderAdapterConfig(env = process.env) {
       billPayment: cleanProviderPath(env.PAYSHIELD_BAAS_BILL_PAYMENT_PATH, providerEndpointDefaults.billPayment),
       billPaymentCancel: cleanProviderPath(env.PAYSHIELD_BAAS_BILL_PAYMENT_CANCEL_PATH, providerEndpointDefaults.billPaymentCancel),
       cardAuthorization: cleanProviderPath(env.PAYSHIELD_BAAS_CARD_AUTHORIZATION_PATH, providerEndpointDefaults.cardAuthorization),
+      cardClose: cleanProviderPath(env.PAYSHIELD_BAAS_CARD_CLOSE_PATH, providerEndpointDefaults.cardClose),
       cardIssue: cleanProviderPath(env.PAYSHIELD_BAAS_CARD_ISSUE_PATH, providerEndpointDefaults.cardIssue),
+      cardManagement: cleanProviderPath(env.PAYSHIELD_BAAS_CARD_MANAGEMENT_PATH, providerEndpointDefaults.cardManagement),
       cardStatus: cleanProviderPath(env.PAYSHIELD_BAAS_CARD_STATUS_PATH, providerEndpointDefaults.cardStatus),
       customer: cleanProviderPath(env.PAYSHIELD_BAAS_CUSTOMER_PATH, providerEndpointDefaults.customer),
+      customerClose: cleanProviderPath(env.PAYSHIELD_BAAS_CUSTOMER_CLOSE_PATH, providerEndpointDefaults.customerClose),
       directDeposit: cleanProviderPath(env.PAYSHIELD_BAAS_DIRECT_DEPOSIT_PATH, providerEndpointDefaults.directDeposit),
       financialAccount: cleanProviderPath(env.PAYSHIELD_BAAS_FINANCIAL_ACCOUNT_PATH, providerEndpointDefaults.financialAccount),
+      financialAccountClose: cleanProviderPath(env.PAYSHIELD_BAAS_FINANCIAL_ACCOUNT_CLOSE_PATH, providerEndpointDefaults.financialAccountClose),
       kyc: cleanProviderPath(env.PAYSHIELD_BAAS_KYC_PATH, providerEndpointDefaults.kyc),
       payeeEnrollment: cleanProviderPath(
         env.PAYSHIELD_BAAS_PAYEE_ENROLLMENT_PATH,
@@ -596,7 +610,9 @@ function gateOk(definition, env, options) {
       databaseConfigured(env) &&
       envTrue(env, "PAYSHIELD_LEDGER_SCHEMA_VERIFIED") &&
       env["PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION"]?.trim() ===
-        coreLedgerSchemaVersion
+        coreLedgerSchemaVersion &&
+      (env.PAYSHIELD_CORE_RUNTIME?.trim().toLowerCase() !== "vercel" ||
+        envTrue(env, "PAYSHIELD_SUPABASE_SECURITY_VERIFIED"))
     );
   }
 
@@ -609,7 +625,18 @@ function gateOk(definition, env, options) {
   }
 
   if (definition.kind === "core_online_or_present") {
-    return Boolean(options.coreOnline) || envPresent(env, "PAYSHIELD_CORE_API_URL");
+    return (
+      Boolean(options.coreOnline) ||
+      env.PAYSHIELD_CORE_RUNTIME?.trim().toLowerCase() === "vercel" ||
+      envPresent(env, "PAYSHIELD_CORE_API_URL")
+    );
+  }
+
+  if (definition.kind === "core_auth_boundary") {
+    return (
+      env.PAYSHIELD_CORE_RUNTIME?.trim().toLowerCase() === "vercel" ||
+      envPresent(env, "PAYSHIELD_CORE_SERVICE_TOKEN")
+    );
   }
 
   if (definition.kind === "frontend_auth_verified") {
@@ -638,7 +665,9 @@ export function getCoreReadiness(env = process.env, options = {}) {
     postgresSchemaVerified: gates.some((gate) => gate.id === "postgres_ledger" && gate.ok),
     postgresSchemaVersion: coreLedgerSchemaVersion,
     providerConfigured,
-    serviceAuthConfigured: envPresent(env, "PAYSHIELD_CORE_SERVICE_TOKEN"),
+    serviceAuthConfigured: gates.some(
+      (gate) => gate.id === "core_service_auth" && gate.ok,
+    ),
   };
 }
 
@@ -660,9 +689,12 @@ export function getCoreHealth(env = process.env) {
       "GET /app/control-plan",
       "GET /app/money-profile",
       "GET /app/audit/export",
+      "GET /app/account-closure",
       "POST /app/buckets",
       "POST /app/control-plan",
       "POST /app/money-profile",
+      "POST /app/protection-plan",
+      "POST /app/account-closure",
       "POST /token-vault/plaid",
       "POST /plaid/webhooks",
       "POST /app/bank-link/token",
@@ -673,6 +705,7 @@ export function getCoreHealth(env = process.env) {
       "POST /app/billing/checkout",
       "POST /app/bill-payments/cancel",
       "POST /app/card/status",
+      "POST /app/card/manage",
       "POST /app/direct-deposit",
       "POST /commercial/billing-events",
       "POST /app/onboarding/start",
@@ -687,6 +720,7 @@ export function getCoreHealth(env = process.env) {
       "POST /app/unlocks",
       "POST /app/reconciliation/resolve",
       "POST /launch/gate-evidence",
+      "POST /launch/account-closures/process",
       "POST /card/authorize",
       "POST /provider/webhooks",
     ],
@@ -776,6 +810,9 @@ function normalizeActor(value = {}) {
   const userId = safeString(value.userId || value.id, 160) || demoUser.id;
 
   return {
+    accountStatus: ["active", "closing", "closed"].includes(value.accountStatus)
+      ? value.accountStatus
+      : "active",
     authMode: safeString(value.authMode, 40) || "demo",
     clerkSubject: safeString(value.clerkSubject, 160) || null,
     email: safeString(value.email, 160) || demoUser.email,
@@ -784,6 +821,7 @@ function normalizeActor(value = {}) {
     id: userId,
     kycStatus: safeString(value.kycStatus, 40) || demoUser.kycStatus,
     name: safeString(value.name, 120) || demoUser.name,
+    operator: value.operator === true,
     profileAccess:
       allowedProfileAccess(value.profileAccess) || demoUser.profileAccess,
   };
@@ -796,6 +834,8 @@ function actorFromPayload(payload) {
 function actorFromIdentity(actor, identity) {
   return normalizeActor({
     ...actor,
+    accountStatus:
+      identity.user?.accountStatus || identity.accountStatus || actor.accountStatus,
     clerkSubject: identity.user?.clerkSubject || actor.clerkSubject,
     email: identity.user?.email || actor.email,
     householdId: identity.householdId,
@@ -1957,6 +1997,162 @@ export async function getBankConnections(env = process.env, actorInput = demoUse
   };
 }
 
+export async function disconnectBankConnection(payload, env = process.env) {
+  const actor = actorFromPayload(payload);
+  const bankConnectionId = cleanText(payload?.bankConnectionId, 160);
+
+  if (!bankConnectionId) {
+    return {
+      body: {
+        error: "Provide bankConnectionId.",
+        service: "payshield-bank-connections",
+      },
+      status: 400,
+    };
+  }
+
+  const lookup = await loadBankConnectionForHousehold(
+    { bankConnectionId, householdId: actor.householdId },
+    env,
+  );
+
+  if (persistenceFailed(lookup)) {
+    return {
+      body: {
+        error: "Bank connection could not be loaded.",
+        persistence: lookup,
+        service: "payshield-bank-connections",
+      },
+      status: 503,
+    };
+  }
+
+  const bankConnection = lookup.bankConnection;
+
+  if (!bankConnection) {
+    return {
+      body: {
+        error: "Bank connection was not found.",
+        service: "payshield-bank-connections",
+      },
+      status: 404,
+    };
+  }
+
+  if (bankConnection.status === "revoked") {
+    return {
+      body: {
+        bankConnectionId,
+        message: "Bank connection is already disconnected.",
+        service: "payshield-bank-connections",
+      },
+      status: 200,
+    };
+  }
+
+  if (bankConnection.providerName !== "plaid") {
+    return {
+      body: {
+        error: "This bank provider does not support customer revocation.",
+        service: "payshield-bank-connections",
+      },
+      status: 424,
+    };
+  }
+
+  const token = await loadProviderTokenSecret(
+    {
+      providerItemId: bankConnection.providerItemId,
+      providerName: bankConnection.providerName,
+      tokenSecretRef: bankConnection.tokenSecretRef,
+    },
+    env,
+  );
+
+  if (persistenceFailed(token) || !token.found || !token.accessToken) {
+    return {
+      body: {
+        error: "Bank connection credentials could not be loaded for secure revocation.",
+        service: "payshield-bank-connections",
+      },
+      status: 503,
+    };
+  }
+
+  try {
+    await plaidRequest(env, "/item/remove", { access_token: token.accessToken });
+  } catch {
+    await persistReconciliationException(
+      {
+        householdId: actor.householdId,
+        idempotencyKey:
+          `bank-disconnect-failed:${
+            cleanText(payload?.idempotencyKey, 120) || bankConnectionId
+          }`,
+        metadata: {
+          bankConnectionId,
+          providerItemId: bankConnection.providerItemId,
+        },
+        providerEventId: `bank-disconnect:${bankConnectionId}`,
+        providerName: "plaid",
+        reasonCode: "plaid_item_remove_failed",
+        severity: "warning",
+        source: "money_rail",
+        summary: "Linked bank revocation could not be confirmed by Plaid.",
+      },
+      env,
+    );
+
+    return {
+      body: {
+        error: "The bank provider could not revoke this connection. Try again.",
+        service: "payshield-bank-connections",
+      },
+      status: 502,
+    };
+  }
+
+  const idempotencyKey =
+    cleanText(payload?.idempotencyKey, 120) ||
+    `bank-disconnect:${bankConnectionId}`;
+  const persistence = await revokeBankConnection(
+    {
+      actorUserId: actor.id,
+      bankConnectionId,
+      betaAccessStatus: actor.profileAccess,
+      clerkSubject: actor.clerkSubject,
+      householdId: actor.householdId,
+      idempotencyKey,
+      kycStatus: actor.kycStatus,
+      reason: cleanText(payload?.reason, 160) || "customer_requested",
+      userEmail: actor.email,
+      userName: actor.name,
+    },
+    env,
+  );
+
+  if (persistenceFailed(persistence) || persistence.persistence !== "postgres") {
+    return {
+      body: {
+        error: "The provider connection was revoked, but local records require reconciliation.",
+        persistence,
+        service: "payshield-bank-connections",
+      },
+      status: 503,
+    };
+  }
+
+  return {
+    body: {
+      bankConnectionId,
+      message: "Bank disconnected. Paycheck detection for this account is off.",
+      persistence,
+      service: "payshield-bank-connections",
+    },
+    status: 200,
+  };
+}
+
 export async function getProfile(env = process.env, actorInput = demoUser) {
   const actor = normalizeActor(actorInput);
   const identityPersistence = await persistHouseholdIdentity(
@@ -2334,6 +2530,26 @@ async function requireActivePaidAccess(env, actorInput, operation) {
 
   const actor = actorResolution.actor;
 
+  if (actor.accountStatus !== "active" || actor.profileAccess === "blocked") {
+    return {
+      ok: false,
+      result: {
+        body: {
+          code:
+            actor.accountStatus === "closed"
+              ? "account_closed"
+              : "account_closing",
+          error:
+            actor.accountStatus === "closed"
+              ? "This PayShield account is closed."
+              : "This PayShield account is closing and money controls are disabled.",
+          service: "payshield-account-state",
+        },
+        status: 423,
+      },
+    };
+  }
+
   if (!commercialPaidAccessRequired(env)) {
     return {
       actor,
@@ -2549,8 +2765,10 @@ function buildActivationSetupGroups(body, siteUrl) {
         "PAYSHIELD_COMMERCIAL_PRICE_ID",
         "PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL",
         "STRIPE_WEBHOOK_SECRET",
-        "PAYSHIELD_CORE_API_URL",
-        "PAYSHIELD_CORE_SERVICE_TOKEN",
+        "PAYSHIELD_CORE_RUNTIME",
+        "PAYSHIELD_LEDGER_DATABASE_URL",
+        "PAYSHIELD_LEDGER_SCHEMA_VERIFIED",
+        "PAYSHIELD_SUPABASE_SECURITY_VERIFIED",
       ],
       key: "revenue",
       productAction:
@@ -2591,8 +2809,6 @@ function buildActivationSetupGroups(body, siteUrl) {
         "PLAID_COUNTRY_CODES",
         "PLAID_WEBHOOK_URL",
         "PAYSHIELD_TOKEN_VAULT_KEY_ID",
-        "PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL or PAYSHIELD_CORE_API_URL",
-        "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET",
         "PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY",
       ],
       key: "bank_connection",
@@ -2702,7 +2918,10 @@ function commercialActivationMissing(env) {
     missing.push("STRIPE_WEBHOOK_SECRET");
   }
 
-  if (!envPresent(env, "PAYSHIELD_CORE_SERVICE_TOKEN")) {
+  if (
+    env.PAYSHIELD_CORE_RUNTIME?.trim().toLowerCase() !== "vercel" &&
+    !envPresent(env, "PAYSHIELD_CORE_SERVICE_TOKEN")
+  ) {
     missing.push("PAYSHIELD_CORE_SERVICE_TOKEN");
   }
 
@@ -2748,11 +2967,11 @@ function friendlyControlPlanGateLabel(gate) {
     value.includes("TOKEN_VAULT_WEBHOOK_URL or PAYSHIELD_CORE_API_URL") ||
     (value.includes("TOKEN_VAULT") && value.includes("PAYSHIELD_CORE_API_URL"))
   ) {
-    return "Vault receiver or core service URL";
+    return "Token custody receiver";
   }
 
   if (value === "core_service_auth") {
-    return "Core service auth";
+    return "Server-side operation boundary";
   }
 
   if (value.includes("STRIPE_SECRET_KEY")) {
@@ -2768,11 +2987,11 @@ function friendlyControlPlanGateLabel(gate) {
   }
 
   if (value.includes("PAYSHIELD_CORE_API_URL")) {
-    return "Core activation service";
+    return "Money-control runtime";
   }
 
   if (value.includes("PAYSHIELD_CORE_SERVICE_TOKEN")) {
-    return "Core service auth";
+    return "Remote runtime authentication";
   }
 
   if (value.includes("live-mode") || value.includes("Stripe live-mode")) {
@@ -2848,11 +3067,11 @@ function friendlyControlPlanGateLabel(gate) {
   }
 
   if (value === "postgres_ledger") {
-    return "Verified Postgres ledger";
+    return "Verified Supabase ledger";
   }
 
   if (value === "dedicated_backend") {
-    return "Always-on core backend";
+    return "Vercel money-control runtime";
   }
 
   if (value === "clerk_auth") {
@@ -3254,7 +3473,7 @@ function controlPlanFromOperations(body, env, payload = {}) {
       endpoint: "POST /api/app/billing/checkout",
       key: "revenue_gate",
       ownerAction:
-        "Configure Stripe checkout, webhook signing, and core activation storage.",
+        "Configure Stripe checkout, webhook signing, and durable membership storage.",
       ready: paidAccessReady,
       status: paymentCollectionReady
         ? paidAccessReady
@@ -3423,6 +3642,32 @@ function controlPlanFromOperations(body, env, payload = {}) {
   };
 }
 
+function cleanFutureCalendarDate(value) {
+  const raw = cleanText(value, 10);
+
+  if (!raw) {
+    return "";
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return "";
+  }
+
+  const date = new Date(`${raw}T00:00:00.000Z`);
+  const today = new Date().toISOString().slice(0, 10);
+  const maximum = new Date();
+
+  maximum.setUTCFullYear(maximum.getUTCFullYear() + 2);
+  const maximumDate = maximum.toISOString().slice(0, 10);
+
+  return !Number.isNaN(date.getTime()) &&
+    date.toISOString().slice(0, 10) === raw &&
+    raw >= today &&
+    raw <= maximumDate
+    ? raw
+    : "";
+}
+
 function cleanProfileDate(value) {
   const raw = cleanText(value, 24);
 
@@ -3430,16 +3675,7 @@ function cleanProfileDate(value) {
     return null;
   }
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-    return null;
-  }
-
-  const date = new Date(`${raw}T00:00:00.000Z`);
-
-  return !Number.isNaN(date.getTime()) &&
-    date.toISOString().slice(0, 10) === raw
-    ? raw
-    : null;
+  return cleanFutureCalendarDate(raw) || null;
 }
 
 function normalizeHouseholdMoneyProfileInput(payload = {}) {
@@ -3471,7 +3707,7 @@ function normalizeHouseholdMoneyProfileInput(payload = {}) {
   }
 
   if (record.nextPayday && !nextPayday) {
-    errors.push("nextPayday must use YYYY-MM-DD.");
+    errors.push("nextPayday must be a valid date from today through two years ahead using YYYY-MM-DD.");
   }
 
   if (errors.length > 0) {
@@ -3668,6 +3904,354 @@ export async function getHouseholdMoneyProfile(
   };
 }
 
+export async function requestAccountClosure(payload, env = process.env) {
+  const actor = actorFromPayload(payload);
+  const confirmation = cleanText(payload?.confirmation, 16).toUpperCase();
+  const reason = cleanText(payload?.reason, 500);
+
+  if (confirmation !== "CLOSE" || payload?.acknowledgedDataRetention !== true) {
+    return {
+      body: {
+        error: "Confirm account closure and acknowledge required record retention.",
+        service: "payshield-account-closure",
+      },
+      status: 400,
+    };
+  }
+
+  const persistence = await persistAccountClosureRequest(
+    {
+      actorUserId: actor.id,
+      betaAccessStatus: actor.profileAccess,
+      clerkSubject: actor.clerkSubject,
+      householdId: actor.householdId,
+      idempotencyKey:
+        cleanText(payload?.idempotencyKey, 120) ||
+        `account-closure:${actor.householdId}`,
+      kycStatus: actor.kycStatus,
+      reason,
+      userEmail: actor.email,
+      userName: actor.name,
+    },
+    env,
+  );
+
+  if (persistenceFailed(persistence) || persistence.persistence !== "postgres") {
+    return {
+      body: {
+        error: "Your account closure request could not be recorded. Contact PayShield support.",
+        persistence,
+        service: "payshield-account-closure",
+      },
+      status: 503,
+    };
+  }
+
+  return {
+    body: {
+      closure: persistence.closure,
+      message: persistence.closure?.status === "completed"
+        ? "Your PayShield account is closed."
+        : persistence.replayed
+          ? "Your account closure request is already in progress."
+          : "Your account closure request has been received.",
+      persistence,
+      service: "payshield-account-closure",
+    },
+    status: persistence.closure?.status === "completed" ? 200 : 202,
+  };
+}
+
+export async function getAccountClosureStatus(
+  env = process.env,
+  actorInput = demoUser,
+) {
+  const actor = normalizeActor(actorInput);
+  const persistence = await loadAccountClosureRequest(
+    {
+      actorUserId: actor.id,
+      clerkSubject: actor.clerkSubject,
+      householdId: actor.householdId,
+    },
+    env,
+  );
+
+  if (
+    persistenceFailed(persistence) ||
+    persistence.persistence !== "postgres"
+  ) {
+    return {
+      body: {
+        error: "Account closure status could not be loaded.",
+        persistence,
+        service: "payshield-account-closure",
+      },
+      status: 503,
+    };
+  }
+
+  return {
+    body: {
+      closure: persistence.closure,
+      service: "payshield-account-closure",
+    },
+    status: 200,
+  };
+}
+
+function accountClosureRetrySeconds(attempts) {
+  const exponent = Math.min(8, Math.max(0, Number(attempts || 1) - 1));
+
+  return Math.min(86_400, 60 * 2 ** exponent);
+}
+
+function accountClosureFailureCode(error, step) {
+  if (error instanceof ProviderAdapterError) {
+    return `${step}_provider_failed`;
+  }
+
+  const known = safeString(error instanceof Error ? error.message : "", 80);
+
+  return [
+    "bank_revocation_failed",
+    "clerk_configuration_missing",
+    "clerk_delete_failed",
+    "closure_completion_failed",
+    "revenuecat_configuration_missing",
+    "revenuecat_customer_id_missing",
+    "revenuecat_delete_failed",
+  ].includes(known)
+    ? known
+    : `${step}_failed`;
+}
+
+async function processAccountClosureClaim(claim, env, workerId) {
+  let step = "provider_shutdown";
+
+  try {
+    for (const provider of claim.providerStates || []) {
+      const config = getProviderAdapterConfig(env);
+
+      if (provider.providerName !== config.providerName) {
+        throw new ProviderAdapterError(
+          "Account closure provider does not match the configured adapter.",
+        );
+      }
+
+      const state = provider.state || {};
+
+      if (state.card && state.card.status !== "closed") {
+        step = "card_close";
+        await providerCloseResource(env, {
+          body: {
+            idempotencyKey: `account-closure:${claim.closure.id}:card`,
+            providerCardId: state.card.providerCardId,
+            reason: "account_closed",
+          },
+          endpoint: "cardClose",
+          operation: "closeCard",
+        });
+      }
+    }
+
+    for (const bankConnection of claim.bankConnections || []) {
+      step = "bank_revocation";
+      const result = await disconnectBankConnection(
+        {
+          __payshieldActor: {
+            ...claim.actor,
+            operator: true,
+            profileAccess: "blocked",
+          },
+          bankConnectionId: bankConnection.id,
+          idempotencyKey: `account-closure:${claim.closure.id}:bank:${bankConnection.id}`,
+          reason: "account_closed",
+        },
+        env,
+      );
+
+      if (result.status >= 400) {
+        throw new Error("bank_revocation_failed");
+      }
+    }
+
+    for (const provider of claim.providerStates || []) {
+      const state = provider.state || {};
+
+      if (
+        state.financialAccount &&
+        state.financialAccount.status !== "closed"
+      ) {
+        step = "financial_account_close";
+        await providerCloseResource(env, {
+          body: {
+            idempotencyKey: `account-closure:${claim.closure.id}:financial-account`,
+            providerAccountId: state.financialAccount.providerAccountId,
+            reason: "account_closed",
+          },
+          endpoint: "financialAccountClose",
+          operation: "closeFinancialAccount",
+        });
+      }
+
+      if (state.customer && state.customer.status !== "closed") {
+        step = "customer_close";
+        await providerCloseResource(env, {
+          body: {
+            idempotencyKey: `account-closure:${claim.closure.id}:customer`,
+            providerCustomerId: state.customer.providerCustomerId,
+            reason: "account_closed",
+          },
+          endpoint: "customerClose",
+          operation: "closeCustomer",
+        });
+      }
+    }
+
+    step = "subscription_data_delete";
+    const subscriptionData = await deleteRevenueCatCustomerForClosure(
+      env,
+      claim.actor?.clerkSubject,
+      claim.subscriptions,
+    );
+    step = "identity_delete";
+    const identity = await deleteClerkUserForClosure(
+      env,
+      claim.actor?.clerkSubject,
+    );
+    step = "closure_completion";
+    const completion = await completeAccountClosureRequest(
+      {
+        closureId: claim.closure.id,
+        householdId: claim.householdId,
+        metadata: {
+          closedAt: new Date().toISOString(),
+          identityDeleted: Boolean(identity.deleted || identity.replayed),
+          providerShutdownConfirmed: true,
+          subscriptionDataDeleted: Boolean(
+            subscriptionData.deleted || subscriptionData.replayed,
+          ),
+        },
+        processedBy: workerId,
+      },
+      env,
+    );
+
+    if (
+      persistenceFailed(completion) ||
+      completion.persistence !== "postgres" ||
+      !completion.persisted
+    ) {
+      throw new Error("closure_completion_failed");
+    }
+
+    return {
+      closureId: claim.closure.id,
+      status: "completed",
+    };
+  } catch (error) {
+    const errorCode = accountClosureFailureCode(error, step);
+    const failure = await failAccountClosureRequest(
+      {
+        closureId: claim.closure.id,
+        errorCode,
+        metadata: {
+          failedStep: step,
+          lastFailedAt: new Date().toISOString(),
+        },
+        retryAfterSeconds: accountClosureRetrySeconds(
+          claim.closure.processingAttempts,
+        ),
+      },
+      env,
+    );
+
+    return {
+      closureId: claim.closure.id,
+      errorCode,
+      persistence: failure,
+      status: "retry_scheduled",
+    };
+  }
+}
+
+async function processAccountClosureBatch(env, options = {}) {
+  const workerId = safeString(options.workerId, 120) || "payshield-core";
+  const claims = await claimAccountClosureRequests(
+    {
+      limit: options.limit,
+      workerId,
+    },
+    env,
+  );
+
+  if (
+    persistenceFailed(claims) ||
+    claims.persistence !== "postgres"
+  ) {
+    return {
+      body: {
+        error: "Account closure work could not be claimed.",
+        persistence: claims,
+        service: "payshield-account-closure-worker",
+      },
+      status: 503,
+    };
+  }
+
+  const results = [];
+
+  for (const claim of claims.claims) {
+    results.push(await processAccountClosureClaim(claim, env, workerId));
+  }
+
+  return {
+    body: {
+      claimedCount: claims.claims.length,
+      completedCount: results.filter((result) => result.status === "completed")
+        .length,
+      results,
+      retryCount: results.filter(
+        (result) => result.status === "retry_scheduled",
+      ).length,
+      service: "payshield-account-closure-worker",
+    },
+    status: results.some((result) => result.status === "retry_scheduled")
+      ? 207
+      : 200,
+  };
+}
+
+export async function processAccountClosureRequests(
+  payload = {},
+  env = process.env,
+) {
+  const actor = actorFromPayload(payload);
+
+  if (actor.operator !== true) {
+    return {
+      body: {
+        code: "operator_access_required",
+        error: "Operator access is required.",
+        service: "payshield-account-closure-worker",
+      },
+      status: 403,
+    };
+  }
+
+  return processAccountClosureBatch(env, {
+    limit: toIntegerCents(payload?.limit, { max: 25, min: 1 }) || 5,
+    workerId: `operator:${actor.id}`,
+  });
+}
+
+export function runAccountClosureWorker(env = process.env) {
+  return processAccountClosureBatch(env, {
+    limit: 5,
+    workerId: "payshield-core-background",
+  });
+}
+
 export async function saveHouseholdMoneyProfile(payload, env = process.env) {
   const actor = actorFromPayload(payload);
   const normalized = normalizeHouseholdMoneyProfileInput(payload);
@@ -3755,6 +4339,160 @@ export async function saveHouseholdMoneyProfile(payload, env = process.env) {
   };
 }
 
+export async function saveHouseholdProtectionPlan(
+  payload,
+  env = process.env,
+) {
+  let actor = actorFromPayload(payload);
+  const buckets = normalizeBucketProfile(payload?.buckets);
+  const normalizedProfile = normalizeHouseholdMoneyProfileInput(payload);
+
+  if (!buckets || !normalizedProfile.ok) {
+    return {
+      body: {
+        errors: [
+          ...(buckets
+            ? []
+            : [
+                "Provide 1-12 protected buckets with name, targetCents, due, and protection.",
+              ]),
+          ...(normalizedProfile.errors || []),
+        ],
+        service: "payshield-household-protection-plan",
+      },
+      status: 400,
+    };
+  }
+
+  const paidAccess = await requireActivePaidAccess(
+    env,
+    actor,
+    "household protection plan",
+  );
+
+  if (!paidAccess.ok) {
+    return paidAccess.result;
+  }
+
+  actor = paidAccess.actor;
+  const profile = normalizedProfile.input;
+  const minimumAmountCents = Math.max(
+    1,
+    Math.floor(profile.paycheckAmountCents * 0.5),
+  );
+  const maximumAmountCents = Math.max(
+    minimumAmountCents + 1,
+    Math.floor(profile.paycheckAmountCents * 1.5),
+  );
+  const payloadDigest = createHash("sha256")
+    .update(
+      JSON.stringify({
+        buckets,
+        employerName: profile.employerName,
+        expectedFrequency: profile.expectedFrequency,
+        nextPayday: profile.nextPayday,
+        paycheckAmountCents: profile.paycheckAmountCents,
+      }),
+    )
+    .digest("hex")
+    .slice(0, 32);
+  const idempotencyKey =
+    cleanText(payload?.idempotencyKey, 120) ||
+    `protection-plan:${payloadDigest}`;
+  const persistence = await persistHouseholdProtectionPlan(
+    {
+      actorUserId: actor.id,
+      betaAccessStatus: actor.profileAccess,
+      buckets,
+      clerkSubject: actor.clerkSubject,
+      householdId: actor.householdId,
+      idempotencyKey,
+      kycStatus: actor.kycStatus,
+      profile: {
+        ...profile,
+        idempotencyKey: `${idempotencyKey}:profile`,
+      },
+      rule: {
+        bankConnectionId: null,
+        employerNamePattern: profile.employerName,
+        expectedFrequency: profile.expectedFrequency,
+        id: cleanText(
+          payload?.detectionRuleId || payload?.ruleId,
+          120,
+        ) || null,
+        maximumAmountCents,
+        metadata: {
+          configuredBy: actor.id,
+          expectedFrequency: profile.expectedFrequency,
+          source: "payshield_app",
+        },
+        minimumAmountCents,
+        priority: 100,
+        providerAccountId: null,
+        providerItemId: null,
+        providerName: "plaid",
+        ruleName: `${profile.employerName} paycheck`,
+        status: "active",
+        transactionNamePattern: profile.employerName,
+      },
+      userEmail: actor.email,
+      userName: actor.name,
+    },
+    env,
+  );
+
+  if (persistence.persistence === "control_conflict") {
+    return {
+      body: {
+        blockedBuckets: persistence.blockedBuckets || [],
+        code: persistence.code,
+        error:
+          persistence.persistenceReason ||
+          "The protection plan conflicts with active money controls.",
+        service: "payshield-household-protection-plan",
+      },
+      status: 409,
+    };
+  }
+
+  if (
+    persistenceFailed(persistence) ||
+    persistence.persistence !== "postgres"
+  ) {
+    return {
+      body: {
+        error:
+          "The complete protection plan could not be saved. No partial plan was activated.",
+        persistence,
+        service: "payshield-household-protection-plan",
+      },
+      status: 503,
+    };
+  }
+
+  const controlPlan = await getHouseholdControlPlan(
+    env,
+    actor,
+    profileToControlPlanInput(persistence.profile),
+  );
+
+  return {
+    body: {
+      buckets: persistence.buckets,
+      controlPlan: controlPlan.status === 200 ? controlPlan.body : null,
+      message: persistence.replayed
+        ? "Your protection plan was already saved."
+        : "Your protection plan and paycheck detection are active.",
+      persisted: true,
+      persistence,
+      profile: persistence.profile,
+      rule: persistence.rule,
+      service: "payshield-household-protection-plan",
+    },
+    status: 200,
+  };
+}
+
 function buildActivationPlan(env, snapshot, commercialAccess, moneyRails) {
   const coreMissing = missingCoreGates(snapshot.readiness);
   const priceLabel = commercialAccess.priceLabel || "$19/month";
@@ -3768,7 +4506,7 @@ function buildActivationPlan(env, snapshot, commercialAccess, moneyRails) {
       key: "revenue",
       label: "Revenue",
       ownerAction:
-        "Configure Stripe checkout, webhook signing, and core activation so paid households unlock automatically.",
+        "Configure Stripe checkout, webhook signing, and durable membership activation so paid households unlock automatically.",
       primaryEndpoint: "POST /api/app/billing/checkout",
       ready: commercialActivationReady(env, commercialAccess),
       requiredGates: commercialActivationMissing(env),
@@ -3780,7 +4518,7 @@ function buildActivationPlan(env, snapshot, commercialAccess, moneyRails) {
       setupChecklist: [
         "Set STRIPE_SECRET_KEY plus PAYSHIELD_COMMERCIAL_PRICE_ID or a live payment link.",
         "Set STRIPE_WEBHOOK_SECRET for /api/app/billing/webhook.",
-        "Point PAYSHIELD_CORE_API_URL at the always-on core and set PAYSHIELD_CORE_SERVICE_TOKEN so paid access persists through authenticated core writes.",
+        "Configure the Vercel money-control runtime and verified Supabase ledger so billing events activate household access durably.",
       ],
       title: "Charge the household",
       userAction: "Activate paid access",
@@ -3814,7 +4552,7 @@ function buildActivationPlan(env, snapshot, commercialAccess, moneyRails) {
           : "plaid_needed",
       setupChecklist: [
         "Set PLAID_CLIENT_ID, PLAID_SECRET, PLAID_ENV, and PLAID_PRODUCTS.",
-        "Set PAYSHIELD_TOKEN_VAULT_KEY_ID, PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET, and PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY; use PAYSHIELD_CORE_API_URL as the default vault receiver or override with PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL.",
+        "Set PAYSHIELD_TOKEN_VAULT_KEY_ID and PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY for encrypted server-side token custody.",
         "Verify /api/app/bank-link/exchange records the masked account and vault reference.",
       ],
       title: "Connect banks",
@@ -4165,7 +4903,7 @@ function buildOperatingCockpit(
       key: "revenue",
       label: "Charge household",
       ownerAction:
-        "Configure Stripe checkout, webhook signing, and core activation.",
+        "Configure Stripe checkout, webhook signing, and durable membership activation.",
       primaryEndpoint: "POST /api/app/billing/checkout",
       ready: commercialReady,
       state: commercialReady
@@ -4536,7 +5274,7 @@ function buildGuidedMoneyFlow(
       key: "commercial_access",
       label: "Earn",
       ownerAction:
-        "Set Stripe Checkout, webhook signing, and core activation so paid access is recorded automatically.",
+        "Set Stripe Checkout, webhook signing, and durable membership activation so paid access is recorded automatically.",
       primaryAction: "Start checkout",
       ready: commercialReady,
       runMode: commercialReady
@@ -4788,7 +5526,7 @@ function buildActivationRunway(
       key: "first_revenue",
       label: "Earn",
       operatorOutcome:
-        "Stripe checkout, webhook signing, and core activation create the paid-access record.",
+        "Stripe checkout, webhook signing, and durable activation create the paid-access record.",
       primaryAction: "Start checkout",
       proofArtifacts: [
         "checkout_intent",
@@ -4798,7 +5536,7 @@ function buildActivationRunway(
       ready: commercialActivationReady(env, commercialAccess),
       revenueImpact: `Starts ${priceLabel} household revenue.`,
       setupAction:
-        "Configure Stripe secret, price or payment link, webhook secret, and core service auth.",
+        "Configure Stripe checkout, webhook signing, and durable Supabase activation storage.",
       title: "Collect the first paid household",
     },
     {
@@ -4887,7 +5625,7 @@ function buildActivationRunway(
       revenueImpact:
         "Gives the product its immediate value even before live provider movement opens.",
       setupAction:
-        "No provider setup required for configuration; durable ledger evidence requires the core database.",
+        "No provider setup is required for configuration; durable evidence uses the Supabase ledger.",
       title: "Customize the protection rules",
     },
     {
@@ -4916,7 +5654,7 @@ function buildActivationRunway(
       revenueImpact:
         "Creates support, compliance, and household trust evidence for retention.",
       setupAction:
-        "Deploy the always-on core, verify Postgres schema 0019, and require durable storage.",
+        "Configure the Vercel money-control runtime and verify Supabase schema 0022.",
       title: "Prove the ledger evidence",
     },
     {
@@ -4989,10 +5727,10 @@ function buildActivationRunway(
       title: nextMilestone.title,
     },
     ownerPath: [
-      "Configure Stripe and core access activation",
+      "Configure membership and durable access activation",
       "Turn on Clerk household identity",
       "Configure Plaid and token custody",
-      "Verify Postgres ledger schema 0019",
+      "Verify Postgres ledger schema 0022",
       "Connect BaaS/card provider adapter",
       "Record counsel, sponsor, and runbook approvals before live money",
     ],
@@ -5395,9 +6133,21 @@ export async function getHouseholdAuditExport(env = process.env, actorInput = de
 }
 
 export async function resolveReconciliationException(payload, env = process.env) {
+  const requestActor = actorFromPayload(payload);
+
+  if (!requestActor.operator) {
+    return {
+      body: {
+        error: "Forbidden",
+        service: "payshield-reconciliation-resolution",
+      },
+      status: 403,
+    };
+  }
+
   const actorResolution = await resolveActorIdentity(
     env,
-    actorFromPayload(payload),
+    requestActor,
     "reconciliation resolution",
   );
 
@@ -5439,8 +6189,9 @@ export async function resolveReconciliationException(payload, env = process.env)
   const resolution = await resolveReconciliationExceptionRecord(
     {
       exceptionId,
-      householdId: actor.householdId,
+      householdId: cleanText(payload?.householdId, 160) || null,
       idempotencyKey,
+      operator: true,
       reason,
       resolvedBy: actor.id,
       resolutionNote,
@@ -5815,13 +6566,42 @@ function directDepositSetupCanResumeProvider(setup = {}) {
   return ["blocked", "provider_pending", "requested"].includes(setup.status);
 }
 
-function directDepositInstructionsFromProviderPayload(payload) {
+function directDepositInstructionsFromProviderPayload(payload, env) {
   const accountLast4 = safeString(payload?.accountLast4, 4);
   const routingLast4 = safeString(payload?.routingLast4, 4);
+  const hostedInstructions = safeObject(payload?.hostedInstructions);
+  const instructionsUrl = cleanProviderHostedUrl(
+    payload?.instructionsUrl ||
+      payload?.payrollSwitchUrl ||
+      payload?.setupUrl ||
+      payload?.url ||
+      hostedInstructions.url,
+    env,
+  );
+  const instructionsExpiresAt = cleanProviderHostedExpiry(
+    payload?.instructionsExpiresAt ||
+      payload?.expiresAt ||
+      hostedInstructions.expiresAt,
+  );
 
   if (!/^\d{4}$/.test(accountLast4) || !/^\d{4}$/.test(routingLast4)) {
     throw new ProviderAdapterError(
       "Provider direct-deposit response did not include masked routing details.",
+    );
+  }
+
+  if (!instructionsUrl) {
+    throw new ProviderAdapterError(
+      "Provider direct-deposit response did not include a secure hosted instructions URL.",
+    );
+  }
+
+  if (
+    instructionsExpiresAt &&
+    Date.parse(instructionsExpiresAt) <= Date.now()
+  ) {
+    throw new ProviderAdapterError(
+      "Provider direct-deposit instructions were already expired.",
     );
   }
 
@@ -5830,6 +6610,8 @@ function directDepositInstructionsFromProviderPayload(payload) {
     accountName:
       safeString(payload?.accountName, 80) ||
       "PayShield protected paycheck account",
+    instructionsExpiresAt,
+    instructionsUrl,
     providerStatus: "live",
     routingLast4,
   };
@@ -5995,7 +6777,7 @@ async function providerCreateDirectDepositInstructions(env, providerAccountId) {
     },
   );
 
-  return directDepositInstructionsFromProviderPayload(payload);
+  return directDepositInstructionsFromProviderPayload(payload, env);
 }
 
 async function providerIssueCard(env, actor, providerAccountId) {
@@ -6194,6 +6976,205 @@ async function providerSetCardStatus(env, input) {
   };
 }
 
+async function providerCreateCardManagementSession(env, input) {
+  const payload = await providerAdapterRequest(
+    env,
+    "createCardManagementSession",
+    getProviderAdapterConfig(env).endpoints.cardManagement,
+    input,
+  );
+  const managementUrl = cleanProviderHostedUrl(
+    payload?.managementUrl || payload?.cardManagementUrl || payload?.url,
+    env,
+  );
+  const expiresAt = cleanProviderHostedExpiry(
+    payload?.expiresAt || payload?.managementExpiresAt,
+  );
+
+  if (!managementUrl) {
+    throw new ProviderAdapterError(
+      "Provider card-management response did not include a secure hosted URL.",
+    );
+  }
+
+  if (expiresAt && Date.parse(expiresAt) <= Date.now()) {
+    throw new ProviderAdapterError(
+      "Provider card-management session was already expired.",
+    );
+  }
+
+  return {
+    expiresAt,
+    managementUrl,
+    purpose: input.purpose,
+  };
+}
+
+async function providerCloseResource(env, input) {
+  const config = getProviderAdapterConfig(env);
+  const endpoint = config.endpoints[input.endpoint];
+
+  if (!endpoint) {
+    throw new ProviderAdapterError(
+      `Provider adapter is missing the ${input.endpoint} endpoint.`,
+    );
+  }
+
+  const payload = await providerAdapterRequest(
+    env,
+    input.operation,
+    endpoint,
+    input.body,
+  );
+  const status = safeString(payload?.status, 40).toLowerCase();
+
+  if (!["closed", "canceled", "cancelled"].includes(status)) {
+    throw new ProviderAdapterError(
+      `Provider did not confirm ${input.operation}.`,
+    );
+  }
+
+  return { status };
+}
+
+function clerkApiBaseUrl(env) {
+  const configured = safeString(env.PAYSHIELD_CLERK_API_BASE_URL, 500);
+
+  if (!configured) {
+    return "https://api.clerk.com/v1";
+  }
+
+  const cleaned = cleanProviderBaseUrl(configured, env);
+  const hostname = (() => {
+    try {
+      return new URL(cleaned).hostname;
+    } catch {
+      return "";
+    }
+  })();
+  const localTestBase =
+    ["127.0.0.1", "::1", "localhost"].includes(hostname) &&
+    env.NODE_ENV !== "production" &&
+    env.VERCEL_ENV !== "production";
+
+  return localTestBase ? cleaned : "https://api.clerk.com/v1";
+}
+
+function revenueCatApiBaseUrl(env) {
+  const configured = safeString(env.PAYSHIELD_REVENUECAT_API_BASE_URL, 500);
+
+  if (!configured) {
+    return "https://api.revenuecat.com/v1";
+  }
+
+  const cleaned = cleanProviderBaseUrl(configured, env);
+  const hostname = (() => {
+    try {
+      return new URL(cleaned).hostname;
+    } catch {
+      return "";
+    }
+  })();
+  const localTestBase =
+    ["127.0.0.1", "::1", "localhost"].includes(hostname) &&
+    env.NODE_ENV !== "production" &&
+    env.VERCEL_ENV !== "production";
+
+  return localTestBase ? cleaned : "https://api.revenuecat.com/v1";
+}
+
+export async function deleteRevenueCatCustomerForClosure(
+  env,
+  appUserId,
+  subscriptions = [],
+) {
+  const revenueCatOwned =
+    envTrue(env, "PAYSHIELD_MOBILE_STORE_BILLING_ENABLED") ||
+    subscriptions.some(
+      (subscription) => subscription.providerName === "revenuecat",
+    );
+
+  if (!revenueCatOwned) {
+    return { skipped: true };
+  }
+
+  if (!appUserId) {
+    throw new Error("revenuecat_customer_id_missing");
+  }
+
+  const secretKey = safeString(
+    env.PAYSHIELD_REVENUECAT_SECRET_API_KEY,
+    500,
+  );
+
+  if (!secretKey) {
+    throw new Error("revenuecat_configuration_missing");
+  }
+
+  let response;
+
+  try {
+    response = await fetch(
+      `${revenueCatApiBaseUrl(env)}/subscribers/${encodeURIComponent(appUserId)}`,
+      {
+        headers: {
+          accept: "application/json",
+          authorization: `Bearer ${secretKey}`,
+        },
+        method: "DELETE",
+        signal: AbortSignal.timeout(8_000),
+      },
+    );
+  } catch {
+    throw new Error("revenuecat_delete_failed");
+  }
+
+  if (!response.ok && response.status !== 404) {
+    throw new Error("revenuecat_delete_failed");
+  }
+
+  return {
+    deleted: response.status !== 404,
+    replayed: response.status === 404,
+  };
+}
+
+async function deleteClerkUserForClosure(env, clerkSubject) {
+  if (!clerkSubject) {
+    return { skipped: true };
+  }
+
+  const secretKey = safeString(env.CLERK_SECRET_KEY, 500);
+
+  if (!secretKey) {
+    throw new Error("clerk_configuration_missing");
+  }
+
+  let response;
+
+  try {
+    response = await fetch(
+      `${clerkApiBaseUrl(env)}/users/${encodeURIComponent(clerkSubject)}`,
+      {
+        headers: {
+          authorization: `Bearer ${secretKey}`,
+          "content-type": "application/json",
+        },
+        method: "DELETE",
+        signal: AbortSignal.timeout(8_000),
+      },
+    );
+  } catch {
+    throw new Error("clerk_delete_failed");
+  }
+
+  if (!response.ok && response.status !== 404) {
+    throw new Error("clerk_delete_failed");
+  }
+
+  return { deleted: response.status !== 404, replayed: response.status === 404 };
+}
+
 export function startOnboarding(env = process.env, actorInput = demoUser) {
   return startOnboardingWithPaidAccess(env, actorInput);
 }
@@ -6226,12 +7207,36 @@ export async function createDirectDepositSetup(payload = {}, env = process.env) 
     cleanText(payload?.providerName, 40).toLowerCase() ||
     getProviderAdapterConfig(env).providerName ||
     "payshield";
-  const providerCustomerId = liveGate.ok
+  let providerCustomerId = liveGate.ok
     ? cleanText(payload?.providerCustomerId, 160) || null
     : null;
-  const providerAccountId = liveGate.ok
+  let providerAccountId = liveGate.ok
     ? cleanText(payload?.providerAccountId, 160)
     : "financial-account-provider-contract-required";
+
+  if (liveGate.ok && !providerAccountId) {
+    const onboarding = await loadProviderOnboardingState(
+      actor.householdId,
+      providerName,
+      env,
+    );
+
+    if (persistenceFailed(onboarding) || !onboarding.state) {
+      return {
+        body: {
+          error: "Provider account state could not be loaded.",
+          persistence: onboarding,
+          service: "payshield-direct-deposit-setup",
+        },
+        status: 503,
+      };
+    }
+
+    providerAccountId =
+      onboarding.state.financialAccount?.providerAccountId || "";
+    providerCustomerId =
+      onboarding.state.customer?.providerCustomerId || null;
+  }
 
   if (liveGate.ok && !providerAccountId) {
     return {
@@ -6313,6 +7318,40 @@ export async function createDirectDepositSetup(payload = {}, env = process.env) 
   if (liveGate.ok) {
     if (persistence.replayed && persistedSetup.status === "ready") {
       replayedReadySetup = true;
+      try {
+        directDeposit = await providerCreateDirectDepositInstructions(
+          env,
+          providerAccountId,
+        );
+      } catch (error) {
+        const exceptionPersistence = await recordMoneyRailProviderException(
+          {
+            actor,
+            error,
+            idempotencyKey,
+            operation: "refreshDirectDepositInstructions",
+            rail: "direct_deposit",
+          },
+          env,
+        );
+        const result = providerErrorResult(
+          error,
+          "payshield-direct-deposit-setup",
+        );
+
+        return {
+          body: {
+            ...result.body,
+            exceptionPersistence,
+            liveMoney: liveGate,
+            persistence,
+            readiness,
+          },
+          status: persistenceFailed(exceptionPersistence)
+            ? 503
+            : result.status,
+        };
+      }
     } else {
       if (!directDepositSetupCanResumeProvider(persistedSetup)) {
         return {
@@ -6431,6 +7470,7 @@ export async function createDirectDepositSetup(payload = {}, env = process.env) 
           metadata: {
             liveMoneyReady: readiness.liveMoneyReady,
             providerCompletedAt: new Date().toISOString(),
+            providerHostedInstructions: true,
             source: "payshield_app",
           },
           providerStatus: directDeposit.providerStatus,
@@ -6507,7 +7547,7 @@ export async function createDirectDepositSetup(payload = {}, env = process.env) 
       directDeposit,
       liveMoney: liveGate,
       message: replayedReadySetup
-        ? "Direct deposit setup replayed from the durable provider instructions without another provider request."
+        ? "Secure direct deposit instructions refreshed for your provider account."
         : liveGate.ok
           ? "Paycheck routing instructions are ready for the configured provider account."
           : "Paycheck routing setup recorded. Provider activation is required before live instructions are released.",
@@ -6785,8 +7825,8 @@ async function startOnboardingWithPaidAccess(env = process.env, actorInput = dem
       }
 
       directDeposit =
-        directDepositResult.body.setup ||
         directDepositResult.body.directDeposit ||
+        directDepositResult.body.setup ||
         directDeposit;
     }
 
@@ -7018,6 +8058,128 @@ export async function setCardStatus(payload, env = process.env) {
     },
     status: 200,
   };
+}
+
+export async function createCardManagementSession(payload, env = process.env) {
+  let actor = actorFromPayload(payload);
+  const purpose = cleanText(payload?.purpose, 40).toLowerCase() || "manage";
+
+  if (!["activate", "lost_stolen", "manage", "pin", "replace"].includes(purpose)) {
+    return {
+      body: {
+        error: "Card management purpose is invalid.",
+        service: "payshield-card-management",
+      },
+      status: 400,
+    };
+  }
+
+  const paidAccess = await requireActivePaidAccess(
+    env,
+    actor,
+    "card management",
+  );
+
+  if (!paidAccess.ok) {
+    return paidAccess.result;
+  }
+
+  actor = paidAccess.actor;
+  const liveGate = assertLiveMoneyReady(
+    getCoreReadiness(env, { coreOnline: true }),
+  );
+
+  if (!liveGate.ok) {
+    return {
+      body: {
+        code: "live_money_gated",
+        error: "Card management is unavailable until banking services are active.",
+        liveMoney: liveGate,
+        service: "payshield-card-management",
+      },
+      status: 423,
+    };
+  }
+
+  const providerName = getProviderAdapterConfig(env).providerName;
+  const current = await loadProviderOnboardingState(
+    actor.householdId,
+    providerName,
+    env,
+  );
+
+  if (
+    persistenceFailed(current) ||
+    current.persistence !== "postgres" ||
+    !current.state
+  ) {
+    return {
+      body: {
+        error: "Card state could not be loaded.",
+        persistence: current,
+        service: "payshield-card-management",
+      },
+      status: 503,
+    };
+  }
+
+  const card = current.state.card;
+
+  if (!card || card.status === "closed") {
+    return {
+      body: {
+        error: "An issued card is required for this action.",
+        service: "payshield-card-management",
+      },
+      status: 404,
+    };
+  }
+
+  const idempotencyKey =
+    cleanText(payload?.idempotencyKey, 120) ||
+    `card-management:${card.providerCardId}:${purpose}:${Date.now()}`;
+
+  try {
+    const session = await providerCreateCardManagementSession(env, {
+      idempotencyKey,
+      providerCardId: card.providerCardId,
+      purpose,
+      userId: actor.id,
+    });
+
+    return {
+      body: {
+        card: {
+          cardLast4: card.cardLast4,
+          status: card.status,
+        },
+        message: "Secure card controls are ready.",
+        service: "payshield-card-management",
+        session,
+      },
+      status: 200,
+    };
+  } catch (error) {
+    const exceptionPersistence = await recordMoneyRailProviderException(
+      {
+        actor,
+        error,
+        idempotencyKey,
+        operation: "createCardManagementSession",
+        rail: "card",
+      },
+      env,
+    );
+    const result = providerErrorResult(error, "payshield-card-management");
+
+    return {
+      body: {
+        ...result.body,
+        exceptionPersistence,
+      },
+      status: persistenceFailed(exceptionPersistence) ? 503 : result.status,
+    };
+  }
 }
 
 function payeeIdForHousehold(householdId, name) {
@@ -7993,6 +9155,13 @@ function cleanCoreApiUrl(env = process.env) {
 }
 
 function tokenVaultWebhookUrl(env = process.env) {
+  if (env.PAYSHIELD_CORE_RUNTIME?.trim().toLowerCase() === "vercel") {
+    return {
+      source: "in_process",
+      url: "payshield://token-vault/plaid",
+    };
+  }
+
   const explicit = cleanTokenVaultUrl(env);
 
   if (explicit) {
@@ -8048,7 +9217,9 @@ function tokenVaultEncryptionReadiness(env = process.env) {
 function tokenVaultReadiness(env = process.env) {
   const keyId = env.PAYSHIELD_TOKEN_VAULT_KEY_ID?.trim() || "";
   const webhook = tokenVaultWebhookUrl(env);
-  const webhookSigningConfigured = envPresent(env, "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET");
+  const webhookSigningConfigured =
+    webhook.source === "in_process" ||
+    envPresent(env, "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET");
   const encryption = tokenVaultEncryptionReadiness(env);
 
   return {
@@ -8130,7 +9301,30 @@ async function storePlaidAccessToken(env, input) {
   const vault = tokenVaultReadiness(env);
   const secret = env.PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET?.trim() || "";
 
-  if (!vault.webhookReady || !secret) {
+  if (!vault.webhookReady) {
+    throw new Error("Token vault handoff is not configured.");
+  }
+
+  if (vault.webhookSource === "in_process") {
+    const persistence = await persistProviderTokenSecret(
+      {
+        accessToken: input.accessToken,
+        keyId: vault.keyId,
+        providerItemId: input.itemId,
+        providerName: "plaid",
+        requestId: input.requestId,
+      },
+      env,
+    );
+
+    if (!persistence.persisted) {
+      throw new Error("Token vault rejected the Plaid access token.");
+    }
+
+    return persistence.tokenSecretRef;
+  }
+
+  if (!secret) {
     throw new Error("Token vault handoff is not configured.");
   }
 
@@ -9607,7 +10801,7 @@ export async function recordProductionGateEvidence(payload, env = process.env) {
       body: {
         code: "postgres_ledger_required",
         error:
-          "Production gate evidence requires durable ledger storage and schema 0019 before approvals can be recorded.",
+          "Production gate evidence requires durable ledger storage and schema 0022 before approvals can be recorded.",
         service: "payshield-production-gate-evidence",
       },
       status: 503,
@@ -10485,13 +11679,7 @@ export async function createTransferIntent(payload, env = process.env) {
 }
 
 function cleanScheduledDate(value) {
-  const scheduledFor = cleanText(value, 10);
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(scheduledFor)) {
-    return "";
-  }
-
-  return scheduledFor;
+  return cleanFutureCalendarDate(value);
 }
 
 export async function createBillPayment(payload, env = process.env) {
@@ -10503,7 +11691,7 @@ export async function createBillPayment(payload, env = process.env) {
   if (amountCents === null || !payeeId || !scheduledFor) {
     return {
       body: {
-        error: "Provide payeeId, integer amountCents, and scheduledFor as YYYY-MM-DD.",
+        error: "Provide payeeId, integer amountCents, and a valid scheduledFor date from today through two years ahead as YYYY-MM-DD.",
       },
       status: 400,
     };

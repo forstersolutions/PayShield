@@ -89,7 +89,7 @@ test("native app wires every customer money workflow", async () => {
   assert.match(home, /Safe to Spend/);
   assert.match(home, /TransferSheet/);
   assert.match(home, /UnlockSheet/);
-  assert.match(plan, /replace_profile/);
+  assert.match(plan, /\/api\/app\/protection-plan/);
   assert.match(plan, /New protected bucket/);
   assert.match(bills, /\/api\/app\/payees/);
   assert.match(bills, /\/api\/app\/bill-payments/);
@@ -98,6 +98,9 @@ test("native app wires every customer money workflow", async () => {
   assert.match(account, /\/api\/app\/bank-link\/exchange/);
   assert.match(account, /\/api\/app\/onboarding\/start/);
   assert.match(account, /\/api\/app\/card\/status/);
+  assert.match(account, /\/api\/app\/paychecks\/sync/);
+  assert.match(account, /\/api\/app\/bank-connections/);
+  assert.match(account, /\/api\/app\/account-closure/);
 });
 
 test("RevenueCat webhooks persist native store access through the core", async () => {

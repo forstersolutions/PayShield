@@ -70,7 +70,6 @@ test("route parity audit passes for the current core money route manifest", () =
     audit.coreOnly.map((route: { coreRoute: string }) => route.coreRoute),
     [
       "POST /token-vault/plaid",
-      "POST /plaid/webhooks",
       "POST /commercial/billing-events",
     ],
   );
@@ -118,7 +117,7 @@ test("route parity audit fails when a facade is missing or not core-forwarded", 
       {
         coreRoute: "POST /token-vault/plaid",
         reason:
-          "Signed token-vault receiver lives on the dedicated core service so access tokens never terminate in the Vercel frontend.",
+          "The Vercel core stores exchanged Plaid tokens in-process, so no public token receiver is exposed.",
       },
     ]);
   } finally {

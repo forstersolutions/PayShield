@@ -10,14 +10,12 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "core:compose:config": "docker compose --env-file .env.example -f compose.core.yml config >/dev/null",
-    "core:docker:smoke": "node scripts/smoke-core-service.mjs",
     "core:migrations:apply": "node scripts/core-migrations.mjs --apply",
     "core:migrations:check": "node scripts/core-migrations.mjs --check",
     "core:migrations:plan": "node scripts/core-migrations.mjs --plan",
     "core:migrations:verify": "node scripts/core-migrations.mjs --verify",
     "core:server": "node services/core/server.mjs",
-    "infra:audit": "node scripts/aws-infra-audit.mjs",
+    "infra:audit": "node scripts/supabase-infra-audit.mjs",
     "counsel:signoff:check": "node scripts/check-counsel-signoff.mjs",
     "start": "next start",
     "lint": "eslint",
@@ -28,18 +26,21 @@
     "route:audit": "node scripts/route-parity-audit.mjs",
     "production:routes": "node scripts/production-route-smoke.mjs",
     "smoke:deploy": "node scripts/smoke-deploy.mjs",
+    "supabase:schema:apply": "node scripts/supabase-schema.mjs --apply",
+    "supabase:schema:check": "node scripts/supabase-schema.mjs --check",
+    "supabase:schema:verify": "node scripts/supabase-schema.mjs --verify",
     "test": "NODE_ENV=test VERCEL_WEB_ANALYTICS_DISABLE_LOGS=1 node --experimental-strip-types --test tests/*.test.mts",
     "test:e2e": "playwright test",
-    "verify": "npm run lint && npm run typecheck && npm run mobile:verify && npm test && npm run market-preflight && npm run route:audit && npm run infra:audit && npm run core:migrations:check && npm run build && npm run test:e2e && npm audit --omit=dev"
+    "verify": "npm run lint && npm run typecheck && npm run mobile:verify && npm test && npm run market-preflight && npm run route:audit && npm run infra:audit && npm run core:migrations:check && npm run supabase:schema:check && npm run build && npm run test:e2e && npm audit --omit=dev"
   },
   "dependencies": {
-    "@clerk/nextjs": "^7.5.2",
+    "@clerk/nextjs": "^7.7.7",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
-    "jose": "^6.2.8",
-    "lucide-react": "^1.17.0",
-    "next": "^16.3.0",
-    "pg": "^8.21.0",
+    "jose": "^6.2.9",
+    "lucide-react": "^1.31.0",
+    "next": "^16.3.1",
+    "pg": "^8.23.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
@@ -50,13 +51,14 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^20.19.43",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
-    "eslint": "^9",
-    "eslint-config-next": "^16.3.0",
-    "tailwindcss": "^4",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.1",
+    "supabase": "2.116.0",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5"
   }
 }

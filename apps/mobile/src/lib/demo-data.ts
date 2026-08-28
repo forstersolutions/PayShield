@@ -7,7 +7,8 @@ import type {
   TimelineItem,
 } from "@/lib/types";
 
-const now = new Date("2026-08-10T12:00:00.000Z");
+const now = new Date();
+now.setSeconds(0, 0);
 const inDays = (days: number) => {
   const value = new Date(now);
   value.setDate(value.getDate() + days);
@@ -95,6 +96,43 @@ export async function demoRequest<T>(path: string, method: string, body?: unknow
     moneyProfile = { ...moneyProfile, ...(input as Partial<MoneyProfile>) };
     return { message: "Paycheck plan saved.", profile: structuredClone(moneyProfile) } as T;
   }
+  if (path === "/api/app/protection-plan" && method === "POST") {
+    moneyProfile = { ...moneyProfile, ...(input as Partial<MoneyProfile>) };
+    const definitions = Array.isArray(input.buckets) ? input.buckets : [];
+    let remaining = moneyProfile.paycheckAmountCents;
+    const buckets = definitions.map((value, index) => {
+      const item = bodyRecord(value);
+      const targetCents = Number(item.targetCents ?? 0);
+      const fundedCents = Math.min(remaining, targetCents);
+      remaining -= fundedCents;
+      return {
+        availableCents: fundedCents,
+        due: String(item.due ?? "Every check"),
+        fundedCents,
+        id: String(item.id ?? `custom_bucket_${index + 1}`),
+        name: String(item.name ?? "Bucket"),
+        priority: (index + 1) * 10,
+        protection: String(item.protection ?? "hard_lock") as BucketBalance["protection"],
+        shortCents: Math.max(0, targetCents - fundedCents),
+        targetCents,
+      };
+    });
+    buckets.push({ availableCents: remaining, due: "Remainder", fundedCents: remaining, id: "safe_spending", name: "Safe to Spend", priority: 1000, protection: "spendable", shortCents: 0, targetCents: 0 });
+    updateBuckets(buckets);
+    packet.operations = {
+      ...(packet.operations ?? {}),
+      paycheckDetectionRules: [{
+        employerNamePattern: moneyProfile.employerName,
+        expectedFrequency: moneyProfile.expectedFrequency,
+        id: String(input.detectionRuleId ?? `rule_${Date.now()}`),
+        minimumAmountCents: Math.max(1, Math.floor(moneyProfile.paycheckAmountCents * 0.5)),
+        ruleName: `${moneyProfile.employerName} paycheck`,
+        status: "active",
+      }],
+    };
+    addTimeline({ detail: `${buckets.length - 1} protected buckets`, id: `event_plan_${Date.now()}`, label: "Protection plan updated", rail: "buckets", status: "complete" });
+    return { buckets: structuredClone(buckets), message: "Your protection plan and paycheck detection are active.", profile: structuredClone(moneyProfile) } as T;
+  }
   if (path === "/api/app/buckets" && method === "POST") {
     const definitions = Array.isArray(input.buckets) ? input.buckets : [];
     let remaining = moneyProfile.paycheckAmountCents;
@@ -124,6 +162,23 @@ export async function demoRequest<T>(path: string, method: string, body?: unknow
     const payee: Payee = { allowedBucketId: String(input.allowedBucketId), id: `payee_${Date.now()}`, maxCents: Number(input.maxCents), name: String(input.name), status: "provider_pending" };
     packet.controls = { payees: [...(packet.controls?.payees ?? []), payee] };
     return { message: "Destination added.", payee } as T;
+  }
+  if (path === "/api/app/payees" && method === "PATCH") {
+    const payee = packet.controls?.payees?.find((item) => item.id === input.payeeId);
+    if (!payee) throw new Error("Payment destination was not found.");
+    payee.allowedBucketId = String(input.allowedBucketId);
+    payee.maxCents = Number(input.maxCents);
+    payee.name = String(input.name);
+    payee.status = "provider_pending";
+    return { message: "Payment destination updated.", payee } as T;
+  }
+  if (path === "/api/app/payees" && method === "DELETE") {
+    const payee = packet.controls?.payees?.find((item) => item.id === input.payeeId);
+    if (!payee) throw new Error("Payment destination was not found.");
+    const inUse = packet.operations?.billPayments?.some((bill) => bill.payeeId === payee.id && ["scheduled", "submitted"].includes(bill.status));
+    if (inUse) throw new Error("Cancel or reassign scheduled payments before removing this destination.");
+    payee.status = "archived";
+    return { message: "Payment destination removed.", payeeId: payee.id } as T;
   }
   if (path === "/api/app/payees/verify" && method === "POST") {
     const payees = packet.controls?.payees ?? [];
@@ -162,6 +217,51 @@ export async function demoRequest<T>(path: string, method: string, body?: unknow
   if (path === "/api/app/card/status" && method === "POST") {
     packet.card = { ...packet.card, status: String(input.status) };
     return { card: packet.card, message: input.status === "frozen" ? "Card locked." : "Card unlocked." } as T;
+  }
+  if (path === "/api/app/paychecks/rules" && method === "POST") {
+    const rule = {
+      employerNamePattern: String(input.employerNamePattern ?? ""),
+      expectedFrequency: String(input.expectedFrequency ?? "unknown"),
+      id: String(input.id ?? `rule_${Date.now()}`),
+      minimumAmountCents: Number(input.minimumAmountCents ?? 0),
+      ruleName: String(input.ruleName ?? "Paycheck"),
+      status: String(input.status ?? "active"),
+    };
+    packet.operations = { ...(packet.operations ?? {}), paycheckDetectionRules: [rule] };
+    return { message: "Paycheck detection rule saved.", rule } as T;
+  }
+  if (path === "/api/app/paychecks/sync" && method === "POST") {
+    return { accepted: true, detectionCount: 0, sync: { addedCount: 0, modifiedCount: 0 } } as T;
+  }
+  if (path === "/api/app/onboarding/start" && method === "POST") {
+    return { directDeposit: packet.directDeposit, message: "Account and card setup are complete." } as T;
+  }
+  if (path === "/api/app/direct-deposit" && method === "POST") {
+    return {
+      directDeposit: {
+        ...packet.directDeposit,
+        instructionsExpiresAt: inDays(1),
+        instructionsUrl: "https://example.com/payshield/direct-deposit",
+      },
+      message: "Secure direct deposit instructions refreshed for your provider account.",
+    } as T;
+  }
+  if (path === "/api/app/account-closure" && method === "POST") {
+    return { closure: { id: "closure_demo", status: "requested" }, message: "Your account closure request has been received." } as T;
+  }
+
+  if (path === "/api/app/card/manage" && method === "POST") {
+    return {
+      message: "Secure card controls are ready.",
+      session: { managementUrl: "https://example.com/payshield/card" },
+    } as T;
+  }
+  if (path === "/api/app/bank-connections" && method === "DELETE") {
+    const bankConnections = packet.operations?.bankConnections ?? [];
+    const bank = bankConnections.find((item) => item.id === input.bankConnectionId);
+    if (!bank) throw new Error("Bank connection was not found.");
+    bank.status = "revoked";
+    return { bankConnectionId: bank.id, message: "Bank disconnected. Paycheck detection for this account is off." } as T;
   }
   if (path === "/api/app/audit/export" && method === "GET") return structuredClone(packet) as T;
   if (path === "/api/app/billing/status" && method === "GET") return { access: packet.commercialAccess, active: true, priceLabel: "$19/month" } as T;

@@ -19,6 +19,13 @@ test("store links accept only official HTTPS listing hosts", () => {
     assert.equal(configured.appStoreConfigured, true);
     assert.equal(configured.playStoreConfigured, true);
 
+    process.env.NEXT_PUBLIC_APP_STORE_URL = "https://apps.apple.com/us/search?term=PayShield";
+    process.env.NEXT_PUBLIC_PLAY_STORE_URL = "https://play.google.com/store/search?q=PayShield&c=apps";
+
+    const searchFallbacks = getStoreLinks();
+    assert.equal(searchFallbacks.appStoreConfigured, false);
+    assert.equal(searchFallbacks.playStoreConfigured, false);
+
     process.env.NEXT_PUBLIC_APP_STORE_URL = "https://example.com/fake-app";
     process.env.NEXT_PUBLIC_PLAY_STORE_URL = "http://play.google.com/store/apps/details?id=fake";
 

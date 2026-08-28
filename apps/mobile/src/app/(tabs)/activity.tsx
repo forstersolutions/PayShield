@@ -10,6 +10,7 @@ import {
   ActionButton,
   AppHeader,
   EmptyState,
+  ErrorState,
   InlineMessage,
   LoadingState,
   PageHeading,
@@ -92,6 +93,7 @@ export default function ActivityScreen() {
       <InlineMessage message={error} tone="error" />
 
       {operations.isLoading ? <LoadingState label="Loading activity..." /> : null}
+      {operations.error && !data ? <ErrorState message={operations.error.message} onRetry={() => void operations.refetch()} /> : null}
       {data ? (
         <>
           <View style={styles.stats}>
@@ -129,4 +131,3 @@ const styles = StyleSheet.create({
   timelinePanel: { gap: 0, paddingHorizontal: Spacing.md, paddingVertical: 4 },
   divider: { backgroundColor: Colors.line, height: StyleSheet.hairlineWidth, marginLeft: 52 },
 });
-

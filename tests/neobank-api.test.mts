@@ -19,6 +19,11 @@ import {
   POST as generateControlPlan,
 } from "../src/app/api/app/control-plan/route.ts";
 import { POST as setupDirectDeposit } from "../src/app/api/app/direct-deposit/route.ts";
+import { POST as manageCard } from "../src/app/api/app/card/manage/route.ts";
+import {
+  GET as getAccountClosure,
+  POST as requestAccountClosure,
+} from "../src/app/api/app/account-closure/route.ts";
 import { GET as getBillingStatus } from "../src/app/api/app/billing/status/route.ts";
 import {
   GET as getBuckets,
@@ -36,7 +41,9 @@ import { POST as createPayee } from "../src/app/api/app/payees/route.ts";
 import { POST as detectPaycheck } from "../src/app/api/app/paychecks/detect/route.ts";
 import { POST as savePaycheckRule } from "../src/app/api/app/paychecks/rules/route.ts";
 import { POST as syncPaychecks } from "../src/app/api/app/paychecks/sync/route.ts";
+import { POST as saveProtectionPlan } from "../src/app/api/app/protection-plan/route.ts";
 import { POST as resolveReconciliation } from "../src/app/api/app/reconciliation/resolve/route.ts";
+import { POST as processAccountClosures } from "../src/app/api/launch/account-closures/process/route.ts";
 import { POST as createTransfer } from "../src/app/api/app/transfers/route.ts";
 import { POST as unlockBucket } from "../src/app/api/app/unlocks/route.ts";
 import { POST as providerWebhook } from "../src/app/api/provider/webhooks/route.ts";
@@ -96,7 +103,7 @@ function configureCheckoutProductReady() {
   process.env.PAYSHIELD_LEDGER_DATABASE_URL =
     "postgres://payshield:secret@database.invalid:5432/payshield";
   process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
-  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0019";
+  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0022";
   process.env.PAYSHIELD_LIVE_MONEY_ENABLED = "true";
   process.env.PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED = "true";
   process.env.PAYSHIELD_REGULATED_COUNSEL_SIGNOFF = "true";
@@ -632,6 +639,31 @@ test("household money profile saves as a session draft and returns a plan withou
   assert.equal(Array.isArray(invalidBody.errors), true);
 });
 
+test("atomic protection-plan save requires the durable core transaction", async () => {
+  const response = await saveProtectionPlan(
+    makeRequest("/api/app/protection-plan", {
+      buckets: [
+        {
+          due: "1st",
+          id: "rent",
+          name: "Rent",
+          protection: "bill_only",
+          targetCents: 80_000,
+        },
+      ],
+      employerName: "Grayston Payroll",
+      expectedFrequency: "biweekly",
+      idempotencyKey: "plan-api-atomic",
+      paycheckAmountCents: 300_000,
+      requestedTransferCents: 0,
+    }),
+  );
+  const body = await parseJson(response);
+
+  assert.equal(response.status, 503);
+  assert.equal(body.service, "payshield-household-protection-plan");
+});
+
 test("activation endpoint exposes operator launch checklist and smoke commands", async () => {
   const response = await getActivation();
   const body = await parseJson(response);
@@ -786,7 +818,7 @@ test("billing status exposes household paid-access state", async () => {
   assert.equal(commercialAccess.priceLabel, "$19/month");
 });
 
-test("billing portal requires the dedicated core before reading Stripe customer state", async () => {
+test("billing portal requires durable membership storage before reading Stripe customer state", async () => {
   const response = await openBillingPortal(
     makeRequest("/api/app/billing/portal", {
       returnPath: "/app?billing=manage",
@@ -835,7 +867,18 @@ test("audit export returns a downloadable household operations packet", async ()
   assert.equal(activationPlan.totalStages, 6);
 });
 
-test("reconciliation resolution fails closed without the dedicated core store", async () => {
+test("reconciliation resolution requires operator access and durable ledger storage", async () => {
+  const forbidden = await resolveReconciliation(
+    makeRequest("/api/app/reconciliation/resolve", {
+      exceptionId: "reconciliation_exception_demo",
+      reason: "duplicate_event",
+      resolutionNote: "Provider replay reviewed and no ledger change was needed.",
+    }),
+  );
+
+  assert.equal(forbidden.status, 403);
+
+  process.env.PAYSHIELD_ALLOW_OPERATOR_REVIEW_ACCESS = "true";
   const response = await resolveReconciliation(
     makeRequest("/api/app/reconciliation/resolve", {
       exceptionId: "reconciliation_exception_demo",
@@ -849,6 +892,42 @@ test("reconciliation resolution fails closed without the dedicated core store", 
   assert.equal(body.service, "payshield-reconciliation-resolution");
   assert.equal(body.code, "core_operations_required");
   assert.match(String(body.error), /core operations store/i);
+});
+
+test("account closure routes require durable core and operator processing", async () => {
+  const status = await getAccountClosure();
+  const request = await requestAccountClosure(
+    makeRequest("/api/app/account-closure", {
+      acknowledgedDataRetention: true,
+      confirmation: "CLOSE",
+    }),
+  );
+  const forbidden = await processAccountClosures(
+    makeRequest("/api/launch/account-closures/process", { limit: 1 }),
+  );
+
+  assert.equal(status.status, 503);
+  assert.equal(request.status, 503);
+  assert.equal(forbidden.status, 403);
+
+  process.env.PAYSHIELD_ALLOW_OPERATOR_REVIEW_ACCESS = "true";
+  const operator = await processAccountClosures(
+    makeRequest("/api/launch/account-closures/process", { limit: 1 }),
+  );
+  const operatorBody = await parseJson(operator);
+
+  assert.equal(operator.status, 424);
+  assert.equal(operatorBody.code, "core_operations_required");
+});
+
+test("card management requires the Vercel money-control runtime", async () => {
+  const response = await manageCard(
+    makeRequest("/api/app/card/manage", { purpose: "manage" }),
+  );
+  const body = await parseJson(response);
+
+  assert.equal(response.status, 503);
+  assert.equal(body.service, "payshield-card-management");
 });
 
 test("bucket endpoint loads editable household profile templates", async () => {
@@ -900,14 +979,14 @@ test("bucket endpoint applies protected profiles as session previews without cor
   assert.match(String(body.message), /preview updated/i);
 });
 
-test("onboarding requires the dedicated authenticated core service", async () => {
+test("onboarding requires the Vercel money-control runtime and Supabase ledger", async () => {
   const response = await startOnboarding();
   const body = await parseJson(response);
 
   assert.equal(response.status, 503);
   assert.equal(body.code, "core_service_required");
   assert.equal(body.service, "payshield-provider-onboarding");
-  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
+  assert.match(String(body.error), /Vercel core runtime and a verified Supabase ledger/);
 });
 
 test("paid access checkout requires durable activation before Stripe configuration", async () => {
@@ -1498,7 +1577,7 @@ test("billing webhook rejects oversized raw payloads before signature handling",
   assert.equal(body.service, "payshield-stripe-webhook");
 });
 
-test("billing webhook fails closed when paid-access state cannot persist to core", async () => {
+test("billing webhook fails closed when household access cannot persist", async () => {
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
 
   const payload = JSON.stringify({
@@ -1530,7 +1609,7 @@ test("billing webhook fails closed when paid-access state cannot persist to core
   assert.equal(body.accepted, false);
   assert.equal(body.received, false);
   assert.equal(body.persisted, false);
-  assert.match(String(body.error), /paid-access state was not persisted/i);
+  assert.match(String(body.error), /household access was not saved/i);
   assert.equal(summary.accessStatus, "active");
   assert.equal(summary.customerEmail, "payer@example.com");
   assert.equal(summary.customerId, "cus_test");
@@ -1664,7 +1743,7 @@ test("billing webhook attaches invoice events through nested subscription metada
   assert.equal(summary.userId, "email_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 });
 
-test("money workflows require activation-ready paid access or the dedicated core before commercial operations", async () => {
+test("money workflows require activation-ready paid access and durable storage before commercial operations", async () => {
   process.env.PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL =
     "https://buy.stripe.com/live_paid_access";
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
@@ -1798,14 +1877,15 @@ test("money workflows require activation-ready paid access or the dedicated core
     assert.equal(response.status, 503, operation);
     assert.equal(body.code, "core_service_required", operation);
     assert.equal(
-      String(body.error).includes("PAYSHIELD_CORE_API_URL"),
+      String(body.error).includes("Vercel core runtime") &&
+        String(body.error).includes("Supabase ledger"),
       true,
-      `${operation} should name the missing core service`,
+      `${operation} should name the missing money-control runtime`,
     );
   }
 });
 
-test("bank link token requires the dedicated authenticated core service", async () => {
+test("bank link token requires the Vercel money-control runtime", async () => {
   const response = await createBankLinkToken(
     makeRequest("/api/app/bank-link/token", {}),
   );
@@ -1814,10 +1894,10 @@ test("bank link token requires the dedicated authenticated core service", async 
   assert.equal(response.status, 503);
   assert.equal(body.code, "core_service_required");
   assert.equal(body.service, "payshield-bank-link-token");
-  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
+  assert.match(String(body.error), /Vercel core runtime and a verified Supabase ledger/);
 });
 
-test("bank link token still refuses local Plaid handling when credentials are present without core", async () => {
+test("bank link token still refuses local Plaid handling without durable storage", async () => {
   process.env.PLAID_CLIENT_ID = "plaid-client";
   process.env.PLAID_SECRET = "plaid-secret";
   process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID = "vault-key";
@@ -1830,10 +1910,10 @@ test("bank link token still refuses local Plaid handling when credentials are pr
   assert.equal(response.status, 503);
   assert.equal(body.code, "core_service_required");
   assert.equal(body.service, "payshield-bank-link-token");
-  assert.match(String(body.error), /dedicated PayShield core service/);
+  assert.match(String(body.error), /Vercel core runtime and a verified Supabase ledger/);
 });
 
-test("linked-bank paycheck sync requires the dedicated core custody path", async () => {
+test("linked-bank paycheck sync requires the server-side custody path", async () => {
   const response = await syncPaychecks(
     makeRequest("/api/app/paychecks/sync", {
       maxPages: 1,
@@ -1844,10 +1924,10 @@ test("linked-bank paycheck sync requires the dedicated core custody path", async
   assert.equal(response.status, 503);
   assert.equal(body.code, "core_service_required");
   assert.equal(body.service, "payshield-paycheck-transaction-sync");
-  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
+  assert.match(String(body.error), /Vercel core runtime and a verified Supabase ledger/);
 });
 
-test("direct deposit route requires the dedicated authenticated core service", async () => {
+test("direct deposit route requires the Vercel money-control runtime", async () => {
   const response = await setupDirectDeposit(
     makeRequest("/api/app/direct-deposit", {
       idempotencyKey: "route-direct-deposit-primary",
@@ -1858,7 +1938,7 @@ test("direct deposit route requires the dedicated authenticated core service", a
   assert.equal(response.status, 503);
   assert.equal(body.code, "core_service_required");
   assert.equal(body.service, "payshield-direct-deposit-setup");
-  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
+  assert.match(String(body.error), /Vercel core runtime and a verified Supabase ledger/);
 });
 
 test("direct deposit route rejects oversized configured-core request bodies before proxying", async () => {
@@ -1896,7 +1976,7 @@ test("direct deposit route rejects oversized configured-core request bodies befo
   }
 });
 
-test("paycheck detection requires the dedicated core instead of local ledger simulation", async () => {
+test("paycheck detection requires durable server-side handling instead of local ledger simulation", async () => {
   const response = await detectPaycheck(
     makeRequest("/api/app/paychecks/detect", {
       amountCents: 300_000,
@@ -1910,7 +1990,7 @@ test("paycheck detection requires the dedicated core instead of local ledger sim
   assert.equal(response.status, 503);
   assert.equal(body.code, "core_service_required");
   assert.equal(body.service, "payshield-paycheck-detection");
-  assert.match(String(body.error), /dedicated PayShield core service/);
+  assert.match(String(body.error), /Vercel core runtime and a verified Supabase ledger/);
 });
 
 test("paycheck detection rule route requires durable core storage", async () => {
@@ -1929,7 +2009,7 @@ test("paycheck detection rule route requires durable core storage", async () => 
   assert.equal(response.status, 503);
   assert.equal(body.code, "core_service_required");
   assert.equal(body.service, "payshield-paycheck-detection-rules");
-  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
+  assert.match(String(body.error), /Vercel core runtime and a verified Supabase ledger/);
 
   const invalid = await savePaycheckRule(
     makeRequest("/api/app/paychecks/rules", {
@@ -1945,7 +2025,7 @@ test("paycheck detection rule route requires durable core storage", async () => 
   assert.equal(invalidBody.code, "core_service_required");
 });
 
-test("transfer route requires the dedicated authenticated core service", async () => {
+test("transfer route requires the Vercel money-control runtime", async () => {
   const response = await createTransfer(
     makeRequest("/api/app/transfers", {
       amountCents: 25_000,
@@ -1959,10 +2039,10 @@ test("transfer route requires the dedicated authenticated core service", async (
   assert.equal(response.status, 503);
   assert.equal(body.code, "core_service_required");
   assert.equal(body.service, "payshield-transfer-intents");
-  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
+  assert.match(String(body.error), /Vercel core runtime and a verified Supabase ledger/);
 });
 
-test("card authorization route requires the dedicated authenticated core service", async () => {
+test("card authorization route requires the Vercel money-control runtime", async () => {
   const response = await authorizeCard(
     makeRequest("/api/card/authorize", {
       amountCents: 8_000,
@@ -1975,10 +2055,10 @@ test("card authorization route requires the dedicated authenticated core service
   assert.equal(response.status, 503);
   assert.equal(body.code, "core_service_required");
   assert.equal(body.service, "payshield-card-authorization");
-  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
+  assert.match(String(body.error), /Vercel core runtime and a verified Supabase ledger/);
 });
 
-test("unlock route requires the dedicated authenticated core service", async () => {
+test("unlock route requires the Vercel money-control runtime", async () => {
   const response = await unlockBucket(
     makeRequest("/api/app/unlocks", {
       amountCents: 20_000,
@@ -1993,10 +2073,10 @@ test("unlock route requires the dedicated authenticated core service", async () 
   assert.equal(response.status, 503);
   assert.equal(body.code, "core_service_required");
   assert.equal(body.service, "payshield-unlocks");
-  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
+  assert.match(String(body.error), /Vercel core runtime and a verified Supabase ledger/);
 });
 
-test("payee route requires the dedicated authenticated core service", async () => {
+test("payee route requires the Vercel money-control runtime", async () => {
   const response = await createPayee(
     makeRequest("/api/app/payees", {
       allowedBucketId: "rent",
@@ -2009,10 +2089,10 @@ test("payee route requires the dedicated authenticated core service", async () =
   assert.equal(response.status, 503);
   assert.equal(body.code, "core_service_required");
   assert.equal(body.service, "payshield-payees");
-  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
+  assert.match(String(body.error), /Vercel core runtime and a verified Supabase ledger/);
 });
 
-test("bill payment route requires the dedicated authenticated core service", async () => {
+test("bill payment route requires the Vercel money-control runtime", async () => {
   const response = await scheduleBillPayment(
     makeRequest("/api/app/bill-payments", {
       amountCents: 50_000,
@@ -2027,7 +2107,7 @@ test("bill payment route requires the dedicated authenticated core service", asy
   assert.equal(response.status, 503);
   assert.equal(body.code, "core_service_required");
   assert.equal(body.service, "payshield-bill-payments");
-  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
+  assert.match(String(body.error), /Vercel core runtime and a verified Supabase ledger/);
 });
 
 test("bill payment route refuses local validation without the core service", async () => {
@@ -2054,7 +2134,7 @@ test("bill payment route refuses local validation without the core service", asy
   assert.equal(unapprovedBody.code, "core_service_required");
 });
 
-test("provider webhook route requires the dedicated authenticated core service", async () => {
+test("provider webhook route requires the Vercel money-control runtime", async () => {
   const response = await providerWebhook(
     makeRequest("/api/provider/webhooks", {
       eventId: "evt_provider_core_required",
@@ -2066,7 +2146,7 @@ test("provider webhook route requires the dedicated authenticated core service",
   assert.equal(response.status, 503);
   assert.equal(body.code, "core_service_required");
   assert.equal(body.service, "payshield-provider-webhook");
-  assert.match(String(body.error), /PAYSHIELD_CORE_API_URL/);
+  assert.match(String(body.error), /Vercel core runtime and a verified Supabase ledger/);
 });
 
 test("provider webhook route refuses local signature handling even when a webhook secret is present", async () => {
@@ -2132,7 +2212,7 @@ test("provider webhook route refuses local signature handling even when a webhoo
   assert.equal(response.status, 503);
   assert.equal(body.code, "core_service_required");
   assert.equal(body.service, "payshield-provider-webhook");
-  assert.match(String(body.error), /dedicated PayShield core service/);
+  assert.match(String(body.error), /Vercel core runtime and a verified Supabase ledger/);
   assert.equal(JSON.stringify(body).includes("access-token-should-not-return"), false);
   assert.equal(JSON.stringify(body).includes("processor-token-should-not-return"), false);
   assert.equal(JSON.stringify(body).includes("021000021"), false);

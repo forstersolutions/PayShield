@@ -45,7 +45,7 @@ function setLiveProviderEnv() {
   process.env.PAYSHIELD_LEDGER_DATABASE_URL =
     "postgres://payshield:secret@example.invalid:5432/ledger";
   process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
-  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0019";
+  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0022";
   process.env.PAYSHIELD_LIVE_MONEY_ENABLED = "true";
   process.env.PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED = "true";
   process.env.PAYSHIELD_REGULATED_COUNSEL_SIGNOFF = "true";
@@ -151,5 +151,51 @@ test("live banking provider rejects oversized adapter responses without leaking 
 
       return true;
     },
+  );
+});
+
+test("live banking provider returns only a secure hosted direct-deposit handoff", async () => {
+  setLiveProviderEnv();
+  globalThis.fetch = async () =>
+    Response.json({
+      accountLast4: "4821",
+      accountName: "PayShield protected paycheck account",
+      instructionsExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+      instructionsUrl: "https://provider.example/direct-deposit/session_123",
+      routingLast4: "1100",
+    });
+
+  const provider = getBankingProvider();
+  const instructions = await provider.createDirectDepositInstructions({
+    providerAccountId: "account_123",
+  });
+
+  assert.equal(instructions.accountLast4, "4821");
+  assert.equal(instructions.routingLast4, "1100");
+  assert.equal(
+    instructions.instructionsUrl,
+    "https://provider.example/direct-deposit/session_123",
+  );
+  assert.equal("accountNumber" in instructions, false);
+  assert.equal("routingNumber" in instructions, false);
+});
+
+test("live banking provider rejects insecure direct-deposit handoffs", async () => {
+  setLiveProviderEnv();
+  globalThis.fetch = async () =>
+    Response.json({
+      accountLast4: "4821",
+      instructionsUrl: "http://provider.example/direct-deposit/session_123",
+      routingLast4: "1100",
+    });
+
+  const provider = getBankingProvider();
+
+  await assert.rejects(
+    () =>
+      provider.createDirectDepositInstructions({
+        providerAccountId: "account_123",
+      }),
+    ProviderAdapterError,
   );
 });

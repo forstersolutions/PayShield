@@ -46,13 +46,16 @@ export function BiometricGate({ children }: PropsWithChildren) {
     const subscription = AppState.addEventListener("change", (nextState) => {
       const returning = /inactive|background/.test(appState.current) && nextState === "active";
       appState.current = nextState;
+      if (nextState !== "active" && Platform.OS !== "web" && session.isSignedIn) {
+        setLocked(true);
+      }
       if (returning) void authenticate();
     });
     return () => {
       clearTimeout(initialAuthentication);
       subscription.remove();
     };
-  }, [authenticate]);
+  }, [authenticate, session.isSignedIn]);
 
   if (!locked || checking) return children;
 

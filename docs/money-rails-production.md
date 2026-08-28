@@ -1,120 +1,75 @@
-# Core And Money-Rail Operations
+# Money Rails Operations
 
-## Deploy
+## Ledger
 
-The production core is defined in `infra/aws/payshield-core.yaml` and released by
-`.github/workflows/deploy-core.yml`.
+Supabase PostgreSQL owns household identity, protected bucket controls,
+double-entry journals, provider events, payment schedules, bank sync jobs,
+reconciliation exceptions, and closure requests. Vercel connects through the
+transaction pooler with a maximum pool size of two per function instance.
 
-The workflow:
-
-1. Assumes the production AWS role through GitHub OIDC.
-2. Validates CloudFormation and the repository infrastructure audit.
-3. Creates or updates infrastructure with zero running tasks.
-4. Builds an immutable ECR image for the Git commit.
-5. Runs schema migrations as a private one-off Fargate task.
-6. Starts the requested service count only after migration succeeds.
-7. Waits for ECS stability, checks public health, and checks authenticated
-   readiness.
-
-The first deployment requires an ACM certificate, core DNS name, and GitHub
-production environment variables listed in the README. When DNS is outside
-Route 53, leave `PAYSHIELD_HOSTED_ZONE_ID` blank and point the core hostname to
-the stack's `LoadBalancerDnsName` output. When the zone is in Route 53, the stack
-creates the alias record.
-
-## Runtime Secrets
-
-The stack generates and retains:
-
-- RDS master credentials.
-- `PAYSHIELD_CORE_SERVICE_TOKEN`.
-- `PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY`.
-- `PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET`.
-- `PAYSHIELD_PROVIDER_WEBHOOK_SECRET`.
-
-Plaid client ID, Plaid secret, and the banking-provider API key are supplied as
-separate Secrets Manager ARNs. Rotate external provider secrets in Secrets
-Manager, force a new ECS deployment, and confirm readiness before revoking the
-old credential.
-
-## Plaid
-
-Register this production callback:
-
-```text
-https://CORE_DOMAIN/api/plaid/webhooks
-```
-
-Plaid requests are verified with `Plaid-Verification`, ES256, the provider key
-endpoint, token age limits, and the SHA-256 hash of the exact raw body. Valid
-transaction update events are persisted and queued. The background worker loads
-the bank connection from PostgreSQL, decrypts its token inside the core, runs
-`/transactions/sync`, updates the cursor, applies household paycheck rules, and
-posts balanced splits.
-
-Use `/api/app/bank-link/token` and `/api/app/bank-link/exchange` from the
-authenticated frontend. The browser receives a Link token and public token only;
-the access token is encrypted and stored by the core.
-
-## Banking Provider Adapter
-
-Set the provider name, HTTPS base URL, API key secret ARN, and endpoint path
-overrides required by the signed provider contract. The adapter supports:
-
-- customer creation and KYC start;
-- financial account opening and direct-deposit instructions;
-- card issue and card status changes;
-- payee enrollment and verification;
-- ACH transfers and bill payments;
-- card authorization responses;
-- settlement, failure, cancellation, expiration, and reversal webhooks.
-
-All create and movement calls carry immutable idempotency keys. Provider
-callbacks use the exact raw JSON body and
-`x-payshield-provider-signature: t=<unix>,v1=<hmac-sha256>`. Configure the
-generated provider webhook secret at the provider and register:
-
-```text
-https://CORE_DOMAIN/api/provider/webhooks
-https://CORE_DOMAIN/api/card/authorize
-```
-
-Unknown references, amount conflicts, invalid transitions, and execution errors
-create reconciliation exceptions instead of silently changing balances.
-
-## Ledger Operations
-
-Apply and verify migrations only through the release workflow or:
+Apply `services/core/migrations` first, then `supabase/migrations`:
 
 ```bash
-PAYSHIELD_LEDGER_DATABASE_URL=... npm run core:migrations:apply
-PAYSHIELD_LEDGER_DATABASE_URL=... npm run core:migrations:verify
+PAYSHIELD_LEDGER_DATABASE_URL="<pooler-uri>" npm run supabase:schema:apply
+PAYSHIELD_LEDGER_DATABASE_URL="<pooler-uri>" npm run supabase:schema:verify
 ```
 
-Never modify or delete posted journals. Corrections use linked reversal entries.
-Review open reconciliation exceptions every operating day and after any provider
-incident. Before resolving an exception, compare provider event ID, amount,
-household, source account, destination, journal, settlement state, and provider
-dashboard evidence.
+The platform migration forces RLS and removes `anon` and `authenticated` Data
+API access from every ledger table. The customer application uses authenticated
+Vercel APIs only.
 
-## Incident Actions
+## Paycheck Flow
 
-- Provider uncertainty: set `PAYSHIELD_LIVE_MONEY_ENABLED=false` and
-  `PAYSHIELD_TRANSFER_ENABLED=false`, then deploy the stack update.
-- Card authorization instability: disable the provider gateway according to the
-  approved provider runbook and preserve all inbound event logs.
-- Plaid sync failure: leave webhooks enabled, inspect dead/retry jobs, restore
-  credentials or connectivity, and replay by stable item/event ID.
-- Database incident: keep application writes closed, restore to a separate RDS
-  instance, verify schema and balanced journals, reconcile provider events, then
-  cut over under the approved recovery plan.
-- Bad application release: ECS deployment circuit breaker rolls back unhealthy
-  tasks. Operators can redeploy the prior immutable image tag after confirming
-  the migration remains forward compatible.
+1. The customer connects an income account through Plaid Link.
+2. PayShield encrypts and stores the access token server-side.
+3. Plaid transaction webhooks create durable sync jobs.
+4. Vercel processes the job after the webhook response; the daily maintenance
+   route retries anything left queued.
+5. Matching deposits post one balanced journal entry.
+6. Buckets fund in priority order and the remainder becomes Safe to Spend.
+7. Duplicate deposits return the prior result by idempotency key.
 
-## Live-Money Gate
+## Bill And Transfer Flow
 
-Keep `PAYSHIELD_LIVE_MONEY_ENABLED=false` until provider credentials and webhook
-signing are active, schema `0019` is verified, frontend authentication is proven,
-and provider, sponsor, counsel, and operations approvals are recorded. The core
-readiness endpoint independently checks those conditions.
+- A destination must be verified and assigned to one protected bucket.
+- Amounts cannot exceed the destination limit or bucket availability.
+- Provider execution is recorded before local settlement status advances.
+- Unknown, mismatched, or ambiguous provider events enter reconciliation.
+- Posted journal rows are immutable; corrections use reversals.
+
+## Card Flow
+
+- Authorization checks card status, merchant controls, and Safe to Spend.
+- Protected money is excluded from ordinary purchases.
+- Approved bill destinations can use only their assigned bucket.
+- Every decision records its provider reference and idempotency key.
+
+## Closure Flow
+
+An accepted closure request immediately blocks new money actions and pauses
+automation. The durable worker closes provider resources, revokes Plaid,
+removes the RevenueCat customer, deletes the Clerk identity, and completes local
+closure only after required external steps succeed. Failed steps retry from the
+stored request. Submitted transfers and bills remain available for settlement
+and reconciliation.
+
+## Operations
+
+- Vercel Cron calls `/api/jobs/maintenance` with `CRON_SECRET` daily.
+- Plaid sync and closure also run immediately after their initiating response.
+- Review open reconciliation exceptions before enabling or changing live rails.
+- Rotate webhook, provider, Clerk, RevenueCat, and encryption secrets one at a
+  time and run deployed smoke checks after each change.
+- Keep live money disabled during database restore, provider incident, or ledger
+  verification failure.
+
+## Activation Order
+
+1. Supabase schema and security verification.
+2. Clerk production authentication.
+3. RevenueCat sandbox products and webhook.
+4. Plaid sandbox Link, exchange, webhook, sync, disconnect, and replay tests.
+5. Banking-provider sandbox onboarding, account, card, transfer, bill, reversal,
+   and reconciliation tests.
+6. Counsel, sponsor, and operating-runbook approvals.
+7. Controlled live-money activation and physical-device smoke tests.

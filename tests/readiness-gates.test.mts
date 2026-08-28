@@ -6,14 +6,14 @@ import {
   uniqueFriendlyGateLabels,
 } from "../src/app/lib/readiness-gates.ts";
 
-test("readiness gate labels distinguish core activation from token custody handoff", () => {
+test("readiness gate labels distinguish money-control runtime from token custody", () => {
   assert.equal(
     friendlyGateLabel("PAYSHIELD_CORE_API_URL"),
-    "Core activation service",
+    "Money-control runtime",
   );
   assert.equal(
     friendlyGateLabel("PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL or PAYSHIELD_CORE_API_URL"),
-    "Vault receiver or core service URL",
+    "Token custody receiver",
   );
 });
 
@@ -36,7 +36,7 @@ test("readiness gate labels cover revenue, bank, provider, and live-control gate
     friendlyGateLabel("PAYSHIELD_BAAS_API_BASE_URL"),
     "Provider adapter URL",
   );
-  assert.equal(friendlyGateLabel("postgres_ledger"), "Verified Postgres ledger");
+  assert.equal(friendlyGateLabel("postgres_ledger"), "Verified Supabase ledger");
   assert.equal(friendlyGateLabel("clerk_auth"), "Clerk authentication");
 });
 
@@ -59,6 +59,6 @@ test("friendly gate summaries dedupe duplicate setup blockers", () => {
       "PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL or PAYSHIELD_CORE_API_URL",
       "PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL or PAYSHIELD_CORE_API_URL",
     ]),
-    ["Plaid credentials", "Vault receiver or core service URL"],
+    ["Plaid credentials", "Token custody receiver"],
   );
 });

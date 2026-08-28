@@ -7,9 +7,7 @@ import { Colors, Fonts } from "@/constants/theme";
 export function PayShieldMark({ size = 36 }: { size?: number }) {
   return (
     <Svg
-      accessibilityElementsHidden
       height={size}
-      importantForAccessibility="no"
       viewBox="0 0 512 512"
       width={size}
     >
@@ -42,7 +40,7 @@ export function PayShieldMark({ size = 36 }: { size?: number }) {
 
 export function PayShieldLogo({ compact = false }: { compact?: boolean }) {
   return (
-    <View accessibilityLabel="PayShield" style={styles.lockup}>
+    <View accessible accessibilityLabel="PayShield" style={styles.lockup}>
       <PayShieldMark size={compact ? 29 : 36} />
       <Text style={[styles.wordmark, compact && styles.wordmarkCompact]}>
         <Text style={styles.pay}>Pay</Text>

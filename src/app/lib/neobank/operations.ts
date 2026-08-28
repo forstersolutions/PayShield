@@ -52,8 +52,10 @@ function buildActivationSetupGroups(input: {
         "PAYSHIELD_COMMERCIAL_PRICE_ID",
         "PAYSHIELD_COMMERCIAL_PAYMENT_LINK_URL",
         "STRIPE_WEBHOOK_SECRET",
-        "PAYSHIELD_CORE_API_URL",
-        "PAYSHIELD_CORE_SERVICE_TOKEN",
+        "PAYSHIELD_CORE_RUNTIME",
+        "PAYSHIELD_LEDGER_DATABASE_URL",
+        "PAYSHIELD_LEDGER_SCHEMA_VERIFIED",
+        "PAYSHIELD_SUPABASE_SECURITY_VERIFIED",
       ],
       key: "revenue",
       productAction:
@@ -94,8 +96,6 @@ function buildActivationSetupGroups(input: {
         "PLAID_COUNTRY_CODES",
         "PLAID_WEBHOOK_URL",
         "PAYSHIELD_TOKEN_VAULT_KEY_ID",
-        "PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL or PAYSHIELD_CORE_API_URL",
-        "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET",
         "PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY",
       ],
       key: "bank_connection",
@@ -196,7 +196,7 @@ function buildActivationPlan(input: {
       key: "revenue",
       label: "Revenue",
       ownerAction:
-        "Configure Stripe checkout, webhook signing, and core activation so paid households unlock automatically.",
+        "Configure Stripe checkout, webhook signing, and durable membership activation so paid households unlock automatically.",
       primaryEndpoint: "POST /api/app/billing/checkout",
       ready: input.commercial.paidAccessReady,
       requiredGates: cleanMissing(input.commercial.missing),
@@ -208,7 +208,7 @@ function buildActivationPlan(input: {
       setupChecklist: [
         "Set STRIPE_SECRET_KEY plus PAYSHIELD_COMMERCIAL_PRICE_ID or a live payment link.",
         "Set STRIPE_WEBHOOK_SECRET for /api/app/billing/webhook.",
-        "Point PAYSHIELD_CORE_API_URL at the always-on core and set PAYSHIELD_CORE_SERVICE_TOKEN so paid access persists through authenticated core writes.",
+        "Configure the Vercel money-control runtime and verified Supabase ledger so billing events activate household access durably.",
       ],
       title: "Charge the household",
       userAction: "Activate paid access",
@@ -242,7 +242,7 @@ function buildActivationPlan(input: {
           : "plaid_needed",
       setupChecklist: [
         "Set PLAID_CLIENT_ID, PLAID_SECRET, PLAID_ENV, and PLAID_PRODUCTS.",
-        "Set PAYSHIELD_TOKEN_VAULT_KEY_ID, PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET, and PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY; use PAYSHIELD_CORE_API_URL as the default vault receiver or override with PAYSHIELD_TOKEN_VAULT_WEBHOOK_URL.",
+        "Set PAYSHIELD_TOKEN_VAULT_KEY_ID and PAYSHIELD_TOKEN_VAULT_ENCRYPTION_KEY for encrypted server-side token custody.",
         "Verify /api/app/bank-link/exchange records the masked account and vault reference.",
       ],
       title: "Connect banks",
@@ -582,7 +582,7 @@ function buildOperatingCockpit(input: {
       key: "revenue",
       label: "Charge household",
       ownerAction:
-        "Configure Stripe checkout, webhook signing, and core activation.",
+        "Configure Stripe checkout, webhook signing, and durable membership activation.",
       primaryEndpoint: "POST /api/app/billing/checkout",
       ready: input.commercial.paidAccessReady,
       state: input.commercial.paidAccessReady
@@ -954,7 +954,7 @@ export function buildGuidedMoneyFlow(input: {
       key: "commercial_access",
       label: "Earn",
       ownerAction:
-        "Set Stripe Checkout, webhook signing, and core activation so paid access is recorded automatically.",
+        "Set Stripe Checkout, webhook signing, and durable membership activation so paid access is recorded automatically.",
       primaryAction: "Start checkout",
       ready: input.commercial.paidAccessReady,
       runMode: input.commercial.paidAccessReady
@@ -1208,7 +1208,7 @@ export function buildActivationRunway(input: {
       key: "first_revenue",
       label: "Earn",
       operatorOutcome:
-        "Stripe checkout, webhook signing, and core activation create the paid-access record.",
+        "Stripe checkout, webhook signing, and durable activation create the paid-access record.",
       primaryAction: "Start checkout",
       proofArtifacts: [
         "checkout_intent",
@@ -1218,7 +1218,7 @@ export function buildActivationRunway(input: {
       ready: input.commercial.paidAccessReady,
       revenueImpact: `Starts ${priceLabel} household revenue.`,
       setupAction:
-        "Configure Stripe secret, price or payment link, webhook secret, and core service auth.",
+        "Configure Stripe checkout, webhook signing, and durable Supabase activation storage.",
       title: "Collect the first paid household",
     },
     {
@@ -1308,7 +1308,7 @@ export function buildActivationRunway(input: {
       revenueImpact:
         "Gives the product its immediate value even before live provider movement opens.",
       setupAction:
-        "No provider setup required for configuration; durable ledger evidence requires the core database.",
+        "No provider setup is required for configuration; durable evidence uses the Supabase ledger.",
       title: "Customize the protection rules",
     },
     {
@@ -1339,7 +1339,7 @@ export function buildActivationRunway(input: {
       revenueImpact:
         "Creates support, compliance, and household trust evidence for retention.",
       setupAction:
-        "Deploy the always-on core, verify Postgres schema 0019, and require durable storage.",
+        "Configure the Vercel money-control runtime and verify Supabase schema 0022.",
       title: "Prove the ledger evidence",
     },
     {
@@ -1414,10 +1414,10 @@ export function buildActivationRunway(input: {
       title: nextMilestone.title,
     },
     ownerPath: [
-      "Configure Stripe and core access activation",
+      "Configure membership and durable access activation",
       "Turn on Clerk household identity",
       "Configure Plaid and token custody",
-      "Verify Postgres ledger schema 0019",
+      "Verify Postgres ledger schema 0022",
       "Connect BaaS/card provider adapter",
       "Record counsel, sponsor, and runbook approvals before live money",
     ],
@@ -1554,13 +1554,13 @@ export function createHouseholdOperationsPacket(session?: AppSession) {
         persisted: false,
         persistence: "memory",
         persistenceReason:
-          "Bucket rules are running from the Vercel control model until the dedicated core is configured.",
+          "Bucket rules require the Supabase ledger before they can be saved.",
       },
       payeePersistence: {
         persisted: false,
         persistence: "memory",
         persistenceReason:
-          "Payees are running from the Vercel control model until the dedicated core is configured.",
+          "Payees require the Supabase ledger before they can be saved.",
       },
       payees: snapshot.payees,
     },

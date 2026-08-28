@@ -74,8 +74,17 @@ export function getProviderAdapterConfig(env: NodeJS.ProcessEnv = process.env) {
         env.PAYSHIELD_BAAS_CARD_AUTHORIZATION_PATH,
         "/card-authorizations",
       ),
+      cardClose: cleanPath(env.PAYSHIELD_BAAS_CARD_CLOSE_PATH, "/cards/close"),
       cardIssue: cleanPath(env.PAYSHIELD_BAAS_CARD_ISSUE_PATH, "/cards"),
+      cardManagement: cleanPath(
+        env.PAYSHIELD_BAAS_CARD_MANAGEMENT_PATH,
+        "/cards/manage",
+      ),
       customer: cleanPath(env.PAYSHIELD_BAAS_CUSTOMER_PATH, "/customers"),
+      customerClose: cleanPath(
+        env.PAYSHIELD_BAAS_CUSTOMER_CLOSE_PATH,
+        "/customers/close",
+      ),
       directDeposit: cleanPath(
         env.PAYSHIELD_BAAS_DIRECT_DEPOSIT_PATH,
         "/direct-deposit-instructions",
@@ -83,6 +92,10 @@ export function getProviderAdapterConfig(env: NodeJS.ProcessEnv = process.env) {
       financialAccount: cleanPath(
         env.PAYSHIELD_BAAS_FINANCIAL_ACCOUNT_PATH,
         "/financial-accounts",
+      ),
+      financialAccountClose: cleanPath(
+        env.PAYSHIELD_BAAS_FINANCIAL_ACCOUNT_CLOSE_PATH,
+        "/financial-accounts/close",
       ),
       kyc: cleanPath(env.PAYSHIELD_BAAS_KYC_PATH, "/kyc/applications"),
       transfer: cleanPath(env.PAYSHIELD_BAAS_TRANSFER_PATH, "/ach-transfers"),

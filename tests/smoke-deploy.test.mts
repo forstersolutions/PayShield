@@ -21,7 +21,7 @@ function send(
   response.end(body);
 }
 
-async function target() {
+async function target({ searchFallback = false } = {}) {
   const server = createServer((request, response) => {
     const path = new URL(request.url || "/", "http://localhost").pathname;
 
@@ -32,8 +32,12 @@ async function target() {
     if (path === "/download") {
       const userAgent = request.headers["user-agent"] || "";
       const location = /android/i.test(userAgent)
-        ? "https://play.google.com/store/search?q=PayShield&c=apps"
-        : "https://apps.apple.com/us/search?term=PayShield";
+        ? searchFallback
+          ? "https://play.google.com/store/search?q=PayShield&c=apps"
+          : "https://play.google.com/store/apps/details?id=com.graystontechnologies.payshield"
+        : searchFallback
+          ? "https://apps.apple.com/us/search?term=PayShield"
+          : "https://apps.apple.com/us/app/payshield/id123456789";
       response.writeHead(307, { ...headers, location });
       return response.end();
     }
@@ -77,6 +81,25 @@ test("deployment smoke verifies the release surface without submitting data", as
     assert.equal(result.ok, true, result.failures.join("\n"));
     assert.equal(result.failures.length, 0);
     assert.equal(result.checks.includes("obsolete intake route is absent"), true);
+  } finally {
+    fixture.server.close();
+  }
+});
+
+test("deployment smoke rejects store search fallbacks", async () => {
+  const fixture = await target({ searchFallback: true });
+
+  try {
+    const result = await runDeploySmoke({ targetUrl: fixture.url });
+    assert.equal(result.ok, false);
+    assert.equal(
+      result.failures.some((failure) => failure.includes("direct apps.apple.com")),
+      true,
+    );
+    assert.equal(
+      result.failures.some((failure) => failure.includes("direct play.google.com")),
+      true,
+    );
   } finally {
     fixture.server.close();
   }

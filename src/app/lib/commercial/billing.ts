@@ -153,7 +153,8 @@ export function getCommercialReadiness() {
   const webhookConfigured = mobileStoreBillingEnabled
     ? revenueCat.authorizationConfigured
     : webhook.signingSecretConfigured;
-  const activationCoreServiceAuthConfigured = Boolean(core.serviceToken);
+  const activationCoreServiceAuthConfigured =
+    core.mode === "in_process" || Boolean(core.serviceToken);
   const activationCoreReady = core.ok && activationCoreServiceAuthConfigured;
   const missing: string[] = [];
 
@@ -196,7 +197,11 @@ export function getCommercialReadiness() {
 
   if (checkoutConfigured && webhookConfigured && !activationCoreReady) {
     if (!core.ok) {
-      missing.push("PAYSHIELD_CORE_API_URL");
+      missing.push(
+        core.mode === "in_process"
+          ? core.error || "Supabase ledger configuration"
+          : "PAYSHIELD_CORE_API_URL",
+      );
     }
 
     if (!activationCoreServiceAuthConfigured) {
@@ -280,7 +285,7 @@ export function requirePaidAccessForFallback(operation: string) {
         ? "paid_access_state_unverified"
         : "paid_access_not_configured",
       error: readiness.paidAccessReady
-        ? `Paid access must be active before ${operation}. Configure PAYSHIELD_CORE_API_URL so verified billing webhooks can activate household access before this workflow runs.`
+        ? `Paid access must be active before ${operation}. Complete membership activation before this workflow runs.`
         : readiness.activationCoreConfigured &&
             !readiness.activationCoreServiceAuthConfigured
           ? `Paid access must be fully configured before ${operation}. Add PAYSHIELD_CORE_SERVICE_TOKEN so Stripe webhooks can authenticate to core activation storage.`

@@ -36,6 +36,9 @@ test("core migrations are ordered and include money rail migration", async () =>
     "0017_provider_settlement_lifecycle.sql",
     "0018_kyc_hosted_verification.sql",
     "0019_plaid_sync_jobs.sql",
+    "0020_account_closure_requests.sql",
+    "0021_launch_workflows.sql",
+    "0022_pin_function_search_paths.sql",
   ]);
 });
 
@@ -59,6 +62,18 @@ test("ledger integrity migration enforces balanced immutable journals", async ()
   assert.match(sql, /post a reversal instead/i);
   assert.doesNotMatch(sql, /DROP\s+TABLE/i);
   assert.doesNotMatch(sql, /TRUNCATE/i);
+});
+
+test("ledger trigger functions use pinned search paths", async () => {
+  const sql = await readFile(
+    `${migrationsDir}/0022_pin_function_search_paths.sql`,
+    "utf8",
+  );
+
+  assert.equal((sql.match(/SET search_path = pg_catalog, public/g) ?? []).length, 5);
+  assert.match(sql, /assert_journal_entry_balanced_by_id\(text\)/);
+  assert.match(sql, /assert_journal_line_household_scope\(\)/);
+  assert.match(sql, /prevent_posted_journal_mutation\(\)/);
 });
 
 test("commercial money rail migration adds operational tables", async () => {
@@ -357,12 +372,43 @@ test("Plaid sync queue migration supports durable multi-worker claims", async ()
   assert.doesNotMatch(sql, /TRUNCATE/i);
 });
 
+test("account closure migration records one active household request", async () => {
+  const sql = await readFile(
+    `${migrationsDir}/0020_account_closure_requests.sql`,
+    "utf8",
+  );
+
+  assert.match(sql, /CREATE TABLE account_closure_requests/);
+  assert.match(sql, /acknowledged_data_retention BOOLEAN NOT NULL/);
+  assert.match(sql, /account_closure_requests_open_household_idx/);
+  assert.match(sql, /UNIQUE \(household_id, idempotency_key\)/);
+  assert.doesNotMatch(sql, /DROP\s+TABLE/i);
+  assert.doesNotMatch(sql, /DROP\s+COLUMN/i);
+  assert.doesNotMatch(sql, /TRUNCATE/i);
+});
+
+test("launch workflow migration adds atomic plans and closure processing", async () => {
+  const sql = await readFile(
+    `${migrationsDir}/0021_launch_workflows.sql`,
+    "utf8",
+  );
+
+  assert.match(sql, /CREATE TABLE household_protection_plan_events/);
+  assert.match(sql, /payload_hash TEXT NOT NULL/);
+  assert.match(sql, /account_status IN \('active', 'closing', 'closed'\)/);
+  assert.match(sql, /processing_attempts INTEGER NOT NULL DEFAULT 0/);
+  assert.match(sql, /account_closure_requests_processing_idx/);
+  assert.doesNotMatch(sql, /DROP\s+TABLE/i);
+  assert.doesNotMatch(sql, /DROP\s+COLUMN/i);
+  assert.doesNotMatch(sql, /TRUNCATE/i);
+});
+
 test("core migration planner emits ordered checksummed evidence", async () => {
   const plan = await buildMigrationPlan();
 
   assert.equal(plan.ok, true);
   assert.equal(plan.service, "payshield-core-migrations");
-  assert.equal(plan.migrations.length, 19);
+  assert.equal(plan.migrations.length, 22);
   assert.equal(plan.migrations[0]?.file, "0001_neobank_core.sql");
   assert.equal(plan.migrations[1]?.file, "0002_household_bucket_controls.sql");
   assert.equal(plan.migrations[2]?.file, "0003_ledger_integrity.sql");
@@ -382,11 +428,14 @@ test("core migration planner emits ordered checksummed evidence", async () => {
   assert.equal(plan.migrations[16]?.file, "0017_provider_settlement_lifecycle.sql");
   assert.equal(plan.migrations[17]?.file, "0018_kyc_hosted_verification.sql");
   assert.equal(plan.migrations[18]?.file, "0019_plaid_sync_jobs.sql");
-  assert.equal(plan.latestVersion, "0019");
+  assert.equal(plan.migrations[19]?.file, "0020_account_closure_requests.sql");
+  assert.equal(plan.migrations[20]?.file, "0021_launch_workflows.sql");
+  assert.equal(plan.migrations[21]?.file, "0022_pin_function_search_paths.sql");
+  assert.equal(plan.latestVersion, "0022");
   assert.equal(plan.migrationLedgerTable, "core_schema_migrations");
-  assert.match(plan.migrations[18]?.checksumSha256 ?? "", /^[a-f0-9]{64}$/);
+  assert.match(plan.migrations[21]?.checksumSha256 ?? "", /^[a-f0-9]{64}$/);
   assert.match(plan.schemaFingerprintSha256 ?? "", /^[a-f0-9]{64}$/);
-  assert.equal(plan.migrations[18]?.destructivePatterns.length, 0);
+  assert.equal(plan.migrations[21]?.destructivePatterns.length, 0);
   assert.equal(plan.applyCommand.includes("<postgres-url>"), true);
   assert.equal(plan.verifyCommand.includes("<postgres-url>"), true);
   assert.equal(JSON.stringify(plan).includes("postgres://"), false);
@@ -404,7 +453,7 @@ test("core migration state identifies pending and checksum drift", async () => {
 
   assert.equal(partial.ok, false);
   assert.equal(partial.appliedCount, 1);
-  assert.equal(partial.pendingCount, 18);
+  assert.equal(partial.pendingCount, 21);
   assert.equal(partial.pending[0]?.version, "0002");
 
   const drift = evaluateAppliedMigrationState(plan, [
@@ -434,7 +483,7 @@ test("core migration CLI check outputs redacted JSON plan", async () => {
   >;
 
   assert.equal(plan.ok, true);
-  assert.equal(plan.migrations.length, 19);
+  assert.equal(plan.migrations.length, 22);
   assert.equal(plan.migrationLedgerTable, "core_schema_migrations");
   assert.equal(stdout.includes("PAYSHIELD_LEDGER_DATABASE_URL"), true);
   assert.equal(stdout.includes("://"), false);

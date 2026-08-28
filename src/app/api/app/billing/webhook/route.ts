@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     {
       accepted: false,
       error:
-        "Stripe event verified, but paid-access state was not persisted. Configure PAYSHIELD_CORE_API_URL and PAYSHIELD_CORE_SERVICE_TOKEN so Stripe retries until core activation storage accepts the event.",
+        "Stripe event verified, but household access was not saved. Configure the Vercel money-control runtime and Supabase ledger so Stripe can retry this event.",
       persisted: false,
       received: false,
       service: "payshield-stripe-webhook",

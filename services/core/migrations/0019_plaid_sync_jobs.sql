@@ -1,5 +1,5 @@
 -- Durable Plaid transaction-sync work queue. Webhook receivers enqueue quickly;
--- core workers claim with SKIP LOCKED so multiple Fargate tasks can process
+-- workers claim with SKIP LOCKED so concurrent runtimes can process
 -- safely without duplicate concurrent execution.
 
 CREATE TABLE plaid_sync_jobs (

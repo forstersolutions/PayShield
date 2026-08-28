@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     {
       accepted: false,
       error:
-        "RevenueCat event authenticated, but household access was not persisted. Configure the PayShield core service so RevenueCat can retry this event.",
+        "RevenueCat event authenticated, but household access was not saved. Configure the Vercel money-control runtime and Supabase ledger so RevenueCat can retry this event.",
       persisted: false,
       received: false,
       service: "payshield-revenuecat-webhook",

@@ -3,7 +3,7 @@ import { clerkAppConfigured } from "./app-access.ts";
 import { getCoreServiceConfig } from "./core-config.ts";
 import { getProviderAdapterConfig } from "./provider-adapter.ts";
 
-export const CORE_LEDGER_SCHEMA_VERSION = "0019";
+export const CORE_LEDGER_SCHEMA_VERSION = "0022";
 
 function envTrue(name: string) {
   return process.env[name]?.trim().toLowerCase() === "true";
@@ -50,24 +50,27 @@ export function getNeobankReadiness(): NeobankReadiness {
       ok: envTrue("PAYSHIELD_OPERATIONS_RUNBOOKS_APPROVED"),
     },
     {
-      description: "Durable Postgres ledger schema is configured and verified.",
+      description: "Supabase ledger schema and Data API isolation are verified.",
       id: "postgres_ledger",
       ok:
         envPresent("PAYSHIELD_LEDGER_DATABASE_URL") &&
         envTrue("PAYSHIELD_LEDGER_SCHEMA_VERIFIED") &&
         process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION?.trim() ===
-          CORE_LEDGER_SCHEMA_VERSION,
+          CORE_LEDGER_SCHEMA_VERSION &&
+        (process.env.PAYSHIELD_CORE_RUNTIME?.trim().toLowerCase() !== "vercel" ||
+          envTrue("PAYSHIELD_SUPABASE_SECURITY_VERIFIED")),
     },
     {
-      description: "Always-on regulated core backend is configured.",
+      description: "The Vercel money-control runtime is configured.",
       id: "dedicated_backend",
       ok: coreService.ok,
     },
     {
-      description:
-        "Core service token is configured for protected internal operation routes.",
+      description: "Money-control operations stay behind an authenticated server boundary.",
       id: "core_service_auth",
-      ok: Boolean(coreService.serviceToken),
+      ok:
+        coreService.ok &&
+        (coreService.mode === "in_process" || Boolean(coreService.serviceToken)),
     },
     {
       description: "Clerk keys are configured for authenticated app access.",

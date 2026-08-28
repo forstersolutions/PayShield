@@ -8,14 +8,17 @@ import {
   cancelBillPayment,
   createBankLinkToken,
   createBillPayment,
+  createCardManagementSession,
   createDirectDepositSetup,
   createPayee,
   savePaycheckDetectionRule,
   createTransferIntent,
   createUnlock,
   detectPaycheck,
+  disconnectBankConnection,
   exchangeBankPublicToken,
   getBankConnections,
+  getAccountClosureStatus,
   getBalances,
   getBillingStatus,
   getBucketProfile,
@@ -28,19 +31,23 @@ import {
   getProfile,
   handleProviderWebhook,
   processPlaidSyncJobs,
+  processAccountClosureRequests,
   receiveTokenVaultHandoff,
   recordBankConnection,
   recordCommercialBillingEvent,
   recordCommercialCheckoutIntent,
   recordProductionGateEvidence,
+  requestAccountClosure,
   resolveReconciliationException,
   saveBucketProfile,
   saveHouseholdMoneyProfile,
+  saveHouseholdProtectionPlan,
   setCardStatus,
   startOnboarding,
   startPayeeVerification,
   syncLinkedBankPaychecks,
   updatePayee,
+  runAccountClosureWorker,
 } from "./product.mjs";
 
 const port = Number(process.env.PORT || process.env.PAYSHIELD_CORE_PORT || 8080);
@@ -59,8 +66,29 @@ function plaidWorkerEnabled() {
     databaseConfigured(process.env) &&
     process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED?.trim().toLowerCase() ===
       "true" &&
-    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION?.trim() === "0019" &&
+    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION?.trim() === "0022" &&
     process.env.PAYSHIELD_PLAID_SYNC_WORKER_ENABLED?.trim().toLowerCase() !==
+      "false"
+  );
+}
+
+function accountClosureWorkerIntervalMs() {
+  const parsed = Number(
+    process.env.PAYSHIELD_ACCOUNT_CLOSURE_WORKER_INTERVAL_MS,
+  );
+
+  return Number.isInteger(parsed) && parsed >= 5_000 && parsed <= 300_000
+    ? parsed
+    : 30_000;
+}
+
+function accountClosureWorkerEnabled() {
+  return (
+    databaseConfigured(process.env) &&
+    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED?.trim().toLowerCase() ===
+      "true" &&
+    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION?.trim() === "0022" &&
+    process.env.PAYSHIELD_ACCOUNT_CLOSURE_WORKER_ENABLED?.trim().toLowerCase() !==
       "false"
   );
 }
@@ -157,6 +185,9 @@ function requestActor(request) {
     clerkSubject: cleanHeader(request.headers["x-payshield-clerk-subject"], 160),
     email: cleanHeader(request.headers["x-payshield-user-email"], 160),
     name: cleanHeader(request.headers["x-payshield-user-name"], 120),
+    operator:
+      cleanHeader(request.headers["x-payshield-operator"], 10).toLowerCase() ===
+      "true",
     userId: cleanHeader(request.headers["x-payshield-user-id"], 160),
   };
 }
@@ -316,7 +347,7 @@ export function createCoreServer() {
 
     if (request.method === "OPTIONS") {
       response.writeHead(204, {
-        "access-control-allow-headers": "authorization, content-type, plaid-verification, x-payshield-provider-signature, x-payshield-signature",
+        "access-control-allow-headers": "authorization, content-type, plaid-verification, x-payshield-operator, x-payshield-provider-signature, x-payshield-signature",
         "access-control-allow-methods": "DELETE,GET,PATCH,POST,OPTIONS",
         "cache-control": "no-store",
       });
@@ -435,6 +466,24 @@ export function createCoreServer() {
         return;
       }
 
+      if (request.method === "POST" && path === "/app/protection-plan") {
+        await withJsonBody(request, response, saveHouseholdProtectionPlan);
+        return;
+      }
+
+      if (request.method === "POST" && path === "/app/account-closure") {
+        await withJsonBody(request, response, requestAccountClosure);
+        return;
+      }
+
+      if (request.method === "GET" && path === "/app/account-closure") {
+        await writeResult(
+          response,
+          getAccountClosureStatus(process.env, actor),
+        );
+        return;
+      }
+
       if (request.method === "POST" && path === "/app/bill-payments") {
         await withJsonBody(request, response, createBillPayment);
         return;
@@ -481,6 +530,11 @@ export function createCoreServer() {
         return;
       }
 
+      if (request.method === "DELETE" && path === "/app/bank-connections") {
+        await withJsonBody(request, response, disconnectBankConnection);
+        return;
+      }
+
       if (request.method === "POST" && path === "/commercial/billing-events") {
         await withJsonBody(request, response, recordCommercialBillingEvent);
         return;
@@ -513,6 +567,11 @@ export function createCoreServer() {
 
       if (request.method === "POST" && path === "/app/card/status") {
         await withJsonBody(request, response, setCardStatus);
+        return;
+      }
+
+      if (request.method === "POST" && path === "/app/card/manage") {
+        await withJsonBody(request, response, createCardManagementSession);
         return;
       }
 
@@ -551,6 +610,14 @@ export function createCoreServer() {
         return;
       }
 
+      if (
+        request.method === "POST" &&
+        path === "/launch/account-closures/process"
+      ) {
+        await withJsonBody(request, response, processAccountClosureRequests);
+        return;
+      }
+
       json(response, 404, {
         error: "Not found",
         service: "payshield-core",
@@ -582,6 +649,8 @@ const isMain = process.argv[1] === fileURLToPath(import.meta.url);
 if (isMain) {
   const server = createCoreServer();
   let shuttingDown = false;
+  let accountClosureWorkerActive = false;
+  let accountClosureWorkerTimer = null;
   let plaidWorkerActive = false;
   let plaidWorkerTimer = null;
 
@@ -603,6 +672,28 @@ if (isMain) {
     }
   };
 
+  const runClosureWorker = async () => {
+    if (
+      accountClosureWorkerActive ||
+      shuttingDown ||
+      !accountClosureWorkerEnabled()
+    ) {
+      return;
+    }
+
+    accountClosureWorkerActive = true;
+
+    try {
+      await runAccountClosureWorker(process.env);
+    } catch (error) {
+      console.error("payshield-core account closure worker failed", {
+        errorName: error instanceof Error ? error.name : "UnknownError",
+      });
+    } finally {
+      accountClosureWorkerActive = false;
+    }
+  };
+
   const shutdown = (signal) => {
     if (shuttingDown) {
       return;
@@ -613,6 +704,10 @@ if (isMain) {
 
     if (plaidWorkerTimer) {
       clearInterval(plaidWorkerTimer);
+    }
+
+    if (accountClosureWorkerTimer) {
+      clearInterval(accountClosureWorkerTimer);
     }
 
     const forcedExit = setTimeout(() => process.exit(1), 25_000);
@@ -643,6 +738,16 @@ if (isMain) {
       );
       plaidWorkerTimer.unref();
       void runPlaidWorker();
+    }
+
+
+    if (accountClosureWorkerEnabled()) {
+      accountClosureWorkerTimer = setInterval(
+        runClosureWorker,
+        accountClosureWorkerIntervalMs(),
+      );
+      accountClosureWorkerTimer.unref();
+      void runClosureWorker();
     }
   });
 }

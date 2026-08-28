@@ -26,7 +26,7 @@ function usage() {
   return [
     "Usage: node scripts/core-migrations.mjs [--plan|--check|--verify|--apply] [--json]",
     "",
-    "Plans, validates, or applies dedicated core Postgres migrations.",
+    "Plans, validates, or applies PayShield Postgres ledger migrations.",
     "",
     "Options:",
     "  --plan   Print redacted migration plan JSON (default)",

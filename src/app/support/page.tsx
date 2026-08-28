@@ -29,7 +29,7 @@ export default function SupportPage() {
         </div>
 
         <div className="grid gap-5 py-8 sm:grid-cols-2">
-          <section className="rounded-[8px] border border-white/10 bg-[#151b18] p-6">
+          <section className="rounded-[8px] border border-white/10 bg-[#151b18] p-6" id="delete-account">
             <LifeBuoy aria-hidden="true" className="text-[#79d7b4]" size={23} />
             <h2 className="mt-5 text-xl font-black">Customer help</h2>
             <p className="mt-3 leading-7 text-[#b9c5bf]">
@@ -46,8 +46,10 @@ export default function SupportPage() {
             <Trash2 aria-hidden="true" className="text-[#ef9a8d]" size={23} />
             <h2 className="mt-5 text-xl font-black">Delete your account</h2>
             <p className="mt-3 leading-7 text-[#b9c5bf]">
-              In PayShield, open Account, choose Profile and account, then Delete account.
-              You can also request deletion from the account email through support.
+              In PayShield, open Account and choose Close PayShield account. The
+              app records your request and explains any financial records that
+              must be retained. You can also request closure from the account
+              email through support.
             </p>
             <a className="mt-5 inline-flex items-center gap-2 font-black text-[#8fe0c0] hover:text-white" href={`mailto:${GRAYSTON_SUPPORT_EMAIL}?subject=PayShield%20account%20deletion`}>
               Request deletion

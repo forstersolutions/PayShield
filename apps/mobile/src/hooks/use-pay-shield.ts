@@ -51,10 +51,9 @@ export function usePayShieldMutation<TResponse = unknown, TVariables = unknown>(
     mutationFn: (body: TVariables) => request<TResponse>(path, { body, method }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["operations"] });
-      if (path.includes("money-profile")) {
+      if (path.includes("money-profile") || path.includes("protection-plan")) {
         await queryClient.invalidateQueries({ queryKey: ["money-profile"] });
       }
     },
   });
 }
-

@@ -23,6 +23,7 @@ type TokenVaultWebhookSource =
   | "core_service"
   | "core_service_misconfigured"
   | "explicit"
+  | "in_process"
   | "missing";
 
 function cleanTokenVaultUrl(value: string | undefined) {
@@ -65,7 +66,14 @@ function tokenVaultWebhookUrl() {
 
   const core = getCoreServiceConfig();
 
-  if (core.ok) {
+  if (core.ok && core.mode === "in_process") {
+    return {
+      source: "in_process" as TokenVaultWebhookSource,
+      url: "payshield://token-vault/plaid",
+    };
+  }
+
+  if (core.ok && core.mode === "remote") {
     return {
       source: "core_service" as TokenVaultWebhookSource,
       url: joinCorePath(core.baseUrl, "/api/token-vault/plaid"),
@@ -139,9 +147,9 @@ function tokenVaultEncryptionReadiness() {
 function tokenVaultReadiness() {
   const keyId = process.env.PAYSHIELD_TOKEN_VAULT_KEY_ID?.trim() || "";
   const webhook = tokenVaultWebhookUrl();
-  const webhookSigningConfigured = envPresent(
-    "PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET",
-  );
+  const webhookSigningConfigured =
+    webhook.source === "in_process" ||
+    envPresent("PAYSHIELD_TOKEN_VAULT_WEBHOOK_SECRET");
   const keyConfigured = Boolean(keyId);
   const webhookReady =
     keyConfigured && Boolean(webhook.url) && webhookSigningConfigured;

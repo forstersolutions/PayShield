@@ -19,16 +19,21 @@ const {
   applyBillPaymentLifecycle,
   applyCardAuthorizationLifecycle,
   applyTransferLifecycle,
+  claimAccountClosureRequests,
   claimPlaidSyncJobs,
+  completeAccountClosureRequest,
   completePlaidSyncJob,
   enqueuePlaidSyncJob,
   failPlaidSyncJob,
   loadHouseholdJournalEntries,
+  loadAccountClosureRequest,
   loadProviderOnboardingState,
   persistBillPaymentSchedule,
   persistBucketProfile,
   persistCardAuthorizationDecision,
   persistHouseholdIdentity,
+  persistAccountClosureRequest,
+  persistHouseholdProtectionPlan,
   persistPaycheckDetection,
   persistPayee,
   persistProviderOnboardingState,
@@ -48,6 +53,197 @@ const { Pool } = require("pg") as {
     query(sql: string, values?: unknown[]): Promise<QueryResult>;
   };
 };
+
+postgresTest(
+  "postgres account closure is leased, finalizes controls, and replays safely",
+  async () => {
+    const nonce = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const householdId = `household_closure_${nonce}`;
+    const userId = `user_closure_${nonce}`;
+    const clerkSubject = `clerk_closure_${nonce}`;
+    const env: NodeJS.ProcessEnv = {
+      NODE_ENV: "test",
+      PAYSHIELD_LEDGER_DATABASE_URL: databaseUrl,
+    };
+    const identity = {
+      actorUserId: userId,
+      betaAccessStatus: "approved",
+      clerkSubject,
+      householdId,
+      kycStatus: "approved",
+      userEmail: `closure-${nonce}@example.com`,
+      userName: "Closure Test Household",
+    };
+    const requested = await persistAccountClosureRequest(
+      {
+        ...identity,
+        idempotencyKey: `closure:${nonce}`,
+        reason: "integration test",
+      },
+      env,
+    );
+
+    assert.equal(requested.persistence, "postgres", JSON.stringify(requested));
+    assert.equal(requested.closure.status, "requested");
+    const claimed = await claimAccountClosureRequests(
+      {
+        closureId: requested.closure.id,
+        limit: 1,
+        workerId: `worker_${nonce}`,
+      },
+      env,
+    );
+    assert.equal(claimed.claims.length, 1);
+    assert.equal(claimed.claims[0].closure.status, "provider_shutdown");
+    const competing = await claimAccountClosureRequests(
+      {
+        closureId: requested.closure.id,
+        limit: 1,
+        workerId: `competing_${nonce}`,
+      },
+      env,
+    );
+    assert.equal(competing.claims.length, 0);
+
+    const completed = await completeAccountClosureRequest(
+      {
+        closureId: requested.closure.id,
+        householdId,
+        metadata: { test: true },
+        processedBy: `worker_${nonce}`,
+      },
+      env,
+    );
+    assert.equal(completed.persistence, "postgres");
+    assert.equal(completed.closure.status, "completed");
+    const replay = await completeAccountClosureRequest(
+      {
+        closureId: requested.closure.id,
+        householdId,
+        processedBy: `worker_${nonce}`,
+      },
+      env,
+    );
+    assert.equal(replay.replayed, true);
+    const status = await loadAccountClosureRequest(
+      { clerkSubject },
+      env,
+    );
+    assert.equal(status.closure.status, "completed");
+
+    const pool = new Pool({ connectionString: databaseUrl });
+
+    try {
+      const state = await pool.query(
+        `
+          SELECT app_user.account_status, household.beta_access_status
+          FROM app_users AS app_user
+          JOIN households AS household ON household.id = app_user.household_id
+          WHERE app_user.id = $1
+        `,
+        [userId],
+      );
+      assert.equal(state.rows[0].account_status, "closed");
+      assert.equal(state.rows[0].beta_access_status, "blocked");
+    } finally {
+      await pool.end();
+    }
+  },
+);
+
+postgresTest(
+  "postgres protection-plan transaction is atomic and replay-safe",
+  async () => {
+    const nonce = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const env: NodeJS.ProcessEnv = {
+      NODE_ENV: "test",
+      PAYSHIELD_LEDGER_DATABASE_URL: databaseUrl,
+    };
+    const identity = {
+      actorUserId: `user_plan_${nonce}`,
+      betaAccessStatus: "approved",
+      clerkSubject: `clerk_plan_${nonce}`,
+      householdId: `household_plan_${nonce}`,
+      kycStatus: "approved",
+      userEmail: `plan-${nonce}@example.com`,
+      userName: "Atomic Plan Household",
+    };
+    const plan = {
+      ...identity,
+      buckets: [
+        {
+          due: "1st",
+          id: "rent",
+          name: "Rent",
+          priority: 10,
+          protection: "bill_only",
+          targetCents: 80_000,
+        },
+      ],
+      idempotencyKey: `atomic-plan:${nonce}`,
+      profile: {
+        bankConnectionId: null,
+        employerName: "Grayston Payroll",
+        expectedFrequency: "biweekly",
+        metadata: { source: "integration_test" },
+        nextPayday: null,
+        paycheckAmountCents: 300_000,
+        preferredPayeeId: null,
+        preferredTransferBucketId: null,
+        requestedTransferCents: 0,
+        source: "app_profile",
+      },
+      rule: {
+        bankConnectionId: null,
+        employerNamePattern: "Grayston Payroll",
+        expectedFrequency: "biweekly",
+        id: null,
+        maximumAmountCents: 450_000,
+        metadata: { source: "integration_test" },
+        minimumAmountCents: 150_000,
+        priority: 100,
+        providerAccountId: null,
+        providerItemId: null,
+        providerName: "plaid",
+        ruleName: "Grayston Payroll paycheck",
+        status: "active",
+        transactionNamePattern: "Grayston Payroll",
+      },
+    };
+
+    const first = await persistHouseholdProtectionPlan(plan, env);
+    assert.equal(first.persistence, "postgres", JSON.stringify(first));
+    assert.equal(first.replayed, false);
+    const replay = await persistHouseholdProtectionPlan(plan, env);
+    assert.equal(replay.replayed, true);
+
+    const badHouseholdId = `household_bad_plan_${nonce}`;
+    const failed = await persistHouseholdProtectionPlan(
+      {
+        ...plan,
+        actorUserId: `user_bad_plan_${nonce}`,
+        clerkSubject: `clerk_bad_plan_${nonce}`,
+        householdId: badHouseholdId,
+        idempotencyKey: `atomic-plan-bad:${nonce}`,
+        rule: { ...plan.rule, expectedFrequency: "invalid" },
+        userEmail: `bad-plan-${nonce}@example.com`,
+      },
+      env,
+    );
+    assert.equal(failed.persistence, "postgres_error");
+
+    const pool = new Pool({ connectionString: databaseUrl });
+    try {
+      const partial = await pool.query(
+        `SELECT COUNT(*)::int AS count FROM household_buckets WHERE household_id = $1`,
+        [badHouseholdId],
+      );
+      assert.equal(partial.rows[0]?.count, 0);
+    } finally {
+      await pool.end();
+    }
+  },
+);
 
 function journalEntry(
   idempotencyKey: string,

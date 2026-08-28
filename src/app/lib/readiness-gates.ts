@@ -9,11 +9,11 @@ export function friendlyGateLabel(gate: string) {
     value.includes("TOKEN_VAULT_WEBHOOK_URL or PAYSHIELD_CORE_API_URL") ||
     (value.includes("TOKEN_VAULT") && value.includes("PAYSHIELD_CORE_API_URL"))
   ) {
-    return "Vault receiver or core service URL";
+    return "Token custody receiver";
   }
 
   if (value === "core_service_auth") {
-    return "Core service auth";
+    return "Server-side operation boundary";
   }
 
   if (value.includes("STRIPE_SECRET_KEY")) {
@@ -29,11 +29,11 @@ export function friendlyGateLabel(gate: string) {
   }
 
   if (value.includes("PAYSHIELD_CORE_API_URL")) {
-    return "Core activation service";
+    return "Money-control runtime";
   }
 
   if (value.includes("PAYSHIELD_CORE_SERVICE_TOKEN")) {
-    return "Core service auth";
+    return "Remote runtime authentication";
   }
 
   if (value.includes("live-mode") || value.includes("Stripe live-mode")) {
@@ -109,11 +109,11 @@ export function friendlyGateLabel(gate: string) {
   }
 
   if (value === "postgres_ledger") {
-    return "Verified Postgres ledger";
+    return "Verified Supabase ledger";
   }
 
   if (value === "dedicated_backend") {
-    return "Always-on core backend";
+    return "Vercel money-control runtime";
   }
 
   if (value === "clerk_auth") {

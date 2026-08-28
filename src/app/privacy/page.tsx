@@ -126,8 +126,8 @@ export default function PrivacyPage() {
               </h2>
               <p className="mt-3">
                 You may update account settings in PayShield, manage membership
-                billing through the billing portal, disconnect eligible linked
-                accounts, and request access, correction, or deletion where
+                billing through the App Store or Google Play, request disconnection
+                of eligible linked accounts, and request access, correction, or deletion where
                 applicable. Some financial, security, compliance, and dispute
                 records must be retained. To make a privacy request, email{" "}
                 <a

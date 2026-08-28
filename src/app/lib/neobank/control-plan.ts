@@ -497,7 +497,7 @@ export function createHouseholdMoneyControlPlan(
       endpoint: "POST /api/app/billing/checkout",
       key: "revenue_gate",
       ownerAction:
-        "Configure Stripe checkout, webhook signing, and core activation storage.",
+        "Configure Stripe checkout, webhook signing, and durable membership storage.",
       ready: commercial.paidAccessReady,
       status: commercial.paymentCollectionReady
         ? commercial.paidAccessReady

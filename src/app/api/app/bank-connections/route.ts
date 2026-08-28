@@ -77,3 +77,35 @@ export async function POST(request: NextRequest) {
     return appSessionErrorResponse(error) ?? unauthorizedAppResponse();
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getAppSession();
+    const coreRequired = requireDurableCoreService({
+      operation: "Bank connection revocation",
+      service: "payshield-bank-connections",
+    });
+
+    if (coreRequired) {
+      return coreRequired;
+    }
+
+    const coreResponse = await forwardCoreRequest({
+      method: "DELETE",
+      path: "/api/app/bank-connections",
+      request,
+      session,
+    });
+
+    if (coreResponse) {
+      return coreResponse;
+    }
+
+    return requiredCoreUnavailable({
+      message: "Bank connection revocation requires the dedicated PayShield core service.",
+      service: "payshield-bank-connections",
+    });
+  } catch (error) {
+    return appSessionErrorResponse(error) ?? unauthorizedAppResponse();
+  }
+}

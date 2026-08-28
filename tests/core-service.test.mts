@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash, createHmac } from "node:crypto";
 import { once } from "node:events";
 import { readFileSync } from "node:fs";
+import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, test } from "node:test";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
@@ -9,6 +10,7 @@ import { shouldUpdateCommercialSubscription } from "../services/core/database.mj
 import { createCoreServer } from "../services/core/server.mjs";
 import {
   createBankLinkToken,
+  deleteRevenueCatCustomerForClosure,
   getCoreHealth,
   persistTransactionSyncException,
   recordMoneyRailProviderException,
@@ -41,6 +43,9 @@ const coreEnvKeys = [
   "PAYSHIELD_REQUIRE_PAID_ACCESS",
   "PAYSHIELD_PROVIDER_WEBHOOK_REPLAY_TOLERANCE_SECONDS",
   "PAYSHIELD_PROVIDER_WEBHOOK_SECRET",
+  "PAYSHIELD_REVENUECAT_API_BASE_URL",
+  "PAYSHIELD_REVENUECAT_SECRET_API_KEY",
+  "PAYSHIELD_MOBILE_STORE_BILLING_ENABLED",
   "PAYSHIELD_REGULATED_COUNSEL_SIGNOFF",
   "PAYSHIELD_SPONSOR_DISCLOSURES_APPROVED",
   "PAYSHIELD_TRANSFER_ENABLED",
@@ -62,6 +67,13 @@ const coreEnvKeys = [
   "STRIPE_SECRET_KEY",
   "STRIPE_WEBHOOK_SECRET",
 ];
+
+function futureDate(days = 30) {
+  const date = new Date();
+
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
 
 beforeEach(() => {
   for (const key of coreEnvKeys) {
@@ -194,6 +206,140 @@ test("core rejects non-object bodies before product handlers", async () => {
     assert.equal(body.error, "Request body must be a JSON object.");
     assert.equal(body.service, "payshield-core");
   });
+});
+
+test("core account closure requires explicit confirmation and durable capture", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const invalid = await getJson(
+      baseUrl,
+      "/app/account-closure",
+      jsonPost({ acknowledgedDataRetention: true, confirmation: "NO" }),
+    );
+    const noDatabase = await getJson(
+      baseUrl,
+      "/app/account-closure",
+      jsonPost({
+        acknowledgedDataRetention: true,
+        confirmation: "CLOSE",
+        idempotencyKey: "closure-test",
+      }),
+    );
+
+    assert.equal(invalid.response.status, 400);
+    assert.equal(noDatabase.response.status, 503);
+    assert.equal(noDatabase.body.service, "payshield-account-closure");
+  });
+});
+
+test("core account closure status and processing fail closed without durable operator controls", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const status = await getJson(baseUrl, "/api/app/account-closure");
+    const customerProcess = await getJson(
+      baseUrl,
+      "/api/launch/account-closures/process",
+      jsonPost({ limit: 1 }),
+    );
+    const operatorProcess = await getJson(
+      baseUrl,
+      "/api/launch/account-closures/process",
+      jsonPost(
+        { limit: 1 },
+        { headers: { "x-payshield-operator": "true" } },
+      ),
+    );
+
+    assert.equal(status.response.status, 503);
+    assert.equal(customerProcess.response.status, 403);
+    assert.equal(customerProcess.body.code, "operator_access_required");
+    assert.equal(operatorProcess.response.status, 503);
+  });
+});
+
+test("account closure deletes RevenueCat customer data with server credentials", async () => {
+  let requestAuthorization = "";
+  let requestMethod = "";
+  let requestPath = "";
+  const server = createServer((request, response) => {
+    requestAuthorization = request.headers.authorization || "";
+    requestMethod = request.method || "";
+    requestPath = request.url || "";
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ app_user_id: "user_test", deleted: true }));
+  });
+
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const address = server.address() as AddressInfo;
+
+  try {
+    const result = await deleteRevenueCatCustomerForClosure(
+      {
+        NODE_ENV: "test",
+        PAYSHIELD_MOBILE_STORE_BILLING_ENABLED: "true",
+        PAYSHIELD_REVENUECAT_API_BASE_URL: `http://127.0.0.1:${address.port}/v1`,
+        PAYSHIELD_REVENUECAT_SECRET_API_KEY: "sk_test_server_only",
+      },
+      "user_test",
+    );
+
+    assert.deepEqual(result, { deleted: true, replayed: false });
+    assert.equal(requestAuthorization, "Bearer sk_test_server_only");
+    assert.equal(requestMethod, "DELETE");
+    assert.equal(requestPath, "/v1/subscribers/user_test");
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test("account closure requires RevenueCat erasure credentials when store billing exists", async () => {
+  await assert.rejects(
+    deleteRevenueCatCustomerForClosure(
+      { PAYSHIELD_MOBILE_STORE_BILLING_ENABLED: "true" },
+      "user_test",
+    ),
+    /revenuecat_configuration_missing/,
+  );
+});
+
+test("core card management validates purpose and remains live-money gated", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const invalid = await getJson(
+      baseUrl,
+      "/api/app/card/manage",
+      jsonPost({ purpose: "show_pan_here" }),
+    );
+    const gated = await getJson(
+      baseUrl,
+      "/api/app/card/manage",
+      jsonPost({ purpose: "manage" }),
+    );
+
+    assert.equal(invalid.response.status, 400);
+    assert.equal(gated.response.status, 423);
+    assert.equal(gated.body.code, "live_money_gated");
+  });
+});
+
+test("bank disconnect revokes the provider item before local token custody", () => {
+  const productSource = readFileSync(
+    new URL("../services/core/product.mjs", import.meta.url),
+    "utf8",
+  );
+  const start = productSource.indexOf(
+    "export async function disconnectBankConnection",
+  );
+  const end = productSource.indexOf(
+    "function modelPaycheckDetectionRule",
+    start,
+  );
+  const source = productSource.slice(start, end);
+  const tokenIndex = source.indexOf("loadProviderTokenSecret(");
+  const providerIndex = source.indexOf('plaidRequest(env, "/item/remove"');
+  const revokeIndex = source.indexOf("revokeBankConnection(");
+
+  assert.ok(tokenIndex >= 0, "disconnect must load the household token");
+  assert.ok(providerIndex > tokenIndex, "provider revocation must use token custody");
+  assert.ok(revokeIndex > providerIndex, "local token revocation must follow provider removal");
 });
 
 test("core transfer execution persists a durable intent before live provider calls", () => {
@@ -604,7 +750,7 @@ test("core direct deposit setup persists before provider execution", () => {
   );
   assert.ok(
     replayIndex > persistIndex && replayIndex < providerIndex,
-    "ready direct deposit setup replays must bypass provider execution",
+    "ready direct deposit setup replays must be identified before secure refresh",
   );
   assert.ok(
     updateIndex > providerIndex,
@@ -616,8 +762,9 @@ test("core direct deposit setup persists before provider execution", () => {
   );
   assert.match(
     setupSource,
-    /without another provider request/,
+    /refreshDirectDepositInstructions/,
   );
+  assert.match(setupSource, /Secure direct deposit instructions refreshed/);
   assert.match(
     setupSource,
     /idempotency key already belongs to a different provider account/,
@@ -1063,6 +1210,7 @@ test("core control-plan post validates and regenerates paycheck projections", as
 
 test("core money-profile route saves setup and regenerates the household plan", async () => {
   await withCoreServer(async (baseUrl) => {
+    const nextPayday = futureDate(7);
     const read = await getJson(baseUrl, "/api/app/money-profile");
     const readProfile = read.body.profile as Record<string, unknown>;
 
@@ -1079,7 +1227,7 @@ test("core money-profile route saves setup and regenerates the household plan", 
           employerName: "Acme Payroll",
           expectedFrequency: "weekly",
           idempotencyKey: "core-money-profile-acme",
-          nextPayday: "2026-07-03",
+          nextPayday,
           paycheckAmountCents: 220_000,
           preferredPayeeId: "payee_abc_apartments",
           preferredTransferBucketId: "rent",
@@ -1103,7 +1251,7 @@ test("core money-profile route saves setup and regenerates the household plan", 
     assert.equal(saved.body.service, "payshield-household-money-profile");
     assert.equal(saved.body.persisted, false);
     assert.equal(savedProfile.employerName, "Acme Payroll");
-    assert.equal(savedProfile.nextPayday, "2026-07-03");
+    assert.equal(savedProfile.nextPayday, nextPayday);
     assert.equal(summary.paycheckAmountCents, 220_000);
     assert.equal(summary.projectedSafeToSpendCents, 65_000);
     assert.equal(fundingSchedule.at(-1)?.key, "safe_to_spend");
@@ -1120,6 +1268,45 @@ test("core money-profile route saves setup and regenerates the household plan", 
 
     assert.equal(invalid.response.status, 400);
     assert.equal(invalid.body.service, "payshield-household-money-profile");
+  });
+});
+
+test("core protection-plan route validates one atomic durable operation", async () => {
+  await withCoreServer(async (baseUrl) => {
+    const invalid = await getJson(
+      baseUrl,
+      "/api/app/protection-plan",
+      jsonPost({
+        buckets: [],
+        employerName: "Grayston Payroll",
+        expectedFrequency: "biweekly",
+        paycheckAmountCents: 300_000,
+      }),
+    );
+    assert.equal(invalid.response.status, 400);
+
+    const unavailable = await getJson(
+      baseUrl,
+      "/api/app/protection-plan",
+      jsonPost({
+        buckets: [
+          {
+            due: "1st",
+            id: "rent",
+            name: "Rent",
+            protection: "bill_only",
+            targetCents: 80_000,
+          },
+        ],
+        employerName: "Grayston Payroll",
+        expectedFrequency: "biweekly",
+        idempotencyKey: "core-plan-atomic",
+        paycheckAmountCents: 300_000,
+        requestedTransferCents: 0,
+      }),
+    );
+    assert.equal(unavailable.response.status, 503);
+    assert.match(String(unavailable.body.error), /No partial plan was activated/);
   });
 });
 
@@ -1194,7 +1381,13 @@ test("core activation endpoint exposes operator launch checklist", async () => {
           group.key === "revenue" &&
           Array.isArray(group.setupCommands) &&
           String((group.setupCommands as string[]).join("\n")).includes(
-            "npx vercel env add PAYSHIELD_CORE_SERVICE_TOKEN production",
+            "npx vercel env add PAYSHIELD_CORE_RUNTIME production",
+          ) &&
+          String((group.setupCommands as string[]).join("\n")).includes(
+            "npx vercel env add PAYSHIELD_LEDGER_DATABASE_URL production",
+          ) &&
+          String((group.setupCommands as string[]).join("\n")).includes(
+            "npx vercel env add PAYSHIELD_SUPABASE_SECURITY_VERIFIED production",
           ),
       ),
       true,
@@ -1248,12 +1441,30 @@ test("core audit export packages ledger and operations for support handoff", asy
 
 test("core reconciliation resolution validates and requires durable closeout", async () => {
   await withCoreServer(async (baseUrl) => {
-    const missingIdentifier = await getJson(
+    const customerRequest = await getJson(
       baseUrl,
       "/api/app/reconciliation/resolve",
       jsonPost({
+        exceptionId: "reconciliation_exception_demo",
         resolutionNote: "Reviewed duplicate provider event.",
       }),
+    );
+
+    assert.equal(customerRequest.response.status, 403);
+
+    const operatorHeaders = {
+      "x-payshield-operator": "true",
+      "x-payshield-user-id": "support_operator",
+    };
+    const missingIdentifier = await getJson(
+      baseUrl,
+      "/api/app/reconciliation/resolve",
+      jsonPost(
+        {
+          resolutionNote: "Reviewed duplicate provider event.",
+        },
+        { headers: operatorHeaders },
+      ),
     );
 
     assert.equal(missingIdentifier.response.status, 400);
@@ -1265,9 +1476,12 @@ test("core reconciliation resolution validates and requires durable closeout", a
     const missingNote = await getJson(
       baseUrl,
       "/api/app/reconciliation/resolve",
-      jsonPost({
-        exceptionId: "reconciliation_exception_demo",
-      }),
+      jsonPost(
+        {
+          exceptionId: "reconciliation_exception_demo",
+        },
+        { headers: operatorHeaders },
+      ),
     );
 
     assert.equal(missingNote.response.status, 400);
@@ -1282,11 +1496,7 @@ test("core reconciliation resolution validates and requires durable closeout", a
           reason: "duplicate_event",
           resolutionNote: "Provider replay was reviewed and no ledger change was needed.",
         },
-        {
-          headers: {
-            "x-payshield-user-id": "support_operator",
-          },
-        },
+        { headers: operatorHeaders },
       ),
     );
     const resolution = blocked.body.resolution as Record<string, unknown>;
@@ -1485,7 +1695,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
 
     assert.equal(urlOnlyReadiness.postgresConfigured, true);
     assert.equal(urlOnlyReadiness.postgresSchemaVerified, false);
-    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0019");
+    assert.equal(urlOnlyReadiness.postgresSchemaVersion, "0022");
     assert.equal(postgresGate?.ok, false);
 
     process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
@@ -1503,7 +1713,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
       false,
     );
 
-    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0019";
+    process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0022";
 
     const verified = await getJson(baseUrl, "/ready");
     const verifiedReadiness = verified.body.readiness as Record<
@@ -1523,7 +1733,7 @@ test("core postgres gate requires verified ledger schema version", async () => {
   });
 });
 
-test("core postgres gate accepts secret-injected RDS connection fields", async () => {
+test("core postgres gate accepts discrete connection fields", async () => {
   process.env.PGHOST = "ledger.cluster-example.us-east-1.rds.amazonaws.com";
   process.env.PGPORT = "5432";
   process.env.PGDATABASE = "payshield";
@@ -1531,7 +1741,7 @@ test("core postgres gate accepts secret-injected RDS connection fields", async (
   process.env.PGPASSWORD = "test-password-not-used";
   process.env.PGSSLMODE = "require";
   process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED = "true";
-  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0019";
+  process.env.PAYSHIELD_LEDGER_SCHEMA_VERIFIED_VERSION = "0022";
 
   await withCoreServer(async (baseUrl) => {
     const { body, response } = await getJson(baseUrl, "/ready");
@@ -1698,7 +1908,7 @@ test("core launch gate evidence route requires redacted durable approval records
 
     assert.equal(missingPostgres.response.status, 503);
     assert.equal(missingPostgres.body.code, "postgres_ledger_required");
-    assert.match(String(missingPostgres.body.error), /schema 0019/);
+    assert.match(String(missingPostgres.body.error), /schema 0022/);
   });
 });
 
@@ -1774,7 +1984,7 @@ test("core paid access gates money workflows when commercial billing is configur
           amountCents: 50_000,
           idempotencyKey: "unpaid-bill-rent",
           payeeId: "payee_abc_apartments",
-          scheduledFor: "2026-07-01",
+          scheduledFor: futureDate(),
         },
         { headers: unpaidActor },
       ),
@@ -2840,7 +3050,7 @@ test("core bill payment route refuses to schedule before live controls are ready
         idempotencyKey: "core-bill-rent",
         memo: "July rent",
         payeeId: "payee_abc_apartments",
-        scheduledFor: "2026-07-01",
+        scheduledFor: futureDate(),
       }),
     );
     assert.equal(response.status, 423);
@@ -2866,10 +3076,30 @@ test("core bill payment route rejects invalid payees and malformed dates", async
       jsonPost({
         amountCents: 50_000,
         payeeId: "payee_missing",
-        scheduledFor: "2026-07-01",
+        scheduledFor: futureDate(),
+      }),
+    );
+    const impossibleDate = await getJson(
+      baseUrl,
+      "/api/app/bill-payments",
+      jsonPost({
+        amountCents: 50_000,
+        payeeId: "payee_abc_apartments",
+        scheduledFor: "2026-02-30",
+      }),
+    );
+    const pastDate = await getJson(
+      baseUrl,
+      "/api/app/bill-payments",
+      jsonPost({
+        amountCents: 50_000,
+        payeeId: "payee_abc_apartments",
+        scheduledFor: "2000-01-01",
       }),
     );
     assert.equal(invalidDate.response.status, 400);
+    assert.equal(impossibleDate.response.status, 400);
+    assert.equal(pastDate.response.status, 400);
     assert.equal(unapproved.response.status, 423);
     assert.equal(unapproved.body.code, "bill_payment_unavailable");
   });

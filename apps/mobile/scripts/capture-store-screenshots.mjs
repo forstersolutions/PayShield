@@ -41,7 +41,11 @@ try {
     for (const screen of screens) {
       const errors = [];
       const onPageError = (error) => errors.push(error.message);
+      const onConsole = (message) => {
+        if (message.type() === "error") errors.push(message.text());
+      };
       page.on("pageerror", onPageError);
+      page.on("console", onConsole);
       await page.goto(previewUrl, {
         waitUntil: "networkidle",
       });
@@ -58,6 +62,7 @@ try {
         path: path.join(target.directory, screen.file),
       });
       page.off("pageerror", onPageError);
+      page.off("console", onConsole);
     }
 
     await context.close();

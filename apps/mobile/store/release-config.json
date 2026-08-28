@@ -17,6 +17,7 @@
     }
   },
   "links": {
+    "accountDeletion": "https://payshield-lime.vercel.app/support#delete-account",
     "marketing": "https://payshield-lime.vercel.app",
     "privacy": "https://payshield-lime.vercel.app/privacy",
     "support": "https://payshield-lime.vercel.app/support",

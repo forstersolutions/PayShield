@@ -128,6 +128,7 @@ function poolFor(env = process.env) {
 
     activePool = new Pool({
       ...connection.options,
+      allowExitOnIdle: env.PAYSHIELD_CORE_RUNTIME?.trim().toLowerCase() === "vercel",
       connectionTimeoutMillis: parsePoolNumber(
         env.PAYSHIELD_CORE_DB_CONNECT_TIMEOUT_MS,
         2_000,
@@ -138,10 +139,14 @@ function poolFor(env = process.env) {
         30_000,
         { max: 120_000, min: 1_000 },
       ),
-      max: parsePoolNumber(env.PAYSHIELD_CORE_DB_POOL_SIZE, 5, {
-        max: 20,
-        min: 1,
-      }),
+      max: parsePoolNumber(
+        env.PAYSHIELD_CORE_DB_POOL_SIZE,
+        env.PAYSHIELD_CORE_RUNTIME?.trim().toLowerCase() === "vercel" ? 2 : 5,
+        {
+          max: 20,
+          min: 1,
+        },
+      ),
     });
     activeDatabaseFingerprint = connection.fingerprint;
     previousPool?.end().catch(() => {});
@@ -312,6 +317,21 @@ function bankConnectionFromRow(row) {
   };
 }
 
+function accountClosureFromRow(row) {
+  return {
+    acknowledgedDataRetention: Boolean(row.acknowledged_data_retention),
+    completedAt: timestampString(row.completed_at),
+    id: row.id,
+    nextAttemptAt: timestampString(row.next_attempt_at),
+    processingAttempts: Number(row.processing_attempts || 0),
+    reason: row.reason || null,
+    requestedAt: timestampString(row.requested_at),
+    startedAt: timestampString(row.started_at),
+    status: row.status,
+    updatedAt: timestampString(row.updated_at),
+  };
+}
+
 function productionGateEvidenceFromRow(row) {
   return {
     approvedAt: timestampString(row.approved_at),
@@ -390,9 +410,11 @@ function payeeFromRow(row) {
 
 function householdIdentityFromRow(row = {}) {
   return {
+    accountStatus: row.account_status || "active",
     householdId: row.household_id,
     profileAccess: row.beta_access_status || "approved",
     user: {
+      accountStatus: row.account_status || "active",
       clerkSubject: row.clerk_subject || null,
       email: row.email,
       householdId: row.household_id,
@@ -728,7 +750,11 @@ async function ensureHousehold(client, input) {
       INSERT INTO households (id, beta_access_status)
       VALUES ($1, $2)
       ON CONFLICT (id) DO UPDATE SET
-        beta_access_status = EXCLUDED.beta_access_status
+        beta_access_status = CASE
+          WHEN households.beta_access_status = 'blocked'
+            THEN households.beta_access_status
+          ELSE EXCLUDED.beta_access_status
+        END
     `,
     [input.householdId, input.betaAccessStatus || "approved"],
   );
@@ -980,7 +1006,7 @@ async function ensureHouseholdIdentity(client, input) {
             THEN app_users.kyc_status
           ELSE EXCLUDED.kyc_status
         END
-      RETURNING id, household_id, clerk_subject, email, name, kyc_status
+      RETURNING id, household_id, clerk_subject, email, name, kyc_status, account_status
     `,
     [
       actorUserId,
@@ -1072,6 +1098,611 @@ export async function persistHouseholdIdentity(input, env = process.env) {
         await client.query("ROLLBACK");
       } catch {
         // Ignore rollback failures; the original error is more useful.
+      }
+    }
+
+    return persistenceFailed(error);
+  } finally {
+    client?.release();
+  }
+}
+
+export async function persistAccountClosureRequest(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return persistenceSkipped("account closure request", env);
+  }
+
+  let client = null;
+
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+    const scopedInput = scopeInputToIdentity(
+      input,
+      await ensureHouseholdIdentity(client, input),
+    );
+    await lockHouseholdLedger(client, scopedInput.householdId);
+    const existing = await client.query(
+      `
+        SELECT *
+        FROM account_closure_requests
+        WHERE household_id = $1
+          AND (
+            idempotency_key = $2
+            OR status IN (
+              'requested',
+              'identity_review',
+              'provider_shutdown',
+              'retention_hold',
+              'completed'
+            )
+          )
+        ORDER BY requested_at DESC
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [scopedInput.householdId, input.idempotencyKey],
+    );
+
+    if (existing.rows[0]) {
+      await client.query(
+        `
+          UPDATE app_users
+          SET account_status = CASE
+            WHEN account_status = 'closed' THEN 'closed'
+            ELSE 'closing'
+          END
+          WHERE household_id = $1
+        `,
+        [scopedInput.householdId],
+      );
+      await client.query(
+        `
+          UPDATE households
+          SET beta_access_status = 'blocked'
+          WHERE id = $1
+        `,
+        [scopedInput.householdId],
+      );
+      await client.query(
+        `
+          UPDATE paycheck_detection_rules
+          SET status = 'paused', updated_at = now()
+          WHERE household_id = $1
+            AND status = 'active'
+        `,
+        [scopedInput.householdId],
+      );
+      await client.query("COMMIT");
+      return {
+        closure: accountClosureFromRow(existing.rows[0]),
+        persisted: true,
+        persistence: "postgres",
+        replayed: true,
+      };
+    }
+
+    const id = recordId(
+      "account_closure",
+      scopedInput.householdId,
+      input.idempotencyKey,
+    );
+    const result = await client.query(
+      `
+        INSERT INTO account_closure_requests (
+          id,
+          household_id,
+          user_id,
+          status,
+          reason,
+          acknowledged_data_retention,
+          idempotency_key
+        )
+        VALUES ($1, $2, $3, 'requested', $4, true, $5)
+        RETURNING *
+      `,
+      [
+        id,
+        scopedInput.householdId,
+        scopedInput.actorUserId || null,
+        input.reason || null,
+        input.idempotencyKey,
+      ],
+    );
+    await client.query(
+      `
+        UPDATE app_users
+        SET account_status = 'closing'
+        WHERE household_id = $1
+          AND account_status <> 'closed'
+      `,
+      [scopedInput.householdId],
+    );
+    await client.query(
+      `
+        UPDATE households
+        SET beta_access_status = 'blocked'
+        WHERE id = $1
+      `,
+      [scopedInput.householdId],
+    );
+    await client.query(
+      `
+        UPDATE paycheck_detection_rules
+        SET status = 'paused', updated_at = now()
+        WHERE household_id = $1
+          AND status = 'active'
+      `,
+      [scopedInput.householdId],
+    );
+    await client.query("COMMIT");
+
+    return {
+      closure: accountClosureFromRow(result.rows[0]),
+      persisted: true,
+      persistence: "postgres",
+      postgresId: id,
+      replayed: false,
+    };
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Ignore rollback failures; the original error is more useful.
+      }
+    }
+
+    return persistenceFailed(error);
+  } finally {
+    client?.release();
+  }
+}
+
+export async function loadAccountClosureRequest(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return {
+      ...persistenceSkipped("account closure status", env),
+      closure: null,
+    };
+  }
+
+  const clerkSubject = input.clerkSubject || "";
+  const actorUserId = input.actorUserId || "";
+  const householdId = input.householdId || "";
+
+  try {
+    const result = await pool.query(
+      `
+        SELECT closure.*
+        FROM account_closure_requests AS closure
+        LEFT JOIN app_users AS app_user ON app_user.id = closure.user_id
+        WHERE CASE
+          WHEN $1 <> '' THEN app_user.clerk_subject = $1
+          WHEN $2 <> '' THEN closure.user_id = $2
+          ELSE closure.household_id = $3
+        END
+        ORDER BY closure.requested_at DESC
+        LIMIT 1
+      `,
+      [clerkSubject, actorUserId, householdId],
+    );
+
+    return {
+      closure: result.rows[0]
+        ? accountClosureFromRow(result.rows[0])
+        : null,
+      persisted: true,
+      persistence: "postgres",
+    };
+  } catch (error) {
+    return {
+      ...persistenceFailed(error),
+      closure: null,
+    };
+  }
+}
+
+export async function claimAccountClosureRequests(input = {}, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return {
+      ...persistenceSkipped("account closure processing", env),
+      claims: [],
+    };
+  }
+
+  const limit = Math.min(25, Math.max(1, Number(input.limit) || 5));
+  const workerId = String(input.workerId || "payshield-core").slice(0, 120);
+  const closureId = String(input.closureId || "").slice(0, 160);
+  let client = null;
+
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+    const claimed = await client.query(
+      `
+        WITH candidates AS (
+          SELECT id
+          FROM account_closure_requests
+          WHERE status IN (
+            'requested',
+            'identity_review',
+            'provider_shutdown',
+            'retention_hold'
+          )
+            AND next_attempt_at <= now()
+            AND ($3 = '' OR id = $3)
+          ORDER BY requested_at ASC
+          FOR UPDATE SKIP LOCKED
+          LIMIT $1
+        )
+        UPDATE account_closure_requests AS closure
+        SET status = 'provider_shutdown',
+            processing_attempts = closure.processing_attempts + 1,
+            started_at = COALESCE(closure.started_at, now()),
+            processed_by = $2,
+            last_error = NULL,
+            next_attempt_at = now() + interval '5 minutes',
+            updated_at = now()
+        FROM candidates
+        WHERE closure.id = candidates.id
+        RETURNING closure.*
+      `,
+      [limit, workerId, closureId],
+    );
+    const claims = [];
+
+    for (const closureRow of claimed.rows) {
+      const owner = await client.query(
+        `
+          SELECT app_user.*, household.beta_access_status
+          FROM app_users AS app_user
+          JOIN households AS household ON household.id = app_user.household_id
+          WHERE app_user.id = $1
+          LIMIT 1
+        `,
+        [closureRow.user_id],
+      );
+      const ownerRow = owner.rows[0];
+      const providers = await client.query(
+        `
+          SELECT provider_name
+          FROM provider_customers
+          WHERE household_id = $1
+          UNION
+          SELECT provider_name
+          FROM provider_financial_accounts
+          WHERE household_id = $1
+          UNION
+          SELECT provider_name
+          FROM provider_cards
+          WHERE household_id = $1
+        `,
+        [closureRow.household_id],
+      );
+      const providerStates = [];
+
+      for (const providerRow of providers.rows) {
+        providerStates.push({
+          providerName: providerRow.provider_name,
+          state: await readProviderOnboardingState(
+            client,
+            closureRow.household_id,
+            providerRow.provider_name,
+          ),
+        });
+      }
+
+      const bankConnections = await client.query(
+        `
+          SELECT id, provider_name, provider_item_id, provider_account_id,
+                 institution_name, status
+          FROM bank_connections
+          WHERE household_id = $1
+            AND status <> 'revoked'
+          ORDER BY created_at ASC
+        `,
+        [closureRow.household_id],
+      );
+      const subscriptions = await client.query(
+        `
+          SELECT provider_name, provider_subscription_id, subscription_status,
+                 cancel_at_period_end
+          FROM commercial_subscriptions
+          WHERE household_id = $1
+            AND access_status <> 'blocked'
+          ORDER BY created_at ASC
+        `,
+        [closureRow.household_id],
+      );
+
+      claims.push({
+        actor: ownerRow
+          ? householdIdentityFromRow(ownerRow).user
+          : {
+              accountStatus: "closing",
+              clerkSubject: null,
+              email: "",
+              householdId: closureRow.household_id,
+              id: closureRow.user_id,
+              kycStatus: "provider_pending",
+              name: "PayShield household",
+              profileAccess: "blocked",
+            },
+        bankConnections: bankConnections.rows.map(bankConnectionFromRow),
+        closure: accountClosureFromRow(closureRow),
+        householdId: closureRow.household_id,
+        providerStates,
+        subscriptions: subscriptions.rows.map((row) => ({
+          cancelAtPeriodEnd: Boolean(row.cancel_at_period_end),
+          providerName: row.provider_name,
+          providerSubscriptionId: row.provider_subscription_id || null,
+          subscriptionStatus: row.subscription_status,
+        })),
+      });
+    }
+
+    await client.query("COMMIT");
+
+    return {
+      claims,
+      persisted: true,
+      persistence: "postgres",
+    };
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Preserve the original persistence failure.
+      }
+    }
+
+    return {
+      ...persistenceFailed(error),
+      claims: [],
+    };
+  } finally {
+    client?.release();
+  }
+}
+
+export async function failAccountClosureRequest(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return persistenceSkipped("account closure retry", env);
+  }
+
+  const retryAfterSeconds = Math.min(
+    86_400,
+    Math.max(30, Number(input.retryAfterSeconds) || 300),
+  );
+
+  try {
+    const result = await pool.query(
+      `
+        UPDATE account_closure_requests
+        SET status = 'retention_hold',
+            last_error = $3,
+            metadata = metadata || $4::jsonb,
+            next_attempt_at = now() + ($2 * interval '1 second'),
+            updated_at = now()
+        WHERE id = $1
+          AND status <> 'completed'
+        RETURNING *
+      `,
+      [
+        input.closureId,
+        retryAfterSeconds,
+        String(input.errorCode || "closure_step_failed").slice(0, 120),
+        JSON.stringify(input.metadata || {}),
+      ],
+    );
+
+    return {
+      closure: result.rows[0]
+        ? accountClosureFromRow(result.rows[0])
+        : null,
+      persisted: result.rowCount === 1,
+      persistence: "postgres",
+    };
+  } catch (error) {
+    return persistenceFailed(error);
+  }
+}
+
+export async function completeAccountClosureRequest(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return persistenceSkipped("account closure completion", env);
+  }
+
+  let client = null;
+
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+    const closure = await client.query(
+      `
+        SELECT *
+        FROM account_closure_requests
+        WHERE id = $1
+          AND household_id = $2
+        FOR UPDATE
+      `,
+      [input.closureId, input.householdId],
+    );
+
+    if (!closure.rows[0]) {
+      await client.query("ROLLBACK");
+      return {
+        found: false,
+        persisted: false,
+        persistence: "postgres",
+      };
+    }
+
+    if (closure.rows[0].status === "completed") {
+      await client.query("COMMIT");
+      return {
+        closure: accountClosureFromRow(closure.rows[0]),
+        found: true,
+        persisted: true,
+        persistence: "postgres",
+        replayed: true,
+      };
+    }
+
+    await client.query(
+      `
+        UPDATE households
+        SET beta_access_status = 'blocked'
+        WHERE id = $1
+      `,
+      [input.householdId],
+    );
+    await client.query(
+      `
+        UPDATE app_users
+        SET account_status = 'closed'
+        WHERE household_id = $1
+      `,
+      [input.householdId],
+    );
+    await client.query(
+      `
+        UPDATE paycheck_detection_rules
+        SET status = 'paused', updated_at = now()
+        WHERE household_id = $1
+          AND status = 'active'
+      `,
+      [input.householdId],
+    );
+    await client.query(
+      `
+        UPDATE bank_connections
+        SET status = 'revoked', updated_at = now()
+        WHERE household_id = $1
+          AND status <> 'revoked'
+      `,
+      [input.householdId],
+    );
+    await client.query(
+      `
+        UPDATE provider_token_secrets AS secret
+        SET status = 'revoked', revoked_at = COALESCE(secret.revoked_at, now()),
+            updated_at = now()
+        FROM bank_connections AS connection
+        WHERE connection.household_id = $1
+          AND connection.token_secret_ref = secret.id
+          AND secret.status <> 'revoked'
+      `,
+      [input.householdId],
+    );
+    await client.query(
+      `
+        UPDATE provider_cards
+        SET status = 'closed', updated_at = now()
+        WHERE household_id = $1
+          AND status <> 'closed'
+      `,
+      [input.householdId],
+    );
+    await client.query(
+      `
+        UPDATE provider_financial_accounts
+        SET status = 'closed', updated_at = now()
+        WHERE household_id = $1
+          AND status <> 'closed'
+      `,
+      [input.householdId],
+    );
+    await client.query(
+      `
+        UPDATE provider_customers
+        SET provider_status = 'closed', updated_at = now()
+        WHERE household_id = $1
+          AND provider_status <> 'closed'
+      `,
+      [input.householdId],
+    );
+    await client.query(
+      `
+        UPDATE direct_deposit_setups
+        SET status = 'blocked', updated_at = now()
+        WHERE household_id = $1
+          AND status <> 'blocked'
+      `,
+      [input.householdId],
+    );
+    await client.query(
+      `
+        UPDATE commercial_subscriptions
+        SET access_status = 'blocked', updated_at = now(),
+            metadata = metadata || '{"accountClosed":true}'::jsonb
+        WHERE household_id = $1
+          AND access_status <> 'blocked'
+      `,
+      [input.householdId],
+    );
+    await client.query(
+      `
+        UPDATE bill_payment_schedules
+        SET status = 'canceled', provider_status = 'canceled', updated_at = now()
+        WHERE household_id = $1
+          AND status = 'scheduled'
+      `,
+      [input.householdId],
+    );
+    await client.query(
+      `
+        UPDATE transfer_intents
+        SET status = 'canceled', provider_status = 'canceled', updated_at = now()
+        WHERE household_id = $1
+          AND status = 'validated'
+      `,
+      [input.householdId],
+    );
+    const completed = await client.query(
+      `
+        UPDATE account_closure_requests
+        SET status = 'completed', completed_at = now(), next_attempt_at = now(),
+            processed_by = $3, last_error = NULL,
+            metadata = metadata || $4::jsonb, updated_at = now()
+        WHERE id = $1
+          AND household_id = $2
+        RETURNING *
+      `,
+      [
+        input.closureId,
+        input.householdId,
+        String(input.processedBy || "payshield-core").slice(0, 120),
+        JSON.stringify(input.metadata || {}),
+      ],
+    );
+    await client.query("COMMIT");
+
+    return {
+      closure: accountClosureFromRow(completed.rows[0]),
+      found: true,
+      persisted: true,
+      persistence: "postgres",
+      replayed: false,
+    };
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Preserve the original persistence failure.
       }
     }
 
@@ -4649,6 +5280,479 @@ export async function persistBucketProfile(input, env = process.env) {
   }
 }
 
+export async function persistHouseholdProtectionPlan(
+  input,
+  env = process.env,
+) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return persistenceSkipped("household protection plan", env);
+  }
+
+  let client = null;
+
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const scopedInput = scopeInputToIdentity(
+      input,
+      await ensureHouseholdIdentity(client, input),
+    );
+    await lockHouseholdLedger(client, scopedInput.householdId);
+
+    const planPayload = {
+      buckets: input.buckets,
+      profile: input.profile,
+      rule: input.rule,
+    };
+    const payloadHash = createHash("sha256")
+      .update(canonicalJson(planPayload))
+      .digest("hex");
+    const replay = await client.query(
+      `
+        SELECT id, payload_hash, result
+        FROM household_protection_plan_events
+        WHERE household_id = $1
+          AND idempotency_key = $2
+        LIMIT 1
+      `,
+      [scopedInput.householdId, input.idempotencyKey],
+    );
+
+    if (replay.rows[0]) {
+      if (replay.rows[0].payload_hash !== payloadHash) {
+        throw new Error(
+          `Protection plan idempotency key ${input.idempotencyKey} belongs to a different payload.`,
+        );
+      }
+
+      await client.query("COMMIT");
+      return {
+        ...replay.rows[0].result,
+        persisted: true,
+        persistence: "postgres",
+        postgresId: replay.rows[0].id,
+        replayed: true,
+      };
+    }
+
+    const beforeBuckets = await readBucketProfile(
+      client,
+      scopedInput.householdId,
+    );
+    const submittedSlugs = input.buckets.map((bucket) => bucket.id);
+    const blockerCandidates = await bucketArchiveBlockers(
+      client,
+      scopedInput.householdId,
+      submittedSlugs,
+    );
+    const blockedBuckets = blockerCandidates.filter(
+      (bucket) =>
+        bucket.balanceCents > 0 ||
+        bucket.billCount > 0 ||
+        bucket.cardHoldCount > 0 ||
+        bucket.payeeCount > 0 ||
+        bucket.recoveryCount > 0 ||
+        bucket.transferCount > 0 ||
+        (bucket.profileCount > 0 &&
+          input.profile.preferredTransferBucketId === bucket.id),
+    );
+
+    if (blockedBuckets.length > 0) {
+      await client.query("ROLLBACK");
+      return {
+        blockedBuckets,
+        code: "bucket_in_use",
+        persisted: false,
+        persistence: "control_conflict",
+        persistenceReason:
+          "A protected bucket must be empty and free of active controls before it can be removed.",
+      };
+    }
+
+    await client.query(
+      `
+        INSERT INTO ledger_accounts (
+          id,
+          household_id,
+          account_type,
+          bucket_id,
+          account_code
+        )
+        VALUES ($1, $2, 'asset', NULL, $3)
+        ON CONFLICT (id) DO UPDATE SET
+          household_id = EXCLUDED.household_id,
+          account_type = EXCLUDED.account_type,
+          account_code = EXCLUDED.account_code
+      `,
+      [
+        recordId("ledger_asset", scopedInput.householdId, "program_cash"),
+        scopedInput.householdId,
+        "asset:program_cash",
+      ],
+    );
+
+    for (const bucket of input.buckets) {
+      const bucketId = recordId(
+        "bucket",
+        scopedInput.householdId,
+        bucket.id,
+      );
+      const rule = bucketRuleForProtection(bucket.protection);
+
+      await client.query(
+        `
+          INSERT INTO household_buckets (
+            id,
+            household_id,
+            slug,
+            name,
+            target_cents,
+            priority,
+            protection,
+            due_rule,
+            payee_id,
+            status
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active')
+          ON CONFLICT (household_id, slug) DO UPDATE SET
+            name = EXCLUDED.name,
+            target_cents = EXCLUDED.target_cents,
+            priority = EXCLUDED.priority,
+            protection = EXCLUDED.protection,
+            due_rule = EXCLUDED.due_rule,
+            payee_id = EXCLUDED.payee_id,
+            status = 'active',
+            updated_at = now()
+        `,
+        [
+          bucketId,
+          scopedInput.householdId,
+          bucket.id,
+          bucket.name,
+          bucket.targetCents,
+          bucket.priority,
+          bucket.protection,
+          bucket.due,
+          bucket.payeeId || null,
+        ],
+      );
+      await client.query(
+        `
+          INSERT INTO ledger_accounts (
+            id,
+            household_id,
+            account_type,
+            bucket_id,
+            account_code
+          )
+          VALUES ($1, $2, 'liability', $3, $4)
+          ON CONFLICT (id) DO UPDATE SET
+            household_id = EXCLUDED.household_id,
+            account_type = EXCLUDED.account_type,
+            bucket_id = EXCLUDED.bucket_id,
+            account_code = EXCLUDED.account_code
+        `,
+        [
+          recordId("ledger_bucket", scopedInput.householdId, bucket.id),
+          scopedInput.householdId,
+          bucket.id,
+          `liability:bucket:${bucket.id}`,
+        ],
+      );
+      await client.query(
+        `
+          INSERT INTO household_bucket_rules (
+            id,
+            bucket_id,
+            card_scope,
+            unlock_policy,
+            mcc_allowlist,
+            merchant_allowlist,
+            max_authorization_cents
+          )
+          VALUES ($1, $2, $3, $4, '[]'::jsonb, '[]'::jsonb, NULL)
+          ON CONFLICT (id) DO UPDATE SET
+            card_scope = EXCLUDED.card_scope,
+            unlock_policy = EXCLUDED.unlock_policy,
+            updated_at = now()
+        `,
+        [recordId("bucket_rule", bucketId), bucketId, rule.cardScope, rule.unlockPolicy],
+      );
+    }
+
+    const archived = await client.query(
+      `
+        UPDATE household_buckets
+        SET status = 'archived', updated_at = now()
+        WHERE household_id = $1
+          AND status = 'active'
+          AND NOT (slug = ANY($2::text[]))
+      `,
+      [scopedInput.householdId, submittedSlugs],
+    );
+    const bucketEventId = recordId(
+      "bucket_change",
+      scopedInput.householdId,
+      `${input.idempotencyKey}:buckets`,
+    );
+
+    await client.query(
+      `
+        INSERT INTO household_bucket_change_events (
+          id,
+          household_id,
+          actor_user_id,
+          event_type,
+          before_profile,
+          after_profile,
+          idempotency_key
+        )
+        VALUES ($1, $2, $3, 'updated', $4::jsonb, $5::jsonb, $6)
+      `,
+      [
+        bucketEventId,
+        scopedInput.householdId,
+        scopedInput.actorUserId,
+        JSON.stringify(beforeBuckets),
+        JSON.stringify(input.buckets),
+        `${input.idempotencyKey}:buckets`,
+      ],
+    );
+
+    const detectionRuleId =
+      input.rule.id ||
+      recordId(
+        "paycheck_detection_rule",
+        scopedInput.householdId,
+        input.idempotencyKey,
+      );
+    const ruleResult = await client.query(
+      `
+        INSERT INTO paycheck_detection_rules (
+          id,
+          household_id,
+          rule_name,
+          provider_name,
+          employer_name_pattern,
+          transaction_name_pattern,
+          minimum_amount_cents,
+          maximum_amount_cents,
+          status,
+          bank_connection_id,
+          provider_item_id,
+          provider_account_id,
+          expected_frequency,
+          priority,
+          metadata,
+          idempotency_key
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $16)
+        ON CONFLICT (id) DO UPDATE SET
+          rule_name = EXCLUDED.rule_name,
+          provider_name = EXCLUDED.provider_name,
+          employer_name_pattern = EXCLUDED.employer_name_pattern,
+          transaction_name_pattern = EXCLUDED.transaction_name_pattern,
+          minimum_amount_cents = EXCLUDED.minimum_amount_cents,
+          maximum_amount_cents = EXCLUDED.maximum_amount_cents,
+          status = EXCLUDED.status,
+          bank_connection_id = EXCLUDED.bank_connection_id,
+          provider_item_id = EXCLUDED.provider_item_id,
+          provider_account_id = EXCLUDED.provider_account_id,
+          expected_frequency = EXCLUDED.expected_frequency,
+          priority = EXCLUDED.priority,
+          metadata = EXCLUDED.metadata,
+          idempotency_key = EXCLUDED.idempotency_key,
+          updated_at = now()
+        WHERE paycheck_detection_rules.household_id = EXCLUDED.household_id
+        RETURNING *
+      `,
+      [
+        detectionRuleId,
+        scopedInput.householdId,
+        input.rule.ruleName,
+        input.rule.providerName,
+        input.rule.employerNamePattern || null,
+        input.rule.transactionNamePattern || null,
+        input.rule.minimumAmountCents,
+        input.rule.maximumAmountCents || null,
+        input.rule.status,
+        input.rule.bankConnectionId || null,
+        input.rule.providerItemId || null,
+        input.rule.providerAccountId || null,
+        input.rule.expectedFrequency,
+        input.rule.priority,
+        JSON.stringify(input.rule.metadata || {}),
+        `${input.idempotencyKey}:detection`,
+      ],
+    );
+
+    if (!ruleResult.rows[0]) {
+      await client.query("ROLLBACK");
+      return {
+        code: "profile_reference_not_owned",
+        persisted: false,
+        persistence: "control_conflict",
+        persistenceReason:
+          "The selected paycheck rule does not belong to this household.",
+      };
+    }
+
+    const beforeProfile = await readHouseholdMoneyProfile(
+      client,
+      scopedInput.householdId,
+    );
+    const profileId = recordId(
+      "household_money_profile",
+      scopedInput.householdId,
+    );
+    const profileResult = await client.query(
+      `
+        INSERT INTO household_money_profiles (
+          id,
+          household_id,
+          user_id,
+          employer_name,
+          expected_frequency,
+          next_payday,
+          paycheck_amount_cents,
+          requested_transfer_cents,
+          preferred_transfer_bucket_id,
+          preferred_payee_id,
+          bank_connection_id,
+          detection_rule_id,
+          source,
+          idempotency_key,
+          metadata
+        )
+        VALUES ($1, $2, $3, $4, $5, $6::date, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb)
+        ON CONFLICT (household_id) DO UPDATE SET
+          user_id = EXCLUDED.user_id,
+          employer_name = EXCLUDED.employer_name,
+          expected_frequency = EXCLUDED.expected_frequency,
+          next_payday = EXCLUDED.next_payday,
+          paycheck_amount_cents = EXCLUDED.paycheck_amount_cents,
+          requested_transfer_cents = EXCLUDED.requested_transfer_cents,
+          preferred_transfer_bucket_id = EXCLUDED.preferred_transfer_bucket_id,
+          preferred_payee_id = EXCLUDED.preferred_payee_id,
+          bank_connection_id = EXCLUDED.bank_connection_id,
+          detection_rule_id = EXCLUDED.detection_rule_id,
+          source = EXCLUDED.source,
+          idempotency_key = EXCLUDED.idempotency_key,
+          metadata = household_money_profiles.metadata || EXCLUDED.metadata,
+          updated_at = now()
+        RETURNING *
+      `,
+      [
+        profileId,
+        scopedInput.householdId,
+        scopedInput.actorUserId,
+        input.profile.employerName,
+        input.profile.expectedFrequency,
+        input.profile.nextPayday || null,
+        input.profile.paycheckAmountCents,
+        input.profile.requestedTransferCents,
+        input.profile.preferredTransferBucketId || null,
+        input.profile.preferredPayeeId || null,
+        input.profile.bankConnectionId || null,
+        detectionRuleId,
+        input.profile.source || "app_profile",
+        `${input.idempotencyKey}:profile`,
+        JSON.stringify(input.profile.metadata || {}),
+      ],
+    );
+    const profile = householdMoneyProfileFromRow(profileResult.rows[0]);
+    const profileEventId = recordId(
+      "household_money_profile_event",
+      scopedInput.householdId,
+      `${input.idempotencyKey}:profile`,
+    );
+
+    await client.query(
+      `
+        INSERT INTO household_money_profile_events (
+          id,
+          household_id,
+          user_id,
+          event_type,
+          before_profile,
+          after_profile,
+          idempotency_key
+        )
+        VALUES ($1, $2, $3, 'upserted', $4::jsonb, $5::jsonb, $6)
+      `,
+      [
+        profileEventId,
+        scopedInput.householdId,
+        scopedInput.actorUserId,
+        beforeProfile ? JSON.stringify(beforeProfile) : null,
+        JSON.stringify(profile),
+        `${input.idempotencyKey}:profile`,
+      ],
+    );
+
+    const rule = paycheckDetectionRuleFromRow(ruleResult.rows[0]);
+    const result = {
+      archivedCount: archived.rowCount,
+      bucketCount: input.buckets.length,
+      buckets: input.buckets,
+      profile,
+      rule,
+    };
+    const eventId = recordId(
+      "household_protection_plan",
+      scopedInput.householdId,
+      input.idempotencyKey,
+    );
+
+    await client.query(
+      `
+        INSERT INTO household_protection_plan_events (
+          id,
+          household_id,
+          user_id,
+          idempotency_key,
+          payload_hash,
+          result
+        )
+        VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+      `,
+      [
+        eventId,
+        scopedInput.householdId,
+        scopedInput.actorUserId,
+        input.idempotencyKey,
+        payloadHash,
+        JSON.stringify(result),
+      ],
+    );
+
+    await client.query("COMMIT");
+
+    return {
+      ...result,
+      persisted: true,
+      persistence: "postgres",
+      postgresId: eventId,
+      replayed: false,
+    };
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Preserve the original persistence failure.
+      }
+    }
+
+    return persistenceFailed(error);
+  } finally {
+    client?.release();
+  }
+}
+
 function moneyProfileIdempotencyKey(input) {
   if (input.idempotencyKey) {
     return input.idempotencyKey;
@@ -5671,6 +6775,14 @@ export async function persistReconciliationException(input, env = process.env) {
 }
 
 export async function resolveReconciliationExceptionRecord(input, env = process.env) {
+  if (input.operator !== true) {
+    return {
+      persisted: false,
+      persistence: "forbidden",
+      persistenceReason: "Operator authorization is required.",
+    };
+  }
+
   const pool = poolFor(env);
   const resolvedAt = new Date().toISOString();
   const resolutionMetadata = redactAuditPayload({
@@ -5715,8 +6827,18 @@ export async function resolveReconciliationExceptionRecord(input, env = process.
           metadata = metadata || $5::jsonb,
           last_seen_at = now(),
           resolved_at = COALESCE(resolved_at, now())
-        WHERE (id = $1 OR ($2::text IS NOT NULL AND idempotency_key = $2))
-          AND ($3::text IS NULL OR household_id = $3 OR household_id IS NULL)
+        WHERE (
+          id = $1
+          OR (
+            $1 = ''
+            AND $2::text IS NOT NULL
+            AND idempotency_key = $2
+            AND (
+              ($3::text IS NULL AND household_id IS NULL)
+              OR household_id = $3
+            )
+          )
+        )
         RETURNING
           id,
           household_id,
@@ -6001,6 +7123,201 @@ export async function loadActiveBankConnectionForHousehold(
     };
   } catch (error) {
     return persistenceFailed(error);
+  }
+}
+
+export async function loadBankConnectionForHousehold(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return {
+      ...persistenceSkipped("bank connection lookup", env),
+      bankConnection: null,
+    };
+  }
+
+  try {
+    const result = await pool.query(
+      `
+        SELECT
+          id,
+          household_id,
+          user_id,
+          provider_name,
+          provider_item_id,
+          provider_account_id,
+          institution_name,
+          account_name,
+          account_mask,
+          token_secret_ref,
+          sync_cursor,
+          last_transaction_sync_at,
+          last_transaction_sync_request_id,
+          status
+        FROM bank_connections
+        WHERE household_id = $1
+          AND id = $2
+        LIMIT 1
+      `,
+      [input.householdId, input.bankConnectionId],
+    );
+    const row = result.rows[0];
+
+    return {
+      bankConnection: row ? bankConnectionFromRow(row) : null,
+      persisted: true,
+      persistence: "postgres",
+    };
+  } catch (error) {
+    return persistenceFailed(error);
+  }
+}
+
+export async function revokeBankConnection(input, env = process.env) {
+  const pool = poolFor(env);
+
+  if (!pool) {
+    return persistenceSkipped("bank connection revocation", env);
+  }
+
+  let client = null;
+
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+    const scopedInput = scopeInputToIdentity(
+      input,
+      await ensureHouseholdIdentity(client, input),
+    );
+    await lockHouseholdLedger(client, scopedInput.householdId);
+    const existing = await client.query(
+      `
+        SELECT id, provider_name, provider_item_id, status
+        FROM bank_connections
+        WHERE household_id = $1
+          AND id = $2
+        FOR UPDATE
+      `,
+      [scopedInput.householdId, input.bankConnectionId],
+    );
+    const row = existing.rows[0];
+
+    if (!row) {
+      await client.query("ROLLBACK");
+      return {
+        found: false,
+        persisted: false,
+        persistence: "postgres",
+      };
+    }
+
+    if (row.status === "revoked") {
+      await client.query("COMMIT");
+      return {
+        found: true,
+        persisted: true,
+        persistence: "postgres",
+        replayed: true,
+        revokedCount: 0,
+      };
+    }
+
+    const connections = await client.query(
+      `
+        UPDATE bank_connections
+        SET status = 'revoked', updated_at = now()
+        WHERE household_id = $1
+          AND provider_name = $2
+          AND provider_item_id = $3
+          AND status <> 'revoked'
+        RETURNING id
+      `,
+      [scopedInput.householdId, row.provider_name, row.provider_item_id],
+    );
+    await client.query(
+      `
+        UPDATE provider_token_secrets
+        SET status = 'revoked', revoked_at = now(), updated_at = now()
+        WHERE provider_name = $1
+          AND provider_item_id = $2
+          AND status <> 'revoked'
+      `,
+      [row.provider_name, row.provider_item_id],
+    );
+    await client.query(
+      `
+        UPDATE paycheck_detection_rules
+        SET status = 'paused', updated_at = now()
+        WHERE household_id = $1
+          AND bank_connection_id = ANY($2::text[])
+          AND status = 'active'
+      `,
+      [scopedInput.householdId, connections.rows.map((connection) => connection.id)],
+    );
+    await client.query(
+      `
+        UPDATE household_money_profiles
+        SET bank_connection_id = NULL, updated_at = now()
+        WHERE household_id = $1
+          AND bank_connection_id = ANY($2::text[])
+      `,
+      [scopedInput.householdId, connections.rows.map((connection) => connection.id)],
+    );
+
+    const eventId = recordId(
+      "token_vault_event",
+      row.provider_name,
+      row.provider_item_id,
+      input.idempotencyKey,
+    );
+    await client.query(
+      `
+        INSERT INTO provider_token_vault_events (
+          id,
+          provider_name,
+          provider_item_id,
+          request_id,
+          event_type,
+          token_secret_ref,
+          payload
+        )
+        VALUES ($1, $2, $3, $4, 'token_revoked', $5, $6::jsonb)
+        ON CONFLICT (id) DO NOTHING
+      `,
+      [
+        eventId,
+        row.provider_name,
+        row.provider_item_id,
+        input.idempotencyKey,
+        `vault://${row.provider_name}/${row.provider_item_id}`,
+        JSON.stringify({
+          bankConnectionIds: connections.rows.map((connection) => connection.id),
+          householdId: scopedInput.householdId,
+          reason: input.reason || "customer_requested",
+        }),
+      ],
+    );
+    await client.query("COMMIT");
+
+    return {
+      found: true,
+      persisted: true,
+      persistence: "postgres",
+      replayed: false,
+      revokedCount: connections.rowCount,
+    };
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Ignore rollback failures; the original error is more useful.
+      }
+    }
+
+    return persistenceFailed(error);
+  } finally {
+    client?.release();
   }
 }
 
@@ -7655,6 +8972,7 @@ export async function loadOperationalAudit(householdId, env = process.env) {
       pool.query(
         `
           SELECT
+            id,
             provider_name,
             provider_item_id,
             provider_account_id,
@@ -7999,6 +9317,7 @@ export async function loadOperationalAudit(householdId, env = process.env) {
         accountMask: row.account_mask,
         accountName: row.account_name,
         connectedAt: timestampString(row.created_at),
+        id: row.id,
         institutionName: row.institution_name,
         products: Array.isArray(row.products) ? row.products : [],
         providerAccountId: row.provider_account_id,

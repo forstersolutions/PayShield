@@ -87,7 +87,8 @@ export default function TermsPage() {
                 Paid memberships renew automatically at the price and interval
                 shown at checkout until canceled. You authorize the payment
                 provider to charge your selected payment method. You can manage
-                or cancel billing through the PayShield billing portal. Unless
+                or cancel billing through the App Store or Google Play account
+                used to subscribe. Unless
                 required by law or stated at checkout, fees already charged are
                 nonrefundable.
               </p>

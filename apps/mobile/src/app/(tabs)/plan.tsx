@@ -14,6 +14,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import {
   ActionButton,
   AppHeader,
+  ErrorState,
   FormField,
   IconButton,
   InlineMessage,
@@ -25,9 +26,10 @@ import {
   SectionHeading,
   SegmentedControl,
 } from "@/components/ui";
+import { DateField } from "@/components/date-field";
 import { BucketColors, Colors, Fonts, Radius, Spacing } from "@/constants/theme";
-import { centsToInput, dollarsToCents, formatMoney, initials, titleCase } from "@/lib/format";
-import { idempotencyKey } from "@/lib/idempotency";
+import { centsToInput, dollarsToCents, formatMoney, initials, isValidCalendarDate, titleCase } from "@/lib/format";
+import { useIdempotencyAttempt } from "@/lib/idempotency";
 import type { BucketBalance, BucketProtection, MoneyProfileResponse, OperationsPacket } from "@/lib/types";
 import { useMoneyProfile, useOperations, usePayShieldMutation } from "@/hooks/use-pay-shield";
 import { useSession } from "@/providers/session-provider";
@@ -58,15 +60,29 @@ export default function PlanScreen() {
   const operations = useOperations();
   const profileQuery = useMoneyProfile();
 
-  if (operations.isLoading || profileQuery.isLoading || !operations.data || !profileQuery.data) {
+  if (operations.isLoading || profileQuery.isLoading) {
     return <Screen><AppHeader avatar={initials(session.displayName)} onAvatarPress={() => router.push("/profile")} /><LoadingState label="Loading your paycheck plan..." /></Screen>;
+  }
+
+  const loadError = operations.error ?? profileQuery.error;
+
+  if (loadError || !operations.data || !profileQuery.data) {
+    return (
+      <Screen>
+        <AppHeader avatar={initials(session.displayName)} onAvatarPress={() => router.push("/profile")} />
+        <ErrorState
+          message={loadError?.message ?? "Your paycheck plan could not be loaded."}
+          onRetry={() => void Promise.all([operations.refetch(), profileQuery.refetch()])}
+        />
+      </Screen>
+    );
   }
 
   return (
     <PlanEditor
       initialOperations={operations.data}
       initialProfile={profileQuery.data}
-      key={`${operations.data.household?.householdId ?? "household"}:${operations.data.generatedAt}`}
+      key={operations.data.household?.householdId ?? "household"}
     />
   );
 }
@@ -80,8 +96,11 @@ function PlanEditor({
 }) {
   const router = useRouter();
   const session = useSession();
-  const saveProfile = usePayShieldMutation<MoneyProfileResponse, Record<string, unknown>>("/api/app/money-profile");
-  const saveBuckets = usePayShieldMutation<{ message?: string }, Record<string, unknown>>("/api/app/buckets");
+  const saveProtectionPlan = usePayShieldMutation<
+    MoneyProfileResponse & { message?: string },
+    Record<string, unknown>
+  >("/api/app/protection-plan");
+  const planAttempt = useIdempotencyAttempt("mobile-plan");
   const profile = initialProfile.profile;
   const [employer, setEmployer] = useState(profile.employerName || "");
   const [paycheck, setPaycheck] = useState(centsToInput(profile.paycheckAmountCents));
@@ -108,7 +127,7 @@ function PlanEditor({
   const protectedTarget = buckets.reduce((total, bucket) => total + bucket.targetCents, 0);
   const projectedSafe = Math.max(0, paycheckCents - protectedTarget);
   const shortfall = Math.max(0, protectedTarget - paycheckCents);
-  const saving = saveProfile.isPending || saveBuckets.isPending;
+  const saving = saveProtectionPlan.isPending;
 
   const allocations = useMemo(() => {
     const denominator = Math.max(paycheckCents, protectedTarget, 1);
@@ -168,24 +187,36 @@ function PlanEditor({
       setError("Add your employer, a paycheck of at least $100, and one protected bucket.");
       return;
     }
+    if (nextPayday.trim() && !isValidCalendarDate(nextPayday.trim())) {
+      setError("Enter a valid payday of today or later using YYYY-MM-DD.");
+      return;
+    }
+
+    const planInput = {
+      buckets: buckets.map((bucket, index) => ({ ...bucket, priority: (index + 1) * 10 })),
+      employerName: employer.trim(),
+      expectedFrequency: frequency,
+      nextPayday: nextPayday.trim() || null,
+      paycheckAmountCents: paycheckCents,
+    };
+    const attemptKey = planAttempt.keyFor(planInput);
+    const existingRuleId =
+      profile.detectionRuleId ||
+      initialOperations.operations?.paycheckDetectionRules?.find((rule) => rule.status === "active")?.id;
+
     try {
-      await Promise.all([
-        saveProfile.mutateAsync({
-          employerName: employer.trim(),
-          expectedFrequency: frequency,
-          idempotencyKey: idempotencyKey("mobile-profile"),
-          nextPayday: nextPayday.trim() || null,
-          paycheckAmountCents: paycheckCents,
-          requestedTransferCents: 0,
-          ruleName: `${employer.trim()} paycheck`,
-        }),
-        saveBuckets.mutateAsync({
-          action: "replace_profile",
-          buckets: buckets.map((bucket, index) => ({ ...bucket, priority: (index + 1) * 10 })),
-          idempotencyKey: idempotencyKey("mobile-buckets"),
-        }),
-      ]);
-      setMessage("Your paycheck plan is saved.");
+      const response = await saveProtectionPlan.mutateAsync({
+        buckets: planInput.buckets,
+        detectionRuleId: existingRuleId || undefined,
+        employerName: planInput.employerName,
+        expectedFrequency: planInput.expectedFrequency,
+        idempotencyKey: attemptKey,
+        nextPayday: planInput.nextPayday,
+        paycheckAmountCents: planInput.paycheckAmountCents,
+        requestedTransferCents: 0,
+      });
+      planAttempt.complete();
+      setMessage(response.message ?? "Your protection plan is active.");
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "The plan could not be saved.");
     }
@@ -203,7 +234,7 @@ function PlanEditor({
           <Text style={styles.fieldLabel}>Pay schedule</Text>
           <SegmentedControl onChange={setFrequency} options={frequencyOptions} value={frequency} />
         </View>
-        <FormField hint="YYYY-MM-DD" label="Next payday" maxLength={10} onChangeText={setNextPayday} placeholder="2026-08-21" value={nextPayday} />
+        <DateField label="Next payday" minimumDate={new Date(new Date().setHours(0, 0, 0, 0))} onChange={setNextPayday} value={nextPayday} />
       </Panel>
 
       <Panel style={styles.splitPanel}>
@@ -235,7 +266,7 @@ function PlanEditor({
       <View style={styles.section}>
         <SectionHeading
           action={<ActionButton disabled={buckets.length >= 12} icon={Plus} label="Add" onPress={openNewBucket} variant="secondary" />}
-          detail="Drag the outcome by changing the order"
+          detail="Use the arrows to choose what gets funded first"
           title="Funding priority"
         />
         <Panel style={styles.bucketPanel}>

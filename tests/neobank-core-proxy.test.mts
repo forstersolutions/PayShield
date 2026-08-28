@@ -21,11 +21,18 @@ import {
   POST as saveBuckets,
 } from "../src/app/api/app/buckets/route.ts";
 import { POST as setupDirectDeposit } from "../src/app/api/app/direct-deposit/route.ts";
+import { POST as manageCard } from "../src/app/api/app/card/manage/route.ts";
+import {
+  GET as getAccountClosure,
+  POST as requestAccountClosure,
+} from "../src/app/api/app/account-closure/route.ts";
 import { POST as startOnboarding } from "../src/app/api/app/onboarding/start/route.ts";
 import { POST as createPayee } from "../src/app/api/app/payees/route.ts";
 import { POST as detectPaycheck } from "../src/app/api/app/paychecks/detect/route.ts";
 import { POST as savePaycheckRule } from "../src/app/api/app/paychecks/rules/route.ts";
 import { POST as syncPaychecks } from "../src/app/api/app/paychecks/sync/route.ts";
+import { POST as saveProtectionPlan } from "../src/app/api/app/protection-plan/route.ts";
+import { POST as resolveReconciliation } from "../src/app/api/app/reconciliation/resolve/route.ts";
 import { POST as createTransfer } from "../src/app/api/app/transfers/route.ts";
 import { POST as unlockBucket } from "../src/app/api/app/unlocks/route.ts";
 import {
@@ -37,6 +44,7 @@ import {
   POST as saveMoneyProfile,
 } from "../src/app/api/app/money-profile/route.ts";
 import { POST as recordLaunchGateEvidence } from "../src/app/api/launch/gate-evidence/route.ts";
+import { POST as processAccountClosures } from "../src/app/api/launch/account-closures/process/route.ts";
 import { GET as getOperations } from "../src/app/api/app/operations/route.ts";
 import { POST as authorizeCard } from "../src/app/api/card/authorize/route.ts";
 import { POST as providerWebhook } from "../src/app/api/provider/webhooks/route.ts";
@@ -421,6 +429,52 @@ test("money-profile API delegates durable profile saves to configured core servi
   );
 });
 
+test("protection-plan API delegates the complete plan in one core request", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    async (request, response) => {
+      captured.body = await readRequestBody(request);
+      captured.url = request.url;
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(
+        JSON.stringify({
+          persisted: true,
+          service: "payshield-household-protection-plan",
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-plan-secret";
+      const response = await saveProtectionPlan(
+        makeRequest("/api/app/protection-plan", {
+          buckets: [
+            {
+              due: "1st",
+              id: "rent",
+              name: "Rent",
+              protection: "bill_only",
+              targetCents: 80_000,
+            },
+          ],
+          employerName: "Grayston Payroll",
+          expectedFrequency: "biweekly",
+          idempotencyKey: "plan-proxy-atomic",
+          paycheckAmountCents: 300_000,
+          requestedTransferCents: 0,
+        }),
+      );
+      const forwarded = JSON.parse(String(captured.body)) as Record<string, unknown>;
+
+      assert.equal(response.status, 200);
+      assert.equal(captured.url, "/api/app/protection-plan");
+      assert.equal(forwarded.idempotencyKey, "plan-proxy-atomic");
+      assert.equal(Array.isArray(forwarded.buckets), true);
+    },
+  );
+});
+
 test("activation API delegates operator checklist to configured core service", async () => {
   const captured: Record<string, unknown> = {};
 
@@ -524,6 +578,154 @@ test("launch gate evidence API delegates approval records to configured core ser
       assert.equal(captured.userId, "user_demo_001");
       assert.equal(forwardedBody.approvedBy, "Grayston Operations");
       assert.equal(forwardedBody.gateId, "counsel_signoff");
+    },
+  );
+});
+
+test("reconciliation resolution forwards an operator assertion only after operator authorization", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    async (request, response) => {
+      captured.operator = request.headers["x-payshield-operator"];
+      captured.url = request.url;
+      await readRequestBody(request);
+
+      response.writeHead(200, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(
+        JSON.stringify({
+          resolution: { status: "resolved" },
+          service: "payshield-reconciliation-resolution",
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-reconciliation-secret";
+
+      const forbidden = await resolveReconciliation(
+        makeRequest("/api/app/reconciliation/resolve", {
+          exceptionId: "reconciliation_exception_demo",
+          resolutionNote: "Reviewed provider evidence.",
+        }),
+      );
+      assert.equal(forbidden.status, 403);
+
+      process.env.PAYSHIELD_ALLOW_OPERATOR_REVIEW_ACCESS = "true";
+      const response = await resolveReconciliation(
+        makeRequest("/api/app/reconciliation/resolve", {
+          exceptionId: "reconciliation_exception_demo",
+          resolutionNote: "Reviewed provider evidence.",
+        }),
+      );
+
+      assert.equal(response.status, 200);
+      assert.equal(captured.operator, "true");
+      assert.equal(captured.url, "/api/app/reconciliation/resolve");
+    },
+  );
+});
+
+test("account closure status and requests delegate to the durable core", async () => {
+  const captured: Array<Record<string, unknown>> = [];
+
+  await withCoreProxyServer(
+    async (request, response) => {
+      captured.push({
+        body: await readRequestBody(request),
+        method: request.method,
+        url: request.url,
+      });
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(
+        JSON.stringify({
+          closure: { id: "closure_core", status: "requested" },
+          service: "payshield-account-closure",
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-closure-secret";
+
+      const status = await getAccountClosure();
+      const request = await requestAccountClosure(
+        makeRequest("/api/app/account-closure", {
+          acknowledgedDataRetention: true,
+          confirmation: "CLOSE",
+          idempotencyKey: "closure-proxy",
+        }),
+      );
+
+      assert.equal(status.status, 200);
+      assert.equal(request.status, 200);
+      assert.deepEqual(
+        captured.map((entry) => `${entry.method} ${entry.url}`),
+        ["GET /api/app/account-closure", "POST /api/app/account-closure"],
+      );
+    },
+  );
+});
+
+test("account closure processing forwards an operator assertion", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    async (request, response) => {
+      captured.operator = request.headers["x-payshield-operator"];
+      captured.url = request.url;
+      await readRequestBody(request);
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ claimedCount: 0 }));
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-closure-worker-secret";
+      process.env.PAYSHIELD_ALLOW_OPERATOR_REVIEW_ACCESS = "true";
+      const response = await processAccountClosures(
+        makeRequest("/api/launch/account-closures/process", { limit: 1 }),
+      );
+
+      assert.equal(response.status, 200);
+      assert.equal(captured.operator, "true");
+      assert.equal(captured.url, "/api/launch/account-closures/process");
+    },
+  );
+});
+
+test("card management delegates only the hosted-session request", async () => {
+  const captured: Record<string, unknown> = {};
+
+  await withCoreProxyServer(
+    async (request, response) => {
+      captured.body = await readRequestBody(request);
+      captured.url = request.url;
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(
+        JSON.stringify({
+          session: { managementUrl: "https://provider.example/card/session" },
+        }),
+      );
+    },
+    async (baseUrl) => {
+      process.env.PAYSHIELD_CORE_API_URL = baseUrl;
+      process.env.PAYSHIELD_CORE_SERVICE_TOKEN = "core-card-manage-secret";
+      const response = await manageCard(
+        makeRequest("/api/app/card/manage", {
+          idempotencyKey: "card-manage-proxy",
+          purpose: "manage",
+          providerCardId: "must-not-forward",
+        }),
+      );
+      const forwarded = JSON.parse(String(captured.body)) as Record<string, unknown>;
+
+      assert.equal(response.status, 200);
+      assert.equal(captured.url, "/api/app/card/manage");
+      assert.equal(forwarded.purpose, "manage");
+      assert.equal(forwarded.providerCardId, undefined);
     },
   );
 });

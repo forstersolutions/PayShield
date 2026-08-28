@@ -9,6 +9,29 @@ const securityHeaders = {
 };
 const rejectedCopy = [/early access/i, /paid beta/i, /prototype/i, /not a bank/i];
 
+function isDirectStoreListing(platform, location) {
+  try {
+    const url = new URL(location);
+
+    if (url.protocol !== "https:" || url.username || url.password) return false;
+
+    if (platform === "iOS") {
+      return (
+        url.hostname === "apps.apple.com" &&
+        /(?:^|\/)app\/(?:[^/]+\/)?id\d+\/?$/.test(url.pathname)
+      );
+    }
+
+    return (
+      url.hostname === "play.google.com" &&
+      url.pathname === "/store/apps/details" &&
+      url.searchParams.get("id") === "com.graystontechnologies.payshield"
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function normalizeUrl(value) {
   const url = new URL(value);
 
@@ -101,16 +124,10 @@ export async function runDeploySmoke({ targetUrl, timeoutMs = 10_000 }) {
       headers: { "user-agent": userAgent },
     });
     const location = response?.headers.get("location") || "";
-    let locationHost = "";
-
-    try {
-      locationHost = new URL(location).hostname;
-    } catch {
-      // The failure below reports the invalid or missing redirect.
-    }
-
-    if (response?.status !== 307 || locationHost !== expectedHost) {
-      failures.push(`/download did not send ${platform} to ${expectedHost}.`);
+    if (response?.status !== 307 || !isDirectStoreListing(platform, location)) {
+      failures.push(
+        `/download did not send ${platform} to a direct ${expectedHost} PayShield product listing.`,
+      );
     }
     checks.push(`/download routes ${platform} to its store`);
   }
