@@ -28,6 +28,7 @@
     "expo-symbols": "~57.0.2",
     "expo-system-ui": "~57.0.3",
     "expo-web-browser": "~57.0.2",
+    "image-size": "file:vendor/image-size",
     "lucide-react-native": "^1.31.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -67,9 +68,8 @@
     "store:metadata:ios": "fastlane ios metadata",
     "store:metadata:android": "fastlane android metadata",
     "release:preflight": "node scripts/release-preflight.mjs",
-    "postinstall": "node scripts/patch-image-size.mjs",
-    "security:verify": "node scripts/patch-image-size.mjs --verify",
-    "security:audit": "node scripts/audit-allowlist.mjs",
+    "security:verify": "node scripts/verify-image-size.mjs",
+    "security:audit": "npm audit",
     "verify": "npm run security:verify && npm run security:audit && npm run lint && npm run typecheck && npm run doctor && npm run export:web"
   },
   "engines": {
@@ -86,6 +86,7 @@
     }
   },
   "overrides": {
+    "image-size": "$image-size",
     "jayson": {
       "uuid": "11.1.1"
     },
